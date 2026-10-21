@@ -1,0 +1,442 @@
+// ── MEIL ESG workspace shared types (contract between API and views) ──
+
+export type ViewId =
+  | "dashboard"
+  | "notifications"
+  | "hierarchy"
+  | "subsidiaries"
+  | "units"
+  | "projects"
+  | "users"
+  | "roles"
+  | "submissions"
+  | "approvals"
+  | "tasks"
+  | "comms"
+  | "brsr"
+  | "consolidation"
+  | "analytics"
+  | "activity"
+  | "audit"
+  | "settings";
+
+export const ROLE_LABELS: Record<string, string> = {
+  GROUP_ADMIN: "Group Admin",
+  SUBSIDIARY_MANAGER: "Subsidiary Manager",
+  SUBSIDIARY_ADMIN: "Subsidiary Admin",
+  BU_MANAGER: "BU Manager",
+  BU_ADMIN: "BU Admin",
+  ENV_DATA_USER: "Environment Data User",
+  FIN_RESOURCE_USER: "Finance & Resource Contributor",
+  HR_USER: "HR User",
+  EHS_USER: "EHS / Safety User",
+  PROCUREMENT_USER: "Procurement User",
+  CSR_USER: "CSR / Community User",
+  COMPLIANCE_USER: "Compliance User",
+};
+
+export const DATA_ENTRY_ROLES = [
+  "ENV_DATA_USER",
+  "FIN_RESOURCE_USER",
+  "HR_USER",
+  "EHS_USER",
+  "PROCUREMENT_USER",
+  "CSR_USER",
+  "COMPLIANCE_USER",
+];
+
+export const CATEGORIES = [
+  "ENVIRONMENT",
+  "ENERGY",
+  "EMISSIONS",
+  "WATER",
+  "WASTE",
+  "SAFETY",
+  "WORKFORCE",
+  "PROCUREMENT",
+  "CSR",
+  "COMPLIANCE",
+] as const;
+
+export const SUBMISSION_STATUSES = [
+  "DRAFT",
+  "ASSIGNED",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "CHANGES_REQUESTED",
+  "REJECTED",
+  "APPROVED",
+] as const;
+
+export const USER_STATUSES = ["ACTIVE", "SUSPENDED", "INACTIVE", "INVITED"] as const;
+
+export interface Subsidiary {
+  id: string;
+  code: string;
+  name: string;
+  sector: string;
+  region: string;
+  city: string;
+  status: string;
+  managerName: string;
+  adminName: string;
+  description: string;
+  unitCount?: number;
+  projectCount?: number;
+  userCount?: number;
+  submissionStats?: { total: number; approved: number; pending: number; overdue: number };
+}
+
+export interface BusinessUnit {
+  id: string;
+  code: string;
+  name: string;
+  subsidiaryId: string;
+  subsidiaryName?: string;
+  status: string;
+  managerName: string;
+  adminName: string;
+  projectCount?: number;
+  userCount?: number;
+  submissionStats?: { total: number; approved: number; pending: number; overdue: number };
+}
+
+export interface Project {
+  id: string;
+  code: string;
+  name: string;
+  businessUnitId: string;
+  businessUnitName?: string;
+  subsidiaryId?: string;
+  subsidiaryName?: string;
+  location: string;
+  ptype: string;
+  capacityMw: number;
+  status: string;
+  frequency: string;
+  userCount?: number;
+  submissionStats?: { total: number; approved: number; pending: number; overdue: number };
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  subsidiaryId: string | null;
+  subsidiaryName?: string | null;
+  businessUnitId: string | null;
+  businessUnitName?: string | null;
+  projectId: string | null;
+  projectName?: string | null;
+  phone: string;
+  title: string;
+  joinedAt: string;
+  lastActiveAt: string | null;
+  openTasks?: number;
+  submissionStats?: { total: number; approved: number; pending: number; overdue: number };
+}
+
+export interface SubmissionValue {
+  label: string;
+  value: number;
+  unit: string;
+}
+
+export interface SubmissionComment {
+  author: string;
+  role: string;
+  text: string;
+  at: string;
+}
+
+export interface SubmissionHistoryEntry {
+  action: string;
+  actor: string;
+  at: string;
+}
+
+export interface Submission {
+  id: string;
+  ref: string;
+  title: string;
+  category: string;
+  metricName: string;
+  metricValue: number;
+  metricUnit: string;
+  status: string;
+  overdue: boolean;
+  period: string;
+  fiscalQuarter: string;
+  dueDate: string;
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  subsidiaryId: string | null;
+  subsidiaryName?: string | null;
+  businessUnitId: string | null;
+  businessUnitName?: string | null;
+  projectId: string | null;
+  projectName?: string | null;
+  submittedById: string | null;
+  submittedByName?: string | null;
+  submittedByRole?: string | null;
+  reviewerId: string | null;
+  reviewerName?: string | null;
+  values: SubmissionValue[];
+  evidence: string[];
+  comments: SubmissionComment[];
+  history: SubmissionHistoryEntry[];
+}
+
+export interface Task {
+  id: string;
+  ref: string;
+  title: string;
+  description: string;
+  category: string;
+  assigneeType: string;
+  assigneeLabel: string;
+  assigneeFilter: string;
+  subsidiaryId: string | null;
+  subsidiaryName?: string | null;
+  businessUnitId: string | null;
+  businessUnitName?: string | null;
+  period: string;
+  startDate: string;
+  dueDate: string;
+  priority: string;
+  status: string;
+  requiresEvidence: boolean;
+  recipients: number;
+  acknowledged: number;
+  completed: number;
+  remindersSent: number;
+  reminderLog: { at: string; channel: string }[];
+}
+
+export interface Notification {
+  id: string;
+  ntype: string;
+  title: string;
+  body: string;
+  severity: string;
+  read: boolean;
+  linkView: string;
+  refId: string;
+  createdAt: string;
+}
+
+export interface Message {
+  id: string;
+  kind: string;
+  channel: string;
+  subject: string;
+  body: string;
+  audienceLabel: string;
+  audienceFilter: string;
+  recipients: number;
+  delivered: number;
+  failed: number;
+  readCount: number;
+  status: string;
+  scheduledFor: string | null;
+  sentBy: string;
+  createdAt: string;
+}
+
+export interface BrsrDisclosure {
+  code: string;
+  title: string;
+  mapped: boolean;
+  status: string;
+  value: number | null;
+  unit: string;
+  note: string;
+}
+
+export interface BrsrSection {
+  id: string;
+  title: string;
+  content: string;
+  sourceRefs: string[];
+}
+
+export interface BrsrSignoff {
+  role: string;
+  name: string;
+  decision: string;
+  at: string;
+  comment: string;
+}
+
+export interface BrsrExport {
+  format: string;
+  at: string;
+  by: string;
+}
+
+export interface BrsrVersion {
+  version: number;
+  at: string;
+  by: string;
+  note: string;
+}
+
+export interface BrsrReport {
+  id: string;
+  ref: string;
+  title: string;
+  financialYear: string;
+  framework: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  description: string;
+  ownerName: string;
+  status: string;
+  wizardStep: number;
+  scope: { subsidiaryIds: string[]; businessUnitIds: string[]; projectIds: string[] };
+  sections: BrsrSection[];
+  disclosures: BrsrDisclosure[];
+  signoffs: BrsrSignoff[];
+  exports: BrsrExport[];
+  version: number;
+  versions: BrsrVersion[];
+  finalizedAt: string | null;
+  completionPct?: number;
+  sourceSubmissionCount?: number;
+  approvedSubmissionCount?: number;
+}
+
+export interface DisclosureCatalog {
+  id: string;
+  code: string;
+  section: string;
+  title: string;
+  required: boolean;
+  unit: string;
+  description: string;
+}
+
+export interface ActivityEvent {
+  id: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetLabel: string;
+  orgLabel: string;
+  severity: string;
+  createdAt: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  actorName: string;
+  actorRole: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  targetLabel: string;
+  orgScope: string;
+  before: string;
+  after: string;
+  reason: string;
+  outcome: string;
+  correlation: string;
+  createdAt: string;
+}
+
+export interface AppSetting {
+  id: string;
+  skey: string;
+  label: string;
+  category: string;
+  svalue: string;
+  vtype: string;
+  options: string;
+  updatedAt: string;
+}
+
+export interface DashboardData {
+  kpis: {
+    subsidiaries: number;
+    businessUnits: number;
+    projects: number;
+    users: number;
+    activeUsers: number;
+    inactiveUsers: number;
+    submissions: number;
+    pendingReview: number;
+    approved: number;
+    rejectedReturned: number;
+    overdue: number;
+  };
+  completionByMonth: { month: string; completed: number; received: number }[];
+  orgProgress: { name: string; level: string; total: number; approved: number; overdue: number }[];
+  rolePerformance: { role: string; total: number; approved: number; onTime: number }[];
+  pendingApprovals: { id: string; ref: string; title: string; submittedByName: string | null; subsidiaryName: string | null; dueDate: string; status: string; category: string }[];
+  deadlines: { id: string; ref: string; title: string; dueDate: string; priority: string; status: string; assigneeLabel: string }[];
+  activityFeed: ActivityEvent[];
+  dataQuality: { id: string; title: string; issue: string; severity: string; ref: string }[];
+  esgTrend: { month: string; scope1: number; scope2: number; renewable: number }[];
+  categoryMix: { category: string; count: number; approved: number }[];
+}
+
+export interface AnalyticsData {
+  environmental: { label: string; energy: number; renewable: number; intensity: number }[];
+  emissions: { label: string; scope1: number; scope2: number; scope3: number }[];
+  water: { label: string; withdrawal: number; discharge: number; recycled: number }[];
+  waste: { label: string; hazardous: number; nonHazardous: number; recycled: number }[];
+  safety: { label: string; ltifr: number; incidents: number; nearMiss: number; trainings: number }[];
+  workforce: { label: string; headcount: number; diversity: number; turnover: number; training: number }[];
+  procurement: { label: string; localSourcing: number; greenSpend: number }[];
+  csr: { label: string; beneficiaries: number; spend: number; programs: number }[];
+  compliance: { label: string; nonCompliance: number; openFindings: number; closedFindings: number }[];
+  completion: { label: string; submitted: number; approved: number; overdue: number }[];
+  subsidiaries: { id: string; name: string }[];
+  periods: string[];
+}
+
+export interface ConsolidationData {
+  summary: {
+    totalRecords: number;
+    approved: number;
+    pending: number;
+    missing: number;
+    duplicates: number;
+    anomalies: number;
+    exceptions: number;
+  };
+  missing: { projectCode: string; projectName: string; category: string; metric: string; frequency: string; lastSubmitted: string | null }[];
+  duplicates: { ids: string[]; title: string; org: string; metric: string; values: number[] }[];
+  anomalies: { ref: string; title: string; metricName: string; metricValue: number; metricUnit: string; expected: string; deviationPct: number; severity: string }[];
+  lineage: { ref: string; title: string; status: string; org: string; period: string; evidenceCount: number; usedInReports: string[] }[];
+  aggregation: { label: string; scope1: number; scope2: number; energy: number; water: number; waste: number; raw: number; validated: number; approved: number; consolidated: number }[];
+}
+
+export interface RolesData {
+  roles: { id: string; label: string; group: string; userCount: number; description: string }[];
+  permissions: string[];
+  matrix: Record<string, Record<string, boolean>>;
+}
+
+export interface HierarchyNode {
+  id: string;
+  type: "subsidiary" | "unit" | "project";
+  code: string;
+  name: string;
+  status: string;
+  meta: string;
+  manager: string;
+  children?: HierarchyNode[];
+  stats?: { users: number; projects: number; submissions: number };
+}
+
+export interface BrsrStats {
+  reports: BrsrReport[];
+  byYear: { year: string; total: number; finalized: number; draft: number }[];
+  missingSubmissions: { ref: string; title: string; org: string; status: string }[];
+  validationExceptions: number;
+  pendingSignoffs: number;
+}

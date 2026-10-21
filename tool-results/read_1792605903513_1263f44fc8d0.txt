@@ -1,0 +1,1476 @@
+     1→# MASTER IMPLEMENTATION PROMPT
+     2→# MEIL ESG & BRSR — GROUP ADMIN WORKSPACE
+     3→
+     4→## 1. YOUR ROLE
+     5→
+     6→Act as a senior enterprise software architect, full-stack engineer, UI/UX designer, motion designer, database architect, security engineer, and ESG/BRSR reporting specialist.
+     7→
+     8→Your task is to build a complete, production-oriented Group Admin Workspace for the MEIL ESG & BRSR Reporting Platform.
+     9→
+    10→Do not build a static dashboard, a UI-only prototype, or a collection of disconnected pages. Build a cohesive application with working navigation, persistent data, role-aware permissions, functional forms, reporting workflows, interactive analytics, real validation, and connected modules.
+    11→
+    12→First inspect the existing project, framework, file structure, routes, components, database, authentication, APIs, design tokens, and existing user-role implementation. Reuse the current architecture where practical. Preserve working features and existing project conventions. Do not replace the application with a new scaffold unnecessarily.
+    13→
+    14→Create an implementation plan, then implement the workspace incrementally and verify the result.
+    15→
+    16→---
+    17→
+    18→## 2. NON-NEGOTIABLE ROLE DEFINITION
+    19→
+    20→SUPER ADMIN = GROUP ADMIN.
+    21→
+    22→These are two names for the SAME role in this project. Never create two separate roles, dashboards, account types, or authorization layers for them.
+    23→
+    24→The Group Admin is the highest organizational-level administrator in this application's defined role hierarchy.
+    25→
+    26→The Group Admin can manage the complete authorized organizational scope, including subsidiaries, business units, projects, users, submissions, approvals, ESG analytics, audit records, and consolidated BRSR reporting.
+    27→
+    28→The Group Admin is responsible for creating, reviewing, coordinating sign-offs for, and finalizing the consolidated BRSR report according to configured permissions and reporting requirements.
+    29→
+    30→### Existing role hierarchy
+    31→
+    32→Group Admin
+    33→  └── Subsidiaries
+    34→      └── Subsidiary Manager
+    35→      └── Subsidiary Admin
+    36→          └── Business Units
+    37→              └── BU Manager
+    38→              └── BU Admin
+    39→                  └── Project / Site Users
+    40→
+    41→### Seven Data Entry User roles
+    42→
+    43→1. Environment Data User
+    44→2. Finance & Resource Contributor
+    45→3. HR User
+    46→4. EHS / Safety User
+    47→5. Procurement User
+    48→6. CSR / Community User
+    49→7. Compliance User
+    50→
+    51→There are 11 defined role types in total: one Group Admin, two subsidiary roles, two BU roles, and seven data-entry roles.
+    52→
+    53→These are role types, not fixed user counts. Support multiple users in each role and multiple projects, BUs, and subsidiaries.
+    54→
+    55→Preserve the organization hierarchy:
+    56→
+    57→GROUP → SUBSIDIARY → BUSINESS UNIT → PROJECT / SITE
+    58→
+    59→The Group Admin must be able to inspect the entire organization through searchable tables, hierarchy views, detail pages, filters, and drill-down navigation.
+    60→
+    61→Do not assume actual company counts, real users, reporting figures, or organizational records. Use existing backend data where available and clearly identified demo data when necessary.
+    62→
+    63→---
+    64→
+    65→## 3. CORE PRODUCT OBJECTIVE
+    66→
+    67→Build a centralized ESG command center where the Group Admin can:
+    68→
+    69→- Monitor all subsidiaries, BUs, projects, and users.
+    70→- Create, edit, invite, reassign, suspend, reactivate, and deactivate users.
+    71→- Manage role assignments and organization-scoped permissions.
+    72→- View all eligible submissions and their responsible users.
+    73→- Identify pending, overdue, rejected, returned, and approved reports.
+    74→- Inspect report values, supporting documents, evidence, and previous versions.
+    75→- Approve, reject, return, reopen, or request corrections where authorized.
+    76→- Assign tasks and reporting deadlines to individuals, role groups, BUs, subsidiaries, or eligible Group-wide audiences.
+    77→- Send notifications, reminders, and announcements.
+    78→- Monitor user activity and maintain traceable audit records.
+    79→- Validate and consolidate ESG data.
+    80→- Create a new BRSR report using a guided wizard.
+    81→- Review and edit the generated report draft.
+    82→- Route the report through configured reviews and required sign-offs.
+    83→- Finalize, version, and export the approved report.
+    84→- Analyze ESG performance and submission completion.
+    85→- Configure reporting periods, metric definitions, workflows, integrations, and system settings.
+    86→
+    87→Every module must share consistent data, permissions, organization context, and reporting-period logic.
+    88→
+    89→---
+    90→
+    91→## 4. DESIGN REFERENCE AND VISUAL DIRECTION
+    92→
+    93→Use the supplied MEIL Group Admin workspace reference image as the primary visual reference.
+    94→
+    95→Also use the existing project’s established DataStream-style dashboard reference and design rules when available.
+    96→
+    97→### Visual identity
+    98→
+    99→- Primary atmosphere: very light sky blue.
+   100→- Base surfaces: white and pale blue-white.
+   101→- Text: graphite black, dark navy, and cool gray.
+   102→- Primary interactive accent: clear enterprise blue.
+   103→- Secondary accents: restrained purple, teal, green, and amber for meaningful statuses.
+   104→- Borders: thin, low-contrast blue-gray.
+   105→- Shadows: soft, layered, realistic, and subtle.
+   106→- Cards: generous rounded corners and carefully controlled depth.
+   107→- Typography: Inter or the existing project font.
+   108→- Icons: consistent professional outline icons, preferably Lucide or the existing icon library.
+   109→- Avoid emoji as interface icons.
+   110→- Avoid excessive gradients, neon colors, sci-fi styling, dark backgrounds, and oversaturated decoration.
+   111→
+   112→Suggested initial design tokens:
+   113→
+   114→--color-primary: #3A7BFF;
+   115→--color-primary-hover: #2868E8;
+   116→--color-purple: #6A5BFF;
+   117→--color-background: #F4FAFF;
+   118→--color-surface: rgba(255,255,255,0.66);
+   119→--color-surface-solid: #FFFFFF;
+   120→--color-text-primary: #17263D;
+   121→--color-text-secondary: #66778D;
+   122→--color-border: rgba(125,177,216,0.28);
+   123→--color-success: #238653;
+   124→--color-warning: #C57926;
+   125→--color-danger: #C34A4A;
+   126→
+   127→Use these as starting values and integrate them with the existing theme system rather than duplicating design tokens.
+   128→
+   129→### iOS Liquid Glass and glassmorphism
+   130→
+   131→Apply a refined, enterprise-appropriate Liquid Glass appearance:
+   132→
+   133→- Translucent white and pale-blue surfaces.
+   134→- Frosted backgrounds with restrained backdrop blur.
+   135→- Subtle inner highlights and thin translucent borders.
+   136→- Layered ambient shadows and soft blue illumination.
+   137→- Gentle reflective gradients on selected panels.
+   138→- Consistent rounded cards, dialogs, menus, and dropdowns.
+   139→- Clear foreground/background contrast.
+   140→- Solid fallback surfaces when backdrop filtering is unavailable.
+   141→
+   142→Example CSS approach:
+   143→
+   144→.glass-panel {
+   145→  background: rgba(255, 255, 255, 0.66);
+   146→  backdrop-filter: blur(24px) saturate(145%);
+   147→  -webkit-backdrop-filter: blur(24px) saturate(145%);
+   148→  border: 1px solid rgba(255, 255, 255, 0.82);
+   149→  border-radius: 24px;
+   150→  box-shadow:
+   151→    0 10px 30px rgba(55, 111, 157, 0.08),
+   152→    0 2px 8px rgba(55, 111, 157, 0.04),
+   153→    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+   154→}
+   155→
+   156→Do not apply glass effects to every element indiscriminately. Use visual hierarchy, solid high-contrast surfaces for dense data, and stronger glass treatments for navigation, overview panels, floating toolbars, and prominent cards.
+   157→
+   158→Preserve readable text, accessible focus states, and usable tables.
+   159→
+   160→---
+   161→
+   162→## 5. GLOBAL APPLICATION SHELL
+   163→
+   164→Create one consistent application shell shared across all Group Admin routes.
+   165→
+   166→### A. Left sidebar
+   167→
+   168→Build a persistent, collapsible sidebar containing the 18 primary navigation screens specified in Section 6.
+   169→
+   170→Requirements:
+   171→
+   172→- MEIL ESG/BRSR branding.
+   173→- Group Admin identity and profile menu.
+   174→- Professional icons beside every navigation item.
+   175→- Active route highlighting with a blue glass treatment.
+   176→- Hover states and smooth active-item transitions.
+   177→- Expandable navigation groups.
+   178→- Tooltips when collapsed.
+   179→- Responsive drawer on smaller screens.
+   180→- Sidebar width and state must be managed consistently.
+   181→- Every navigation item must open its corresponding real route.
+   182→
+   183→### B. Top navigation bar
+   184→
+   185→Include:
+   186→
+   187→- Breadcrumbs reflecting the current page and organization hierarchy.
+   188→- Organization/scope selector where applicable.
+   189→- Reporting-year selector.
+   190→- Global search.
+   191→- Notification center with unread count.
+   192→- User profile menu.
+   193→- Relevant contextual action buttons.
+   194→- Optional command palette for quickly opening authorized modules.
+   195→
+   196→The selected reporting period and organization scope should be reflected consistently in relevant pages.
+   197→
+   198→### C. Main content area
+   199→
+   200→Each page should have:
+   201→
+   202→- Clear page title and short description.
+   203→- Breadcrumbs.
+   204→- Primary action button where appropriate.
+   205→- Secondary actions in a menu.
+   206→- Search and filtering controls.
+   207→- Loading, empty, error, and success states.
+   208→- Responsive cards, tables, charts, and detail panels.
+   209→- Consistent page spacing and typography.
+   210→- Proper keyboard navigation and focus management.
+   211→
+   212→### D. Global interaction rules
+   213→
+   214→EVERY visible interactive element must have a defined, meaningful behavior.
+   215→
+   216→This includes:
+   217→
+   218→- Buttons and icon buttons.
+   219→- Sidebar navigation items.
+   220→- Tabs and segmented controls.
+   221→- Dropdowns and select menus.
+   222→- Search fields and filters.
+   223→- Cards and clickable KPI summaries.
+   224→- Table rows and action menus.
+   225→- Pagination controls.
+   226→- Breadcrumbs.
+   227→- Dialogs and drawers.
+   228→- Charts with interactive tooltips.
+   229→- Checkboxes, switches, radio groups, and date pickers.
+   230→- Notification items.
+   231→- Profile menu options.
+   232→- Report actions and workflow controls.
+   233→
+   234→Do not use dead buttons, placeholder links, inert cards, fake menus, or controls that only look interactive.
+   235→
+   236→Every action must either perform its intended operation, navigate to the correct screen, or clearly explain why it is unavailable.
+   237→
+   238→For destructive operations, require appropriate confirmation.
+   239→
+   240→For asynchronous operations, show loading states, prevent accidental duplicate submissions, handle failures, and display truthful success or error feedback.
+   241→
+   242→If a capability is not implemented or the backend is not connected, show an explicit unavailable/configuration state rather than falsely claiming that the action succeeded.
+   243→
+   244→---
+   245→
+   246→## 6. THE 18 PRIMARY GROUP ADMIN SCREENS
+   247→
+   248→Implement all of the following as real, navigable modules.
+   249→
+   250→### SCREEN 01 — DASHBOARD
+   251→
+   252→Build the Group Admin Command Center.
+   253→
+   254→KPI cards:
+   255→
+   256→- Total subsidiaries.
+   257→- Total business units.
+   258→- Total projects/sites.
+   259→- Total users.
+   260→- Active and inactive users.
+   261→- Submitted reports.
+   262→- Pending review.
+   263→- Approved reports.
+   264→- Rejected/returned reports.
+   265→- Overdue submissions.
+   266→
+   267→Additional dashboard widgets:
+   268→
+   269→- Submission completion chart.
+   270→- Organization-wise reporting progress.
+   271→- Role-wise submission performance.
+   272→- Pending approvals list.
+   273→- Upcoming and overdue deadlines.
+   274→- Recent user activity feed.
+   275→- Data-quality issues.
+   276→- Critical alerts.
+   277→- ESG performance trend charts.
+   278→- Quick actions.
+   279→
+   280→Interactions:
+   281→
+   282→- Clicking a KPI opens the corresponding filtered list.
+   283→- Clicking an organization opens its detail page.
+   284→- Clicking a pending item opens the report review page.
+   285→- Clicking an overdue item opens the overdue task/submission record.
+   286→- Charts have tooltips and meaningful drill-downs.
+   287→- Filters update all applicable dashboard widgets.
+   288→- Quick-action cards navigate to actual creation or management flows.
+   289→
+   290→Do not hard-code dashboard counts. Use real queries or clearly labeled demo records.
+   291→
+   292→### SCREEN 02 — NOTIFICATIONS & ALERTS
+   293→
+   294→Include:
+   295→
+   296→- All notifications.
+   297→- Unread notifications.
+   298→- Deadline reminders.
+   299→- Overdue alerts.
+   300→- Submission updates.
+   301→- Approval decisions.
+   302→- Data-quality exceptions.
+   303→- Integration/system alerts.
+   304→
+   305→Actions:
+   306→
+   307→- Open related record.
+   308→- Mark as read/unread.
+   309→- Mark all as read.
+   310→- Filter by type and date.
+   311→- Open notification preferences.
+   312→- Dismiss notifications where permitted.
+   313→
+   314→### SCREEN 03 — ORGANIZATION HIERARCHY
+   315→
+   316→Build a visual hierarchy manager.
+   317→
+   318→Hierarchy:
+   319→
+   320→Group → Subsidiary → BU → Project/Site.
+   321→
+   322→Features:
+   323→
+   324→- Expand/collapse tree.
+   325→- Search entities.
+   326→- Create/edit entities.
+   327→- Assign managers and admins.
+   328→- Activate/deactivate entities.
+   329→- Open entity details.
+   330→- View users, projects, submissions, and reports linked to each entity.
+   331→- Filter by status, subsidiary, BU, and project type.
+   332→- Confirm important changes.
+   333→
+   334→Changing a parent organization must trigger validation of existing relationships, permissions, and reporting scope.
+   335→
+   336→Do not silently orphan projects or users.
+   337→
+   338→### SCREEN 04 — SUBSIDIARY MANAGEMENT
+   339→
+   340→Include:
+   341→
+   342→- Searchable subsidiary table.
+   343→- Create subsidiary.
+   344→- Edit subsidiary details.
+   345→- Assign Subsidiary Manager.
+   346→- Assign Subsidiary Admin.
+   347→- Activate/deactivate subsidiary.
+   348→- View linked BUs and projects.
+   349→- View assigned users.
+   350→- View submission status.
+   351→- View ESG performance.
+   352→- View overdue reports and approvals.
+   353→- Open subsidiary details with tabs for Overview, Business Units, Projects, Users, Submissions, Analytics, and Activity.
+   354→
+   355→### SCREEN 05 — BUSINESS UNIT MANAGEMENT
+   356→
+   357→Include:
+   358→
+   359→- Searchable BU table.
+   360→- Create/edit BU.
+   361→- Select parent subsidiary.
+   362→- Assign BU Manager.
+   363→- Assign BU Admin.
+   364→- View projects and sites.
+   365→- View assigned users and roles.
+   366→- Configure reporting responsibilities.
+   367→- Monitor submission completion.
+   368→- View pending approvals and overdue work.
+   369→- Open BU details with relevant tabs.
+   370→
+   371→### SCREEN 06 — PROJECT & SITE MANAGEMENT
+   372→
+   373→Include:
+   374→
+   375→- Project/site directory.
+   376→- Search, sorting, filters, pagination, and export.
+   377→- Create/edit project.
+   378→- Select parent subsidiary and BU.
+   379→- Assign responsible users.
+   380→- Define project reporting scope.
+   381→- Configure applicable metrics and reporting frequency.
+   382→- View project status and deadlines.
+   383→- View submissions and evidence.
+   384→- View historical activity and ESG performance.
+   385→
+   386→Project detail tabs:
+   387→
+   388→Overview, Team, ESG Data, Submissions, Evidence, Tasks, Analytics, and Activity.
+   389→
+   390→### SCREEN 07 — ALL USERS
+   391→
+   392→Build a comprehensive user directory.
+   393→
+   394→Required columns:
+   395→
+   396→- User name and profile.
+   397→- Email.
+   398→- Role.
+   399→- Account status.
+   400→- Subsidiary.
+   401→- BU.
+   402→- Project/site assignments.
+   403→- Last activity.
+   404→- Open tasks.
+   405→- Submission status.
+   406→- Actions.
+   407→
+   408→Filters:
+   409→
+   410→- Seven Data Entry User roles.
+   411→- BU Manager.
+   412→- BU Admin.
+   413→- Subsidiary Manager.
+   414→- Subsidiary Admin.
+   415→- Account status.
+   416→- Subsidiary, BU, and project.
+   417→- Last active.
+   418→- Pending tasks.
+   419→
+   420→Actions:
+   421→
+   422→- Create/invite user.
+   423→- Edit profile.
+   424→- Change role when authorized.
+   425→- Reassign organization or project.
+   426→- Assign reporting responsibilities.
+   427→- Block/suspend account.
+   428→- Reactivate account.
+   429→- Deactivate account.
+   430→- Securely initiate credential recovery.
+   431→- View profile and activity history.
+   432→- Bulk actions with permission checks.
+   433→
+   434→Prevent permanent deletion from erasing report attribution or audit history. Use deactivation and controlled retention policies wherever appropriate.
+   435→
+   436→User profile tabs:
+   437→
+   438→Overview, Organization Access, Assigned Tasks, Submissions, Activity, and Security.
+   439→
+   440→### SCREEN 08 — ROLES & PERMISSIONS
+   441→
+   442→Implement permission management for all 11 defined role types.
+   443→
+   444→Support granular permissions:
+   445→
+   446→- View.
+   447→- Create.
+   448→- Edit.
+   449→- Submit.
+   450→- Review.
+   451→- Approve.
+   452→- Reject.
+   453→- Reopen.
+   454→- Export.
+   455→- Assign tasks.
+   456→- Manage users.
+   457→- Manage organizational entities.
+   458→- Configure workflows.
+   459→- View audit history.
+   460→- Manage global settings.
+   461→
+   462→Enforce organization scope server-side.
+   463→
+   464→A Group Admin has the highest organizational-level access in this application, but sensitive actions must still be authenticated, authorized, logged, and subject to applicable policy.
+   465→
+   466→Do not rely on frontend visibility alone to secure APIs.
+   467→
+   468→### SCREEN 09 — SUBMISSION CENTER
+   469→
+   470→Build a centralized register for ESG submissions.
+   471→
+   472→Status views:
+   473→
+   474→- All Reports.
+   475→- Draft.
+   476→- Assigned.
+   477→- Submitted.
+   478→- Under Review.
+   479→- Changes Requested.
+   480→- Rejected.
+   481→- Approved.
+   482→- Overdue.
+   483→
+   484→Overdue should also be a deadline flag; a report can be both Changes Requested and Overdue.
+   485→
+   486→Table columns:
+   487→
+   488→- Report/submission ID.
+   489→- Report title.
+   490→- Data category.
+   491→- Responsible user.
+   492→- User role.
+   493→- Subsidiary.
+   494→- BU.
+   495→- Project/site.
+   496→- Reporting period.
+   497→- Submitted date/time.
+   498→- Due date.
+   499→- Status.
+   500→- Reviewer.
+   501→- Last updated.
+   502→- Actions.
+   503→
+   504→Features:
+   505→
+   506→- Global search.
+   507→- Filters and saved views.
+   508→- Sorting and pagination.
+   509→- Organization and role filters.
+   510→- Date-range filters.
+   511→- Export authorized results.
+   512→- Open submission detail.
+   513→- View evidence and previous versions.
+   514→- View comments and review history.
+   515→- Open overdue assignment details.
+   516→
+   517→Clicking a row opens the corresponding submission detail page.
+   518→
+   519→### SCREEN 10 — REVIEW & APPROVALS
+   520→
+   521→Build a review queue with configurable approval stages.
+   522→
+   523→Report detail view:
+   524→
+   525→- Report metadata.
+   526→- Organization breadcrumb.
+   527→- Reporting period.
+   528→- Submitted values.
+   529→- Evidence/document viewer.
+   530→- Validation results.
+   531→- Comments.
+   532→- Calculation details.
+   533→- Change history.
+   534→- Previous versions.
+   535→- Approval timeline.
+   536→
+   537→Actions:
+   538→
+   539→- Approve.
+   540→- Reject with mandatory reason.
+   541→- Request corrections.
+   542→- Return to submitter.
+   543→- Reopen where permitted.
+   544→- Edit authorized fields with reason and version history.
+   545→- Reassign reviewer where authorized.
+   546→- Export approved review records.
+   547→
+   548→Bulk approvals must require confirmation, check eligibility, respect all required workflow stages, and record each decision separately.
+   549→
+   550→An approved individual submission does not automatically approve the final BRSR report.
+   551→
+   552→### SCREEN 11 — TASKS & DEADLINES
+   553→
+   554→Build a task assignment workspace.
+   555→
+   556→Create tasks for:
+   557→
+   558→- Specific users.
+   559→- A selected role group.
+   560→- A business unit.
+   561→- A subsidiary.
+   562→- All eligible users in the configured reporting scope.
+   563→
+   564→Task fields:
+   565→
+   566→- Task title.
+   567→- Description/instructions.
+   568→- Report template or data category.
+   569→- Assigned recipients.
+   570→- Organization scope.
+   571→- Reporting period.
+   572→- Start date.
+   573→- Due date.
+   574→- Priority.
+   575→- Required evidence.
+   576→- Notification settings.
+   577→- Escalation policy.
+   578→
+   579→Features:
+   580→
+   581→- Active tasks.
+   582→- Upcoming tasks.
+   583→- Overdue tasks.
+   584→- Completed tasks.
+   585→- Reassigned tasks.
+   586→- Reminder history.
+   587→- Acknowledgement status.
+   588→- Extension requests.
+   589→- Escalation to the relevant manager.
+   590→- Task completion history.
+   591→
+   592→Support configurable automated reminders through a real scheduler or background worker. Do not simulate successful email delivery when no email provider is configured.
+   593→
+   594→### SCREEN 12 — COMMUNICATION CENTER
+   595→
+   596→Features:
+   597→
+   598→- Individual messages.
+   599→- Role-group announcements.
+   600→- BU communications.
+   601→- Subsidiary announcements.
+   602→- Group-wide announcements to eligible recipients.
+   603→- Deadline reminders.
+   604→- Reporting policy updates.
+   605→- Scheduled announcements.
+   606→- Message templates.
+   607→- Recipient preview.
+   608→- Delivery/failed status.
+   609→- Read status.
+   610→- Message history.
+   611→
+   612→Actions must respect recipient scope and communication permissions.
+   613→
+   614→Integrate an email provider only when credentials and backend configuration exist. Provide functional in-app notifications regardless of email-provider availability.
+   615→
+   616→### SCREEN 13 — BRSR REPORTING CENTER
+   617→
+   618→This is a core business module.
+   619→
+   620→The Group Admin creates the consolidated BRSR report here, not inside an individual project page.
+   621→
+   622→Create these internal pages:
+   623→
+   624→1. BRSR Dashboard.
+   625→2. Create New BRSR Report.
+   626→3. Organization & Reporting Scope.
+   627→4. Data Consolidation.
+   628→5. Disclosure Mapping & Validation.
+   629→6. BRSR Report Builder.
+   630→7. Review & Sign-off.
+   631→8. Finalize & Export.
+   632→9. Report History & Versions.
+   633→
+   634→Dashboard:
+   635→
+   636→- Reports by reporting year.
+   637→- Draft reports.
+   638→- Reports under preparation.
+   639→- Data completion.
+   640→- Missing submissions.
+   641→- Validation exceptions.
+   642→- Pending sign-offs.
+   643→- Finalized reports.
+   644→- Previous report versions.
+   645→
+   646→Primary CTA: "Create New BRSR Report".
+   647→
+   648→#### BRSR report creation wizard
+   649→
+   650→Step 1 — Report Information
+   651→- Report title.
+   652→- Reporting financial year.
+   653→- Reporting entity.
+   654→- Framework/version.
+   655→- Reporting period.
+   656→- Description and owner.
+   657→
+   658→Step 2 — Organization Scope
+   659→- Select the applicable reporting entity.
+   660→- Choose subsidiaries, BUs, and projects/sites.
+   661→- Review included/excluded entities.
+   662→- Validate reporting boundaries.
+   663→- Save the selected scope.
+   664→
+   665→Step 3 — Data Collection & Consolidation
+   666→- Retrieve eligible source submissions.
+   667→- Apply organization and reporting-period filters.
+   668→- Aggregate metrics using approved rules.
+   669→- Identify missing, duplicate, rejected, or unapproved data.
+   670→- Show data provenance and source records.
+   671→
+   672→Step 4 — Disclosure Mapping & Validation
+   673→- Map collected data to applicable BRSR requirements.
+   674→- Check completeness and data types.
+   675→- Validate units and calculations.
+   676→- Display missing disclosures and unresolved issues.
+   677→- Show validation status for each disclosure.
+   678→- Require explicit resolution or documented handling of exceptions.
+   679→
+   680→Step 5 — Generate Report Draft
+   681→- Create structured report sections.
+   682→- Populate applicable values and tables.
+   683→- Include approved narrative inputs.
+   684→- Link figures to source data and evidence.
+   685→- Save a versioned draft.
+   686→
+   687→Step 6 — Report Builder
+   688→- Navigation panel listing report sections.
+   689→- Central report preview/editor.
+   690→- Right-side disclosure/source-data panel.
+   691→- Search disclosures.
+   692→- Display validation warnings.
+   693→- Edit authorized narrative fields.
+   694→- Refresh computed values through the backend.
+   695→- Save draft and compare revisions.
+   696→- Do not allow unsupported edits to silently override source data or calculated figures.
+   697→
+   698→Step 7 — Review & Sign-off
+   699→- Show unresolved issues.
+   700→- Route to configured reviewers and approvers.
+   701→- Capture decisions and comments.
+   702→- Require applicable sign-offs.
+   703→- Track status and timestamps.
+   704→
+   705→Step 8 — Finalize & Export
+   706→- Check finalization requirements.
+   707→- Lock the approved report version.
+   708→- Generate supported PDF, DOCX, XLSX or other required outputs as implemented.
+   709→- Record export history.
+   710→- Preserve the exact data snapshot and version used.
+   711→
+   712→Step 9 — Report History & Versions
+   713→- View previous reporting periods.
+   714→- Compare versions.
+   715→- Inspect change history.
+   716→- Trace disclosures to source submissions.
+   717→- Reopen or revise a report using a controlled workflow.
+   718→
+   719→Do not invent disclosure requirements or claim regulatory compliance without verifying the applicable reporting framework and version.
+   720→
+   721→Draft data may be shown in a separate gap-analysis view but must not silently enter approved consolidated values.
+   722→
+   723→### SCREEN 14 — DATA CONSOLIDATION & VALIDATION
+   724→
+   725→Features:
+   726→
+   727→- Missing-data detection.
+   728→- Duplicate-submission detection.
+   729→- Unit and reporting-period validation.
+   730→- Configurable calculation rules.
+   731→- Emissions-factor versioning.
+   732→- Anomaly detection.
+   733→- Source-data lineage.
+   734→- Organization-level aggregation.
+   735→- Validation exceptions.
+   736→- Correction assignment.
+   737→- Recalculation history.
+   738→
+   739→Preserve the difference between raw submitted data, validated data, approved data, and report-ready consolidated data.
+   740→
+   741→### SCREEN 15 — ESG ANALYTICS
+   742→
+   743→Create interactive analytics dashboards for:
+   744→
+   745→- Environmental performance.
+   746→- Energy consumption.
+   747→- Renewable energy.
+   748→- Scope 1 and Scope 2 emissions, and applicable Scope 3 categories.
+   749→- Water consumption and discharge.
+   750→- Waste and recycling.
+   751→- EHS/safety metrics.
+   752→- Workforce metrics.
+   753→- Procurement and applicable supply-chain metrics.
+   754→- CSR/community metrics.
+   755→- Compliance indicators.
+   756→- Submission completion and data quality.
+   757→
+   758→Use interactive bar charts, line charts, donut charts, stacked bars, trend charts, and comparison tables where appropriate.
+   759→
+   760→Features:
+   761→
+   762→- Reporting-period selection.
+   763→- Organization filters.
+   764→- Compare subsidiaries and BUs.
+   765→- Click chart segments to drill into records.
+   766→- Tooltips with metric, unit, date, and source.
+   767→- Accessible legends.
+   768→- Export charts or underlying data where authorized.
+   769→
+   770→All analytics must be computed from actual data or clearly identified demo datasets. Never invent real enterprise KPI values.
+   771→
+   772→### SCREEN 16 — ACTIVITY MONITORING
+   773→
+   774→Provide a chronological feed and user-specific activity timelines.
+   775→
+   776→Track:
+   777→
+   778→- Login/logout events where available.
+   779→- Report creation.
+   780→- Submission and resubmission.
+   781→- Data edits.
+   782→- Evidence uploads/removals.
+   783→- Task assignments.
+   784→- Approvals and rejections.
+   785→- User-role changes.
+   786→- Account suspension/reactivation.
+   787→- Report generation and exports.
+   788→- Configuration changes.
+   789→
+   790→Filters:
+   791→
+   792→- User.
+   793→- Role.
+   794→- Activity type.
+   795→- Organization.
+   796→- Date range.
+   797→- Report ID.
+   798→- Security-related events.
+   799→
+   800→### SCREEN 17 — AUDIT LOGS
+   801→
+   802→Provide a controlled, searchable audit trail.
+   803→
+   804→Record:
+   805→
+   806→- Actor ID.
+   807→- Action.
+   808→- Timestamp.
+   809→- Target record.
+   810→- Organization scope.
+   811→- Relevant before/after values.
+   812→- Reason/comment when required.
+   813→- Outcome.
+   814→- Correlation/request ID where appropriate.
+   815→
+   816→Requirements:
+   817→
+   818→- Append-only or tamper-resistant audit storage.
+   819→- Restricted audit access.
+   820→- No silent rewriting or deletion of historical audit records.
+   821→- Audit events for sensitive administrative operations.
+   822→- Export logging.
+   823→- Configurable retention and access policies.
+   824→
+   825→Keep operational activity feeds distinct from the authoritative audit log.
+   826→
+   827→### SCREEN 18 — SETTINGS & CONFIGURATION
+   828→
+   829→Include internal sections:
+   830→
+   831→- Reporting periods and deadlines.
+   832→- BRSR templates and disclosure mappings.
+   833→- ESG metric definitions.
+   834→- Units and calculation factors.
+   835→- Approval workflow configuration.
+   836→- Reminder/escalation settings.
+   837→- Notification templates.
+   838→- Security and authentication.
+   839→- Session policies.
+   840→- API/integration configuration.
+   841→- Document storage.
+   842→- Import/export settings.
+   843→- System health and synchronization status.
+   844→- Backup and retention policies.
+   845→
+   846→Sensitive settings must require appropriate permissions and should produce audit events.
+   847→
+   848→---
+   849→
+   850→## 7. BRSR REPORT DETAIL AND VERSIONING RULES
+   851→
+   852→Every report must have:
+   853→
+   854→- Unique report ID.
+   855→- Reporting year.
+   856→- Reporting entity and scope.
+   857→- Framework/version.
+   858→- Report status.
+   859→- Created by.
+   860→- Last updated by.
+   861→- Source-data snapshot/reference.
+   862→- Validation history.
+   863→- Approval history.
+   864→- Version number.
+   865→- Export history.
+   866→
+   867→Recommended lifecycle:
+   868→
+   869→Draft → Data Consolidation → Validation → Review → Approval → Finalized/Exported.
+   870→
+   871→Corrections and reopening must create controlled revisions.
+   872→
+   873→A finalized report must remain reproducible even when live source data changes later.
+   874→
+   875→---
+   876→
+   877→## 8. CARD DESIGN SYSTEM
+   878→
+   879→Create a reusable component library rather than styling every card independently.
+   880→
+   881→### KPI cards
+   882→
+   883→Include:
+   884→
+   885→- Small icon.
+   886→- Label.
+   887→- Prominent value.
+   888→- Optional comparison with a previous period.
+   889→- Optional trend indicator.
+   890→- Short supporting description.
+   891→- Hover elevation.
+   892→- Click-through behavior when applicable.
+   893→
+   894→Use consistent card heights, padding, alignment, and typography.
+   895→
+   896→### Glass cards
+   897→
+   898→Use:
+   899→
+   900→- Rounded corners.
+   901→- Frosted surface.
+   902→- Thin border.
+   903→- Subtle outer shadow.
+   904→- Gentle inner highlight.
+   905→- Consistent spacing.
+   906→- Readable text contrast.
+   907→
+   908→### Data tables
+   909→
+   910→Use:
+   911→
+   912→- Sticky headers where helpful.
+   913→- Clear row hover states.
+   914→- Sortable columns.
+   915→- Search and filters.
+   916→- Pagination.
+   917→- Selection checkboxes where bulk actions are supported.
+   918→- Status pills.
+   919→- Row action menus.
+   920→- Empty, loading, and error states.
+   921→- Responsive horizontal scrolling.
+   922→
+   923→### Status colors
+   924→
+   925→- Green: approved, completed, successful.
+   926→- Blue: submitted, active, informational.
+   927→- Amber: pending, due soon, needs attention.
+   928→- Red: rejected, overdue, critical failure.
+   929→- Gray: draft, inactive, archived.
+   930→
+   931→Do not communicate status through color alone. Include text and accessible labels.
+   932→
+   933→### Drawers, dialogs, and popovers
+   934→
+   935→Use consistent glass treatments for:
+   936→
+   937→- Create/edit forms.
+   938→- Confirmation dialogs.
+   939→- User details.
+   940→- Report previews.
+   941→- Filters.
+   942→- Action menus.
+   943→- Notification panels.
+   944→
+   945→Long forms should use structured pages or drawers rather than cramped popovers.
+   946→
+   947→---
+   948→
+   949→## 9. MOTION DESIGN SYSTEM
+   950→
+   951→Use purposeful, restrained animation throughout the workspace.
+   952→
+   953→Recommended implementation: Framer Motion or the existing motion library.
+   954→
+   955→### Page transitions
+   956→
+   957→- Gentle opacity fade.
+   958→- Short vertical movement.
+   959→- Consistent timing.
+   960→- Avoid distracting transitions on every navigation event.
+   961→
+   962→### Sidebar
+   963→
+   964→- Smooth collapse/expand.
+   965→- Active indicator movement.
+   966→- Subtle hover feedback.
+   967→- Expandable navigation groups.
+   968→
+   969→### Cards
+   970→
+   971→- Slight hover elevation.
+   972→- Subtle shadow enhancement.
+   973→- Gentle border/highlight transitions.
+   974→- No exaggerated bounce.
+   975→
+   976→### Buttons
+   977→
+   978→- Smooth hover and pressed states.
+   979→- Clear focus ring.
+   980→- Loading spinner during asynchronous actions.
+   981→- Disable repeated submission while processing.
+   982→
+   983→### Dialogs and drawers
+   984→
+   985→- Fade and scale for dialogs.
+   986→- Slide-in for drawers.
+   987→- Background overlay.
+   988→- Correct focus trapping and restoration.
+   989→- Escape-key behavior when safe.
+   990→
+   991→### Charts
+   992→
+   993→- Smooth initial reveal.
+   994→- Animated bars and lines when data changes.
+   995→- Tooltips on hover/focus.
+   996→- Smooth filter transitions.
+   997→- Avoid animation that misrepresents values.
+   998→
+   999→### Numbers and progress
+  1000→
+  1001→- Optional count-up animation on initial load.
+  1002→- Animated progress bars.
+  1003→- Respect reduced-motion preferences.
+  1004→- Avoid replaying count-up animations on every minor rerender.
+  1005→
+  1006→### BRSR wizard
+  1007→
+  1008→- Step progress indicator.
+  1009→- Animated step transitions.
+  1010→- Clear completion/error states.
+  1011→- Preserve form state when moving between steps.
+  1012→- Warn before losing unsaved work.
+  1013→
+  1014→### Accessibility and performance
+  1015→
+  1016→- Honor prefers-reduced-motion.
+  1017→- Avoid excessive blur on large scrolling surfaces.
+  1018→- Avoid continuous GPU-heavy background animation.
+  1019→- Keep interactions responsive on ordinary laptops.
+  1020→- Do not make animations block keyboard or screen-reader interaction.
+  1021→
+  1022→---
+  1023→
+  1024→## 10. INTERACTION AND FUNCTIONALITY CONTRACT
+  1025→
+  1026→This requirement is mandatory.
+  1027→
+  1028→Every visible control must work.
+  1029→
+  1030→### Navigation
+  1031→
+  1032→Every sidebar item, breadcrumb, tab, navigation card, and contextual link must open the intended route or state.
+  1033→
+  1034→### Search
+  1035→
+  1036→Search must actually filter the relevant data, support sensible matching, and expose clear empty results.
+  1037→
+  1038→### Dropdowns
+  1039→
+  1040→Every dropdown must open, show real options, support selection, update application state, and close appropriately.
+  1041→
+  1042→### Filters
+  1043→
+  1044→Filters must affect the displayed records, charts, and applicable KPIs. Provide a clear reset action.
+  1045→
+  1046→### Cards
+  1047→
+  1048→Clickable cards must navigate to meaningful detail views or open the appropriate filtered dataset.
+  1049→
+  1050→Decorative cards should not appear interactive.
+  1051→
+  1052→### Forms
+  1053→
+  1054→Forms must:
+  1055→
+  1056→- Use controlled state or the application's established form framework.
+  1057→- Validate required fields.
+  1058→- Show field-specific errors.
+  1059→- Preserve valid input on failure.
+  1060→- Submit through real handlers.
+  1061→- Persist successful changes.
+  1062→- Display truthful success/error feedback.
+  1063→
+  1064→### CRUD operations
+  1065→
+  1066→Implement real create, read, update, and appropriate deactivate/delete operations for users and organizational entities.
+  1067→
+  1068→Use transactions or other appropriate consistency controls for multi-step operations.
+  1069→
+  1070→### Approval actions
+  1071→
+  1072→Approvals must persist the decision, actor, timestamp, comments, and next workflow state.
+  1073→
+  1074→### Report creation
+  1075→
+  1076→Creating a report must persist a real draft record. Moving through the wizard must preserve data and validate the selected scope.
+  1077→
+  1078→### Exports
+  1079→
+  1080→Generate real downloadable files from authorized data. Do not present a download button that does nothing.
+  1081→
+  1082→### Keyboard accessibility
+  1083→
+  1084→Support tab navigation, visible focus, Escape where appropriate, Enter/Space activation, and accessible labels.
+  1085→
+  1086→### Failure handling
+  1087→
+  1088→Handle network errors, authorization errors, validation errors, missing data, conflicts, and timeouts gracefully.
+  1089→
+  1090→Never display success before the operation actually succeeds.
+  1091→
+  1092→---
+  1093→
+  1094→## 11. TECHNICAL ARCHITECTURE
+  1095→
+  1096→Inspect the current project before selecting or changing technologies.
+  1097→
+  1098→Preferred architecture if compatible with the existing codebase:
+  1099→
+  1100→### Frontend
+  1101→
+  1102→- React.
+  1103→- TypeScript.
+  1104→- Next.js or the project's existing React routing framework.
+  1105→- Tailwind CSS or the existing styling system.
+  1106→- Reusable design-system components.
+  1107→- Lucide icons or the existing icon package.
+  1108→- Framer Motion for restrained motion.
+  1109→- Accessible charting library such as Recharts.
+  1110→- A consistent form-validation solution.
+  1111→
+  1112→### Backend
+  1113→
+  1114→Choose one primary backend consistent with the current project:
+  1115→
+  1116→Option A: NestJS with TypeScript.
+  1117→Option B: FastAPI with Python.
+  1118→
+  1119→Implement business logic on the server, including authorization, reporting workflows, validation, and approval transitions.
+  1120→
+  1121→Do not create two competing primary backends without a demonstrated need.
+  1122→
+  1123→### Database
+  1124→
+  1125→Use PostgreSQL/Supabase PostgreSQL as the authoritative relational database if compatible with the existing system.
+  1126→
+  1127→Recommended core entities:
+  1128→
+  1129→- users
+  1130→- roles
+  1131→- permissions
+  1132→- user_role_assignments
+  1133→- organizations
+  1134→- subsidiaries
+  1135→- business_units
+  1136→- projects
+  1137→- reporting_periods
+  1138→- esg_metrics
+  1139→- data_submissions
+  1140→- submission_values
+  1141→- evidence_documents
+  1142→- review_decisions
+  1143→- tasks
+  1144→- task_assignments
+  1145→- notifications
+  1146→- report_templates
+  1147→- brsr_reports
+  1148→- brsr_report_versions
+  1149→- brsr_disclosures
+  1150→- report_source_references
+  1151→- approval_workflows
+  1152→- approval_stages
+  1153→- audit_events
+  1154→- integration_configs
+  1155→
+  1156→Adapt names and relationships to the existing schema. Do not duplicate existing tables unnecessarily.
+  1157→
+  1158→### Redis
+  1159→
+  1160→Use Redis where justified for:
+  1161→
+  1162→- Caching.
+  1163→- Rate limiting.
+  1164→- Background job coordination.
+  1165→- Temporary state.
+  1166→- Notification queues when supported by the selected queue infrastructure.
+  1167→
+  1168→Do not use Redis as the only authoritative store for report records, approvals, or critical audit history.
+  1169→
+  1170→### Storage
+  1171→
+  1172→Use private object storage for supporting evidence and generated reports.
+  1173→
+  1174→Implement:
+  1175→
+  1176→- Secure access.
+  1177→- Upload validation.
+  1178→- Appropriate file-size limits.
+  1179→- File-type restrictions.
+  1180→- Authorization checks.
+  1181→- Signed URLs or equivalent protected downloads.
+  1182→- Retention policies.
+  1183→- Evidence metadata and version history.
+  1184→
+  1185→### Background workers
+  1186→
+  1187→Use a real worker/scheduler mechanism for:
+  1188→
+  1189→- Deadline reminders.
+  1190→- Escalations.
+  1191→- Email dispatch.
+  1192→- Report generation.
+  1193→- Imports and large exports.
+  1194→- Scheduled validation jobs.
+  1195→
+  1196→Jobs should be retryable and idempotent where appropriate.
+  1197→
+  1198→---
+  1199→
+  1200→## 12. SECURITY REQUIREMENTS
+  1201→
+  1202→Implement security from the beginning.
+  1203→
+  1204→- Server-side authentication and authorization.
+  1205→- Role-based access control.
+  1206→- Organization-scoped authorization.
+  1207→- Least privilege.
+  1208→- Secure session management.
+  1209→- CSRF protection where applicable.
+  1210→- Rate limiting.
+  1211→- Input validation and output encoding.
+  1212→- Safe file uploads.
+  1213→- Secret management through environment configuration.
+  1214→- Secure database access.
+  1215→- Audit events for sensitive operations.
+  1216→- Controlled exports.
+  1217→- Backup and recovery procedures.
+  1218→- Protection against unauthorized cross-organization access.
+  1219→
+  1220→A user must never gain access to another organization merely by modifying a URL, request body, identifier, or frontend state.
+  1221→
+  1222→Do not trust frontend-only permission checks.
+  1223→
+  1224→Do not hard-code production secrets or service credentials.
+  1225→
+  1226→---
+  1227→
+  1228→## 13. DATA INTEGRITY AND REPORTING RULES
+  1229→
+  1230→Maintain clear distinctions between:
+  1231→
+  1232→- Draft data.
+  1233→- Submitted data.
+  1234→- Data under review.
+  1235→- Approved data.
+  1236→- Rejected/returned data.
+  1237→- Consolidated report data.
+  1238→- Finalized report data.
+  1239→
+  1240→Define eligibility rules for consolidation.
+  1241→
+  1242→Do not silently aggregate unapproved values into final report figures.
+  1243→
+  1244→For every computed disclosure, preserve:
+  1245→
+  1246→- Source records.
+  1247→- Reporting period.
+  1248→- Organization scope.
+  1249→- Calculation rule and version.
+  1250→- Units and conversion factors.
+  1251→- Validation state.
+  1252→- Approval state.
+  1253→- Calculation timestamp.
+  1254→- Report version.
+  1255→
+  1256→Avoid double-counting when aggregating data from projects, BUs, and subsidiaries.
+  1257→
+  1258→Use explicit consolidation boundaries and tested aggregation rules.
+  1259→
+  1260→Any correction to finalized data must follow a controlled revision process.
+  1261→
+  1262→---
+  1263→
+  1264→## 14. RESPONSIVE DESIGN
+  1265→
+  1266→Desktop is the primary target for the Group Admin workspace.
+  1267→
+  1268→Support:
+  1269→
+  1270→- Large desktop displays.
+  1271→- Standard laptop displays.
+  1272→- Tablets.
+  1273→- Narrow screens for essential administrative actions.
+  1274→
+  1275→Desktop:
+  1276→
+  1277→- Persistent sidebar.
+  1278→- Multi-column KPI grids.
+  1279→- Wide data tables.
+  1280→- Two-panel report review/editor layout.
+  1281→- Interactive charts.
+  1282→
+  1283→Tablet:
+  1284→
+  1285→- Collapsible navigation.
+  1286→- Responsive cards.
+  1287→- Scrollable tables.
+  1288→- Stacked report panels.
+  1289→
+  1290→Mobile:
+  1291→
+  1292→- Drawer navigation.
+  1293→- Single-column layouts.
+  1294→- Touch-friendly controls.
+  1295→- Essential review and monitoring actions.
+  1296→
+  1297→Avoid overflowing fixed-width layouts and clipped controls.
+  1298→
+  1299→---
+  1300→
+  1301→## 15. COMPONENTS TO BUILD REUSABLY
+  1302→
+  1303→Create reusable components for:
+  1304→
+  1305→- Application shell.
+  1306→- Sidebar.
+  1307→- Top bar.
+  1308→- Breadcrumbs.
+  1309→- Page header.
+  1310→- KPI card.
+  1311→- Glass card.
+  1312→- Chart card.
+  1313→- Data table.
+  1314→- Search field.
+  1315→- Filter panel.
+  1316→- Status badge.
+  1317→- User avatar/profile card.
+  1318→- Organization tree.
+  1319→- User directory.
+  1320→- Report register.
+  1321→- Evidence viewer.
+  1322→- Activity timeline.
+  1323→- Approval timeline.
+  1324→- Notification center.
+  1325→- Date range picker.
+  1326→- Dropdown/select.
+  1327→- Confirmation dialog.
+  1328→- Form drawer.
+  1329→- Empty state.
+  1330→- Loading skeleton.
+  1331→- Error state.
+  1332→- Pagination.
+  1333→- Export menu.
+  1334→- Wizard stepper.
+  1335→- BRSR disclosure navigator.
+  1336→- Report preview/editor.
+  1337→- Audit record detail.
+  1338→
+  1339→Follow the existing project component conventions and avoid creating duplicate versions of components that already exist.
+  1340→
+  1341→---
+  1342→
+  1343→## 16. IMPLEMENTATION PHASES
+  1344→
+  1345→Build in these phases without abandoning unfinished core functionality.
+  1346→
+  1347→### PHASE 1 — Foundation
+  1348→
+  1349→- Inspect existing project.
+  1350→- Establish design tokens.
+  1351→- Build the application shell.
+  1352→- Implement navigation and routes.
+  1353→- Implement authentication and authorization integration.
+  1354→- Establish organization hierarchy.
+  1355→- Build Dashboard.
+  1356→- Build Organization Management.
+  1357→- Build All Users.
+  1358→- Build Roles & Permissions.
+  1359→
+  1360→### PHASE 2 — ESG Operations
+  1361→
+  1362→- Build Submission Center.
+  1363→- Build Review & Approvals.
+  1364→- Build Tasks & Deadlines.
+  1365→- Build Communication Center.
+  1366→- Build Notifications & Alerts.
+  1367→- Implement evidence access.
+  1368→- Implement persistent workflow transitions.
+  1369→
+  1370→### PHASE 3 — BRSR Reporting
+  1371→
+  1372→- Build BRSR Reporting Center.
+  1373→- Build report creation wizard.
+  1374→- Implement scope selection.
+  1375→- Implement data consolidation.
+  1376→- Implement disclosure mapping.
+  1377→- Implement validation.
+  1378→- Build the report builder.
+  1379→- Implement sign-off and versioning.
+  1380→- Implement report export.
+  1381→
+  1382→### PHASE 4 — Analytics and Governance
+  1383→
+  1384→- Build ESG Analytics.
+  1385→- Build Activity Monitoring.
+  1386→- Build Audit Logs.
+  1387→- Build Settings & Integrations.
+  1388→- Implement charts, filters, exports, reminders, and escalation.
+  1389→- Add operational monitoring and recovery procedures.
+  1390→
+  1391→### PHASE 5 — Verification and hardening
+  1392→
+  1393→- Test all routes.
+  1394→- Test all interactive controls.
+  1395→- Test all CRUD operations.
+  1396→- Test authorization boundaries.
+  1397→- Test report workflow transitions.
+  1398→- Test data consolidation.
+  1399→- Test form validation.
+  1400→- Test exports.
+  1401→- Test responsive layouts.
+  1402→- Test loading, empty, error, and offline states.
+  1403→- Test keyboard navigation and reduced-motion settings.
+  1404→- Resolve console errors and backend errors.
+  1405→- Verify database persistence and audit logging.
+  1406→
+  1407→Do not declare a phase complete merely because the pages render.
+  1408→
+  1409→---
+  1410→
+  1411→## 17. REQUIRED TEST SCENARIOS
+  1412→
+  1413→Verify at minimum:
+  1414→
+  1415→1. Group Admin can navigate to all 18 primary screens.
+  1416→2. Every sidebar item opens the correct screen.
+  1417→3. KPI cards open the relevant filtered data.
+  1418→4. Search, filters, sorting, and pagination work.
+  1419→5. User creation persists a real record.
+  1420→6. User editing updates the correct record.
+  1421→7. Blocking a user prevents authorized sign-in without deleting their report history.
+  1422→8. Organization changes preserve valid relationships.
+  1423→9. Task assignment records recipients and deadlines.
+  1424→10. Notification actions update notification state.
+  1425→11. Submission actions persist their workflow transitions.
+  1426→12. Rejections require reasons.
+  1427→13. Approvals record the acting user and timestamp.
+  1428→14. Unauthorized users cannot access restricted data.
+  1429→15. A new BRSR draft is persisted.
+  1430→16. The report wizard preserves its inputs between steps.
+  1431→17. Consolidation uses the correct organization and reporting period.
+  1432→18. Duplicate and ineligible submissions are handled safely.
+  1433→19. Report calculations are traceable to source records.
+  1434→20. Drafts and finalized reports remain distinct.
+  1435→21. Revisions preserve prior versions.
+  1436→22. Export generates a real, valid file.
+  1437→23. Audit events are created for sensitive operations.
+  1438→24. All interactive buttons, menus, tabs, dropdowns, and cards behave correctly.
+  1439→25. No screen reports fake success when its underlying operation fails.
+  1440→
+  1441→Use automated tests where appropriate, supplemented by browser-level interaction testing.
+  1442→
+  1443→---
+  1444→
+  1445→## 18. DEFINITION OF DONE
+  1446→
+  1447→The implementation is complete only when:
+  1448→
+  1449→- All 18 primary screens exist and are navigable.
+  1450→- The BRSR reporting subpages are integrated into the Group Admin workspace.
+  1451→- The Super Admin/Group Admin role is represented as one role.
+  1452→- The existing 11 role types are preserved.
+  1453→- The organization hierarchy is enforced consistently.
+  1454→- UI styling matches the sky-blue/black Liquid Glass design reference.
+  1455→- Cards, tables, charts, navigation, forms, and menus behave correctly.
+  1456→- Every visible interactive element has a real action or an explicit disabled/unavailable state.
+  1457→- Core operations persist to the backend/database.
+  1458→- Permissions are enforced server-side.
+  1459→- Report creation, validation, review, approval, versioning, and export workflows function.
+  1460→- Activity and audit records are preserved.
+  1461→- Loading, empty, error, success, and confirmation states are implemented.
+  1462→- Responsive behavior and accessibility are tested.
+  1463→- No unresolved critical runtime errors remain.
+  1464→- The final implementation summary identifies completed features, limitations, configuration requirements, and tests actually run.
+  1465→
+  1466→## FINAL INSTRUCTION
+  1467→
+  1468→Build this as a cohesive enterprise ESG/BRSR Group Admin application, not a static design showcase.
+  1469→
+  1470→Prioritize functional correctness, data integrity, authorization, traceable reporting, and usability alongside visual quality.
+  1471→
+  1472→Preserve the existing MEIL design direction: sky-blue atmosphere, graphite-black typography, refined iOS Liquid Glass, glassmorphism, realistic shadows, subtle motion, premium cards, professional analytics, and a clean enterprise layout.
+  1473→
+  1474→Inspect the existing code first. Reuse what works. Implement real features incrementally. Test them. Do not replace working functionality or fabricate successful operations.
+  1475→
+  1476→The final outcome must let the Group Admin operate the entire authorized ESG reporting workflow and create a consolidated BRSR report from eligible, validated source data.
