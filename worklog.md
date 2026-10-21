@@ -127,3 +127,26 @@ Stage Summary:
 - Command Center and Organization Hierarchy are fully redesigned, unique and professionally arranged while keeping the liquid-glass design system and every navigation contract.
 - New API surface: GET /api/esg/hierarchy?nodeId= (HierarchyNodeDetail in types.ts) powering the view panel; no other endpoints or views touched.
 - Known notes: panel data is scoped to direct org ids (subsidiary panel counts submissions with subsidiaryId directly, consistent with the tree stats); BRSR-wide rollups remain in respective modules via "Open full profile".
+
+---
+Task ID: 9
+Agent: Lead (Z.ai Code main)
+Task: Hierarchy redesign round 2 — upgrade MEIL Group container card, add clickable status cards (Submissions/Approved/Pending/Overdue), branch colors, movable node canvas, eyebrow titles, favicon-style node icons
+
+Work Log:
+- API (GET /api/esg/hierarchy): tree payload now returns { nodes, summary } — summary = { subsidiaries, units, projects, users, submissions, approved, pendingReview, overdue, approvalRate } computed from the full Submission table; project nodes carry kind: ptype for favicon icon mapping. types.ts: added HierarchySummary + HierarchyNode.kind.
+- hierarchy.tsx full redesign (view kept on single route, panel/drawer contract untouched):
+  - Status strip (new, above toolbar): 4 clickable glass cards — Submissions (→submissions), Approved (→submissions?statusFilter=APPROVED), Pending review (→approvals queue), Overdue (→submissions?statusFilter=OVERDUE) — each with favicon tile, CountUp value, hint, share-of-total bar; grid-cols-2 on mobile, 4-up on lg.
+  - MEIL Group root card redesigned as full hero band: GROUP HEADQUARTERS eyebrow + pulsing LIVE chip, gradient favicon, approval-health ring (summary.approvalRate), overdue chip (→overdue register) or "On track", "Command Center" button (→dashboard), 4 clickable entity quick-stat tiles; rendered inside the canvas on md+ and above the stacked tree on mobile.
+  - Color system: BRANCH_HUES cycles per top-level subsidiary (violet/blue/teal/amber/rose/emerald) — hueMap propagates each subsidiary's hue to all descendants; applied to favicon gradients, left accent rails on org cards, spine/elbow connectors, junction dots, column stubs, eyebrow text, and legend color key.
+  - Favicons: NodeFavicon component = rounded-[30%] gradient tile + white icon + status dot badge (ACTIVE green / INACTIVE gray) — Landmark for group/subsidiaries, Layers for BUs, and per-kind project icons (Factory=PLANT, Sun=SOLAR_PARK, Wind=WIND_FARM, Droplets=HYDRO, Waves=PIPELINE, Route=SITE, Building2=OFFICE).
+  - Titles: every node card now has a colored uppercase eyebrow (SUBSIDIARY / BUSINESS UNIT / PROJECT · <kind label>); org cards show code + manager; projects show meta line.
+  - Movable canvas (md+): pointer-drag pan via window listeners with 5px move threshold + capture-phase click suppression (dragging from a card never triggers navigation); pan clamped ±700/±450px; zoom 60–150% via on-canvas −/+ controls, ⌘/Ctrl+wheel (native non-passive listener), and reset button; dot-grid background inside the transformed layer so it pans/zooms with content; hint chip bottom-left, zoom pill bottom-right (stopPropagation on pointerdown); touchAction pan-y so tablets can still scroll the page vertically.
+  - Mobile (<md): stacked tree now uses full elbow connectors (hue-tinted) + hero card; status cards 2×2.
+  - Toolbar resultCount now counts all visible nodes (not just top-level); legend reworked into branch color key.
+- Verified with agent-browser: 1600px — status cards render with correct values (28/8/13/4), hero ring 29% + 4-overdue chip, 4 hue-tinted branches with connectors + junction dots, drag-pan moved the tree, zoom to 120% + reset work, node click after drag opens the detail panel (panel content intact), Overdue status card navigates to Submission Center with Overdue tab (4 results), legend + canvas overlays present; 390px — 2×2 status grid, hero, stacked hue-colored tree, node tap opens drawer panel with performance/work details, close works; 0 console errors; bun run lint 0 problems; tsc --noEmit clean in src/.
+
+Stage Summary:
+- Hierarchy view is now a movable, zoomable, color-coded node canvas with favicon-style icons and titled cards; the MEIL Group container is a live hero band and the four submission-status cards are one-click routes into the register/approval queue.
+- API surface: GET /api/esg/hierarchy tree payload shape changed to { nodes, summary } (only consumer is hierarchy.tsx, updated in the same task); nodeId detail endpoint unchanged.
+- Notes: pan/zoom is md+ only (mobile keeps the stacked tree); project eyebrow may truncate on narrow columns but full context is in the card tooltip; branch hues cycle if more than 6 subsidiaries exist.

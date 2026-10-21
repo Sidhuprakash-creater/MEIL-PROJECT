@@ -429,8 +429,23 @@ export interface HierarchyNode {
   status: string;
   meta: string;
   manager: string;
+  /** Project nodes only — the site kind (SOLAR_PARK, WIND_FARM, …) used for its favicon icon. */
+  kind?: string;
   children?: HierarchyNode[];
   stats?: { users: number; projects: number; submissions: number };
+}
+
+/** Group-level rollup returned alongside the hierarchy tree. */
+export interface HierarchySummary {
+  subsidiaries: number;
+  units: number;
+  projects: number;
+  users: number;
+  submissions: number;
+  approved: number;
+  pendingReview: number;
+  overdue: number;
+  approvalRate: number;
 }
 
 /** Rich per-node payload returned by GET /api/esg/hierarchy?nodeId=… */

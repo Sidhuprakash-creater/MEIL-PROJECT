@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handle, ok, fail } from "@/lib/esg/server";
-import type { HierarchyNode, HierarchyNodeDetail } from "@/lib/esg/types";
+import type { HierarchyNode, HierarchyNodeDetail, HierarchySummary } from "@/lib/esg/types";
 
 const SUBMISSION_STATUSES = [
   "APPROVED",
@@ -13,7 +13,7 @@ const SUBMISSION_STATUSES = [
   "REJECTED",
 ] as const;
 
-/** GET /api/esg/hierarchy            → full tree
+/** GET /api/esg/hierarchy            → full tree + group summary
  *  GET /api/esg/hierarchy?nodeId=…   → rich detail payload for the view panel */
 export async function GET(req: NextRequest) {
   return handle(async () => {
@@ -23,17 +23,17 @@ export async function GET(req: NextRequest) {
       if (!detail) return fail("Node not found in the organization hierarchy.", 404);
       return ok({ detail });
     }
-    return ok({ nodes: await buildTree() });
+    return ok(await buildTree());
   });
 }
 
-async function buildTree(): Promise<HierarchyNode[]> {
+async function buildTree(): Promise<{ nodes: HierarchyNode[]; summary: HierarchySummary }> {
   const [subs, units, projects, users, submissions] = await Promise.all([
     db.subsidiary.findMany({ orderBy: { name: "asc" } }),
     db.businessUnit.findMany({ orderBy: { name: "asc" } }),
     db.project.findMany({ include: { businessUnit: true }, orderBy: { name: "asc" } }),
     db.user.findMany({ select: { id: true, subsidiaryId: true, businessUnitId: true, projectId: true } }),
-    db.submission.findMany({ select: { subsidiaryId: true, businessUnitId: true, projectId: true } }),
+    db.submission.findMany({ select: { subsidiaryId: true, businessUnitId: true, projectId: true, status: true, overdue: true } }),
   ]);
 
   const nodes: HierarchyNode[] = subs.map((s) => {
@@ -67,6 +67,7 @@ async function buildTree(): Promise<HierarchyNode[]> {
             code: p.code,
             name: p.name,
             status: p.status,
+            kind: p.ptype,
             meta: `${p.ptype.replaceAll("_", " ")} · ${p.location}${p.capacityMw ? ` · ${p.capacityMw} MW` : ""}`,
             manager: "",
             stats: { users: users.filter((x) => x.projectId === p.id).length, projects: 0, submissions: submissions.filter((x) => x.projectId === p.id).length },
@@ -76,7 +77,23 @@ async function buildTree(): Promise<HierarchyNode[]> {
     };
   });
 
-  return nodes;
+  const approved = submissions.filter((x) => x.status === "APPROVED").length;
+  const pendingReview = submissions.filter((x) => x.status === "SUBMITTED" || x.status === "UNDER_REVIEW").length;
+  const overdue = submissions.filter((x) => x.overdue).length;
+
+  const summary: HierarchySummary = {
+    subsidiaries: subs.length,
+    units: units.length,
+    projects: projects.length,
+    users: users.length,
+    submissions: submissions.length,
+    approved,
+    pendingReview,
+    overdue,
+    approvalRate: submissions.length > 0 ? Math.round((approved / submissions.length) * 100) : 0,
+  };
+
+  return { nodes, summary };
 }
 
 /* ────────────────────────── Node detail (view panel) ────────────────────────── */

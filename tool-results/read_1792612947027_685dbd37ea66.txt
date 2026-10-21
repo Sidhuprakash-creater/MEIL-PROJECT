@@ -1,0 +1,961 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→// ── SCREEN 03 — Organization Hierarchy (node-based interactive tree + view panel) ──
+     4→     4→import { useMemo, useState, type ReactNode } from "react";
+     5→     5→import { AnimatePresence, motion } from "framer-motion";
+     6→     6→import {
+     7→     7→  ArrowUpRight,
+     8→     8→  BadgeCheck,
+     9→     9→  Building2,
+    10→    10→  ChevronDown,
+    11→    11→  ChevronRight,
+    12→    12→  ClipboardList,
+    13→    13→  FileText,
+    14→    14→  FolderTree,
+    15→    15→  Gauge,
+    16→    16→  Info,
+    17→    17→  Landmark,
+    18→    18→  Layers,
+    19→    19→  ListTree,
+    20→    20→  Network,
+    21→    21→  Users,
+    22→    22→  X,
+    23→    23→} from "lucide-react";
+    24→    24→import { useWorkspace } from "@/lib/esg/store";
+    25→    25→import { useApi, fmtNumber } from "@/lib/esg/client";
+    26→    26→import { ROLE_LABELS, type HierarchyNode, type HierarchyNodeDetail } from "@/lib/esg/types";
+    27→    27→import {
+    28→    28→  Avatar,
+    29→    29→  Chip,
+    30→    30→  EmptyState,
+    31→    31→  ErrorState,
+    32→    32→  GlassCard,
+    33→    33→  LoadingBlock,
+    34→    34→  PageHeader,
+    35→    35→  StatusBadge,
+    36→    36→  Toolbar,
+    37→    37→  type ToolbarFilter,
+    38→    38→} from "@/components/workspace/ui";
+    39→    39→
+    40→    40→/* ────────────────────────────── Type styling ────────────────────────────── */
+    41→    41→
+    42→    42→type NodeType = HierarchyNode["type"];
+    43→    43→
+    44→    44→const TYPE_CONF: Record<NodeType, { icon: typeof Landmark; label: string; tile: string; hex: string }> = {
+    45→    45→  subsidiary: { icon: Landmark, label: "Subsidiary", tile: "bg-[rgba(106,91,255,0.13)] text-[#6a5bff]", hex: "#6a5bff" },
+    46→    46→  unit: { icon: Layers, label: "Business Unit", tile: "bg-[rgba(58,123,255,0.13)] text-[#3a7bff]", hex: "#3a7bff" },
+    47→    47→  project: { icon: Building2, label: "Project / Site", tile: "bg-[rgba(22,163,163,0.13)] text-[#16a3a3]", hex: "#16a3a3" },
+    48→    48→};
+    49→    49→
+    50→    50→const TYPE_VIEW: Record<NodeType, "subsidiaries" | "units" | "projects"> = {
+    51→    51→  subsidiary: "subsidiaries",
+    52→    52→  unit: "units",
+    53→    53→  project: "projects",
+    54→    54→};
+    55→    55→
+    56→    56→const LINE = "bg-[rgba(58,123,255,0.32)]";
+    57→    57→
+    58→    58→const STATUS_TONE: Record<string, string> = {
+    59→    59→  APPROVED: "#238653",
+    60→    60→  UNDER_REVIEW: "#6a5bff",
+    61→    61→  SUBMITTED: "#3a7bff",
+    62→    62→  CHANGES_REQUESTED: "#c57926",
+    63→    63→  ASSIGNED: "#8595ab",
+    64→    64→  DRAFT: "#8595ab",
+    65→    65→  REJECTED: "#c34a4a",
+    66→    66→};
+    67→    67→
+    68→    68→const STATUS_SHORT: Record<string, string> = {
+    69→    69→  APPROVED: "Approved",
+    70→    70→  UNDER_REVIEW: "Under review",
+    71→    71→  SUBMITTED: "Submitted",
+    72→    72→  CHANGES_REQUESTED: "Changes req.",
+    73→    73→  ASSIGNED: "Assigned",
+    74→    74→  DRAFT: "Draft",
+    75→    75→  REJECTED: "Rejected",
+    76→    76→};
+    77→    77→
+    78→    78→/* ────────────────────────────── Tree helpers ────────────────────────────── */
+    79→    79→
+    80→    80→/** Keep nodes matching query/status, or having a matching descendant. */
+    81→    81→function filterTree(nodes: HierarchyNode[], q: string, status: string): HierarchyNode[] {
+    82→    82→  const walk = (list: HierarchyNode[]): HierarchyNode[] =>
+    83→    83→    list.flatMap((n) => {
+    84→    84→      const kids = n.children ? walk(n.children) : [];
+    85→    85→      const selfMatch =
+    86→    86→        (!q || n.name.toLowerCase().includes(q) || n.code.toLowerCase().includes(q)) &&
+    87→    87→        (status === "ALL" || n.status === status);
+    88→    88→      if (selfMatch) return [{ ...n, children: n.children ? walk(n.children) : [] }];
+    89→    89→      if (kids.length > 0) return [{ ...n, children: kids }];
+    90→    90→      return [];
+    91→    91→    });
+    92→    92→  return walk(nodes);
+    93→    93→}
+    94→    94→
+    95→    95→function countTree(nodes: HierarchyNode[]) {
+    96→    96→  let units = 0;
+    97→    97→  let projects = 0;
+    98→    98→  let users = 0;
+    99→    99→  let submissions = 0;
+   100→   100→  for (const s of nodes) {
+   101→   101→    units += s.children?.length ?? 0;
+   102→   102→    users += s.stats?.users ?? 0;
+   103→   103→    submissions += s.stats?.submissions ?? 0;
+   104→   104→    for (const u of s.children ?? []) {
+   105→   105→      projects += u.children?.length ?? 0;
+   106→   106→      users += u.stats?.users ?? 0;
+   107→   107→    }
+   108→   108→  }
+   109→   109→  return { subs: nodes.length, units, projects, users, submissions };
+   110→   110→}
+   111→   111→
+   112→   112→/** Path of nodes from root to the node with the given id (excluding it). */
+   113→   113→function ancestorsOf(nodes: HierarchyNode[], id: string): HierarchyNode[] | null {
+   114→   114→  for (const n of nodes) {
+   115→   115→    if (n.id === id) return [];
+   116→   116→    if (n.children) {
+   117→   117→      const sub = ancestorsOf(n.children, id);
+   118→   118→      if (sub) return [n, ...sub];
+   119→   119→    }
+   120→   120→  }
+   121→   121→  return null;
+   122→   122→}
+   123→   123→
+   124→   124→/* ────────────────────────────── Node cards ────────────────────────────── */
+   125→   125→
+   126→   126→function ExpandButton({
+   127→   127→  open,
+   128→   128→  count,
+   129→   129→  onClick,
+   130→   130→  name,
+   131→   131→}: {
+   132→   132→  open: boolean;
+   133→   133→  count: number;
+   134→   134→  onClick: () => void;
+   135→   135→  name: string;
+   136→   136→}) {
+   137→   137→  return (
+   138→   138→    <button
+   139→   139→      onClick={(e) => {
+   140→   140→        e.stopPropagation();
+   141→   141→        onClick();
+   142→   142→      }}
+   143→   143→      className={`flex h-7 shrink-0 items-center gap-1 rounded-full border border-white/60 bg-white/60 px-1.5 text-[10px] font-semibold text-[color:var(--ink-soft)] transition-all hover:bg-white/90 ${open ? "text-[#1d5fd6]" : ""}`}
+   144→   144→      aria-expanded={open}
+   145→   145→      aria-label={open ? `Collapse ${name}` : `Expand ${name} (${count} hidden)`}
+   146→   146→    >
+   147→   147→      {count > 0 && <span className="tabular">{count}</span>}
+   148→   148→      {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+   149→   149→    </button>
+   150→   150→  );
+   151→   151→}
+   152→   152→
+   153→   153→/** Card for a subsidiary / business-unit node. */
+   154→   154→function OrgCard({
+   155→   155→  node,
+   156→   156→  depth,
+   157→   157→  open,
+   158→   158→  selected,
+   159→   159→  onToggle,
+   160→   160→  onSelect,
+   161→   161→}: {
+   162→   162→  node: HierarchyNode;
+   163→   163→  depth: number;
+   164→   164→  open: boolean;
+   165→   165→  selected: boolean;
+   166→   166→  onToggle: () => void;
+   167→   167→  onSelect: () => void;
+   168→   168→}) {
+   169→   169→  const conf = TYPE_CONF[node.type];
+   170→   170→  const kids = node.children ?? [];
+   171→   171→  const isSub = node.type === "subsidiary";
+   172→   172→
+   173→   173→  return (
+   174→   174→    <div
+   175→   175→      role="button"
+   176→   176→      tabIndex={0}
+   177→   177→      onClick={onSelect}
+   178→   178→      onKeyDown={(e) => {
+   179→   179→        if (e.key === "Enter" || e.key === " ") {
+   180→   180→          e.preventDefault();
+   181→   181→          onSelect();
+   182→   182→        }
+   183→   183→      }}
+   184→   184→      aria-label={`${conf.label}: ${node.name} — open detail panel`}
+   185→   185→      className={`group w-full cursor-pointer border text-left shadow-[0_2px_10px_rgba(23,38,61,0.05)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(23,38,61,0.10)] ${
+   186→   186→        selected ? "border-[rgba(58,123,255,0.55)] bg-white/85 ring-2 ring-[rgba(58,123,255,0.35)]" : "border-white/70 bg-white/65 hover:bg-white/85"
+   187→   187→      } ${isSub ? "min-h-[92px] rounded-3xl p-3.5" : "min-h-[64px] rounded-2xl p-3"}`}
+   188→   188→    >
+   189→   189→      <div className="flex items-start gap-2.5">
+   190→   190→        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${conf.tile} ${isSub ? "h-10 w-10" : ""}`} aria-hidden="true">
+   191→   191→          <conf.icon className={isSub ? "h-5 w-5" : "h-4 w-4"} />
+   192→   192→        </span>
+   193→   193→        <span className="min-w-0 flex-1">
+   194→   194→          <span className="flex items-center justify-between gap-2">
+   195→   195→            <span className={`truncate font-semibold leading-5 text-[color:var(--ink)] ${isSub ? "text-[14px]" : "text-[13px]"}`}>{node.name}</span>
+   196→   196→            {kids.length > 0 && <ExpandButton open={open} count={kids.length} onClick={onToggle} name={node.name} />}
+   197→   197→          </span>
+   198→   198→          <span className="mt-0.5 flex items-center gap-1.5">
+   199→   199→            <span className="rounded-md bg-[rgba(102,119,141,0.10)] px-1.5 py-px font-mono text-[10px] font-medium tracking-wide text-[color:var(--ink-faint)]">{node.code}</span>
+   200→   200→            {depth === 0 && node.manager && <span className="hidden truncate text-[11px] text-[color:var(--ink-faint)] md:inline">Mgr · {node.manager}</span>}
+   201→   201→          </span>
+   202→   202→        </span>
+   203→   203→      </div>
+   204→   204→      {isSub && node.meta && <div className="mt-1.5 truncate pl-[48px] text-[11.5px] text-[color:var(--ink-faint)]">{node.meta}</div>}
+   205→   205→      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+   206→   206→        {node.stats && (
+   207→   207→          <>
+   208→   208→            <Chip tone="blue">
+   209→   209→              <Users className="h-3 w-3" aria-hidden="true" />
+   210→   210→              {node.stats.users}
+   211→   211→            </Chip>
+   212→   212→            {node.type === "subsidiary" && (
+   213→   213→              <Chip tone="purple">
+   214→   214→                <Layers className="h-3 w-3" aria-hidden="true" />
+   215→   215→                {kids.length} BU{kids.length === 1 ? "" : "s"}
+   216→   216→              </Chip>
+   217→   217→            )}
+   218→   218→            {node.stats.projects > 0 && (
+   219→   219→              <Chip tone="teal">
+   220→   220→                <Building2 className="h-3 w-3" aria-hidden="true" />
+   221→   221→                {node.stats.projects} {node.stats.projects === 1 ? "project" : "projects"}
+   222→   222→              </Chip>
+   223→   223→            )}
+   224→   224→            <Chip tone="gray">
+   225→   225→              <ClipboardList className="h-3 w-3" aria-hidden="true" />
+   226→   226→              {node.stats.submissions} subs
+   227→   227→            </Chip>
+   228→   228→          </>
+   229→   229→        )}
+   230→   230→        <StatusBadge status={node.status} />
+   231→   231→      </div>
+   232→   232→    </div>
+   233→   233→  );
+   234→   234→}
+   235→   235→
+   236→   236→/** Leaf row for a project node (compact chip style like a site register entry). */
+   237→   237→function ProjectCard({ node, selected, onSelect }: { node: HierarchyNode; selected: boolean; onSelect: () => void }) {
+   238→   238→  const conf = TYPE_CONF.project;
+   239→   239→  const active = node.status === "ACTIVE";
+   240→   240→  return (
+   241→   241→    <div
+   242→   242→      role="button"
+   243→   243→      tabIndex={0}
+   244→   244→      onClick={onSelect}
+   245→   245→      onKeyDown={(e) => {
+   246→   246→        if (e.key === "Enter" || e.key === " ") {
+   247→   247→          e.preventDefault();
+   248→   248→          onSelect();
+   249→   249→        }
+   250→   250→      }}
+   251→   251→      aria-label={`Project: ${node.name} (${node.status}) — open detail panel`}
+   252→   252→      title={`${node.name} — ${node.meta}`}
+   253→   253→      className={`group flex min-h-[44px] cursor-pointer items-center gap-2.5 rounded-2xl border px-2.5 py-2 backdrop-blur-xl transition-all duration-200 hover:-translate-y-px ${
+   254→   254→        selected ? "border-[rgba(58,123,255,0.55)] bg-white/85 ring-2 ring-[rgba(58,123,255,0.35)]" : "border-white/70 bg-white/55 hover:bg-white/85"
+   255→   255→      }`}
+   256→   256→    >
+   257→   257→      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 ${conf.tile}`} aria-hidden="true">
+   258→   258→        <conf.icon className="h-3.5 w-3.5" />
+   259→   259→      </span>
+   260→   260→      <span className="min-w-0 flex-1">
+   261→   261→        <span className="block truncate text-[13px] font-semibold leading-5 text-[color:var(--ink)]">{node.name}</span>
+   262→   262→        <span className="block truncate text-[10.5px] capitalize text-[color:var(--ink-faint)]">{node.meta}</span>
+   263→   263→      </span>
+   264→   264→      {node.stats && node.stats.submissions > 0 && (
+   265→   265→        <span className="tabular shrink-0 rounded-full bg-[rgba(22,163,163,0.10)] px-1.5 py-0.5 text-[10px] font-semibold text-[#0f7c7c]">
+   266→   266→          {node.stats.submissions} subs
+   267→   267→        </span>
+   268→   268→      )}
+   269→   269→      <span
+   270→   270→        aria-hidden="true"
+   271→   271→        className={`h-2 w-2 shrink-0 rounded-full ${active ? "bg-[#238653]" : "bg-[#8595ab]"}`}
+   272→   272→        title={node.status}
+   273→   273→      />
+   274→   274→    </div>
+   275→   275→  );
+   276→   276→}
+   277→   277→
+   278→   278→/* ────────────────────────────── Recursive branch ────────────────────────────── */
+   279→   279→
+   280→   280→interface BranchCtx {
+   281→   281→  openMap: Record<string, boolean>;
+   282→   282→  searchActive: boolean;
+   283→   283→  selectedId: string | null;
+   284→   284→  onToggle: (id: string, next: boolean) => void;
+   285→   285→  onSelect: (node: HierarchyNode) => void;
+   286→   286→}
+   287→   287→
+   288→   288→function TreeBranch({ nodes, depth, ctx, connectors = true }: { nodes: HierarchyNode[]; depth: number; ctx: BranchCtx; connectors?: boolean }) {
+   289→   289→  return (
+   290→   290→    <div className="relative" role="group">
+   291→   291→      {nodes.map((node, i) => {
+   292→   292→        const isLast = i === nodes.length - 1;
+   293→   293→        const kids = node.children ?? [];
+   294→   294→        const isOpen = ctx.searchActive ? true : (ctx.openMap[node.id] ?? true);
+   295→   295→        const selected = ctx.selectedId === node.id;
+   296→   296→        const isProject = node.type === "project";
+   297→   297→        return (
+   298→   298→          <div key={node.id} className={connectors ? "relative pl-10 pt-3" : "relative pt-3 first:pt-0"}>
+   299→   299→            {/* spine segments + elbow connector */}
+   300→   300→            {connectors && (
+   301→   301→              <>
+   302→   302→                <span aria-hidden className={`absolute left-[18px] top-0 w-px ${LINE} ${isLast ? "h-[44px]" : "h-full"}`} />
+   303→   303→                <span aria-hidden className={`absolute left-[18px] top-[44px] h-px w-[22px] ${LINE}`} />
+   304→   304→                <span aria-hidden className="absolute left-[14.5px] top-[40.5px] h-[7px] w-[7px] rounded-full border-2 border-white bg-[#3a7bff]/70 shadow-sm" />
+   305→   305→              </>
+   306→   306→            )}
+   307→   307→
+   308→   308→            {!isProject && (
+   309→   309→              <OrgCard
+   310→   310→                node={node}
+   311→   311→                depth={depth}
+   312→   312→                open={isOpen}
+   313→   313→                selected={selected}
+   314→   314→                onToggle={() => ctx.onToggle(node.id, !isOpen)}
+   315→   315→                onSelect={() => ctx.onSelect(node)}
+   316→   316→              />
+   317→   317→            )}
+   318→   318→            {isProject && <ProjectCard node={node} selected={selected} onSelect={() => ctx.onSelect(node)} />}
+   319→   319→
+   320→   320→            <AnimatePresence initial={false}>
+   321→   321→              {!isProject && kids.length > 0 && isOpen && (
+   322→   322→                <motion.div
+   323→   323→                  key="children"
+   324→   324→                  initial={{ height: 0, opacity: 0 }}
+   325→   325→                  animate={{ height: "auto", opacity: 1 }}
+   326→   326→                  exit={{ height: 0, opacity: 0 }}
+   327→   327→                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+   328→   328→                  className="overflow-hidden"
+   329→   329→                >
+   330→   330→                  <TreeBranch nodes={kids} depth={depth + 1} ctx={ctx} />
+   331→   331→                </motion.div>
+   332→   332→              )}
+   333→   333→            </AnimatePresence>
+   334→   334→          </div>
+   335→   335→        );
+   336→   336→      })}
+   337→   337→    </div>
+   338→   338→  );
+   339→   339→}
+   340→   340→
+   341→   341→/* ────────────────────────────── Root group card ────────────────────────────── */
+   342→   342→
+   343→   343→function RootCard({ counts }: { counts: { subs: number; units: number; projects: number; users: number; submissions: number } }) {
+   344→   344→  const { navigate } = useWorkspace();
+   345→   345→  const stats: { label: string; value: number; icon: typeof Landmark; hex: string; go: () => void }[] = [
+   346→   346→    { label: "Subsidiaries", value: counts.subs, icon: Landmark, hex: "#6a5bff", go: () => navigate("subsidiaries") },
+   347→   347→    { label: "Business Units", value: counts.units, icon: Layers, hex: "#3a7bff", go: () => navigate("units") },
+   348→   348→    { label: "Projects", value: counts.projects, icon: Building2, hex: "#16a3a3", go: () => navigate("projects") },
+   349→   349→    { label: "Users", value: counts.users, icon: Users, hex: "#238653", go: () => navigate("users") },
+   350→   350→  ];
+   351→   351→  return (
+   352→   352→    <GlassCard strong className="mx-auto w-full max-w-2xl rounded-[26px] p-5">
+   353→   353→      <div className="flex items-center gap-4">
+   354→   354→        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#3a7bff] to-[#6a5bff] shadow-lg shadow-[rgba(58,123,255,0.35)]" aria-hidden="true">
+   355→   355→          <Landmark className="h-7 w-7 text-white" />
+   356→   356→        </span>
+   357→   357→        <div className="min-w-0 flex-1">
+   358→   358→          <div className="flex flex-wrap items-center gap-2">
+   359→   359→            <h2 className="text-lg font-semibold tracking-tight text-[color:var(--ink)]">MEIL Group</h2>
+   360→   360→            <Chip tone="blue">Group HQ</Chip>
+   361→   361→          </div>
+   362→   362→          <p className="mt-0.5 truncate text-xs text-[color:var(--ink-faint)]">
+   363→   363→            {counts.subs} active subsidiaries · {counts.submissions} ESG submissions tracked
+   364→   364→          </p>
+   365→   365→        </div>
+   366→   366→      </div>
+   367→   367→      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/60 bg-[rgba(125,177,216,0.28)] sm:grid-cols-4">
+   368→   368→        {stats.map((s) => (
+   369→   369→          <button
+   370→   370→            key={s.label}
+   371→   371→            onClick={s.go}
+   372→   372→            className="group flex flex-col items-start gap-0.5 bg-white/50 px-3.5 py-2.5 text-left backdrop-blur-sm transition-colors hover:bg-white/80"
+   373→   373→            aria-label={`${s.label}: ${s.value} — open module`}
+   374→   374→          >
+   375→   375→            <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-[color:var(--ink-faint)]">
+   376→   376→              <s.icon className="h-3 w-3" style={{ color: s.hex }} aria-hidden="true" />
+   377→   377→              {s.label}
+   378→   378→            </span>
+   379→   379→            <span className="tabular text-lg font-semibold leading-6 text-[color:var(--ink)] transition-colors group-hover:text-[#1d5fd6]">
+   380→   380→              {fmtNumber(s.value)}
+   381→   381→            </span>
+   382→   382→          </button>
+   383→   383→        ))}
+   384→   384→      </div>
+   385→   385→    </GlassCard>
+   386→   386→  );
+   387→   387→}
+   388→   388→
+   389→   389→/* ────────────────────────────── Detail view panel ────────────────────────────── */
+   390→   390→
+   391→   391→function PanelSection({ icon: Icon, title, children, action }: { icon: typeof Gauge; title: string; children: ReactNode; action?: ReactNode }) {
+   392→   392→  return (
+   393→   393→    <section>
+   394→   394→      <div className="mb-2 flex items-center justify-between gap-2">
+   395→   395→        <h4 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">
+   396→   396→          <Icon className="h-3.5 w-3.5 text-[color:var(--esg-blue)]" aria-hidden="true" />
+   397→   397→          {title}
+   398→   398→        </h4>
+   399→   399→        {action}
+   400→   400→      </div>
+   401→   401→      {children}
+   402→   402→    </section>
+   403→   403→  );
+   404→   404→}
+   405→   405→
+   406→   406→function ApprovalRing({ value, size = 84, stroke = 9 }: { value: number; size?: number; stroke?: number }) {
+   407→   407→  const r = (size - stroke) / 2;
+   408→   408→  const c = 2 * Math.PI * r;
+   409→   409→  const clamped = Math.max(0, Math.min(100, value));
+   410→   410→  return (
+   411→   411→    <div className="relative shrink-0" style={{ width: size, height: size }}>
+   412→   412→      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+   413→   413→        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(102,119,141,0.16)" strokeWidth={stroke} />
+   414→   414→        <circle
+   415→   415→          cx={size / 2}
+   416→   416→          cy={size / 2}
+   417→   417→          r={r}
+   418→   418→          fill="none"
+   419→   419→          stroke="#238653"
+   420→   420→          strokeWidth={stroke}
+   421→   421→          strokeLinecap="round"
+   422→   422→          strokeDasharray={`${(clamped / 100) * c} ${c}`}
+   423→   423→          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+   424→   424→          style={{ transition: "stroke-dasharray 0.7s cubic-bezier(0.22,1,0.36,1)" }}
+   425→   425→        />
+   426→   426→      </svg>
+   427→   427→      <div className="absolute inset-0 flex items-center justify-center">
+   428→   428→        <span className="tabular text-sm font-semibold text-[color:var(--ink)]">{Math.round(clamped)}%</span>
+   429→   429→      </div>
+   430→   430→    </div>
+   431→   431→  );
+   432→   432→}
+   433→   433→
+   434→   434→function NodePanel({
+   435→   435→  detail,
+   436→   436→  loading,
+   437→   437→  error,
+   438→   438→  retry,
+   439→   439→  floating,
+   440→   440→  onClose,
+   441→   441→  onSelect,
+   442→   442→}: {
+   443→   443→  detail: HierarchyNodeDetail | null;
+   444→   444→  loading: boolean;
+   445→   445→  error: string | null;
+   446→   446→  retry: () => void;
+   447→   447→  floating: boolean;
+   448→   448→  onClose: () => void;
+   449→   449→  onSelect: (id: string) => void;
+   450→   450→}) {
+   451→   451→  const { openDetail } = useWorkspace();
+   452→   452→
+   453→   453→  if (loading || error || !detail) {
+   454→   454→    return (
+   455→   455→      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+   456→   456→        {loading ? (
+   457→   457→          <>
+   458→   458→            <span className="h-8 w-8 animate-spin rounded-full border-[3px] border-[rgba(58,123,255,0.25)] border-t-[#3a7bff]" aria-hidden="true" />
+   459→   459→            <p className="text-sm text-[color:var(--ink-faint)]">Loading node details…</p>
+   460→   460→          </>
+   461→   461→        ) : error ? (
+   462→   462→          <>
+   463→   463→            <p className="text-sm font-medium text-[#a53b3b]">{error}</p>
+   464→   464→            <button onClick={retry} className="glass-subtle rounded-2xl border-white/60 px-4 py-2 text-xs font-semibold text-[color:var(--ink-soft)] hover:bg-white/70">
+   465→   465→              Try again
+   466→   466→            </button>
+   467→   467→          </>
+   468→   468→        ) : null}
+   469→   469→      </div>
+   470→   470→    );
+   471→   471→  }
+   472→   472→
+   473→   473→  const conf = TYPE_CONF[detail.type];
+   474→   474→  const approvalPct = detail.stats.submissions > 0 ? (detail.stats.approved / detail.stats.submissions) * 100 : 0;
+   475→   475→  const maxBreak = Math.max(...detail.statusBreakdown.map((b) => b.count), 1);
+   476→   476→
+   477→   477→  const tiles: { label: string; value: number; icon: typeof Users; hex: string }[] =
+   478→   478→    detail.type === "project"
+   479→   479→      ? [
+   480→   480→          { label: "Users", value: detail.stats.users, icon: Users, hex: "#3a7bff" },
+   481→   481→          { label: "Approved", value: detail.stats.approved, icon: BadgeCheck, hex: "#238653" },
+   482→   482→          { label: "Submissions", value: detail.stats.submissions, icon: ClipboardList, hex: "#6a5bff" },
+   483→   483→          { label: "Overdue", value: detail.stats.overdue, icon: FileText, hex: detail.stats.overdue > 0 ? "#c34a4a" : "#238653" },
+   484→   484→        ]
+   485→   485→      : [
+   486→   486→          { label: "Users", value: detail.stats.users, icon: Users, hex: "#3a7bff" },
+   487→   487→          { label: "Projects", value: detail.stats.projects, icon: Building2, hex: "#16a3a3" },
+   488→   488→          { label: "Submissions", value: detail.stats.submissions, icon: ClipboardList, hex: "#6a5bff" },
+   489→   489→          { label: "Overdue", value: detail.stats.overdue, icon: FileText, hex: detail.stats.overdue > 0 ? "#c34a4a" : "#238653" },
+   490→   490→        ];
+   491→   491→
+   492→   492→  return (
+   493→   493→    <div className="flex h-full flex-col">
+   494→   494→      {/* header */}
+   495→   495→      <div className="relative overflow-hidden rounded-t-[23px] border-b border-white/60 bg-gradient-to-br from-[rgba(58,123,255,0.14)] via-white/30 to-[rgba(22,163,163,0.12)] p-5">
+   496→   496→        <div aria-hidden className="pointer-events-none absolute -right-10 -top-14 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.25),transparent_65%)] blur-xl" />
+   497→   497→        <div className="relative">
+   498→   498→          <div className="flex items-start justify-between gap-2">
+   499→   499→            {/* breadcrumb */}
+   500→   500→            <nav aria-label="Node location" className="flex min-w-0 flex-wrap items-center gap-1 text-[11px] text-[color:var(--ink-faint)]">
+   501→   501→              {detail.breadcrumb.map((bc, i) => (
+   502→   502→                <span key={bc.id} className="flex min-w-0 items-center gap-1">
+   503→   503→                  {i > 0 && <ChevronRight className="h-3 w-3 shrink-0" aria-hidden="true" />}
+   504→   504→                  {i < detail.breadcrumb.length - 1 ? (
+   505→   505→                    <button onClick={() => onSelect(bc.id)} className="max-w-[110px] truncate rounded-md px-1 py-0.5 font-medium transition-colors hover:bg-white/60 hover:text-[#1d5fd6]">
+   506→   506→                      {bc.name}
+   507→   507→                    </button>
+   508→   508→                  ) : (
+   509→   509→                    <span className="max-w-[110px] truncate px-1 font-semibold text-[color:var(--ink-soft)]">{bc.name}</span>
+   510→   510→                  )}
+   511→   511→                </span>
+   512→   512→              ))}
+   513→   513→            </nav>
+   514→   514→            <button
+   515→   515→              onClick={onClose}
+   516→   516→              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/70 bg-white/60 text-[color:var(--ink-soft)] transition-colors hover:bg-white/90"
+   517→   517→              aria-label="Close detail panel"
+   518→   518→            >
+   519→   519→              <X className="h-3.5 w-3.5" />
+   520→   520→            </button>
+   521→   521→          </div>
+   522→   522→
+   523→   523→          <div className="mt-3 flex items-center gap-3">
+   524→   524→            <span className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${conf.tile}`} aria-hidden="true">
+   525→   525→              <conf.icon className="h-6 w-6" />
+   526→   526→            </span>
+   527→   527→            <div className="min-w-0">
+   528→   528→              <h3 className="truncate text-[16px] font-semibold leading-5 text-[color:var(--ink)]">{detail.name}</h3>
+   529→   529→              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+   530→   530→                <span className="rounded-md bg-[rgba(102,119,141,0.10)] px-1.5 py-px font-mono text-[10px] font-medium text-[color:var(--ink-faint)]">{detail.code}</span>
+   531→   531→                <Chip tone="gray">{conf.label}</Chip>
+   532→   532→                <StatusBadge status={detail.status} />
+   533→   533→              </div>
+   534→   534→            </div>
+   535→   535→          </div>
+   536→   536→
+   537→   537→          <button
+   538→   538→            onClick={() => openDetail(TYPE_VIEW[detail.type], detail.id, "overview")}
+   539→   539→            className="glass mt-3.5 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-2xl border-white/60 text-[13px] font-semibold text-[#1d5fd6] transition-colors hover:bg-white/80"
+   540→   540→          >
+   541→   541→            Open full profile
+   542→   542→            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+   543→   543→          </button>
+   544→   544→        </div>
+   545→   545→      </div>
+   546→   546→
+   547→   547→      {/* scroll body */}
+   548→   548→      <div className="nice-scroll flex-1 space-y-5 overflow-y-auto p-5" data-floating={floating ? "true" : undefined}>
+   549→   549→        {/* stat tiles */}
+   550→   550→        <div className="grid grid-cols-2 gap-2.5">
+   551→   551→          {tiles.map((t) => (
+   552→   552→            <div key={t.label} className="glass-subtle flex items-center gap-2.5 rounded-2xl border-white/55 p-3">
+   553→   553→              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl" style={{ background: `${t.hex}1c` }} aria-hidden="true">
+   554→   554→                <t.icon className="h-4 w-4" style={{ color: t.hex }} />
+   555→   555→              </span>
+   556→   556→              <span className="min-w-0">
+   557→   557→                <span className="tabular block text-[17px] font-semibold leading-5 text-[color:var(--ink)]">{fmtNumber(t.value)}</span>
+   558→   558→                <span className="block truncate text-[11px] font-medium text-[color:var(--ink-faint)]">{t.label}</span>
+   559→   559→              </span>
+   560→   560→            </div>
+   561→   561→          ))}
+   562→   562→        </div>
+   563→   563→
+   564→   564→        {/* performance */}
+   565→   565→        <PanelSection icon={Gauge} title="Performance">
+   566→   566→          <div className="glass-subtle rounded-2xl border-white/55 p-3.5">
+   567→   567→            <div className="flex items-center gap-4">
+   568→   568→              <ApprovalRing value={approvalPct} />
+   569→   569→              <div className="min-w-0 flex-1">
+   570→   570→                <div className="text-[13px] font-semibold text-[color:var(--ink)]">Approval rate</div>
+   571→   571→                <p className="mt-0.5 text-xs leading-snug text-[color:var(--ink-faint)]">
+   572→   572→                  {detail.stats.approved} approved of {detail.stats.submissions} submission{detail.stats.submissions === 1 ? "" : "s"}
+   573→   573→                  {detail.stats.pendingReview > 0 ? ` · ${detail.stats.pendingReview} awaiting review` : ""}
+   574→   574→                </p>
+   575→   575→              </div>
+   576→   576→            </div>
+   577→   577→            {detail.statusBreakdown.length > 0 && (
+   578→   578→              <div className="mt-3 space-y-1.5 border-t border-[rgba(125,177,216,0.25)] pt-3">
+   579→   579→                {detail.statusBreakdown.map((b) => (
+   580→   580→                  <div key={b.status} className="flex items-center gap-2">
+   581→   581→                    <span className="w-[110px] shrink-0 truncate text-[11px] font-medium text-[color:var(--ink-soft)]">
+   582→   582→                      {STATUS_SHORT[b.status] ?? b.status.replaceAll("_", " ")}
+   583→   583→                    </span>
+   584→   584→                    <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[rgba(102,119,141,0.14)]">
+   585→   585→                      <span
+   586→   586→                        className="block h-full rounded-full"
+   587→   587→                        style={{ width: `${(b.count / maxBreak) * 100}%`, background: STATUS_TONE[b.status] ?? "#8595ab" }}
+   588→   588→                      />
+   589→   589→                    </span>
+   590→   590→                    <span className="tabular w-5 shrink-0 text-right text-[11px] font-semibold text-[color:var(--ink)]">{b.count}</span>
+   591→   591→                  </div>
+   592→   592→                ))}
+   593→   593→              </div>
+   594→   594→            )}
+   595→   595→          </div>
+   596→   596→        </PanelSection>
+   597→   597→
+   598→   598→        {/* work details — recent submissions */}
+   599→   599→        <PanelSection
+   600→   600→          icon={FileText}
+   601→   601→          title="Work details"
+   602→   602→          action={
+   603→   603→            detail.stats.submissions > 0 ? (
+   604→   604→              <span className="text-[11px] font-medium text-[color:var(--ink-faint)]">latest {detail.recentSubmissions.length}</span>
+   605→   605→            ) : undefined
+   606→   606→          }
+   607→   607→        >
+   608→   608→          {detail.recentSubmissions.length === 0 ? (
+   609→   609→            <div className="glass-subtle rounded-2xl border-white/55 px-3.5 py-4 text-center text-xs text-[color:var(--ink-faint)]">
+   610→   610→              No submissions recorded for this node yet.
+   611→   611→            </div>
+   612→   612→          ) : (
+   613→   613→            <div className="space-y-2">
+   614→   614→              {detail.recentSubmissions.map((s) => (
+   615→   615→                <button
+   616→   616→                  key={s.id}
+   617→   617→                  onClick={() => openDetail("submissions", s.id)}
+   618→   618→                  className="group flex w-full items-center gap-2.5 rounded-2xl border border-white/60 bg-white/50 px-3 py-2 text-left transition-all hover:-translate-y-px hover:bg-white/80"
+   619→   619→                  aria-label={`Open submission ${s.ref}`}
+   620→   620→                >
+   621→   621→                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: STATUS_TONE[s.status] ?? "#8595ab" }} aria-hidden="true" />
+   622→   622→                  <span className="min-w-0 flex-1">
+   623→   623→                    <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{s.title}</span>
+   624→   624→                    <span className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-[color:var(--ink-faint)]">
+   625→   625→                      <span className="font-mono">{s.ref}</span>·<span>{s.category.toLowerCase()}</span>·
+   626→   626→                      <span>
+   627→   627→                        {fmtNumber(s.metricValue, 1)} {s.metricUnit}
+   628→   628→                      </span>
+   629→   629→                      {s.submittedByName && (
+   630→   630→                        <>
+   631→   631→                          ·<span>by {s.submittedByName}</span>
+   632→   632→                        </>
+   633→   633→                      )}
+   634→   634→                    </span>
+   635→   635→                  </span>
+   636→   636→                  {s.overdue && <Chip tone="red">Overdue</Chip>}
+   637→   637→                  <StatusBadge status={s.status} />
+   638→   638→                </button>
+   639→   639→              ))}
+   640→   640→            </div>
+   641→   641→          )}
+   642→   642→        </PanelSection>
+   643→   643→
+   644→   644→        {/* team */}
+   645→   645→        <PanelSection icon={Users} title="Team">
+   646→   646→          {detail.team.length === 0 ? (
+   647→   647→            <div className="glass-subtle rounded-2xl border-white/55 px-3.5 py-4 text-center text-xs text-[color:var(--ink-faint)]">
+   648→   648→              No users assigned to this node.
+   649→   649→            </div>
+   650→   650→          ) : (
+   651→   651→            <div className="space-y-1.5">
+   652→   652→              {detail.team.map((u) => (
+   653→   653→                <button
+   654→   654→                  key={u.id}
+   655→   655→                  onClick={() => openDetail("users", u.id)}
+   656→   656→                  className="group flex w-full items-center gap-2.5 rounded-2xl px-2 py-1.5 text-left transition-colors hover:bg-white/65"
+   657→   657→                  aria-label={`Open user profile ${u.name}`}
+   658→   658→                >
+   659→   659→                  <Avatar name={u.name} size={32} />
+   660→   660→                  <span className="min-w-0 flex-1">
+   661→   661→                    <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{u.name}</span>
+   662→   662→                    <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">{u.title || (ROLE_LABELS[u.role] ?? u.role.replaceAll("_", " "))}</span>
+   663→   663→                  </span>
+   664→   664→                  <StatusBadge status={u.status} />
+   665→   665→                </button>
+   666→   666→              ))}
+   667→   667→            </div>
+   668→   668→          )}
+   669→   669→        </PanelSection>
+   670→   670→
+   671→   671→        {/* structure — drill down */}
+   672→   672→        {detail.children.length > 0 && (
+   673→   673→          <PanelSection icon={Network} title="Structure">
+   674→   674→            <div className="space-y-2">
+   675→   675→              {detail.children.map((c) => {
+   676→   676→                const cConf = TYPE_CONF[c.type];
+   677→   677→                return (
+   678→   678→                  <button
+   679→   679→                    key={c.id}
+   680→   680→                    onClick={() => onSelect(c.id)}
+   681→   681→                    className="group flex w-full items-center gap-2.5 rounded-2xl border border-white/60 bg-white/50 px-3 py-2 text-left transition-all hover:-translate-y-px hover:bg-white/80"
+   682→   682→                    aria-label={`Inspect ${c.name}`}
+   683→   683→                  >
+   684→   684→                    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${cConf.tile}`} aria-hidden="true">
+   685→   685→                      <cConf.icon className="h-3.5 w-3.5" />
+   686→   686→                    </span>
+   687→   687→                    <span className="min-w-0 flex-1">
+   688→   688→                      <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{c.name}</span>
+   689→   689→                      <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">{c.meta}</span>
+   690→   690→                    </span>
+   691→   691→                    <span className="tabular shrink-0 rounded-full bg-[rgba(58,123,255,0.10)] px-2 py-0.5 text-[10.5px] font-semibold text-[#1d5fd6]">{c.submissions} subs</span>
+   692→   692→                    <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[color:var(--ink-faint)]" aria-hidden="true" />
+   693→   693→                  </button>
+   694→   694→                );
+   695→   695→              })}
+   696→   696→            </div>
+   697→   697→          </PanelSection>
+   698→   698→        )}
+   699→   699→
+   700→   700→        {/* profile info */}
+   701→   701→        <PanelSection icon={Info} title="Details">
+   702→   702→          <div className="glass-subtle divide-y divide-[rgba(125,177,216,0.22)] rounded-2xl border-white/55 px-3.5">
+   703→   703→            {detail.profile.map((row) => (
+   704→   704→              <div key={row.label} className="flex items-start justify-between gap-3 py-2">
+   705→   705→                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">{row.label}</span>
+   706→   706→                <span className="min-w-0 text-right text-[12.5px] font-medium text-[color:var(--ink-soft)]">{row.value}</span>
+   707→   707→              </div>
+   708→   708→            ))}
+   709→   709→            {detail.manager && (
+   710→   710→              <div className="flex items-start justify-between gap-3 py-2">
+   711→   711→                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">Manager</span>
+   712→   712→                <span className="min-w-0 text-right text-[12.5px] font-medium text-[color:var(--ink-soft)]">{detail.manager}</span>
+   713→   713→              </div>
+   714→   714→            )}
+   715→   715→          </div>
+   716→   716→        </PanelSection>
+   717→   717→      </div>
+   718→   718→    </div>
+   719→   719→  );
+   720→   720→}
+   721→   721→
+   722→   722→/* ────────────────────────────── View ────────────────────────────── */
+   723→   723→
+   724→   724→export default function HierarchyView() {
+   725→   725→  const { data, loading, error, refetch } = useApi<{ nodes: HierarchyNode[] }>("/api/esg/hierarchy");
+   726→   726→  const [search, setSearch] = useState("");
+   727→   727→  const [statusFilter, setStatusFilter] = useState("ALL");
+   728→   728→  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
+   729→   729→  const [selectedId, setSelectedId] = useState<string | null>(null);
+   730→   730→
+   731→   731→  const nodes = data?.nodes ?? [];
+   732→   732→  const searchActive = search.trim().length > 0 || statusFilter !== "ALL";
+   733→   733→
+   734→   734→  const detailReq = useApi<{ detail: HierarchyNodeDetail }>(
+   735→   735→    selectedId ? `/api/esg/hierarchy?nodeId=${selectedId}` : null,
+   736→   736→    [selectedId]
+   737→   737→  );
+   738→   738→
+   739→   739→  const filtered = useMemo(
+   740→   740→    () => filterTree(nodes, search.trim().toLowerCase(), statusFilter),
+   741→   741→    [nodes, search, statusFilter]
+   742→   742→  );
+   743→   743→
+   744→   744→  const counts = useMemo(() => countTree(nodes), [nodes]);
+   745→   745→
+   746→   746→  const filters: ToolbarFilter[] = [
+   747→   747→    {
+   748→   748→      key: "status",
+   749→   749→      label: "Status",
+   750→   750→      value: statusFilter,
+   751→   751→      onChange: setStatusFilter,
+   752→   752→      options: [
+   753→   753→        { value: "ALL", label: "All statuses" },
+   754→   754→        { value: "ACTIVE", label: "Active" },
+   755→   755→        { value: "INACTIVE", label: "Inactive" },
+   756→   756→      ],
+   757→   757→    },
+   758→   758→  ];
+   759→   759→
+   760→   760→  const onToggle = (id: string, next: boolean) => {
+   761→   761→    setOpenMap((m) => ({ ...m, [id]: next }));
+   762→   762→  };
+   763→   763→
+   764→   764→  /** Select a node and make sure its ancestors are expanded in the tree. */
+   765→   765→  const selectNode = (id: string) => {
+   766→   766→    const path = ancestorsOf(nodes, id);
+   767→   767→    if (path) {
+   768→   768→      setOpenMap((m) => {
+   769→   769→        const next = { ...m };
+   770→   770→        for (const anc of path) next[anc.id] = true;
+   771→   771→        return next;
+   772→   772→      });
+   773→   773→    }
+   774→   774→    setSelectedId(id);
+   775→   775→  };
+   776→   776→
+   777→   777→  const branchCtx: BranchCtx = {
+   778→   778→    openMap,
+   779→   779→    searchActive,
+   780→   780→    selectedId,
+   781→   781→    onToggle,
+   782→   782→    onSelect: (node) => setSelectedId((cur) => (cur === node.id ? null : node.id)),
+   783→   783→  };
+   784→   784→
+   785→   785→  const panel = (floating: boolean) => (
+   786→   786→    <NodePanel
+   787→   787→      detail={detailReq.data?.detail ?? null}
+   788→   788→      loading={detailReq.loading}
+   789→   789→      error={detailReq.error}
+   790→   790→      retry={() => detailReq.refetch()}
+   791→   791→      floating={floating}
+   792→   792→      onClose={() => setSelectedId(null)}
+   793→   793→      onSelect={selectNode}
+   794→   794→    />
+   795→   795→  );
+   796→   796→
+   797→   797→  return (
+   798→   798→    <div className="view-in space-y-5">
+   799→   799→      <PageHeader
+   800→   800→        title="Organization Hierarchy"
+   801→   801→        description="Group → Subsidiary → Business Unit → Project / Site — click any node to inspect performance, submissions, and team."
+   802→   802→        icon={FolderTree}
+   803→   803→        breadcrumbs={["Group", "Organization", "Hierarchy"]}
+   804→   804→      />
+   805→   805→
+   806→   806→      <Toolbar
+   807→   807→        search={search}
+   808→   808→        onSearch={setSearch}
+   809→   809→        searchPlaceholder="Search name or code…"
+   810→   810→        filters={filters}
+   811→   811→        onReset={() => {
+   812→   812→          setSearch("");
+   813→   813→          setStatusFilter("ALL");
+   814→   814→        }}
+   815→   815→        resultCount={filtered.length}
+   816→   816→        right={
+   817→   817→          <div className="flex items-center gap-1.5">
+   818→   818→            <button
+   819→   819→              onClick={() => setOpenMap({})}
+   820→   820→              className="glass-subtle inline-flex h-9 items-center gap-1.5 rounded-2xl border-white/60 px-3 text-xs font-medium text-[color:var(--ink-soft)] transition-colors hover:bg-white/70"
+   821→   821→            >
+   822→   822→              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" /> Expand all
+   823→   823→            </button>
+   824→   824→            <button
+   825→   825→              onClick={() => setOpenMap(Object.fromEntries(allIds(nodes).map((id) => [id, false])))}
+   826→   826→              className="glass-subtle inline-flex h-9 items-center gap-1.5 rounded-2xl border-white/60 px-3 text-xs font-medium text-[color:var(--ink-soft)] transition-colors hover:bg-white/70"
+   827→   827→            >
+   828→   828→              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" /> Collapse all
+   829→   829→            </button>
+   830→   830→          </div>
+   831→   831→        }
+   832→   832→      />
+   833→   833→
+   834→   834→      {error && !data ? (
+   835→   835→        <GlassCard className="p-0"><ErrorState message={error} onRetry={refetch} /></GlassCard>
+   836→   836→      ) : loading && !data ? (
+   837→   837→        <GlassCard><LoadingBlock rows={6} label="Building hierarchy…" /></GlassCard>
+   838→   838→      ) : filtered.length === 0 ? (
+   839→   839→        <GlassCard>
+   840→   840→          <EmptyState
+   841→   841→            title="No matching nodes"
+   842→   842→            message="No subsidiary, business unit, or project matches the current search and status filters."
+   843→   843→            icon={ListTree}
+   844→   844→          />
+   845→   845→        </GlassCard>
+   846→   846→      ) : (
+   847→   847→        <div className={selectedId ? "grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]" : "grid grid-cols-1 items-start"}>
+   848→   848→          {/* ── tree ── */}
+   849→   849→          <div role="tree" aria-label="Organization hierarchy" className="min-w-0">
+   850→   850→            <RootCard counts={counts} />
+   851→   851→
+   852→   852→            {/* connector: stub → rail → columns (desktop) */}
+   853→   853→            <div aria-hidden className={`mx-auto hidden h-7 w-px md:block ${LINE}`} />
+   854→   854→            <div className="nice-scroll hidden overflow-x-auto pb-1 md:block">
+   855→   855→              <div
+   856→   856→                className="relative grid"
+   857→   857→                style={{ gridTemplateColumns: `repeat(${filtered.length}, minmax(290px, 1fr))` }}
+   858→   858→              >
+   859→   859→                <span
+   860→   860→                  aria-hidden
+   861→   861→                  className={`absolute top-0 h-px ${LINE}`}
+   862→   862→                  style={{ left: `${100 / (2 * filtered.length)}%`, right: `${100 / (2 * filtered.length)}%` }}
+   863→   863→                />
+   864→   864→                {filtered.map((s) => (
+   865→   865→                  <div key={s.id} className="relative px-2.5 pt-7">
+   866→   866→                    <span aria-hidden className={`absolute left-1/2 top-0 h-7 w-px -translate-x-1/2 ${LINE}`} />
+   867→   867→                    <TreeBranch nodes={[s]} depth={0} ctx={branchCtx} connectors={false} />
+   868→   868→                  </div>
+   869→   869→                ))}
+   870→   870→              </div>
+   871→   871→            </div>
+   872→   872→
+   873→   873→            {/* stacked tree (mobile) */}
+   874→   874→            <div className="mt-4 md:hidden">
+   875→   875→              <TreeBranch nodes={filtered} depth={0} ctx={branchCtx} connectors={false} />
+   876→   876→            </div>
+   877→   877→
+   878→   878→            {/* legend */}
+   879→   879→            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl border border-white/50 bg-white/40 px-4 py-2.5 backdrop-blur-md">
+   880→   880→              {(Object.keys(TYPE_CONF) as NodeType[]).map((t) => (
+   881→   881→                <span key={t} className="flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--ink-soft)]">
+   882→   882→                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: TYPE_CONF[t].hex }} aria-hidden="true" />
+   883→   883→                  {TYPE_CONF[t].label}
+   884→   884→                </span>
+   885→   885→              ))}
+   886→   886→              <span className="ml-auto hidden text-[11px] text-[color:var(--ink-faint)] lg:inline">
+   887→   887→                Click any card to open its detail panel · chevron expands a branch
+   888→   888→              </span>
+   889→   889→            </div>
+   890→   890→          </div>
+   891→   891→
+   892→   892→          {/* ── detail panel: inline on xl ── */}
+   893→   893→          <AnimatePresence>
+   894→   894→            {selectedId && (
+   895→   895→              <motion.div
+   896→   896→                key="panel-inline"
+   897→   897→                initial={{ opacity: 0, x: 24 }}
+   898→   898→                animate={{ opacity: 1, x: 0 }}
+   899→   899→                exit={{ opacity: 0, x: 24 }}
+   900→   900→                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+   901→   901→                className="hidden xl:sticky xl:top-24 xl:block xl:h-[calc(100vh-140px)]"
+   902→   902→              >
+   903→   903→                <GlassCard strong className="h-full overflow-hidden rounded-[24px]">
+   904→   904→                  {panel(false)}
+   905→   905→                </GlassCard>
+   906→   906→              </motion.div>
+   907→   907→            )}
+   908→   908→          </AnimatePresence>
+   909→   909→        </div>
+   910→   910→      )}
+   911→   911→
+   912→   912→      {/* ── detail panel: floating drawer below xl ── */}
+   913→   913→      <AnimatePresence>
+   914→   914→        {selectedId && (
+   915→   915→          <>
+   916→   916→            <motion.div
+   917→   917→              key="panel-backdrop"
+   918→   918→              initial={{ opacity: 0 }}
+   919→   919→              animate={{ opacity: 1 }}
+   920→   920→              exit={{ opacity: 0 }}
+   921→   921→              transition={{ duration: 0.2 }}
+   922→   922→              onClick={() => setSelectedId(null)}
+   923→   923→              className="fixed inset-0 z-40 bg-[rgba(23,38,61,0.35)] backdrop-blur-sm xl:hidden"
+   924→   924→              aria-hidden="true"
+   925→   925→            />
+   926→   926→            <motion.aside
+   927→   927→              key="panel-drawer"
+   928→   928→              initial={{ x: "100%" }}
+   929→   929→              animate={{ x: 0 }}
+   930→   930→              exit={{ x: "100%" }}
+   931→   931→              transition={{ type: "spring", stiffness: 320, damping: 34 }}
+   932→   932→              className="fixed inset-y-2 right-2 z-50 w-[calc(100vw-16px)] max-w-md xl:hidden"
+   933→   933→              role="dialog"
+   934→   934→              aria-label="Node detail panel"
+   935→   935→            >
+   936→   936→              <GlassCard strong className="h-full overflow-hidden rounded-[24px]">
+   937→   937→                {panel(true)}
+   938→   938→              </GlassCard>
+   939→   939→            </motion.aside>
+   940→   940→          </>
+   941→   941→        )}
+   942→   942→      </AnimatePresence>
+   943→   943→    </div>
+   944→   944→  );
+   945→   945→}
+   946→   946→
+   947→   947→/** All expandable node ids (subsidiaries + units) for collapse-all. */
+   948→   948→function allIds(nodes: HierarchyNode[]): string[] {
+   949→   949→  const out: string[] = [];
+   950→   950→  const walk = (list: HierarchyNode[]) => {
+   951→   951→    for (const n of list) {
+   952→   952→      if ((n.children?.length ?? 0) > 0) {
+   953→   953→        out.push(n.id);
+   954→   954→        walk(n.children!);
+   955→   955→      }
+   956→   956→    }
+   957→   957→  };
+   958→   958→  walk(nodes);
+   959→   959→  return out;
+   960→   960→}
+   961→   961→
