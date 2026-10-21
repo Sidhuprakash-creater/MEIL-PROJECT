@@ -433,6 +433,36 @@ export interface HierarchyNode {
   stats?: { users: number; projects: number; submissions: number };
 }
 
+/** Rich per-node payload returned by GET /api/esg/hierarchy?nodeId=… */
+export interface HierarchyNodeDetail {
+  id: string;
+  type: "subsidiary" | "unit" | "project";
+  code: string;
+  name: string;
+  status: string;
+  meta: string;
+  manager: string;
+  profile: { label: string; value: string }[];
+  stats: { users: number; projects: number; submissions: number; approved: number; pendingReview: number; overdue: number };
+  statusBreakdown: { status: string; count: number }[];
+  recentSubmissions: {
+    id: string;
+    ref: string;
+    title: string;
+    category: string;
+    status: string;
+    overdue: boolean;
+    metricName: string;
+    metricValue: number;
+    metricUnit: string;
+    submittedByName: string | null;
+    dueDate: string;
+  }[];
+  team: { id: string; name: string; role: string; status: string; title: string }[];
+  children: { id: string; type: "unit" | "project"; code: string; name: string; status: string; submissions: number; meta: string }[];
+  breadcrumb: { id: string; type: "subsidiary" | "unit" | "project"; name: string }[];
+}
+
 export interface BrsrStats {
   reports: BrsrReport[];
   byYear: { year: string; total: number; finalized: number; draft: number }[];
