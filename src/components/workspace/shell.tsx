@@ -365,10 +365,12 @@ export function WorkspaceShell() {
 
   return (
     <div className="relative min-h-screen">
+      {/* Ambient orbs are intentionally static — animating them would force every
+          backdrop-filter glass surface to re-sample its backdrop every frame. */}
       <div className="liquid-sky" aria-hidden="true">
         <div className="orb left-[6%] top-[8%] h-[380px] w-[380px] bg-[rgba(120,180,255,0.34)]" />
-        <div className="orb right-[4%] top-[22%] h-[320px] w-[320px] bg-[rgba(167,139,250,0.2)]" style={{ animationDelay: "-6s" }} />
-        <div className="orb bottom-[6%] left-[38%] h-[420px] w-[420px] bg-[rgba(86,196,187,0.18)]" style={{ animationDelay: "-11s" }} />
+        <div className="orb right-[4%] top-[22%] h-[320px] w-[320px] bg-[rgba(167,139,250,0.2)]" />
+        <div className="orb bottom-[6%] left-[38%] h-[420px] w-[420px] bg-[rgba(86,196,187,0.18)]" />
       </div>
       <div className="liquid-grain" aria-hidden="true" />
 

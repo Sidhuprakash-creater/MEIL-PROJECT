@@ -13,7 +13,7 @@ export async function GET() {
         db.subsidiary.count(),
         db.businessUnit.count(),
         db.project.count(),
-        db.user.findMany({ select: { id: true, name: true, role: true, status: true } }),
+        db.user.findMany({ select: { id: true, name: true, role: true, status: true, lastActiveAt: true } }),
         db.submission.findMany({ orderBy: { createdAt: "desc" } }),
         db.task.findMany({ orderBy: { dueDate: "asc" } }),
         db.activityEvent.findMany({ orderBy: { createdAt: "desc" }, take: 8 }),
@@ -24,7 +24,11 @@ export async function GET() {
     const userNames = new Map(usersFull.map((u) => [u.id, u.name]));
     const roleMap = new Map(usersFull.map((u) => [u.id, u.role]));
 
-    const activeUsers = usersFull.filter((u) => u.status === "ACTIVE").length;
+    /* Live presence: "active now" = ACTIVE account seen in the last 30 minutes. */
+    const NOW = Date.now();
+    const activeUsers = usersFull.filter(
+      (u) => u.status === "ACTIVE" && u.lastActiveAt && NOW - new Date(u.lastActiveAt).getTime() < 30 * 60000
+    ).length;
     const inactiveUsers = usersFull.filter((u) => u.status !== "ACTIVE").length;
 
     const kpis: DashboardData["kpis"] = {

@@ -129,22 +129,26 @@
     linear-gradient(180deg, #f2f9ff 0%, #e8f2fc 44%, #e4f0fb 100%);
 }
 
-/* Fine luminous grain to sell the glass realism */
+/* Fine luminous grain to sell the glass realism.
+   Perf: plain alpha layer (no mix-blend-mode) — blend modes force a full-page
+   offscreen composite on every scroll frame; plain opacity looks nearly
+   identical and composites for free. */
 .liquid-grain {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  opacity: 0.5;
-  mix-blend-mode: overlay;
+  opacity: 0.32;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.16'/%3E%3C/svg%3E");
 }
 
-/* The core glass surface */
+/* The core glass surface.
+   Perf: backdrop-filter re-samples the backdrop on every repaint — keep radii
+   modest (16px, single saturate pass) so dense glass pages scroll smoothly. */
 .glass {
-  background: rgba(255, 255, 255, 0.62);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: rgba(255, 255, 255, 0.66);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1px solid rgba(255, 255, 255, 0.75);
   box-shadow:
     0 12px 34px rgba(55, 111, 157, 0.09),
@@ -154,9 +158,9 @@
 
 /* Stronger glass for hero panels / shell chrome */
 .glass-strong {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(244, 250, 255, 0.6));
-  backdrop-filter: blur(30px) saturate(175%);
-  -webkit-backdrop-filter: blur(30px) saturate(175%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.8), rgba(244, 250, 255, 0.64));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
     0 18px 44px rgba(55, 111, 157, 0.12),
@@ -164,11 +168,11 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.95);
 }
 
-/* Light glass for dense rows / inner tiles */
+/* Light glass for dense rows / inner tiles — single blur pass, no saturate */
 .glass-subtle {
-  background: rgba(255, 255, 255, 0.45);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 2px 10px rgba(55, 111, 157, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
@@ -192,9 +196,9 @@
 
 /* Floating chrome (sidebar / topbar) */
 .glass-chrome {
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.72), rgba(240, 248, 255, 0.5));
-  backdrop-filter: blur(34px) saturate(180%);
-  -webkit-backdrop-filter: blur(34px) saturate(180%);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.76), rgba(240, 248, 255, 0.55));
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
   border: 1px solid rgba(255, 255, 255, 0.8);
   box-shadow:
     0 24px 60px rgba(38, 84, 124, 0.13),
@@ -258,17 +262,15 @@
   animation: pulse-dot 2.2s ease-in-out infinite;
 }
 
-/* Ambient drifting orbs (GPU-light, respects reduced motion) */
-@keyframes drift {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  50% { transform: translate3d(2.5%, -3%, 0) scale(1.05); }
-}
+/* Ambient atmosphere orbs — STATIC by design.
+   Perf: these sit behind every backdrop-filter glass surface. If they animate,
+   each glass panel must re-sample its (changing) backdrop every frame — a
+   permanent GPU tax on the whole app. Static orbs rasterize once and cost
+   nothing afterwards. */
 .orb {
   position: absolute;
   border-radius: 9999px;
   filter: blur(70px);
-  will-change: transform;
-  animation: drift 16s ease-in-out infinite;
 }
 
 /* View transition fade-up */
@@ -291,7 +293,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb, .pulse-dot, .skeleton-shimmer, .view-in {
+  .pulse-dot, .skeleton-shimmer, .view-in {
     animation: none !important;
   }
   .glass-lift, .glass-lift:hover {

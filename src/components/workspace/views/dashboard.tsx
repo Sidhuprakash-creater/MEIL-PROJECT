@@ -1,39 +1,40 @@
 "use client";
 
 // ── SCREEN 01 — Group Command Center (mission-control bento) ──
-import { useMemo } from "react";
+import { useMemo, type ComponentType } from "react";
 import {
-  Activity as ActivityIcon,
-  AlarmClock,
   AlertOctagon,
   AlertTriangle,
   ArrowRight,
   ArrowUpRight,
   BadgeCheck,
-  BarChart3,
-  Building2,
   CalendarClock,
   ChevronRight,
-  ClipboardList,
-  Clock,
-  Database,
   FileCheck2,
-  FileText,
   FolderTree,
-  Hourglass,
-  Landmark,
-  Layers,
   LayoutDashboard,
   ListChecks,
-  ListTodo,
-  Megaphone,
-  PieChart,
-  ShieldAlert,
-  TrendingUp,
-  UserPlus,
-  Users,
-  Workflow,
 } from "lucide-react";
+import {
+  AlarmAlertIcon,
+  CheckSealIcon,
+  DatabaseIcon,
+  FileCheckIcon,
+  FilesIcon,
+  HourglassIcon,
+  MegaphoneIcon,
+  OrgIcon,
+  PeopleIcon,
+  ProjectsIcon,
+  PulseIcon,
+  ReportChartIcon,
+  TaskCheckIcon,
+  TrendIcon,
+  UnitsIcon,
+  UserPlusIcon,
+  WorkflowIcon,
+} from "@/components/workspace/premium-icons";
+import type { PremiumIconProps } from "@/components/workspace/premium-icons";
 import {
   Bar,
   BarChart,
@@ -194,7 +195,7 @@ function StatusCard({
   footerNote,
   onClick,
 }: {
-  icon: typeof FileText;
+  icon: ComponentType<{ className?: string; hue?: string }>;
   hue: string;
   label: string;
   hint: string;
@@ -223,7 +224,7 @@ function StatusCard({
             boxShadow: `0 4px 10px ${hue}44, inset 0 1px 0 rgba(255,255,255,0.4)`,
           }}
         >
-          <Icon style={{ width: 18, height: 18 }} aria-hidden="true" />
+          <Icon className="h-[18px] w-[18px]" hue={hue} />
         </span>
         <MiniRing value={sharePct} tone={hue} size={54} stroke={6} />
       </div>
@@ -320,13 +321,13 @@ export default function DashboardView() {
 
   const latest = data?.esgTrend?.[data.esgTrend.length - 1];
 
-  const quickActions: { label: string; icon: typeof UserPlus; hint: string; tint: string; run: () => void }[] = [
-    { label: "Invite user", icon: UserPlus, hint: "Add a team member", tint: "#3a7bff", run: () => navigate("users", { create: Date.now() }) },
-    { label: "Assign task", icon: ListTodo, hint: "Create a reporting task", tint: "#6a5bff", run: () => navigate("tasks", { create: Date.now() }) },
-    { label: "New BRSR report", icon: FileText, hint: "Start the wizard", tint: "#16a3a3", run: () => navigate("brsr", { wizard: Date.now() }) },
-    { label: "Announcement", icon: Megaphone, hint: "Broadcast to group", tint: "#c57926", run: () => navigate("comms", { create: Date.now() }) },
-    { label: "Review queue", icon: FileCheck2, hint: "Approve submissions", tint: "#238653", run: () => navigate("approvals") },
-    { label: "Consolidation", icon: Database, hint: "Validate & merge", tint: "#c34a4a", run: () => navigate("consolidation") },
+  const quickActions: { label: string; icon: ComponentType<PremiumIconProps>; hint: string; tint: string; run: () => void }[] = [
+    { label: "Invite user", icon: UserPlusIcon, hint: "Add a team member", tint: "#3a7bff", run: () => navigate("users", { create: Date.now() }) },
+    { label: "Assign task", icon: TaskCheckIcon, hint: "Create a reporting task", tint: "#6a5bff", run: () => navigate("tasks", { create: Date.now() }) },
+    { label: "New BRSR report", icon: ReportChartIcon, hint: "Start the wizard", tint: "#16a3a3", run: () => navigate("brsr", { wizard: Date.now() }) },
+    { label: "Announcement", icon: MegaphoneIcon, hint: "Broadcast to group", tint: "#c57926", run: () => navigate("comms", { create: Date.now() }) },
+    { label: "Review queue", icon: FileCheckIcon, hint: "Approve submissions", tint: "#238653", run: () => navigate("approvals") },
+    { label: "Consolidation", icon: DatabaseIcon, hint: "Validate & merge", tint: "#c34a4a", run: () => navigate("consolidation") },
   ];
 
   if (error && !data) {
@@ -349,12 +350,12 @@ export default function DashboardView() {
 
   const awaitingReview = k.pendingReview;
 
-  const heroStats: { label: string; value: number; icon: typeof Landmark; color: string; go: () => void }[] = [
-    { label: "Subsidiaries", value: k.subsidiaries, icon: Landmark, color: "#6a5bff", go: () => navigate("subsidiaries") },
-    { label: "Business Units", value: k.businessUnits, icon: Layers, color: "#3a7bff", go: () => navigate("units") },
-    { label: "Projects", value: k.projects, icon: Building2, color: "#16a3a3", go: () => navigate("projects") },
-    { label: "Users", value: k.users, icon: Users, color: "#238653", go: () => navigate("users") },
-    { label: "Submissions", value: k.submissions, icon: ClipboardList, color: "#c57926", go: () => navigate("submissions") },
+  const heroStats: { label: string; value: number; icon: ComponentType<PremiumIconProps>; color: string; note?: string; go: () => void }[] = [
+    { label: "Subsidiaries", value: k.subsidiaries, icon: OrgIcon, color: "#6a5bff", go: () => navigate("subsidiaries") },
+    { label: "Business Units", value: k.businessUnits, icon: UnitsIcon, color: "#3a7bff", go: () => navigate("units") },
+    { label: "Projects", value: k.projects, icon: ProjectsIcon, color: "#16a3a3", go: () => navigate("projects") },
+    { label: "Users", value: k.users, icon: PeopleIcon, color: "#238653", note: `${k.activeUsers} active now`, go: () => navigate("users") },
+    { label: "Submissions", value: k.submissions, icon: FilesIcon, color: "#c57926", go: () => navigate("submissions") },
   ];
 
   const pipeline = [
@@ -423,7 +424,7 @@ export default function DashboardView() {
                   className="flex h-[60px] w-[60px] items-center justify-center rounded-[22px] bg-gradient-to-br from-[#3a7bff] via-[#5a6cff] to-[#6a5bff]"
                   style={{ boxShadow: "0 12px 28px rgba(58,123,255,0.4), inset 0 1px 0 rgba(255,255,255,0.45)" }}
                 >
-                  <Landmark className="h-7 w-7 text-white" aria-hidden="true" />
+                  <OrgIcon className="h-7 w-7" hue="#e8f1ff" />
                 </span>
                 <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center">
                   <span aria-hidden className="absolute h-3 w-3 animate-ping rounded-full bg-[#238653] opacity-70" />
@@ -479,12 +480,21 @@ export default function DashboardView() {
                   aria-hidden="true"
                 />
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: `${s.color}1c` }}>
-                  <s.icon className="h-4 w-4" style={{ color: s.color }} aria-hidden="true" />
+                  <s.icon className="h-[18px] w-[18px]" hue={s.color} />
                 </span>
                 <span className="tabular text-[22px] font-semibold leading-6 tracking-tight text-[color:var(--ink)]">
                   <CountUp value={s.value} format={(n) => fmtNumber(Math.round(n))} />
                 </span>
                 <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>{s.label}</span>
+                {s.note && (
+                  <span className="flex items-center gap-1 text-[10px] font-semibold text-[#1d6b44]">
+                    <span aria-hidden="true" className="relative flex h-1.5 w-1.5">
+                      <span className="absolute h-full w-full animate-ping rounded-full bg-[#238653] opacity-70" />
+                      <span className="relative h-1.5 w-1.5 rounded-full bg-[#238653]" />
+                    </span>
+                    {s.note}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -534,7 +544,7 @@ export default function DashboardView() {
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatusCard
-            icon={FileText}
+            icon={FilesIcon}
             hue="#3a7bff"
             label="Submissions"
             hint="All ESG filings across the group"
@@ -544,7 +554,7 @@ export default function DashboardView() {
             onClick={() => navigate("submissions")}
           />
           <StatusCard
-            icon={BadgeCheck}
+            icon={CheckSealIcon}
             hue="#238653"
             label="Approved"
             hint="Approved & eligible for consolidation"
@@ -553,7 +563,7 @@ export default function DashboardView() {
             onClick={() => navigate("submissions", { statusFilter: "APPROVED" })}
           />
           <StatusCard
-            icon={Hourglass}
+            icon={HourglassIcon}
             hue="#c57926"
             label="Pending review"
             hint="Awaiting an admin review decision"
@@ -562,7 +572,7 @@ export default function DashboardView() {
             onClick={() => navigate("approvals")}
           />
           <StatusCard
-            icon={AlarmClock}
+            icon={AlarmAlertIcon}
             hue="#c34a4a"
             label="Overdue"
             hint="Past due date — escalate now"
@@ -578,7 +588,7 @@ export default function DashboardView() {
         <SectionCard
           title="Submission pipeline"
           description="Where every report stands in the review flow"
-          icon={Workflow}
+          icon={WorkflowIcon}
           className="xl:col-span-4"
           actions={<Chip tone="gray">{k.submissions} total</Chip>}
         >
@@ -628,7 +638,7 @@ export default function DashboardView() {
         <SectionCard
           title="ESG performance trend"
           description="Scope 1 & 2 emissions (tCO2e) with renewable share on the right axis"
-          icon={TrendingUp}
+          icon={TrendIcon}
           className="xl:col-span-8"
           actions={
             latest && (
@@ -664,7 +674,7 @@ export default function DashboardView() {
 
       {/* ── 3. Completion + approval mix + category pulse ── */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <SectionCard title="Submission completion" description="Reports received vs completed (approved) by month" icon={BarChart3} className="xl:col-span-5">
+        <SectionCard title="Submission completion" description="Reports received vs completed (approved) by month" icon={ReportChartIcon} className="xl:col-span-5">
           <ResponsiveContainer width="100%" height={248}>
             <BarChart data={data.completionByMonth} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,119,141,0.16)" vertical={false} />
@@ -683,7 +693,7 @@ export default function DashboardView() {
           />
         </SectionCard>
 
-        <SectionCard title="Approval mix" description="Reviewed submission outcomes" icon={PieChart} className="xl:col-span-3">
+        <SectionCard title="Approval mix" description="Reviewed submission outcomes" icon={CheckSealIcon} className="xl:col-span-3">
           <div className="flex h-full flex-col items-center justify-center gap-4">
             <Donut segments={donutSegments} centerTop={String(k.approved + awaitingReview + k.rejectedReturned)} centerSub="reviewed" />
             <div className="flex w-full flex-col gap-1.5">
@@ -700,7 +710,7 @@ export default function DashboardView() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Category pulse" description="Top reporting categories by volume" icon={ListChecks} className="xl:col-span-4">
+        <SectionCard title="Category pulse" description="Top reporting categories by volume" icon={PulseIcon} className="xl:col-span-4">
           {categoryMix.length === 0 ? (
             <EmptyState title="No categories yet" message="Category mix appears once submissions arrive." />
           ) : (
@@ -788,7 +798,7 @@ export default function DashboardView() {
 
       {/* ── 5. Role performance + quick actions ── */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-        <SectionCard title="Role-wise performance" description="Approval rate of submissions by contributor role" icon={Users} className="xl:col-span-2">
+        <SectionCard title="Role-wise performance" description="Approval rate of submissions by contributor role" icon={PeopleIcon} className="xl:col-span-2">
           {data.rolePerformance.length === 0 ? (
             <EmptyState title="No role data yet" message="Role performance appears once users start submitting reports." />
           ) : (
@@ -818,7 +828,7 @@ export default function DashboardView() {
           )}
         </SectionCard>
 
-        <SectionCard title="Quick actions" description="Jump into the most common group-admin workflows" icon={ListTodo} className="xl:col-span-3">
+        <SectionCard title="Quick actions" description="Jump into the most common group-admin workflows" icon={TaskCheckIcon} className="xl:col-span-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {quickActions.map((qa) => (
               <button
@@ -828,7 +838,7 @@ export default function DashboardView() {
                 aria-label={qa.label}
               >
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-105" style={{ background: `${qa.tint}1f` }}>
-                  <qa.icon className="h-4 w-4" style={{ color: qa.tint }} aria-hidden="true" />
+                  <qa.icon className="h-[18px] w-[18px]" hue={qa.tint} />
                 </span>
                 <span className="text-[13px] font-semibold leading-4 text-[color:var(--ink)]">{qa.label}</span>
                 <span className={`text-[11px] leading-snug ${INK_FAINT}`}>{qa.hint}</span>
@@ -843,7 +853,7 @@ export default function DashboardView() {
         <SectionCard
           title="Pending approvals"
           description="Submissions waiting for your review"
-          icon={FileCheck2}
+          icon={FileCheckIcon}
           actions={<Chip tone={data.pendingApprovals.length > 0 ? "amber" : "green"}>{data.pendingApprovals.length}</Chip>}
         >
           {data.pendingApprovals.length === 0 ? (
@@ -880,7 +890,7 @@ export default function DashboardView() {
         <SectionCard
           title="Upcoming & overdue deadlines"
           description="Reporting tasks ordered by due date"
-          icon={Clock}
+          icon={AlarmAlertIcon}
           actions={<Chip tone="gray">{data.deadlines.length}</Chip>}
         >
           {data.deadlines.length === 0 ? (
@@ -915,7 +925,7 @@ export default function DashboardView() {
         <SectionCard
           title="Data quality issues"
           description="Flagged by reviewers & validation engine"
-          icon={ShieldAlert}
+          icon={FilesIcon}
           actions={<Chip tone={data.dataQuality.length > 0 ? "red" : "green"}>{data.dataQuality.length}</Chip>}
         >
           {data.dataQuality.length === 0 ? (
@@ -954,7 +964,7 @@ export default function DashboardView() {
       <SectionCard
         title="Recent activity"
         description="Latest actions across the organization"
-        icon={ActivityIcon}
+        icon={PulseIcon}
         actions={
           <button onClick={() => navigate("activity")} className="inline-flex items-center gap-1 text-xs font-medium text-[color:var(--esg-blue)] hover:underline">
             Open activity feed <ArrowRight className="h-3 w-3" aria-hidden="true" />

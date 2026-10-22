@@ -124,18 +124,27 @@ async function main() {
     { name: "Old Contractor", email: "old.contractor@meil.in", role: "FIN_RESOURCE_USER", sub: 1, unit: 2, proj: 4, title: "Contract Finance", status: "INACTIVE", lastActive: 90 },
     { name: "New Joiner — ESG", email: "new.joiner@meil.in", role: "HR_USER", sub: 0, unit: 1, title: "HR Data Coordinator", status: "INVITED" },
   ];
+  /* Presence realism: `lastActive` 0 = "online now" (spread over the last ~25 min),
+     1–5 = hours ago (today / yesterday), ≥6 = days ago (offline). */
+  let onlineIdx = 0;
   const users = await Promise.all(
-    userDefs.map((u) =>
-      db.user.create({
+    userDefs.map((u) => {
+      let lastActiveAt: Date | null = null;
+      if (u.lastActive !== undefined) {
+        if (u.lastActive === 0) lastActiveAt = new Date(now - (2 + onlineIdx++ * 5) * 60000);
+        else if (u.lastActive < 6) lastActiveAt = new Date(now - (u.lastActive * 7 + 2) * 3600000);
+        else lastActiveAt = at(-u.lastActive, 9);
+      }
+      return db.user.create({
         data: {
           name: u.name, email: u.email, role: u.role, status: u.status ?? "ACTIVE",
           subsidiaryId: u.sub !== undefined ? subs[u.sub].id : null,
           businessUnitId: u.unit !== undefined ? units[u.unit].id : null,
           projectId: u.proj !== undefined ? projects[u.proj].id : null,
-          title: u.title, lastActiveAt: u.lastActive !== undefined ? at(-u.lastActive, 9) : null,
+          title: u.title, lastActiveAt,
         },
-      })
-    )
+      });
+    })
   );
   const uIdx = (email: string) => users.find((u) => u.email.startsWith(email))!.id;
 

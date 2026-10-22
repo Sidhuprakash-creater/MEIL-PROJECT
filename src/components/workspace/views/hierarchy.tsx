@@ -575,7 +575,7 @@ function OrgCard({
         }
       }}
       aria-label={`${eyebrow}: ${node.name} — open detail panel`}
-      className={`group relative w-full cursor-pointer overflow-hidden border text-left shadow-[0_2px_10px_rgba(23,38,61,0.05)] backdrop-blur-xl transition-all duration-200 hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(23,38,61,0.10)] ${
+      className={`group relative w-full cursor-pointer overflow-hidden border text-left shadow-[0_2px_10px_rgba(23,38,61,0.05)] backdrop-blur-md transition-all duration-200 hover:-translate-y-px hover:shadow-[0_8px_24px_rgba(23,38,61,0.10)] ${
         selected ? "border-[rgba(58,123,255,0.55)] bg-white/90 ring-2 ring-[rgba(58,123,255,0.35)]" : "border-white/70 bg-white/65 hover:bg-white/85"
       } ${isSub ? "min-h-[96px] rounded-3xl p-3.5" : "min-h-[66px] rounded-2xl p-3"}`}
     >
@@ -672,7 +672,7 @@ function ProjectCard({
       }}
       aria-label={`Project: ${node.name} (${node.status}) — open detail panel`}
       title={`${node.name} — ${node.meta}`}
-      className={`group flex min-h-[48px] cursor-pointer items-center gap-2.5 rounded-2xl border px-2.5 py-2 backdrop-blur-xl transition-all duration-200 hover:-translate-y-px ${
+      className={`group flex min-h-[48px] cursor-pointer items-center gap-2.5 rounded-2xl border px-2.5 py-2 backdrop-blur-md transition-all duration-200 hover:-translate-y-px ${
         selected ? "border-[rgba(58,123,255,0.55)] bg-white/90 ring-2 ring-[rgba(58,123,255,0.35)]" : "border-white/70 bg-white/55 hover:bg-white/85"
       }`}
     >
@@ -949,9 +949,9 @@ function NodeShell({
           onSelect();
         }
       }}
-      className={`absolute left-0 top-0 cursor-grab select-none overflow-hidden border backdrop-blur-xl transition-shadow active:cursor-grabbing ${
+      className={`absolute left-0 top-0 cursor-grab select-none overflow-hidden border transition-shadow active:cursor-grabbing ${
         dragging ? "z-30 border-[rgba(58,123,255,0.6)] bg-white/95 shadow-[0_18px_44px_rgba(23,38,61,0.22)]" : "hover:shadow-[0_10px_28px_rgba(23,38,61,0.14)]"
-      } ${selected ? "border-[rgba(58,123,255,0.55)] bg-white/90 ring-2 ring-[rgba(58,123,255,0.35)]" : dragging ? "" : "border-white/70 bg-white/68"}`}
+      } ${selected ? "border-[rgba(58,123,255,0.55)] bg-white/92 ring-2 ring-[rgba(58,123,255,0.35)]" : dragging ? "" : "border-white/70 bg-white/88"}`}
       style={{ width: w, height: h, borderRadius: radius }}
     >
       {children}
@@ -994,8 +994,11 @@ function RootNodeCard({
       onSelect={onSelect}
     >
       <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#3a7bff,#6a5bff,#16a3a3,#238653,#c57926)] opacity-80" />
-      <span aria-hidden className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.25),transparent_65%)] blur-lg" />
-      <span aria-hidden className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.2),transparent_65%)] blur-lg" />
+      {/* Perf: plain radial gradients (no CSS blur filter) — same glow, zero filter cost.
+          Canvas cards skip backdrop-filter entirely: they sit on a static dot grid,
+          so a near-opaque surface looks identical and repaints for free. */}
+      <span aria-hidden className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.22),transparent_70%)]" />
+      <span aria-hidden className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.18),transparent_70%)]" />
 
       <div className="relative p-3">
         <div className="flex items-center gap-2.5">
@@ -1561,11 +1564,18 @@ export default function HierarchyView() {
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  /* ── movable node canvas state ── */
+  /* ── movable node canvas state ──
+     PERF MODEL: React state is committed only at interaction END. All per-frame
+     work (node drag, canvas pan, wheel zoom, layout animation) paints transforms
+     and connector paths straight to the DOM, so a 120Hz pointer never triggers a
+     React re-render of ~30 glass cards + every SVG edge. */
   const [mode, setMode] = useState<DiagramMode>("tree");
   const viewportRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
+  const panRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
   const [dragging, setDragging] = useState(false); // canvas pan
   const dragInfo = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
@@ -1577,6 +1587,13 @@ export default function HierarchyView() {
   const [dragNodeId, setDragNodeId] = useState<string | null>(null);
   const nodeDrag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
   const firstLayout = useRef(true);
+
+  /* Direct-DOM registries: node wrappers, connector element groups, live metadata. */
+  const nodeEls = useRef(new Map<string, HTMLDivElement>());
+  const edgeEls = useRef(new Map<string, { glow: SVGPathElement; line: SVGPathElement; dot: SVGCircleElement }>());
+  const zoomLabelRef = useRef<HTMLSpanElement>(null);
+  const modeRef = useRef<DiagramMode>("tree");
+  const lnodeByIdRef = useRef(new Map<string, LNode>());
 
   const nodes = data?.nodes ?? [];
   const summary = data?.summary;
@@ -1600,9 +1617,37 @@ export default function HierarchyView() {
   /* Rendered positions: live state (drag/animation) or freshly computed target on first paint. */
   const pos = useMemo(() => (Object.keys(positions).length > 0 ? positions : targetPos), [positions, targetPos]);
 
+  /* ── direct-DOM paint helpers (bypass React for per-frame work) ── */
+  const applyWorld = () => {
+    const w = worldRef.current;
+    if (w) w.style.transform = `translate3d(${panRef.current.x}px, ${panRef.current.y}px, 0) scale(${zoomRef.current})`;
+  };
+  const applyNodePos = (id: string, p: Pos) => {
+    const el = nodeEls.current.get(id);
+    if (el) el.style.transform = `translate3d(${p.x}px, ${p.y}px, 0)`;
+  };
+  const applyEdge = (childId: string) => {
+    const els = edgeEls.current.get(childId);
+    const child = lnodeByIdRef.current.get(childId);
+    if (!els || !child?.parentId) return;
+    const parent = lnodeByIdRef.current.get(child.parentId);
+    const p = posRef.current[child.parentId];
+    const c = posRef.current[childId];
+    if (!parent || !p || !c) return;
+    const { d, joint } = pathFor(parent, child, p, c, modeRef.current);
+    els.glow.setAttribute("d", d);
+    els.line.setAttribute("d", d);
+    els.dot.setAttribute("cx", String(joint.x));
+    els.dot.setAttribute("cy", String(joint.y));
+  };
+  const applyAllEdges = () => {
+    for (const cid of edgeEls.current.keys()) applyEdge(cid);
+  };
+
   const activeMode = DIAGRAM_MODES.find((m) => m.id === mode) ?? DIAGRAM_MODES[0]!;
 
-  /* ── animated layout transitions (rAF-lerped so nodes + connectors stay in sync) ── */
+  /* ── animated layout transitions (rAF-lerped so nodes + connectors stay in sync) ──
+     Frames paint via direct DOM writes; React receives a single commit at the end. */
   const stopAnim = () => {
     if (animRef.current !== null) {
       cancelAnimationFrame(animRef.current);
@@ -1624,18 +1669,20 @@ export default function HierarchyView() {
     const step = (now: number) => {
       const t = Math.min(1, (now - t0) / dur);
       const e = 1 - Math.pow(1 - t, 3);
-      const next: Record<string, Pos> = {};
+      const live = posRef.current;
       for (const id of Object.keys(target)) {
         const f = from[id]!;
-        next[id] = { x: f.x + (target[id]!.x - f.x) * e, y: f.y + (target[id]!.y - f.y) * e };
+        const next = { x: f.x + (target[id]!.x - f.x) * e, y: f.y + (target[id]!.y - f.y) * e };
+        live[id] = next;
+        applyNodePos(id, next);
       }
-      posRef.current = next;
-      setPositions(next);
+      applyAllEdges();
       if (t < 1) {
         animRef.current = requestAnimationFrame(step);
       } else {
         animRef.current = null;
         setAnimating(false);
+        setPositions({ ...posRef.current });
       }
     };
     animRef.current = requestAnimationFrame(step);
@@ -1655,11 +1702,14 @@ export default function HierarchyView() {
     // while radial/constellation get a lower floor so the full orbit fits on screen.
     const zFloor = mode === "radial" || mode === "constellation" ? 0.3 : 0.45;
     const z = Math.max(zFloor, Math.min(1, vw / bw, vh / bh));
-    setZoom(+z.toFixed(2));
-    setPan({
+    const nextPan = {
       x: Math.round((vw - (b.maxX - b.minX) * z) / 2 - b.minX * z),
       y: Math.round((vh - (b.maxY - b.minY) * z) / 2 - b.minY * z),
-    });
+    };
+    zoomRef.current = +z.toFixed(2);
+    panRef.current = nextPan;
+    setZoom(zoomRef.current);
+    setPan(nextPan);
   };
 
   /* Apply new target layout whenever the design mode / tree shape changes. */
@@ -1714,10 +1764,10 @@ export default function HierarchyView() {
     setSelectedId(id);
   };
 
-  /* ── canvas pan: pointer drag with click suppression ── */
+  /* ── canvas pan: pointer drag with click suppression (direct DOM per frame, one commit) ── */
   const startPan = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
-    dragInfo.current = { sx: e.clientX, sy: e.clientY, bx: pan.x, by: pan.y, moved: false };
+    dragInfo.current = { sx: e.clientX, sy: e.clientY, bx: panRef.current.x, by: panRef.current.y, moved: false };
     suppressClick.current = false;
     setDragging(true);
   };
@@ -1730,13 +1780,17 @@ export default function HierarchyView() {
       const dx = e.clientX - d.sx;
       const dy = e.clientY - d.sy;
       if (!d.moved && Math.hypot(dx, dy) > 5) d.moved = true;
-      if (d.moved) setPan(clampPan(d.bx + dx, d.by + dy));
+      if (!d.moved) return;
+      panRef.current = clampPan(d.bx + dx, d.by + dy);
+      applyWorld(); // paint straight to the world layer — no React render per move
     };
     const up = () => {
-      suppressClick.current = dragInfo.current?.moved ?? false;
+      const moved = dragInfo.current?.moved ?? false;
+      suppressClick.current = moved;
       dragInfo.current = null;
       setDragging(false);
-      if (suppressClick.current) {
+      if (moved) {
+        setPan(panRef.current); // single React commit at gesture end
         window.setTimeout(() => {
           suppressClick.current = false;
         }, 120);
@@ -1752,10 +1806,10 @@ export default function HierarchyView() {
     };
   }, [dragging]);
 
-  /* ── node drag: move any node anywhere; connectors follow live ── */
+  /* ── node drag: move any node anywhere; connectors re-anchor live, zero re-renders ── */
   const startNodeDrag = (e: React.PointerEvent, n: LNode) => {
     if (e.button !== 0 || animating) return;
-    const p = pos[n.id];
+    const p = posRef.current[n.id];
     if (!p) return;
     e.stopPropagation();
     nodeDrag.current = { id: n.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false };
@@ -1771,17 +1825,23 @@ export default function HierarchyView() {
       const dx = e.clientX - d.sx;
       const dy = e.clientY - d.sy;
       if (!d.moved && Math.hypot(dx, dy) > 5) d.moved = true;
-      if (d.moved) {
-        const next = { ...posRef.current, [d.id]: { x: d.ox + dx, y: d.oy + dy } };
-        posRef.current = next;
-        setPositions(next);
+      if (!d.moved) return;
+      const next = { x: d.ox + dx, y: d.oy + dy };
+      posRef.current = { ...posRef.current, [d.id]: next };
+      /* Paint straight to the DOM: the dragged card + every connector touching it. */
+      applyNodePos(d.id, next);
+      applyEdge(d.id); // this node's own connector to its parent
+      for (const [cid, ln] of lnodeByIdRef.current) {
+        if (ln.parentId === d.id) applyEdge(cid); // connectors to this node's children
       }
     };
     const up = () => {
-      suppressClick.current = nodeDrag.current?.moved ?? false;
+      const moved = nodeDrag.current?.moved ?? false;
+      suppressClick.current = moved;
       nodeDrag.current = null;
       setDragNodeId(null);
-      if (suppressClick.current) {
+      if (moved) {
+        setPositions({ ...posRef.current }); // single React commit at gesture end
         window.setTimeout(() => {
           suppressClick.current = false;
         }, 120);
@@ -1797,21 +1857,41 @@ export default function HierarchyView() {
     };
   }, [dragNodeId]);
 
-  /* ── zoom: ⌘/Ctrl + wheel (native non-passive listener) + on-canvas controls ── */
+  /* ── zoom: ⌘/Ctrl + wheel (rAF-batched direct writes, commit after idle) + on-canvas controls ── */
   const canvasReady = !!data && filtered.length > 0 && lnodes.length > 0;
   useEffect(() => {
     const el = viewportRef.current;
     if (!el || !canvasReady) return;
+    let raf = 0;
+    let commitTimer = 0;
+    const paint = () => {
+      raf = 0;
+      applyWorld();
+      if (zoomLabelRef.current) zoomLabelRef.current.textContent = `${Math.round(zoomRef.current * 100)}%`;
+    };
     const onWheel = (e: WheelEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
-      setZoom((z) => clampZoom(z - Math.sign(e.deltaY) * 0.08));
+      zoomRef.current = clampZoom(zoomRef.current - Math.sign(e.deltaY) * 0.08);
+      if (!raf) raf = requestAnimationFrame(paint);
+      window.clearTimeout(commitTimer);
+      commitTimer = window.setTimeout(() => {
+        setZoom(zoomRef.current);
+        setPan(panRef.current);
+      }, 180);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      if (raf) cancelAnimationFrame(raf);
+      window.clearTimeout(commitTimer);
+    };
   }, [canvasReady]);
 
-  const zoomBy = (d: number) => setZoom((z) => clampZoom(+(z + d).toFixed(2)));
+  const zoomBy = (d: number) => {
+    zoomRef.current = clampZoom(+(zoomRef.current + d).toFixed(2));
+    setZoom(zoomRef.current);
+  };
 
   const handleCanvasSelect = (n: LNode) => {
     if (suppressClick.current) return;
@@ -1843,9 +1923,17 @@ export default function HierarchyView() {
       ]
     : [];
 
-  /* connectors + bounds, recomputed live while nodes move */
-  const bounds = useMemo(() => boundsOf(lnodes, pos), [lnodes, pos]);
+  /* connectors, recomputed from committed positions (interactions paint via direct DOM) */
   const lnodeById = useMemo(() => new Map(lnodes.map((n) => [n.id, n] as const)), [lnodes]);
+  /* Sync the interaction refs after every render — refs must never be written
+     during render itself (react-hooks/refs), and every consumer of these refs
+     (gesture handlers, rAF frames) runs after this effect anyway. */
+  useEffect(() => {
+    panRef.current = pan;
+    zoomRef.current = zoom;
+    modeRef.current = mode;
+    lnodeByIdRef.current = lnodeById;
+  }, [pan, zoom, mode, lnodeById]);
   const edges = useMemo(() => {
     const out: { key: string; d: string; hue: string; joint: Pos }[] = [];
     for (const n of lnodes) {
@@ -1948,12 +2036,17 @@ export default function HierarchyView() {
               }}
               role="application"
               aria-label={`Organization hierarchy diagram — ${activeMode.label}. Drag the canvas to pan, drag nodes to rearrange.`}
-              className={`relative hidden select-none overflow-hidden rounded-[26px] border border-white/60 bg-[rgba(255,255,255,0.30)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_8px_30px_rgba(23,38,61,0.06)] backdrop-blur-xl md:block ${dragging || dragNodeId ? "cursor-grabbing" : "cursor-grab"}`}
+              data-busy={dragging || dragNodeId || animating ? "true" : "false"}
+              className={`relative hidden select-none overflow-hidden rounded-[26px] border border-white/60 bg-[rgba(255,255,255,0.34)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_8px_30px_rgba(23,38,61,0.06)] backdrop-blur-md md:block ${dragging || dragNodeId ? "cursor-grabbing" : "cursor-grab"}`}
               style={{ touchAction: "pan-y", height: "clamp(540px, 66vh, 720px)" }}
             >
               <style>{`
                 .edge-dash { stroke-dasharray: 4 7; animation: edge-dash-flow 26s linear infinite; }
                 @keyframes edge-dash-flow { to { stroke-dashoffset: -330; } }
+                /* Perf: freeze connector flow while interacting — the canvas repaints
+                   every frame during drag/pan/zoom, so idle-only animations avoid
+                   compounding paint work. */
+                [data-busy="true"] .edge-dash { animation-play-state: paused; }
                 .node-in { animation: node-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
                 @keyframes node-in { from { opacity: 0; } to { opacity: 1; } }
                 @media (prefers-reduced-motion: reduce) { .edge-dash, .node-in { animation: none; } }
@@ -1998,6 +2091,7 @@ export default function HierarchyView() {
 
               {/* ── moving layer: connectors + draggable nodes ── */}
               <div
+                ref={worldRef}
                 className="absolute inset-0"
                 style={{
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
@@ -2007,7 +2101,22 @@ export default function HierarchyView() {
               >
                 <svg aria-hidden className="pointer-events-none absolute left-0 top-0 overflow-visible">
                   {edges.map((e) => (
-                    <g key={e.key}>
+                    <g
+                      key={e.key}
+                      ref={(g) => {
+                        if (!g) {
+                          edgeEls.current.delete(e.key);
+                          return;
+                        }
+                        /* [underglow path, dash path, joint dot] — registered once so
+                           the drag engine can re-anchor this connector per frame. */
+                        edgeEls.current.set(e.key, {
+                          glow: g.children[0] as SVGPathElement,
+                          line: g.children[1] as SVGPathElement,
+                          dot: g.children[2] as SVGCircleElement,
+                        });
+                      }}
+                    >
                       <path d={e.d} fill="none" stroke={e.hue} strokeOpacity={0.13} strokeWidth={5} strokeLinecap="round" />
                       <path d={e.d} fill="none" stroke={e.hue} strokeOpacity={0.55} strokeWidth={1.6} strokeLinecap="round" className="edge-dash" />
                       <circle cx={e.joint.x} cy={e.joint.y} r={3} fill={e.hue} stroke="#ffffff" strokeWidth={1.4} />
@@ -2025,10 +2134,16 @@ export default function HierarchyView() {
                   return (
                     <div
                       key={n.id}
+                      ref={(el) => {
+                        if (el) nodeEls.current.set(n.id, el);
+                        else nodeEls.current.delete(n.id);
+                      }}
                       className="node-in absolute left-0 top-0"
                       style={{
                         transform: `translate3d(${p.x}px, ${p.y}px, 0)`,
                         zIndex: draggingThis ? 30 : n.type === "root" ? 20 : 10,
+                        willChange: draggingThis ? "transform" : undefined,
+                        contain: "layout",
                       }}
                     >
                       {n.type === "root" && summary && (
@@ -2098,7 +2213,7 @@ export default function HierarchyView() {
                 >
                   <Minus className="h-3.5 w-3.5" />
                 </button>
-                <span className="tabular w-9 text-center text-[10.5px] font-semibold text-[color:var(--ink-soft)]">{Math.round(zoom * 100)}%</span>
+                <span ref={zoomLabelRef} className="tabular w-9 text-center text-[10.5px] font-semibold text-[color:var(--ink-soft)]">{Math.round(zoom * 100)}%</span>
                 <button
                   onClick={() => zoomBy(0.1)}
                   disabled={zoom >= 1.59}

@@ -1,0 +1,703 @@
+   510→          <Field label="Role" required error={formErrors.role}>
+   511→            <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+   512→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select role" /></SelectTrigger>
+   513→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+   514→                {ROLE_KEYS.map((r) => (
+   515→                  <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+   516→                ))}
+   517→              </SelectContent>
+   518→            </Select>
+   519→          </Field>
+   520→          <Field label="Title">
+   521→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="e.g. EHS Lead" />
+   522→          </Field>
+   523→          <Field label="Phone">
+   524→            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="+91…" />
+   525→          </Field>
+   526→          <Field label="Subsidiary">
+   527→            <Select value={form.subsidiaryId} onValueChange={(v) => setForm({ ...form, subsidiaryId: v, businessUnitId: "ALL", projectId: "ALL" })}>
+   528→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select subsidiary" /></SelectTrigger>
+   529→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+   530→                <SelectItem value="ALL">Group level (none)</SelectItem>
+   531→                {(subsApi.data?.subsidiaries ?? []).map((s) => (
+   532→                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+   533→                ))}
+   534→              </SelectContent>
+   535→            </Select>
+   536→          </Field>
+   537→          <Field label="Business unit" hint="Filtered by selected subsidiary.">
+   538→            <Select value={form.businessUnitId} onValueChange={(v) => setForm({ ...form, businessUnitId: v, projectId: "ALL" })}>
+   539→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select business unit" /></SelectTrigger>
+   540→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+   541→                <SelectItem value="ALL">None</SelectItem>
+   542→                {buOptions.map((b) => (
+   543→                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+   544→                ))}
+   545→              </SelectContent>
+   546→            </Select>
+   547→          </Field>
+   548→          <Field label="Project / Site" hint="Filtered by selected business unit.">
+   549→            <Select value={form.projectId} onValueChange={(v) => setForm({ ...form, projectId: v })}>
+   550→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select project" /></SelectTrigger>
+   551→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+   552→                <SelectItem value="ALL">None</SelectItem>
+   553→                {projectOptions.map((p) => (
+   554→                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+   555→                ))}
+   556→              </SelectContent>
+   557→            </Select>
+   558→          </Field>
+   559→        </div>
+   560→      </GlassDialog>
+   561→
+   562→      {/* Status confirms */}
+   563→      <ConfirmDialog
+   564→        open={confirm === "suspend"}
+   565→        onOpenChange={(o) => !o && setConfirm(null)}
+   566→        title={`Suspend ${user.name}?`}
+   567→        message="The account will be suspended immediately. The user cannot sign in or submit data until reactivated. This action is recorded in the audit log."
+   568→        confirmLabel="Suspend account"
+   569→        requireReason
+   570→        pending={mut.pending}
+   571→        onConfirm={(reason) => void statusAction("suspend", reason)}
+   572→      />
+   573→      <ConfirmDialog
+   574→        open={confirm === "reactivate"}
+   575→        onOpenChange={(o) => !o && setConfirm(null)}
+   576→        title={`Reactivate ${user.name}?`}
+   577→        message="Access will be restored with the user's current role and organization assignments."
+   578→        confirmLabel="Reactivate"
+   579→        pending={mut.pending}
+   580→        onConfirm={() => void statusAction("reactivate")}
+   581→      />
+   582→      <ConfirmDialog
+   583→        open={confirm === "reset"}
+   584→        onOpenChange={(o) => !o && setConfirm(null)}
+   585→        title={`Reset credentials for ${user.name}?`}
+   586→        message="A secure credential reset will be initiated and reset instructions queued for the user."
+   587→        confirmLabel="Initiate reset"
+   588→        pending={mut.pending}
+   589→        onConfirm={() => void statusAction("reset-credentials")}
+   590→      />
+   591→      <ConfirmDialog
+   592→        open={confirm === "deactivate"}
+   593→        onOpenChange={(o) => !o && setConfirm(null)}
+   594→        title={`Deactivate ${user.name}?`}
+   595→        message="The account is deactivated rather than deleted so report attribution and audit history are preserved. This is the recommended offboarding path."
+   596→        confirmLabel="Deactivate"
+   597→        destructive
+   598→        requireReason
+   599→        pending={mut.pending}
+   600→        onConfirm={(reason) => void statusAction("deactivate", reason)}
+   601→      />
+   602→    </div>
+   603→  );
+   604→
+   605→  function openSubmissionDetail(id: string) {
+   606→    navigate("submissions", { detailId: id });
+   607→  }
+   608→  function openTaskDetail(id: string) {
+   609→    navigate("tasks", { detailId: id });
+   610→  }
+   611→}
+   612→
+   613→export default function UsersView() {
+   614→  const { params, navigate, openDetail } = useWorkspace();
+   615→  const { toast } = useToast();
+   616→  const detailId = typeof params.detailId === "string" ? params.detailId : undefined;
+   617→  const autoCreate = typeof params.create === "string" || typeof params.create === "number" ? true : false;
+   618→
+   619→  const usersApi = useApi<{ users: User[] }>("/api/esg/users");
+   620→  const subsApi = useApi<{ subsidiaries: { id: string; name: string }[] }>("/api/esg/org?type=subsidiaries&light=1");
+   621→  const unitsApi = useApi<{ businessUnits: { id: string; name: string; subsidiaryId: string }[] }>("/api/esg/org?type=business-units");
+   622→  const projectsApi = useApi<{ projects: { id: string; name: string; businessUnitId: string }[] }>("/api/esg/org?type=projects");
+   623→
+   624→  const [search, setSearch] = useState("");
+   625→  const [roleFilter, setRoleFilter] = useState("ALL");
+   626→  const [statusFilter, setStatusFilter] = useState("ALL");
+   627→  const [subFilter, setSubFilter] = useState("ALL");
+   628→  const [tasksFilter, setTasksFilter] = useState("ALL");
+   629→  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+   630→
+   631→  // Auto-open the invite dialog when navigated with params.create (dialog mounts open).
+   632→  const [dialogMode, setDialogMode] = useState<OrgDialogMode | null>(autoCreate ? "invite" : null);
+   633→  const [editingUser, setEditingUser] = useState<User | null>(null);
+   634→  const [form, setForm] = useState<UserFormState>(emptyForm);
+   635→  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+   636→  const [roleDialogUser, setRoleDialogUser] = useState<User | null>(null);
+   637→  const [rolePick, setRolePick] = useState("");
+   638→  const [confirmAction, setConfirmAction] = useState<null | { kind: "suspend" | "reactivate" | "reset" | "deactivate"; user: User }>(null);
+   639→  const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+   640→
+   641→  const createMut = useMutation();
+   642→  const editMut = useMutation();
+   643→  const roleMut = useMutation();
+   644→  const statusMut = useMutation();
+   645→  const bulkMut = useMutation();
+   646→
+   647→  const users = usersApi.data?.users ?? [];
+   648→  const filtered = useMemo(() => {
+   649→    const q = search.trim().toLowerCase();
+   650→    return users.filter((u) => {
+   651→      if (q && !(`${u.name} ${u.email} ${roleLabel(u.role)}`.toLowerCase().includes(q))) return false;
+   652→      if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
+   653→      if (statusFilter !== "ALL" && u.status !== statusFilter) return false;
+   654→      if (subFilter !== "ALL" && u.subsidiaryId !== subFilter) return false;
+   655→      if (tasksFilter === "YES" && !(u.openTasks ?? 0)) return false;
+   656→      if (tasksFilter === "NO" && (u.openTasks ?? 0) > 0) return false;
+   657→      return true;
+   658→    });
+   659→  }, [users, search, roleFilter, statusFilter, subFilter, tasksFilter]);
+   660→
+   661→  const resetFilters = () => {
+   662→    setSearch("");
+   663→    setRoleFilter("ALL");
+   664→    setStatusFilter("ALL");
+   665→    setSubFilter("ALL");
+   666→    setTasksFilter("ALL");
+   667→  };
+   668→
+   669→  const openDialog = (mode: OrgDialogMode, u?: User) => {
+   670→    setFormErrors({});
+   671→    setEditingUser(u ?? null);
+   672→    if (u) {
+   673→      setForm({
+   674→        name: u.name,
+   675→        email: u.email,
+   676→        role: u.role,
+   677→        title: u.title ?? "",
+   678→        phone: u.phone ?? "",
+   679→        subsidiaryId: u.subsidiaryId ?? "ALL",
+   680→        businessUnitId: u.businessUnitId ?? "ALL",
+   681→        projectId: u.projectId ?? "ALL",
+   682→      });
+   683→    } else {
+   684→      setForm(emptyForm);
+   685→    }
+   686→    setDialogMode(mode);
+   687→  };
+   688→
+   689→  const validateForm = () => {
+   690→    const e: Record<string, string> = {};
+   691→    if (form.name.trim().length < 2) e.name = "Name must be at least 2 characters.";
+   692→    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())) e.email = "A valid email address is required.";
+   693→    if (!form.role) e.role = "Select a role.";
+   694→    setFormErrors(e);
+   695→    return Object.keys(e).length === 0;
+   696→  };
+   697→
+   698→  const submitForm = async () => {
+   699→    if (!validateForm()) return;
+   700→    const payload = {
+   701→      name: form.name.trim(),
+   702→      email: form.email.trim().toLowerCase(),
+   703→      role: form.role,
+   704→      title: form.title,
+   705→      phone: form.phone,
+   706→      subsidiaryId: form.subsidiaryId === "ALL" ? "" : form.subsidiaryId,
+   707→      businessUnitId: form.businessUnitId === "ALL" ? "" : form.businessUnitId,
+   708→      projectId: form.projectId === "ALL" ? "" : form.projectId,
+   709→    };
+   710→    let res: unknown = null;
+   711→    if (dialogMode === "invite") {
+   712→      res = await createMut.run(() => apiPost("/api/esg/users", payload));
+   713→    } else if (editingUser) {
+   714→      res = await editMut.run(() => apiPatch("/api/esg/users", { id: editingUser.id, ...payload }));
+   715→    }
+   716→    const r = res as { message?: string } | null;
+   717→    if (res) {
+   718→      toast({
+   719→        title: dialogMode === "invite" ? "Invitation sent" : "User updated",
+   720→        description: dialogMode === "invite" ? `${form.name.trim()} was invited as ${roleLabel(form.role)} (status: Invited).` : r?.message ?? "Profile saved.",
+   721→      });
+   722→      setDialogMode(null);
+   723→      void usersApi.refetch();
+   724→    } else {
+   725→      const err = dialogMode === "invite" ? createMut.error : editMut.error;
+   726→      toast({ title: dialogMode === "invite" ? "Invite failed" : "Update failed", description: err ?? "Server rejected the request.", variant: "destructive" });
+   727→    }
+   728→  };
+   729→
+   730→  const submitRoleChange = async () => {
+   731→    if (!roleDialogUser || !rolePick) return;
+   732→    const res = await roleMut.run(() => apiPatch("/api/esg/users", { id: roleDialogUser.id, role: rolePick }));
+   733→    if (res) {
+   734→      toast({ title: "Role changed", description: `${roleDialogUser.name} is now ${roleLabel(rolePick)}.` });
+   735→      setRoleDialogUser(null);
+   736→      void usersApi.refetch();
+   737→    } else {
+   738→      toast({ title: "Role change failed", description: roleMut.error ?? "Server rejected the request.", variant: "destructive" });
+   739→    }
+   740→  };
+   741→
+   742→  const runStatusAction = async (kind: "suspend" | "reactivate" | "reset" | "deactivate", u: User, reason?: string) => {
+   743→    setConfirmAction(null);
+   744→    let res: unknown = null;
+   745→    if (kind === "deactivate") {
+   746→      res = await statusMut.run(() => apiDelete("/api/esg/users", { id: u.id, reason }));
+   747→    } else if (kind === "reset") {
+   748→      res = await statusMut.run(() => apiPatch("/api/esg/users", { id: u.id, action: "reset-credentials" }));
+   749→    } else {
+   750→      res = await statusMut.run(() => apiPatch("/api/esg/users", { id: u.id, action: kind, reason }));
+   751→    }
+   752→    const r = res as { message?: string } | null;
+   753→    if (res) {
+   754→      const titles: Record<typeof kind, string> = {
+   755→        suspend: "User suspended",
+   756→        reactivate: "User reactivated",
+   757→        reset: "Credential reset initiated",
+   758→        deactivate: "User deactivated",
+   759→      };
+   760→      toast({ title: titles[kind], description: r?.message ?? `${u.name} — action completed.` });
+   761→      void usersApi.refetch();
+   762→    } else {
+   763→      toast({ title: "Action failed", description: statusMut.error ?? "Server rejected the action.", variant: "destructive" });
+   764→    }
+   765→  };
+   766→
+   767→  const bulkSuspend = async (reason?: string) => {
+   768→    setBulkConfirmOpen(false);
+   769→    const targets = users.filter((u) => selectedIds.includes(u.id) && u.role !== "GROUP_ADMIN" && u.status === "ACTIVE");
+   770→    if (!targets.length) {
+   771→      toast({ title: "Nothing to suspend", description: "No selected ACTIVE users can be suspended.", variant: "destructive" });
+   772→      setSelectedIds([]);
+   773→      return;
+   774→    }
+   775→    let okCount = 0;
+   776→    const failures: string[] = [];
+   777→    for (const u of targets) {
+   778→      const res = await bulkMut.run(() => apiPatch("/api/esg/users", { id: u.id, action: "suspend", reason }));
+   779→      if (res) okCount++;
+   780→      else failures.push(`${u.name}: ${bulkMut.error ?? "failed"}`);
+   781→    }
+   782→    if (failures.length) {
+   783→      toast({
+   784→        title: `Suspended ${okCount} of ${targets.length}`,
+   785→        description: failures.slice(0, 3).join(" · ") + (failures.length > 3 ? ` (+${failures.length - 3} more)` : ""),
+   786→        variant: "destructive",
+   787→      });
+   788→    } else {
+   789→      toast({ title: "Users suspended", description: `${okCount} account${okCount === 1 ? "" : "s"} suspended. Reason recorded in audit log.` });
+   790→    }
+   791→    setSelectedIds([]);
+   792→    void usersApi.refetch();
+   793→  };
+   794→
+   795→  const bulkReactivate = async () => {
+   796→    const targets = users.filter((u) => selectedIds.includes(u.id) && (u.status === "SUSPENDED" || u.status === "INACTIVE"));
+   797→    if (!targets.length) {
+   798→      toast({ title: "Nothing to reactivate", description: "No selected users are suspended or inactive.", variant: "destructive" });
+   799→      return;
+   800→    }
+   801→    let okCount = 0;
+   802→    const failures: string[] = [];
+   803→    for (const u of targets) {
+   804→      const res = await bulkMut.run(() => apiPatch("/api/esg/users", { id: u.id, action: "reactivate" }));
+   805→      if (res) okCount++;
+   806→      else failures.push(`${u.name}: ${bulkMut.error ?? "failed"}`);
+   807→    }
+   808→    if (failures.length) {
+   809→      toast({
+   810→        title: `Reactivated ${okCount} of ${targets.length}`,
+   811→        description: failures.slice(0, 3).join(" · "),
+   812→        variant: "destructive",
+   813→      });
+   814→    } else {
+   815→      toast({ title: "Users reactivated", description: `${okCount} account${okCount === 1 ? "" : "s"} restored to ACTIVE.` });
+   816→    }
+   817→    setSelectedIds([]);
+   818→    void usersApi.refetch();
+   819→  };
+   820→
+   821→  const exportSelected = () => {
+   822→    const rows = users.filter((u) => selectedIds.includes(u.id)).map(csvUserRow);
+   823→    if (!rows.length) return;
+   824→    downloadFile("meil-users-selected.csv", toCsv(rows), "text/csv");
+   825→    toast({ title: "Export ready", description: `${rows.length} selected user${rows.length === 1 ? "" : "s"} exported to CSV.` });
+   826→  };
+   827→
+   828→  if (detailId) return <DetailPage userId={detailId} />;
+   829→
+   830→  const columns: Column<User>[] = [
+   831→    {
+   832→      key: "name",
+   833→      header: "User",
+   834→      sortable: true,
+   835→      sortValue: (u) => u.name,
+   836→      render: (u) => (
+   837→        <div className="flex items-center gap-2.5">
+   838→          <Avatar name={u.name} size={32} />
+   839→          <div className="min-w-0">
+   840→            <div className="truncate font-medium text-[color:var(--ink)]">{u.name}</div>
+   841→            <div className="truncate text-xs text-[color:var(--ink-faint)]">{u.title || "—"}</div>
+   842→          </div>
+   843→        </div>
+   844→      ),
+   845→    },
+   846→    { key: "email", header: "Email", render: (u) => <span className="text-xs">{u.email}</span> },
+   847→    {
+   848→      key: "role",
+   849→      header: "Role",
+   850→      sortable: true,
+   851→      sortValue: (u) => roleLabel(u.role),
+   852→      render: (u) => <span className="text-xs font-medium">{roleLabel(u.role)}</span>,
+   853→    },
+   854→    { key: "status", header: "Status", render: (u) => <StatusBadge status={u.status} /> },
+   855→    {
+   856→      key: "org",
+   857→      header: "Organization",
+   858→      render: (u) => (
+   859→        <span className="text-xs">
+   860→          {u.subsidiaryName ?? "Group"}
+   861→          {u.businessUnitName ? <span className="text-[color:var(--ink-faint)]"> › {u.businessUnitName}</span> : null}
+   862→        </span>
+   863→      ),
+   864→    },
+   865→    { key: "project", header: "Project", render: (u) => <span className="text-xs">{u.projectName ?? "—"}</span> },
+   866→    { key: "lastActive", header: "Last active", sortable: true, sortValue: (u) => u.lastActiveAt ?? "", render: (u) => <span className="text-xs">{timeAgo(u.lastActiveAt)}</span> },
+   867→    {
+   868→      key: "openTasks",
+   869→      header: "Open tasks",
+   870→      render: (u) =>
+   871→        (u.openTasks ?? 0) > 0 ? (
+   872→          <Chip tone={(u.openTasks ?? 0) > 3 ? "amber" : "blue"} className="tabular">{u.openTasks}</Chip>
+   873→        ) : (
+   874→          <span className="text-xs text-[color:var(--ink-faint)]">0</span>
+   875→        ),
+   876→    },
+   877→  ];
+   878→
+   879→  return (
+   880→    <div className="view-in space-y-5">
+   881→      <PageHeader
+   882→        title="All Users"
+   883→        description="Complete directory of workspace accounts across the group — roles, status, assignments, and activity."
+   884→        icon={UsersIcon}
+   885→        breadcrumbs={["Group", "People & Access", "All Users"]}
+   886→        actions={
+   887→          <>
+   888→            <ExportButton filename="meil-users" rows={filtered.map(csvUserRow)} />
+   889→            <ActionButton onClick={() => openDialog("invite")}>
+   890→              <UserPlus className="mr-1.5 h-4 w-4" /> Invite user
+   891→            </ActionButton>
+   892→          </>
+   893→        }
+   894→      />
+   895→
+   896→      <DataTable<User>
+   897→        columns={columns}
+   898→        rows={filtered}
+   899→        loading={usersApi.loading}
+   900→        error={usersApi.error}
+   901→        onRetry={() => void usersApi.refetch()}
+   902→        pageSize={10}
+   903→        selectable
+   904→        selectedIds={selectedIds}
+   905→        onSelectionChange={setSelectedIds}
+   906→        onRowClick={(u) => openDetail("users", u.id, "overview")}
+   907→        emptyTitle="No users match your filters"
+   908→        emptyMessage="Adjust the search or filter criteria, or invite a new user."
+   909→        emptyAction={<Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => openDialog("invite")}><UserPlus className="mr-1.5 h-4 w-4" /> Invite user</Button>}
+   910→        toolbar={
+   911→          <Toolbar
+   912→            search={search}
+   913→            onSearch={setSearch}
+   914→            searchPlaceholder="Search name, email, or role…"
+   915→            resultCount={filtered.length}
+   916→            onReset={resetFilters}
+   917→            filters={[
+   918→              {
+   919→                key: "role",
+   920→                label: "Role",
+   921→                value: roleFilter,
+   922→                onChange: setRoleFilter,
+   923→                options: [{ value: "ALL", label: "All roles" }, ...ROLE_KEYS.map((r) => ({ value: r, label: roleLabel(r) }))],
+   924→              },
+   925→              {
+   926→                key: "status",
+   927→                label: "Status",
+   928→                value: statusFilter,
+   929→                onChange: setStatusFilter,
+   930→                options: STATUS_OPTIONS.map((s) => ({ value: s, label: s === "ALL" ? "All statuses" : s.charAt(0) + s.slice(1).toLowerCase() })),
+   931→              },
+   932→              {
+   933→                key: "sub",
+   934→                label: "Subsidiary",
+   935→                value: subFilter,
+   936→                onChange: setSubFilter,
+   937→                options: [{ value: "ALL", label: "All subsidiaries" }, ...(subsApi.data?.subsidiaries ?? []).map((s) => ({ value: s.id, label: s.name }))],
+   938→              },
+   939→              {
+   940→                key: "tasks",
+   941→                label: "Open tasks",
+   942→                value: tasksFilter,
+   943→                onChange: setTasksFilter,
+   944→                options: [
+   945→                  { value: "ALL", label: "All" },
+   946→                  { value: "YES", label: "Has open tasks" },
+   947→                  { value: "NO", label: "No open tasks" },
+   948→                ],
+   949→              },
+   950→            ]}
+   951→          />
+   952→        }
+   953→        rowActions={(u) => (
+   954→          <DropdownMenu>
+   955→            <DropdownMenuTrigger asChild>
+   956→              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" aria-label={`Actions for ${u.name}`}>
+   957→                <MoreHorizontal className="h-4 w-4" />
+   958→              </Button>
+   959→            </DropdownMenuTrigger>
+   960→            <DropdownMenuContent align="end" className="glass-strong rounded-2xl border-white/70">
+   961→              <DropdownMenuLabel className="text-xs text-[color:var(--ink-faint)]">{u.name}</DropdownMenuLabel>
+   962→              <DropdownMenuItem onClick={() => openDetail("users", u.id, "overview")}>
+   963→                <Eye className="mr-2 h-3.5 w-3.5" /> View profile
+   964→              </DropdownMenuItem>
+   965→              <DropdownMenuItem onClick={() => openDialog("edit", u)}>
+   966→                <UserCog className="mr-2 h-3.5 w-3.5" /> Edit
+   967→              </DropdownMenuItem>
+   968→              <DropdownMenuItem onClick={() => { setRoleDialogUser(u); setRolePick(u.role); }}>
+   969→                <ShieldCheck className="mr-2 h-3.5 w-3.5" /> Change role
+   970→              </DropdownMenuItem>
+   971→              <DropdownMenuSeparator />
+   972→              <DropdownMenuItem
+   973→                disabled={u.role === "GROUP_ADMIN" || u.status !== "ACTIVE"}
+   974→                onClick={() => setConfirmAction({ kind: "suspend", user: u })}
+   975→              >
+   976→                <ShieldOff className="mr-2 h-3.5 w-3.5" /> Suspend
+   977→              </DropdownMenuItem>
+   978→              <DropdownMenuItem disabled={u.status !== "SUSPENDED" && u.status !== "INACTIVE"} onClick={() => setConfirmAction({ kind: "reactivate", user: u })}>
+   979→                <ShieldCheck className="mr-2 h-3.5 w-3.5" /> Reactivate
+   980→              </DropdownMenuItem>
+   981→              <DropdownMenuItem onClick={() => setConfirmAction({ kind: "reset", user: u })}>
+   982→                <KeyRound className="mr-2 h-3.5 w-3.5" /> Reset credentials
+   983→              </DropdownMenuItem>
+   984→              <DropdownMenuSeparator />
+   985→              <DropdownMenuItem
+   986→                className="text-[#a53b3b] focus:text-[#a53b3b]"
+   987→                disabled={u.role === "GROUP_ADMIN"}
+   988→                onClick={() => setConfirmAction({ kind: "deactivate", user: u })}
+   989→              >
+   990→                <ShieldAlert className="mr-2 h-3.5 w-3.5" /> Deactivate
+   991→              </DropdownMenuItem>
+   992→            </DropdownMenuContent>
+   993→          </DropdownMenu>
+   994→        )}
+   995→        mobileCard={(u) => (
+   996→          <GlassCard subtle className="p-3">
+   997→            <div className="flex items-center gap-2.5">
+   998→              <Avatar name={u.name} size={34} />
+   999→              <div className="min-w-0 flex-1">
+  1000→                <div className="truncate text-sm font-medium text-[color:var(--ink)]">{u.name}</div>
+  1001→                <div className="truncate text-xs text-[color:var(--ink-faint)]">{u.email}</div>
+  1002→              </div>
+  1003→              <StatusBadge status={u.status} />
+  1004→            </div>
+  1005→            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+  1006→              <Chip tone="blue">{roleLabel(u.role)}</Chip>
+  1007→              {u.subsidiaryName && <Chip tone="gray">{u.subsidiaryName}</Chip>}
+  1008→              {(u.openTasks ?? 0) > 0 && <Chip tone="amber" className="tabular">{u.openTasks} open tasks</Chip>}
+  1009→            </div>
+  1010→          </GlassCard>
+  1011→        )}
+  1012→      />
+  1013→
+  1014→      {/* Floating bulk action bar */}
+  1015→      {selectedIds.length > 0 && (
+  1016→        <div className="fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+  1017→          <div className="glass-strong glass-sheen flex flex-wrap items-center gap-2 rounded-3xl border-white/70 px-4 py-3 shadow-xl">
+  1018→            <span className="mr-1 text-sm font-medium text-[color:var(--ink)]">{selectedIds.length} selected</span>
+  1019→            <Button
+  1020→              variant="outline"
+  1021→              size="sm"
+  1022→              className="glass-subtle rounded-2xl border-white/60"
+  1023→              disabled={bulkMut.pending}
+  1024→              onClick={() => setBulkConfirmOpen(true)}
+  1025→            >
+  1026→              {bulkMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="mr-1.5 h-3.5 w-3.5" />} Suspend
+  1027→            </Button>
+  1028→            <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" disabled={bulkMut.pending} onClick={() => void bulkReactivate()}>
+  1029→              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Reactivate
+  1030→            </Button>
+  1031→            <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" onClick={exportSelected}>
+  1032→              <Download className="mr-1.5 h-3.5 w-3.5" /> Export selected
+  1033→            </Button>
+  1034→            <Button variant="ghost" size="sm" className="rounded-2xl" onClick={() => setSelectedIds([])}>Clear</Button>
+  1035→          </div>
+  1036→        </div>
+  1037→      )}
+  1038→
+  1039→      {/* Invite / Edit / Org dialog */}
+  1040→      <GlassDialog
+  1041→        open={dialogMode !== null}
+  1042→        onOpenChange={(o) => !o && setDialogMode(null)}
+  1043→        title={dialogMode === "invite" ? "Invite user" : dialogMode === "org" ? `Edit assignments — ${editingUser?.name ?? ""}` : `Edit user — ${editingUser?.name ?? ""}`}
+  1044→        description={
+  1045→          dialogMode === "invite"
+  1046→            ? "The account is created with INVITED status until the user completes onboarding."
+  1047→            : dialogMode === "org"
+  1048→              ? "Update subsidiary, business unit, and project assignments."
+  1049→              : "Update profile fields and organization assignments."
+  1050→        }
+  1051→        wide
+  1052→        footer={
+  1053→          <>
+  1054→            <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setDialogMode(null)} disabled={createMut.pending || editMut.pending}>Cancel</Button>
+  1055→            <ActionButton pending={createMut.pending || editMut.pending} onClick={submitForm}>
+  1056→              {dialogMode === "invite" ? "Send invite" : "Save changes"}
+  1057→            </ActionButton>
+  1058→          </>
+  1059→        }
+  1060→      >
+  1061→        <div className="grid gap-4 sm:grid-cols-2">
+  1062→          <Field label="Full name" required error={formErrors.name}>
+  1063→            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="e.g. Priya Nair" />
+  1064→          </Field>
+  1065→          <Field label="Email" required error={formErrors.email} hint={dialogMode !== "invite" ? "Email is the account identifier and cannot be changed." : undefined}>
+  1066→            <Input
+  1067→              value={form.email}
+  1068→              onChange={(e) => setForm({ ...form, email: e.target.value })}
+  1069→              disabled={dialogMode !== "invite"}
+  1070→              className={cn("glass-subtle rounded-2xl border-white/60", dialogMode !== "invite" && "opacity-70")}
+  1071→              placeholder="name@meilgroup.com"
+  1072→              type="email"
+  1073→            />
+  1074→          </Field>
+  1075→          <Field label="Role" required error={formErrors.role}>
+  1076→            <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+  1077→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select role" /></SelectTrigger>
+  1078→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+  1079→                {ROLE_KEYS.map((r) => (
+  1080→                  <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+  1081→                ))}
+  1082→              </SelectContent>
+  1083→            </Select>
+  1084→          </Field>
+  1085→          <Field label="Title">
+  1086→            <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="e.g. Environment Data Lead" />
+  1087→          </Field>
+  1088→          <Field label="Phone">
+  1089→            <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="+91…" />
+  1090→          </Field>
+  1091→          <div />
+  1092→          <Field label="Subsidiary">
+  1093→            <Select value={form.subsidiaryId} onValueChange={(v) => setForm({ ...form, subsidiaryId: v, businessUnitId: "ALL", projectId: "ALL" })}>
+  1094→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select subsidiary" /></SelectTrigger>
+  1095→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+  1096→                <SelectItem value="ALL">Group level (none)</SelectItem>
+  1097→                {(subsApi.data?.subsidiaries ?? []).map((s) => (
+  1098→                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+  1099→                ))}
+  1100→              </SelectContent>
+  1101→            </Select>
+  1102→          </Field>
+  1103→          <Field label="Business unit" hint="Options filtered by selected subsidiary.">
+  1104→            <Select value={form.businessUnitId} onValueChange={(v) => setForm({ ...form, businessUnitId: v, projectId: "ALL" })}>
+  1105→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select business unit" /></SelectTrigger>
+  1106→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+  1107→                <SelectItem value="ALL">None</SelectItem>
+  1108→                {(unitsApi.data?.businessUnits ?? [])
+  1109→                  .filter((b) => form.subsidiaryId === "ALL" || b.subsidiaryId === form.subsidiaryId)
+  1110→                  .map((b) => (
+  1111→                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+  1112→                  ))}
+  1113→              </SelectContent>
+  1114→            </Select>
+  1115→          </Field>
+  1116→          <Field label="Project / Site" hint="Options filtered by selected business unit.">
+  1117→            <Select value={form.projectId} onValueChange={(v) => setForm({ ...form, projectId: v })}>
+  1118→              <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select project" /></SelectTrigger>
+  1119→              <SelectContent className="glass-strong rounded-2xl border-white/70">
+  1120→                <SelectItem value="ALL">None</SelectItem>
+  1121→                {(projectsApi.data?.projects ?? [])
+  1122→                  .filter((p) => form.businessUnitId === "ALL" || p.businessUnitId === form.businessUnitId)
+  1123→                  .map((p) => (
+  1124→                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+  1125→                  ))}
+  1126→              </SelectContent>
+  1127→            </Select>
+  1128→          </Field>
+  1129→        </div>
+  1130→      </GlassDialog>
+  1131→
+  1132→      {/* Change role dialog */}
+  1133→      <GlassDialog
+  1134→        open={roleDialogUser !== null}
+  1135→        onOpenChange={(o) => !o && setRoleDialogUser(null)}
+  1136→        title={`Change role — ${roleDialogUser?.name ?? ""}`}
+  1137→        description="The current role is replaced immediately and the change is recorded in the audit log."
+  1138→        footer={
+  1139→          <>
+  1140→            <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setRoleDialogUser(null)} disabled={roleMut.pending}>Cancel</Button>
+  1141→            <ActionButton pending={roleMut.pending} onClick={() => void submitRoleChange()} disabled={!rolePick || rolePick === roleDialogUser?.role}>Update role</ActionButton>
+  1142→          </>
+  1143→        }
+  1144→      >
+  1145→        <Field label="Role" required>
+  1146→          <Select value={rolePick} onValueChange={setRolePick}>
+  1147→            <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select new role" /></SelectTrigger>
+  1148→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+  1149→              {ROLE_KEYS.map((r) => (
+  1150→                <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
+  1151→              ))}
+  1152→            </SelectContent>
+  1153→          </Select>
+  1154→        </Field>
+  1155→      </GlassDialog>
+  1156→
+  1157→      {/* Row-level confirms */}
+  1158→      <ConfirmDialog
+  1159→        open={confirmAction?.kind === "suspend"}
+  1160→        onOpenChange={(o) => !o && setConfirmAction(null)}
+  1161→        title={`Suspend ${confirmAction?.user.name ?? ""}?`}
+  1162→        message="The account will be suspended immediately and cannot sign in until reactivated. The reason is recorded in the audit log."
+  1163→        confirmLabel="Suspend account"
+  1164→        requireReason
+  1165→        pending={statusMut.pending}
+  1166→        onConfirm={(reason) => confirmAction && void runStatusAction("suspend", confirmAction.user, reason)}
+  1167→      />
+  1168→      <ConfirmDialog
+  1169→        open={confirmAction?.kind === "reactivate"}
+  1170→        onOpenChange={(o) => !o && setConfirmAction(null)}
+  1171→        title={`Reactivate ${confirmAction?.user.name ?? ""}?`}
+  1172→        message="Access will be restored with the user's current role and organization assignments."
+  1173→        confirmLabel="Reactivate"
+  1174→        pending={statusMut.pending}
+  1175→        onConfirm={() => confirmAction && void runStatusAction("reactivate", confirmAction.user)}
+  1176→      />
+  1177→      <ConfirmDialog
+  1178→        open={confirmAction?.kind === "reset"}
+  1179→        onOpenChange={(o) => !o && setConfirmAction(null)}
+  1180→        title={`Reset credentials — ${confirmAction?.user.name ?? ""}?`}
+  1181→        message="A secure credential reset will be initiated and reset instructions queued for delivery."
+  1182→        confirmLabel="Initiate reset"
+  1183→        pending={statusMut.pending}
+  1184→        onConfirm={() => confirmAction && void runStatusAction("reset", confirmAction.user)}
+  1185→      />
+  1186→      <ConfirmDialog
+  1187→        open={confirmAction?.kind === "deactivate"}
+  1188→        onOpenChange={(o) => !o && setConfirmAction(null)}
+  1189→        title={`Deactivate ${confirmAction?.user.name ?? ""}?`}
+  1190→        message="The account is deactivated rather than deleted so report attribution and audit history are preserved."
+  1191→        confirmLabel="Deactivate"
+  1192→        destructive
+  1193→        requireReason
+  1194→        pending={statusMut.pending}
+  1195→        onConfirm={(reason) => confirmAction && void runStatusAction("deactivate", confirmAction.user, reason)}
+  1196→      />
+  1197→
+  1198→      {/* Bulk suspend confirm */}
+  1199→      <ConfirmDialog
+  1200→        open={bulkConfirmOpen}
+  1201→        onOpenChange={setBulkConfirmOpen}
+  1202→        title={`Suspend ${selectedIds.length} selected user${selectedIds.length === 1 ? "" : "s"}?`}
+  1203→        message="Only ACTIVE, non-Group-Admin accounts among the selection will be suspended. Each suspension is recorded individually in the audit log with this reason."
+  1204→        confirmLabel="Suspend selected"
+  1205→        requireReason
+  1206→        pending={bulkMut.pending}
+  1207→        onConfirm={(reason) => void bulkSuspend(reason)}
+  1208→      />
+  1209→    </div>
+  1210→  );
+  1211→}
+  1212→

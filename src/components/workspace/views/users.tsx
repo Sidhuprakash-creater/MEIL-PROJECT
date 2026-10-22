@@ -1,11 +1,12 @@
 "use client";
 
 // ── SCREEN 07 — All Users (People & Access) ──
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   Building2,
   ClipboardList,
+  Clock,
   Download,
   Eye,
   History,
@@ -13,6 +14,7 @@ import {
   ListChecks,
   Loader2,
   Mail,
+  Moon,
   MoreHorizontal,
   ShieldAlert,
   ShieldCheck,
@@ -48,6 +50,7 @@ import {
   Avatar,
   Chip,
   ConfirmDialog,
+  CountUp,
   DataTable,
   EmptyState,
   Field,
@@ -77,12 +80,107 @@ function catLabel(c: string) {
   return c.charAt(0) + c.slice(1).toLowerCase().replaceAll("_", " ");
 }
 
+/* ── Live presence (derived from lastActiveAt + account status) ── */
+
+type Presence = "now" | "today" | "away" | "offline" | "invited" | "suspended";
+
+type PresenceFilter = "ALL" | "now" | "today" | "away";
+
+function presenceOf(u: User): Presence {
+  if (u.status === "INVITED") return "invited";
+  if (u.status === "SUSPENDED") return "suspended";
+  if (u.status === "INACTIVE") return "offline";
+  if (!u.lastActiveAt) return "offline";
+  const mins = (Date.now() - new Date(u.lastActiveAt).getTime()) / 60000;
+  if (mins < 30) return "now";
+  if (mins < 720) return "today";
+  if (mins < 2160) return "away";
+  return "offline";
+}
+
+const PRESENCE_META: Record<Presence, { label: string; color: string; text: string; live?: boolean }> = {
+  now: { label: "Active now", color: "#238653", text: "#1d6b44", live: true },
+  today: { label: "Active today", color: "#16a3a3", text: "#0f7c7c", live: true },
+  away: { label: "Away", color: "#c57926", text: "#a3661d" },
+  offline: { label: "Offline", color: "#8595ab", text: "#66778d" },
+  invited: { label: "Invited", color: "#6a5bff", text: "#5546cc" },
+  suspended: { label: "Suspended", color: "#c34a4a", text: "#a53b3b" },
+};
+
+function PresenceDot({ presence, size = 10 }: { presence: Presence; size?: number }) {
+  const meta = PRESENCE_META[presence];
+  return (
+    <span className="relative inline-flex" style={{ width: size, height: size }} title={meta.label}>
+      {meta.live && <span className="absolute inset-0 animate-ping rounded-full opacity-60" style={{ backgroundColor: meta.color }} />}
+      <span
+        className="relative inline-block rounded-full border-2 border-white shadow-sm"
+        style={{ width: size, height: size, backgroundColor: meta.color }}
+        aria-hidden="true"
+      />
+      <span className="sr-only">{meta.label}</span>
+    </span>
+  );
+}
+
+function PresenceStatCard({
+  hue,
+  icon,
+  label,
+  hint,
+  value,
+  selected,
+  onClick,
+  ariaLabel,
+}: {
+  hue: string;
+  icon: ReactNode;
+  label: string;
+  hint: string;
+  value: number;
+  selected: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={selected}
+      className={cn(
+        "glass glass-sheen rounded-[24px] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(58,123,255,0.45)]",
+        selected && "border-[rgba(58,123,255,0.55)] ring-2 ring-[rgba(58,123,255,0.35)]"
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] text-white"
+          style={{
+            background: `linear-gradient(150deg, ${hue} 20%, color-mix(in srgb, ${hue} 72%, #17263D) 100%)`,
+            boxShadow: `0 4px 10px ${hue}44, inset 0 1px 0 rgba(255,255,255,0.4)`,
+          }}
+        >
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <CountUp value={value} className="tabular block text-[26px] font-semibold leading-none tracking-tight text-[color:var(--ink)]" />
+          <div className="mt-1.5 truncate text-[10.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: hue }}>
+            {label}
+          </div>
+          <div className="mt-0.5 truncate text-[11px] text-[color:var(--ink-faint)]">{hint}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function csvUserRow(u: User): Record<string, unknown> {
   return {
     Name: u.name,
     Email: u.email,
     Role: roleLabel(u.role),
     Status: u.status,
+    Presence: PRESENCE_META[presenceOf(u)].label,
     Subsidiary: u.subsidiaryName ?? "",
     BusinessUnit: u.businessUnitName ?? "",
     Project: u.projectName ?? "",
@@ -256,6 +354,8 @@ function DetailPage({ userId }: { userId: string }) {
   }
 
   const stats = user.submissionStats ?? { total: 0, approved: 0, pending: 0, overdue: 0 };
+  const detailPresence = presenceOf(user);
+  const detailPresenceMeta = PRESENCE_META[detailPresence];
   const isGroupAdmin = user.role === "GROUP_ADMIN";
   const buOptions = (unitsApi.data?.businessUnits ?? []).filter((b) => form.subsidiaryId === "ALL" || b.subsidiaryId === form.subsidiaryId);
   const projectOptions = (projectsApi.data?.projects ?? []).filter((p) => form.businessUnitId === "ALL" || p.businessUnitId === form.businessUnitId);
@@ -275,6 +375,14 @@ function DetailPage({ userId }: { userId: string }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="truncate text-xl font-semibold tracking-tight text-[color:var(--ink)]">{user.name}</h1>
                   <StatusBadge status={user.status} />
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                    style={{ borderColor: detailPresenceMeta.color + "59", background: detailPresenceMeta.color + "1a", color: detailPresenceMeta.text }}
+                  >
+                    <PresenceDot presence={detailPresence} size={8} />
+                    {detailPresenceMeta.label}
+                    <span className="font-medium opacity-75">· {user.lastActiveAt ? timeAgo(user.lastActiveAt) : "Never"}</span>
+                  </span>
                 </div>
                 <p className="mt-0.5 truncate text-sm text-[color:var(--muted-foreground)]">{user.title || "No title set"}</p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-[color:var(--ink-faint)]">
@@ -626,6 +734,7 @@ export default function UsersView() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [subFilter, setSubFilter] = useState("ALL");
   const [tasksFilter, setTasksFilter] = useState("ALL");
+  const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>("ALL");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Auto-open the invite dialog when navigated with params.create (dialog mounts open).
@@ -645,6 +754,20 @@ export default function UsersView() {
   const bulkMut = useMutation();
 
   const users = usersApi.data?.users ?? [];
+
+  const presenceCounts = useMemo(() => {
+    let now = 0;
+    let today = 0;
+    let away = 0;
+    for (const u of users) {
+      const p = presenceOf(u);
+      if (p === "now") now++;
+      else if (p === "today") today++;
+      else if (p === "away" || p === "offline" || p === "suspended") away++;
+    }
+    return { now, today, away };
+  }, [users]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter((u) => {
@@ -654,9 +777,15 @@ export default function UsersView() {
       if (subFilter !== "ALL" && u.subsidiaryId !== subFilter) return false;
       if (tasksFilter === "YES" && !(u.openTasks ?? 0)) return false;
       if (tasksFilter === "NO" && (u.openTasks ?? 0) > 0) return false;
+      if (presenceFilter !== "ALL") {
+        const p = presenceOf(u);
+        if (presenceFilter === "now" && p !== "now") return false;
+        if (presenceFilter === "today" && p !== "now" && p !== "today") return false;
+        if (presenceFilter === "away" && p !== "away" && p !== "offline" && p !== "suspended") return false;
+      }
       return true;
     });
-  }, [users, search, roleFilter, statusFilter, subFilter, tasksFilter]);
+  }, [users, search, roleFilter, statusFilter, subFilter, tasksFilter, presenceFilter]);
 
   const resetFilters = () => {
     setSearch("");
@@ -664,6 +793,7 @@ export default function UsersView() {
     setStatusFilter("ALL");
     setSubFilter("ALL");
     setTasksFilter("ALL");
+    setPresenceFilter("ALL");
   };
 
   const openDialog = (mode: OrgDialogMode, u?: User) => {
@@ -835,7 +965,12 @@ export default function UsersView() {
       sortValue: (u) => u.name,
       render: (u) => (
         <div className="flex items-center gap-2.5">
-          <Avatar name={u.name} size={32} />
+          <span className="relative">
+            <Avatar name={u.name} size={32} />
+            <span className="absolute -bottom-0.5 -right-0.5">
+              <PresenceDot presence={presenceOf(u)} />
+            </span>
+          </span>
           <div className="min-w-0">
             <div className="truncate font-medium text-[color:var(--ink)]">{u.name}</div>
             <div className="truncate text-xs text-[color:var(--ink-faint)]">{u.title || "—"}</div>
@@ -863,7 +998,27 @@ export default function UsersView() {
       ),
     },
     { key: "project", header: "Project", render: (u) => <span className="text-xs">{u.projectName ?? "—"}</span> },
-    { key: "lastActive", header: "Last active", sortable: true, sortValue: (u) => u.lastActiveAt ?? "", render: (u) => <span className="text-xs">{timeAgo(u.lastActiveAt)}</span> },
+    {
+      key: "lastActive",
+      header: "Presence",
+      sortable: true,
+      sortValue: (u) => u.lastActiveAt ?? "",
+      render: (u) => {
+        const p = presenceOf(u);
+        const meta = PRESENCE_META[p];
+        return (
+          <div className="flex items-center gap-2">
+            <PresenceDot presence={p} />
+            <div className="min-w-0 leading-tight">
+              <div className="text-xs font-semibold" style={{ color: meta.live ? meta.text : "var(--ink-soft)" }}>
+                {meta.label}
+              </div>
+              <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{u.lastActiveAt ? timeAgo(u.lastActiveAt) : "Never"}</div>
+            </div>
+          </div>
+        );
+      },
+    },
     {
       key: "openTasks",
       header: "Open tasks",
@@ -892,6 +1047,55 @@ export default function UsersView() {
           </>
         }
       />
+
+      {/* ── Active users — live presence strip ── */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <PresenceStatCard
+          hue="#3a7bff"
+          icon={<UsersIcon className="h-[18px] w-[18px]" />}
+          label="All users"
+          hint="Complete directory"
+          value={users.length}
+          selected={presenceFilter === "ALL"}
+          onClick={() => setPresenceFilter("ALL")}
+          ariaLabel="Filter users by presence: All users"
+        />
+        <PresenceStatCard
+          hue="#238653"
+          icon={
+            <span className="relative flex h-[18px] w-[18px] items-center justify-center">
+              <span className="absolute h-4 w-4 animate-ping rounded-full bg-white opacity-60" />
+              <span className="relative h-2.5 w-2.5 rounded-full bg-white" />
+            </span>
+          }
+          label="Active now"
+          hint="Seen in the last 30 minutes"
+          value={presenceCounts.now}
+          selected={presenceFilter === "now"}
+          onClick={() => setPresenceFilter("now")}
+          ariaLabel="Filter users by presence: Active now"
+        />
+        <PresenceStatCard
+          hue="#16a3a3"
+          icon={<Clock className="h-[18px] w-[18px]" />}
+          label="Active today"
+          hint="Seen in the last 12 hours"
+          value={presenceCounts.now + presenceCounts.today}
+          selected={presenceFilter === "today"}
+          onClick={() => setPresenceFilter("today")}
+          ariaLabel="Filter users by presence: Active today"
+        />
+        <PresenceStatCard
+          hue="#c57926"
+          icon={<Moon className="h-[18px] w-[18px]" />}
+          label="Away / offline"
+          hint="Not active recently"
+          value={presenceCounts.away}
+          selected={presenceFilter === "away"}
+          onClick={() => setPresenceFilter("away")}
+          ariaLabel="Filter users by presence: Away / offline"
+        />
+      </div>
 
       <DataTable<User>
         columns={columns}
@@ -947,6 +1151,18 @@ export default function UsersView() {
                   { value: "NO", label: "No open tasks" },
                 ],
               },
+              {
+                key: "presence",
+                label: "Presence",
+                value: presenceFilter,
+                onChange: (v) => setPresenceFilter(v as PresenceFilter),
+                options: [
+                  { value: "ALL", label: "All presence" },
+                  { value: "now", label: "Active now" },
+                  { value: "today", label: "Active today" },
+                  { value: "away", label: "Offline / away" },
+                ],
+              },
             ]}
           />
         }
@@ -1000,12 +1216,16 @@ export default function UsersView() {
                 <div className="truncate text-sm font-medium text-[color:var(--ink)]">{u.name}</div>
                 <div className="truncate text-xs text-[color:var(--ink-faint)]">{u.email}</div>
               </div>
-              <StatusBadge status={u.status} />
+              <span className="flex items-center gap-1.5">
+                <PresenceDot presence={presenceOf(u)} />
+                <StatusBadge status={u.status} />
+              </span>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5">
               <Chip tone="blue">{roleLabel(u.role)}</Chip>
               {u.subsidiaryName && <Chip tone="gray">{u.subsidiaryName}</Chip>}
               {(u.openTasks ?? 0) > 0 && <Chip tone="amber" className="tabular">{u.openTasks} open tasks</Chip>}
+              {presenceOf(u) === "now" && <Chip tone="green">Active now</Chip>}
             </div>
           </GlassCard>
         )}
