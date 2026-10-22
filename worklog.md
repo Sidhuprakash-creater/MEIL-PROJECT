@@ -264,3 +264,15 @@ Stage Summary:
 - Icons are now premium iOS / SF Symbols style: bold solid-color 2px glyphs, high-contrast on every surface; white glyphs on gradient tiles for app-icon-style cards; one unified icon language across sidebar, topbar, command palette, headers, and cards.
 - Scroll architecture is now a true app frame: the nav bar, sidebar, and footer are fixed chrome that NEVER scroll; only the main content area scrolls, and inner lists contain their scroll (no chaining). Footer is permanently pinned to the bottom of the viewport.
 - No functional regressions: drag-pan/zoom/diagram modes, node detail panel, status-card routing, presence features, and mobile drawer all re-verified working.
+
+---
+Task ID: 4.1
+Agent: Lead (Z.ai Code main)
+Task: Remove the bottom footer status card ("MEIL ESG & BRSR Platform · Group Admin Workspace / All systems operational")
+
+Work Log:
+- shell.tsx: deleted the fixed-chrome <footer> block from the main column; column padding adjusted (pb-3 → pb-4) so content keeps clean breathing room at the bottom.
+- QA: bun run lint 0 problems; browser check — footer card no longer rendered, app-frame layout intact (fixed top bar + sidebar, only main scrolls), 0 console errors.
+
+Stage Summary:
+- Workspace now ends with content only — no bottom status strip. Navigation chrome and scroll behavior unchanged.

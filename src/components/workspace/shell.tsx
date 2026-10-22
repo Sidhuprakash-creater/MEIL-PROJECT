@@ -419,8 +419,8 @@ export function WorkspaceShell() {
           )}
         </AnimatePresence>
 
-        {/* Main column — top bar and footer are fixed chrome; only <main> scrolls */}
-        <div className="flex h-full min-w-0 flex-1 flex-col pb-3 pt-3">
+        {/* Main column — top bar is fixed chrome; only <main> scrolls */}
+        <div className="flex h-full min-w-0 flex-1 flex-col pb-4 pt-3">
           <TopBar />
           <main
             className="nice-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-4 sm:px-4"
@@ -438,14 +438,6 @@ export function WorkspaceShell() {
               <ViewComponent />
             </React.Suspense>
           </main>
-          <footer className="mx-3 mt-3 shrink-0 sm:mx-4">
-            <div className="glass-subtle flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-[11.5px] text-[color:var(--ink-faint)]">
-              <span>MEIL ESG &amp; BRSR Platform · Group Admin Workspace</span>
-              <span className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-[#238653] pulse-dot" /> All systems operational · Demo data · FY 2025-26
-              </span>
-            </div>
-          </footer>
         </div>
       </div>
     </div>
