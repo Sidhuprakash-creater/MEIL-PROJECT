@@ -1,0 +1,820 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→// ── SCREEN 01 — Group Command Center (mission-control bento) ──
+     4→     4→import { useMemo } from "react";
+     5→     5→import {
+     6→     6→  Activity as ActivityIcon,
+     7→     7→  AlertOctagon,
+     8→     8→  AlertTriangle,
+     9→     9→  ArrowRight,
+    10→    10→  ArrowUpRight,
+    11→    11→  BadgeCheck,
+    12→    12→  BarChart3,
+    13→    13→  Building2,
+    14→    14→  CalendarClock,
+    15→    15→  ChevronRight,
+    16→    16→  ClipboardList,
+    17→    17→  Clock,
+    18→    18→  Database,
+    19→    19→  FileCheck2,
+    20→    20→  FileText,
+    21→    21→  Landmark,
+    22→    22→  Layers,
+    23→    23→  LayoutDashboard,
+    24→    24→  ListChecks,
+    25→    25→  ListTodo,
+    26→    26→  Megaphone,
+    27→    27→  PieChart,
+    28→    28→  ShieldAlert,
+    29→    29→  TrendingUp,
+    30→    30→  UserPlus,
+    31→    31→  Users,
+    32→    32→  Workflow,
+    33→    33→} from "lucide-react";
+    34→    34→import {
+    35→    35→  Bar,
+    36→    36→  BarChart,
+    37→    37→  CartesianGrid,
+    38→    38→  Line,
+    39→    39→  LineChart,
+    40→    40→  ResponsiveContainer,
+    41→    41→  Tooltip,
+    42→    42→  XAxis,
+    43→    43→  YAxis,
+    44→    44→} from "recharts";
+    45→    45→import { useWorkspace } from "@/lib/esg/store";
+    46→    46→import { useApi, fmtDate, fmtNumber, timeAgo } from "@/lib/esg/client";
+    47→    47→import { ROLE_LABELS, type DashboardData, type Subsidiary } from "@/lib/esg/types";
+    48→    48→import {
+    49→    49→  Avatar,
+    50→    50→  Chip,
+    51→    51→  CountUp,
+    52→    52→  EmptyState,
+    53→    53→  ErrorState,
+    54→    54→  GlassCard,
+    55→    55→  LoadingBlock,
+    56→    56→  PageHeader,
+    57→    57→  SectionCard,
+    58→    58→  StatusBadge,
+    59→    59→} from "@/components/workspace/ui";
+    60→    60→
+    61→    61→/* ────────────────────────────── Shared bits ────────────────────────────── */
+    62→    62→
+    63→    63→const INK_SOFT = "text-[color:var(--ink-soft)]";
+    64→    64→const INK_FAINT = "text-[color:var(--ink-faint)]";
+    65→    65→
+    66→    66→interface TipItem {
+    67→    67→  name?: string | number;
+    68→    68→  value?: string | number;
+    69→    69→  color?: string;
+    70→    70→  stroke?: string;
+    71→    71→  fill?: string;
+    72→    72→}
+    73→    73→
+    74→    74→function GlassChartTip({
+    75→    75→  active,
+    76→    76→  payload,
+    77→    77→  label,
+    78→    78→}: {
+    79→    79→  active?: boolean;
+    80→    80→  payload?: TipItem[];
+    81→    81→  label?: string | number;
+    82→    82→}) {
+    83→    83→  if (!active || !payload || payload.length === 0) return null;
+    84→    84→  return (
+    85→    85→    <div className="glass-strong rounded-2xl border-white/70 px-3 py-2 text-xs shadow-lg">
+    86→    86→      <div className="mb-1 font-semibold text-[color:var(--ink)]">{label}</div>
+    87→    87→      {payload.map((p, i) => (
+    88→    88→        <div key={i} className={`flex items-center gap-2 ${INK_SOFT}`}>
+    89→    89→          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: p.stroke ?? p.color ?? p.fill ?? "#3a7bff" }} />
+    90→    90→          <span>{p.name}:</span>
+    91→    91→          <span className="tabular font-medium text-[color:var(--ink)]">
+    92→    92→            {typeof p.value === "number" ? fmtNumber(p.value, 1) : (p.value ?? "—")}
+    93→    93→          </span>
+    94→    94→        </div>
+    95→    95→      ))}
+    96→    96→    </div>
+    97→    97→  );
+    98→    98→}
+    99→    99→
+   100→   100→function ChartLegend({ items }: { items: { label: string; color: string; dashed?: boolean }[] }) {
+   101→   101→  return (
+   102→   102→    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+   103→   103→      {items.map((it) => (
+   104→   104→        <span key={it.label} className={`flex items-center gap-1.5 text-xs ${INK_SOFT}`}>
+   105→   105→          <span
+   106→   106→            className="inline-block h-2.5 w-2.5 rounded-full"
+   107→   107→            style={{ background: it.dashed ? "transparent" : it.color, border: it.dashed ? `2px solid ${it.color}` : undefined }}
+   108→   108→          />
+   109→   109→          {it.label}
+   110→   110→        </span>
+   111→   111→      ))}
+   112→   112→    </div>
+   113→   113→  );
+   114→   114→}
+   115→   115→
+   116→   116→/* ────────────────────────────── SVG rings ────────────────────────────── */
+   117→   117→
+   118→   118→/** Gradient health ring with % in the middle. */
+   119→   119→function HealthRing({ value, gid, size = 112, stroke = 11 }: { value: number; gid: string; size?: number; stroke?: number }) {
+   120→   120→  const r = (size - stroke) / 2;
+   121→   121→  const c = 2 * Math.PI * r;
+   122→   122→  const clamped = Math.max(0, Math.min(100, value));
+   123→   123→  return (
+   124→   124→    <div className="relative shrink-0" style={{ width: size, height: size }}>
+   125→   125→      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+   126→   126→        <defs>
+   127→   127→          <linearGradient id={`${gid}-grad`} x1="0%" y1="0%" x2="100%" y2="100%">
+   128→   128→            <stop offset="0%" stopColor="#3a7bff" />
+   129→   129→            <stop offset="55%" stopColor="#16a3a3" />
+   130→   130→            <stop offset="100%" stopColor="#238653" />
+   131→   131→          </linearGradient>
+   132→   132→        </defs>
+   133→   133→        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(125,177,216,0.28)" strokeWidth={stroke} />
+   134→   134→        <circle
+   135→   135→          cx={size / 2}
+   136→   136→          cy={size / 2}
+   137→   137→          r={r}
+   138→   138→          fill="none"
+   139→   139→          stroke={`url(#${gid}-grad)`}
+   140→   140→          strokeWidth={stroke}
+   141→   141→          strokeLinecap="round"
+   142→   142→          strokeDasharray={`${(clamped / 100) * c} ${c}`}
+   143→   143→          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+   144→   144→          style={{ transition: "stroke-dasharray 0.8s cubic-bezier(0.22,1,0.36,1)" }}
+   145→   145→        />
+   146→   146→      </svg>
+   147→   147→      <div className="absolute inset-0 flex flex-col items-center justify-center">
+   148→   148→        <span className="tabular text-xl font-semibold leading-5 text-[color:var(--ink)]">{Math.round(clamped)}%</span>
+   149→   149→      </div>
+   150→   150→    </div>
+   151→   151→  );
+   152→   152→}
+   153→   153→
+   154→   154→/** Compact progress ring for scorecards. */
+   155→   155→function MiniRing({ value, tone, size = 58, stroke = 7 }: { value: number; tone: string; size?: number; stroke?: number }) {
+   156→   156→  const r = (size - stroke) / 2;
+   157→   157→  const c = 2 * Math.PI * r;
+   158→   158→  const clamped = Math.max(0, Math.min(100, value));
+   159→   159→  return (
+   160→   160→    <div className="relative shrink-0" style={{ width: size, height: size }}>
+   161→   161→      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+   162→   162→        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(102,119,141,0.16)" strokeWidth={stroke} />
+   163→   163→        <circle
+   164→   164→          cx={size / 2}
+   165→   165→          cy={size / 2}
+   166→   166→          r={r}
+   167→   167→          fill="none"
+   168→   168→          stroke={tone}
+   169→   169→          strokeWidth={stroke}
+   170→   170→          strokeLinecap="round"
+   171→   171→          strokeDasharray={`${(clamped / 100) * c} ${c}`}
+   172→   172→          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+   173→   173→          style={{ transition: "stroke-dasharray 0.8s cubic-bezier(0.22,1,0.36,1)" }}
+   174→   174→        />
+   175→   175→      </svg>
+   176→   176→      <div className="absolute inset-0 flex items-center justify-center">
+   177→   177→        <span className="tabular text-[11px] font-semibold text-[color:var(--ink)]">{Math.round(clamped)}</span>
+   178→   178→      </div>
+   179→   179→    </div>
+   180→   180→  );
+   181→   181→}
+   182→   182→
+   183→   183→interface DonutSegment {
+   184→   184→  label: string;
+   185→   185→  value: number;
+   186→   186→  color: string;
+   187→   187→}
+   188→   188→
+   189→   189→/** Multi-segment donut with a glass center label. */
+   190→   190→function Donut({ segments, size = 138, stroke = 17, centerTop, centerSub }: { segments: DonutSegment[]; size?: number; stroke?: number; centerTop: string; centerSub: string }) {
+   191→   191→  const total = segments.reduce((a, s) => a + s.value, 0);
+   192→   192→  const r = (size - stroke) / 2;
+   193→   193→  const c = 2 * Math.PI * r;
+   194→   194→  let acc = 0;
+   195→   195→  return (
+   196→   196→    <div className="relative shrink-0" style={{ width: size, height: size }}>
+   197→   197→      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+   198→   198→        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(125,177,216,0.22)" strokeWidth={stroke} />
+   199→   199→        {total > 0 &&
+   200→   200→          segments.map((s) => {
+   201→   201→            const frac = s.value / total;
+   202→   202→            const len = Math.max(frac * c - 2.5, 0.01);
+   203→   203→            const el = (
+   204→   204→              <circle
+   205→   205→                key={s.label}
+   206→   206→                cx={size / 2}
+   207→   207→                cy={size / 2}
+   208→   208→                r={r}
+   209→   209→                fill="none"
+   210→   210→                stroke={s.color}
+   211→   211→                strokeWidth={stroke}
+   212→   212→                strokeLinecap="round"
+   213→   213→                strokeDasharray={`${len} ${c - len}`}
+   214→   214→                strokeDashoffset={-acc * c}
+   215→   215→                transform={`rotate(-90 ${size / 2} ${size / 2})`}
+   216→   216→              />
+   217→   217→            );
+   218→   218→            acc += frac;
+   219→   219→            return el;
+   220→   220→          })}
+   221→   221→      </svg>
+   222→   222→      <div className="absolute inset-0 flex flex-col items-center justify-center">
+   223→   223→        <span className="tabular text-2xl font-semibold leading-6 text-[color:var(--ink)]">{centerTop}</span>
+   224→   224→        <span className={`text-[10px] font-medium uppercase tracking-wide ${INK_FAINT}`}>{centerSub}</span>
+   225→   225→      </div>
+   226→   226→    </div>
+   227→   227→  );
+   228→   228→}
+   229→   229→
+   230→   230→/* ────────────────────────────── View ────────────────────────────── */
+   231→   231→
+   232→   232→export default function DashboardView() {
+   233→   233→  const { reportingYear, navigate, openDetail } = useWorkspace();
+   234→   234→  const { data, loading, error, refetch } = useApi<DashboardData>("/api/esg/dashboard");
+   235→   235→  const { data: subsData } = useApi<{ subsidiaries: Subsidiary[] }>("/api/esg/org?type=subsidiaries");
+   236→   236→
+   237→   237→  const subIdByName = useMemo(() => {
+   238→   238→    const m = new Map<string, string>();
+   239→   239→    for (const s of subsData?.subsidiaries ?? []) m.set(s.name, s.id);
+   240→   240→    return m;
+   241→   241→  }, [subsData]);
+   242→   242→
+   243→   243→  const k = data?.kpis;
+   244→   244→  const approvalRate = useMemo(() => {
+   245→   245→    if (!k) return 0;
+   246→   246→    const base = k.approved + k.pendingReview + k.rejectedReturned;
+   247→   247→    return base > 0 ? (k.approved / base) * 100 : 0;
+   248→   248→  }, [k]);
+   249→   249→
+   250→   250→  const categoryMix = useMemo(
+   251→   251→    () => [...(data?.categoryMix ?? [])].sort((a, b) => b.count - a.count).slice(0, 6),
+   252→   252→    [data]
+   253→   253→  );
+   254→   254→
+   255→   255→  const latest = data?.esgTrend?.[data.esgTrend.length - 1];
+   256→   256→
+   257→   257→  const quickActions: { label: string; icon: typeof UserPlus; hint: string; tint: string; run: () => void }[] = [
+   258→   258→    { label: "Invite user", icon: UserPlus, hint: "Add a team member", tint: "#3a7bff", run: () => navigate("users", { create: Date.now() }) },
+   259→   259→    { label: "Assign task", icon: ListTodo, hint: "Create a reporting task", tint: "#6a5bff", run: () => navigate("tasks", { create: Date.now() }) },
+   260→   260→    { label: "New BRSR report", icon: FileText, hint: "Start the wizard", tint: "#16a3a3", run: () => navigate("brsr", { wizard: Date.now() }) },
+   261→   261→    { label: "Announcement", icon: Megaphone, hint: "Broadcast to group", tint: "#c57926", run: () => navigate("comms", { create: Date.now() }) },
+   262→   262→    { label: "Review queue", icon: FileCheck2, hint: "Approve submissions", tint: "#238653", run: () => navigate("approvals") },
+   263→   263→    { label: "Consolidation", icon: Database, hint: "Validate & merge", tint: "#c34a4a", run: () => navigate("consolidation") },
+   264→   264→  ];
+   265→   265→
+   266→   266→  if (error && !data) {
+   267→   267→    return (
+   268→   268→      <div className="view-in space-y-5">
+   269→   269→        <PageHeader title="Group Command Center" icon={LayoutDashboard} breadcrumbs={["Group", "Overview", "Dashboard"]} />
+   270→   270→        <SectionCard><ErrorState message={error} onRetry={refetch} /></SectionCard>
+   271→   271→      </div>
+   272→   272→    );
+   273→   273→  }
+   274→   274→  if (loading && !data) {
+   275→   275→    return (
+   276→   276→      <div className="view-in space-y-5">
+   277→   277→        <PageHeader title="Group Command Center" icon={LayoutDashboard} breadcrumbs={["Group", "Overview", "Dashboard"]} />
+   278→   278→        <LoadingBlock rows={6} label="Loading group KPIs…" />
+   279→   279→      </div>
+   280→   280→    );
+   281→   281→  }
+   282→   282→  if (!data || !k) return null;
+   283→   283→
+   284→   284→  const awaitingReview = k.pendingReview;
+   285→   285→
+   286→   286→  const heroStats: { label: string; value: number; icon: typeof Landmark; color: string; go: () => void }[] = [
+   287→   287→    { label: "Subsidiaries", value: k.subsidiaries, icon: Landmark, color: "#6a5bff", go: () => navigate("subsidiaries") },
+   288→   288→    { label: "Business Units", value: k.businessUnits, icon: Layers, color: "#3a7bff", go: () => navigate("units") },
+   289→   289→    { label: "Projects", value: k.projects, icon: Building2, color: "#16a3a3", go: () => navigate("projects") },
+   290→   290→    { label: "Users", value: k.users, icon: Users, color: "#238653", go: () => navigate("users") },
+   291→   291→    { label: "Submissions", value: k.submissions, icon: ClipboardList, color: "#c57926", go: () => navigate("submissions") },
+   292→   292→  ];
+   293→   293→
+   294→   294→  const pipeline = [
+   295→   295→    { label: "Approved", value: k.approved, color: "#238653", go: () => navigate("submissions", { statusFilter: "APPROVED" }) },
+   296→   296→    { label: "Awaiting review", value: awaitingReview, color: "#c57926", go: () => navigate("approvals") },
+   297→   297→    { label: "Rejected / Returned", value: k.rejectedReturned, color: "#c34a4a", go: () => navigate("submissions", { statusFilter: "REJECTED" }) },
+   298→   298→  ];
+   299→   299→
+   300→   300→  const donutSegments: DonutSegment[] = [
+   301→   301→    { label: "Approved", value: k.approved, color: "#238653" },
+   302→   302→    { label: "Awaiting review", value: awaitingReview, color: "#c57926" },
+   303→   303→    { label: "Rejected / Returned", value: k.rejectedReturned, color: "#c34a4a" },
+   304→   304→  ];
+   305→   305→
+   306→   306→  return (
+   307→   307→    <div className="view-in space-y-5">
+   308→   308→      <PageHeader
+   309→   309→        title="Group Command Center"
+   310→   310→        icon={LayoutDashboard}
+   311→   311→        breadcrumbs={["Group", "Overview", "Dashboard"]}
+   312→   312→        actions={
+   313→   313→          <>
+   314→   314→            <span className={`glass-subtle inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-medium ${INK_SOFT}`}>
+   315→   315→              <CalendarClock className="h-4 w-4 text-[color:var(--esg-blue)]" aria-hidden="true" />
+   316→   316→              {reportingYear}
+   317→   317→            </span>
+   318→   318→            <button
+   319→   319→              onClick={() => navigate("approvals")}
+   320→   320→              className="glass inline-flex h-10 items-center gap-1.5 rounded-2xl border-white/60 px-4 text-[13px] font-medium text-[color:var(--ink)] transition-colors hover:bg-white/70"
+   321→   321→            >
+   322→   322→              <FileCheck2 className="h-4 w-4 text-[color:var(--esg-blue)]" aria-hidden="true" />
+   323→   323→              Review queue
+   324→   324→              {k.pendingReview > 0 && (
+   325→   325→                <span className="rounded-full bg-[rgba(58,123,255,0.15)] px-1.5 py-px text-[11px] font-semibold text-[#1d5fd6]">{k.pendingReview}</span>
+   326→   326→              )}
+   327→   327→            </button>
+   328→   328→          </>
+   329→   329→        }
+   330→   330→      />
+   331→   331→
+   332→   332→      {/* ── 1. Group pulse hero ── */}
+   333→   333→      <GlassCard strong className="relative overflow-hidden rounded-[28px] p-5 sm:p-7">
+   334→   334→        <div aria-hidden className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.22),transparent_65%)] blur-2xl" />
+   335→   335→        <div aria-hidden className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.16),transparent_65%)] blur-2xl" />
+   336→   336→
+   337→   337→        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center">
+   338→   338→          {/* identity */}
+   339→   339→          <div className="flex min-w-0 items-center gap-4 xl:w-[280px] xl:shrink-0">
+   340→   340→            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#3a7bff] via-[#4a7cf0] to-[#6a5bff] shadow-lg shadow-[rgba(58,123,255,0.35)]">
+   341→   341→              <Landmark className="h-7 w-7 text-white" aria-hidden="true" />
+   342→   342→            </span>
+   343→   343→            <div className="min-w-0">
+   344→   344→              <h2 className="truncate text-lg font-semibold tracking-tight text-[color:var(--ink)]">MEIL Group</h2>
+   345→   345→              <p className={`truncate text-[13px] ${INK_FAINT}`}>Group ESG command · {reportingYear}</p>
+   346→   346→              <span className="glass-subtle mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#1d5fd6]">
+   347→   347→                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#238653]" />
+   348→   348→                Live group view
+   349→   349→              </span>
+   350→   350→            </div>
+   351→   351→          </div>
+   352→   352→
+   353→   353→          {/* stat cascade */}
+   354→   354→          <div className="grid flex-1 grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/60 bg-[rgba(125,177,216,0.28)] sm:grid-cols-3 lg:grid-cols-5">
+   355→   355→            {heroStats.map((s) => (
+   356→   356→              <button
+   357→   357→                key={s.label}
+   358→   358→                onClick={s.go}
+   359→   359→                className="group flex flex-col items-start gap-1 bg-white/45 px-4 py-3.5 text-left backdrop-blur-sm transition-colors hover:bg-white/75"
+   360→   360→                aria-label={`${s.label}: ${s.value} — open module`}
+   361→   361→              >
+   362→   362→                <span className={`flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>
+   363→   363→                  <s.icon className="h-3.5 w-3.5" style={{ color: s.color }} aria-hidden="true" />
+   364→   364→                  {s.label}
+   365→   365→                </span>
+   366→   366→                <span className="flex items-baseline gap-1">
+   367→   367→                  <span className="tabular text-[22px] font-semibold leading-7 tracking-tight text-[color:var(--ink)] transition-colors group-hover:text-[#1d5fd6]">
+   368→   368→                    <CountUp value={s.value} format={(n) => fmtNumber(Math.round(n))} />
+   369→   369→                  </span>
+   370→   370→                  <ArrowUpRight className="h-3.5 w-3.5 self-center text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+   371→   371→                </span>
+   372→   372→              </button>
+   373→   373→            ))}
+   374→   374→          </div>
+   375→   375→
+   376→   376→          {/* health ring */}
+   377→   377→          <div className="flex items-center gap-4 xl:w-[228px] xl:shrink-0 xl:justify-end">
+   378→   378→            <HealthRing value={approvalRate} gid="cc-health" />
+   379→   379→            <div className="min-w-0">
+   380→   380→              <div className="text-[13px] font-semibold text-[color:var(--ink)]">Approval health</div>
+   381→   381→              <p className={`mt-0.5 text-xs leading-snug ${INK_FAINT}`}>
+   382→   382→                {k.approved} of {k.approved + awaitingReview + k.rejectedReturned} reviewed submissions approved
+   383→   383→              </p>
+   384→   384→              {k.overdue > 0 ? (
+   385→   385→                <Chip tone="red" className="mt-1.5">{k.overdue} overdue</Chip>
+   386→   386→              ) : (
+   387→   387→                <Chip tone="green" className="mt-1.5">No overdue</Chip>
+   388→   388→              )}
+   389→   389→            </div>
+   390→   390→          </div>
+   391→   391→        </div>
+   392→   392→      </GlassCard>
+   393→   393→
+   394→   394→      {/* ── 2. Pipeline + ESG trend ── */}
+   395→   395→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+   396→   396→        <SectionCard
+   397→   397→          title="Submission pipeline"
+   398→   398→          description="Where every report stands in the review flow"
+   399→   399→          icon={Workflow}
+   400→   400→          className="xl:col-span-4"
+   401→   401→          actions={<Chip tone="gray">{k.submissions} total</Chip>}
+   402→   402→        >
+   403→   403→          <div className="flex flex-col gap-2">
+   404→   404→            {pipeline.map((p) => {
+   405→   405→              const pct = k.submissions > 0 ? (p.value / k.submissions) * 100 : 0;
+   406→   406→              return (
+   407→   407→                <button
+   408→   408→                  key={p.label}
+   409→   409→                  onClick={p.go}
+   410→   410→                  className="group rounded-2xl border border-transparent px-3 py-2.5 text-left transition-all hover:border-white/60 hover:bg-white/60"
+   411→   411→                  aria-label={`${p.label}: ${p.value} submissions`}
+   412→   412→                >
+   413→   413→                  <div className="flex items-center justify-between gap-2 text-[13px]">
+   414→   414→                    <span className={`flex items-center gap-2 font-medium ${INK_SOFT}`}>
+   415→   415→                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} aria-hidden="true" />
+   416→   416→                      {p.label}
+   417→   417→                    </span>
+   418→   418→                    <span className="tabular">
+   419→   419→                      <span className="font-semibold text-[color:var(--ink)]">{p.value}</span>
+   420→   420→                      <span className={`ml-1.5 text-xs ${INK_FAINT}`}>{Math.round(pct)}%</span>
+   421→   421→                    </span>
+   422→   422→                  </div>
+   423→   423→                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.12)]">
+   424→   424→                    <div
+   425→   425→                      className="h-full rounded-full"
+   426→   426→                      style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${p.color}99, ${p.color})`, transition: "width 0.8s cubic-bezier(0.22,1,0.36,1)" }}
+   427→   427→                    />
+   428→   428→                  </div>
+   429→   429→                </button>
+   430→   430→              );
+   431→   431→            })}
+   432→   432→          </div>
+   433→   433→          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[rgba(195,74,74,0.16)] bg-[rgba(195,74,74,0.06)] px-3.5 py-2.5">
+   434→   434→            <span className={`text-xs ${INK_SOFT}`}>
+   435→   435→              <span className="font-semibold text-[#a53b3b]">{k.overdue}</span> overdue submission{k.overdue === 1 ? "" : "s"} need escalation
+   436→   436→            </span>
+   437→   437→            <button
+   438→   438→              onClick={() => navigate("submissions", { statusFilter: "OVERDUE" })}
+   439→   439→              className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#a53b3b] hover:underline"
+   440→   440→            >
+   441→   441→              Open <ArrowRight className="h-3 w-3" aria-hidden="true" />
+   442→   442→            </button>
+   443→   443→          </div>
+   444→   444→        </SectionCard>
+   445→   445→
+   446→   446→        <SectionCard
+   447→   447→          title="ESG performance trend"
+   448→   448→          description="Scope 1 & 2 emissions (tCO2e) with renewable share on the right axis"
+   449→   449→          icon={TrendingUp}
+   450→   450→          className="xl:col-span-8"
+   451→   451→          actions={
+   452→   452→            latest && (
+   453→   453→              <div className="flex flex-wrap items-center gap-1.5">
+   454→   454→                <Chip tone="blue">Scope 1 {fmtNumber(latest.scope1)}</Chip>
+   455→   455→                <Chip tone="purple">Scope 2 {fmtNumber(latest.scope2)}</Chip>
+   456→   456→                <Chip tone="teal">Renewable {Math.round(latest.renewable)}%</Chip>
+   457→   457→              </div>
+   458→   458→            )
+   459→   459→          }
+   460→   460→        >
+   461→   461→          <ResponsiveContainer width="100%" height={252}>
+   462→   462→            <LineChart data={data.esgTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+   463→   463→              <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,119,141,0.16)" vertical={false} />
+   464→   464→              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} />
+   465→   465→              <YAxis yAxisId="left" width={48} tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} tickFormatter={(v: number) => fmtNumber(v)} />
+   466→   466→              <YAxis yAxisId="right" orientation="right" width={40} tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} tickFormatter={(v: number) => `${v}%`} />
+   467→   467→              <Tooltip content={<GlassChartTip />} cursor={{ stroke: "rgba(58,123,255,0.3)", strokeWidth: 1 }} />
+   468→   468→              <Line yAxisId="left" type="monotone" dataKey="scope1" name="Scope 1" stroke="#3a7bff" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+   469→   469→              <Line yAxisId="left" type="monotone" dataKey="scope2" name="Scope 2" stroke="#6a5bff" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+   470→   470→              <Line yAxisId="right" type="monotone" dataKey="renewable" name="Renewable %" stroke="#16a3a3" strokeWidth={2.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />
+   471→   471→            </LineChart>
+   472→   472→          </ResponsiveContainer>
+   473→   473→          <ChartLegend
+   474→   474→            items={[
+   475→   475→              { label: "Scope 1 (tCO2e)", color: "#3a7bff" },
+   476→   476→              { label: "Scope 2 (tCO2e)", color: "#6a5bff" },
+   477→   477→              { label: "Renewable share (%)", color: "#16a3a3", dashed: true },
+   478→   478→            ]}
+   479→   479→          />
+   480→   480→        </SectionCard>
+   481→   481→      </div>
+   482→   482→
+   483→   483→      {/* ── 3. Completion + approval mix + category pulse ── */}
+   484→   484→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+   485→   485→        <SectionCard title="Submission completion" description="Reports received vs completed (approved) by month" icon={BarChart3} className="xl:col-span-5">
+   486→   486→          <ResponsiveContainer width="100%" height={248}>
+   487→   487→            <BarChart data={data.completionByMonth} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+   488→   488→              <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,119,141,0.16)" vertical={false} />
+   489→   489→              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} />
+   490→   490→              <YAxis allowDecimals={false} width={36} tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} />
+   491→   491→              <Tooltip content={<GlassChartTip />} cursor={{ fill: "rgba(58,123,255,0.06)" }} />
+   492→   492→              <Bar dataKey="received" name="Received" fill="rgba(58,123,255,0.45)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+   493→   493→              <Bar dataKey="completed" name="Completed" fill="#238653" radius={[6, 6, 0, 0]} maxBarSize={26} />
+   494→   494→            </BarChart>
+   495→   495→          </ResponsiveContainer>
+   496→   496→          <ChartLegend
+   497→   497→            items={[
+   498→   498→              { label: "Received", color: "rgba(58,123,255,0.45)" },
+   499→   499→              { label: "Completed (approved)", color: "#238653" },
+   500→   500→            ]}
+   501→   501→          />
+   502→   502→        </SectionCard>
+   503→   503→
+   504→   504→        <SectionCard title="Approval mix" description="Reviewed submission outcomes" icon={PieChart} className="xl:col-span-3">
+   505→   505→          <div className="flex h-full flex-col items-center justify-center gap-4">
+   506→   506→            <Donut segments={donutSegments} centerTop={String(k.approved + awaitingReview + k.rejectedReturned)} centerSub="reviewed" />
+   507→   507→            <div className="flex w-full flex-col gap-1.5">
+   508→   508→              {donutSegments.map((s) => (
+   509→   509→                <div key={s.label} className="flex items-center justify-between gap-2 text-xs">
+   510→   510→                  <span className={`flex items-center gap-1.5 ${INK_SOFT}`}>
+   511→   511→                    <span className="h-2 w-2 rounded-full" style={{ background: s.color }} aria-hidden="true" />
+   512→   512→                    {s.label}
+   513→   513→                  </span>
+   514→   514→                  <span className="tabular font-semibold text-[color:var(--ink)]">{s.value}</span>
+   515→   515→                </div>
+   516→   516→              ))}
+   517→   517→            </div>
+   518→   518→          </div>
+   519→   519→        </SectionCard>
+   520→   520→
+   521→   521→        <SectionCard title="Category pulse" description="Top reporting categories by volume" icon={ListChecks} className="xl:col-span-4">
+   522→   522→          {categoryMix.length === 0 ? (
+   523→   523→            <EmptyState title="No categories yet" message="Category mix appears once submissions arrive." />
+   524→   524→          ) : (
+   525→   525→            <div className="flex flex-col gap-3">
+   526→   526→              {categoryMix.map((cm) => {
+   527→   527→                const max = categoryMix[0]?.count || 1;
+   528→   528→                const w = (cm.count / max) * 100;
+   529→   529→                const aw = cm.count > 0 ? (cm.approved / cm.count) * 100 : 0;
+   530→   530→                return (
+   531→   531→                  <button
+   532→   532→                    key={cm.category}
+   533→   533→                    onClick={() => navigate("submissions", { statusFilter: cm.category })}
+   534→   534→                    className="group rounded-xl px-1 py-0.5 text-left"
+   535→   535→                    aria-label={`Open ${cm.category} submissions`}
+   536→   536→                  >
+   537→   537→                    <div className="flex items-center justify-between text-xs">
+   538→   538→                      <span className={`font-medium capitalize group-hover:text-[color:var(--esg-blue)] ${INK_SOFT}`}>
+   539→   539→                        {cm.category.toLowerCase()}
+   540→   540→                      </span>
+   541→   541→                      <span className={`tabular ${INK_FAINT}`}>{cm.approved}/{cm.count} approved</span>
+   542→   542→                    </div>
+   543→   543→                    <div className="relative mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.12)]">
+   544→   544→                      <div className="absolute inset-y-0 left-0 rounded-full bg-[rgba(58,123,255,0.28)]" style={{ width: `${w}%` }} />
+   545→   545→                      <div className="absolute inset-y-0 left-0 rounded-full bg-[#238653]" style={{ width: `${(aw / 100) * w}%` }} />
+   546→   546→                    </div>
+   547→   547→                  </button>
+   548→   548→                );
+   549→   549→              })}
+   550→   550→              <p className={`text-[11px] ${INK_FAINT}`}>
+   551→   551→                <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[rgba(58,123,255,0.28)] align-middle" />
+   552→   552→                volume
+   553→   553→                <span className="mx-1 inline-block h-2 w-2 rounded-full bg-[#238653] align-middle" />
+   554→   554→                approved share
+   555→   555→              </p>
+   556→   556→            </div>
+   557→   557→          )}
+   558→   558→        </SectionCard>
+   559→   559→      </div>
+   560→   560→
+   561→   561→      {/* ── 4. Subsidiary scorecards ── */}
+   562→   562→      <section aria-labelledby="cc-scorecards">
+   563→   563→        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+   564→   564→          <h3 id="cc-scorecards" className="text-[15px] font-semibold text-[color:var(--ink)]">Subsidiary scorecards</h3>
+   565→   565→          <button onClick={() => navigate("subsidiaries")} className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--esg-blue)] hover:underline">
+   566→   566→            Manage subsidiaries <ArrowRight className="h-3 w-3" aria-hidden="true" />
+   567→   567→          </button>
+   568→   568→        </div>
+   569→   569→        {data.orgProgress.length === 0 ? (
+   570→   570→          <SectionCard>
+   571→   571→            <EmptyState title="No subsidiaries yet" message="Create your first subsidiary to see reporting progress here." />
+   572→   572→          </SectionCard>
+   573→   573→        ) : (
+   574→   574→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   575→   575→            {data.orgProgress.map((op) => {
+   576→   576→              const pct = op.total > 0 ? (op.approved / op.total) * 100 : 0;
+   577→   577→              const id = subIdByName.get(op.name);
+   578→   578→              return (
+   579→   579→                <GlassCard
+   580→   580→                  key={op.name}
+   581→   581→                  interactive
+   582→   582→                  onClick={() => (id ? openDetail("subsidiaries", id, "overview") : navigate("subsidiaries"))}
+   583→   583→                  className="p-4"
+   584→   584→                  role="button"
+   585→   585→                  aria-label={`Open ${op.name} details — ${Math.round(pct)}% approved`}
+   586→   586→                >
+   587→   587→                  <div className="flex items-center gap-3">
+   588→   588→                    <MiniRing value={pct} tone={op.overdue > 0 ? "#c57926" : "#238653"} />
+   589→   589→                    <div className="min-w-0">
+   590→   590→                      <div className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{op.name}</div>
+   591→   591→                      <div className={`truncate text-xs ${INK_FAINT}`}>{op.level}</div>
+   592→   592→                    </div>
+   593→   593→                  </div>
+   594→   594→                  <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-[rgba(125,177,216,0.22)] pt-3 text-xs">
+   595→   595→                    <span className={`tabular ${INK_SOFT}`}>
+   596→   596→                      <span className="font-semibold text-[color:var(--ink)]">{op.approved}</span>/{op.total} approved
+   597→   597→                    </span>
+   598→   598→                    {op.overdue > 0 ? <Chip tone="red">{op.overdue} overdue</Chip> : <Chip tone="green">On track</Chip>}
+   599→   599→                  </div>
+   600→   600→                </GlassCard>
+   601→   601→              );
+   602→   602→            })}
+   603→   603→          </div>
+   604→   604→        )}
+   605→   605→      </section>
+   606→   606→
+   607→   607→      {/* ── 5. Role performance + quick actions ── */}
+   608→   608→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+   609→   609→        <SectionCard title="Role-wise performance" description="Approval rate of submissions by contributor role" icon={Users} className="xl:col-span-2">
+   610→   610→          {data.rolePerformance.length === 0 ? (
+   611→   611→            <EmptyState title="No role data yet" message="Role performance appears once users start submitting reports." />
+   612→   612→          ) : (
+   613→   613→            <div className="flex flex-col gap-3">
+   614→   614→              {data.rolePerformance.map((rp, i) => {
+   615→   615→                const pct = rp.total > 0 ? (rp.approved / rp.total) * 100 : 0;
+   616→   616→                const tones = ["#3a7bff", "#6a5bff", "#16a3a3", "#238653", "#c57926", "#c34a4a"];
+   617→   617→                const tone = tones[i % tones.length];
+   618→   618→                return (
+   619→   619→                  <div key={rp.role}>
+   620→   620→                    <div className="flex items-center justify-between gap-3 text-xs">
+   621→   621→                      <span className={`flex min-w-0 items-center gap-1.5 font-medium ${INK_SOFT}`}>
+   622→   622→                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone }} aria-hidden="true" />
+   623→   623→                        <span className="truncate">{ROLE_LABELS[rp.role] ?? rp.role.replaceAll("_", " ")}</span>
+   624→   624→                      </span>
+   625→   625→                      <span className={`tabular shrink-0 ${INK_FAINT}`}>
+   626→   626→                        {rp.approved}/{rp.total} · {rp.onTime} on time
+   627→   627→                      </span>
+   628→   628→                    </div>
+   629→   629→                    <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.14)]">
+   630→   630→                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${tone}99, ${tone})` }} />
+   631→   631→                    </div>
+   632→   632→                  </div>
+   633→   633→                );
+   634→   634→              })}
+   635→   635→            </div>
+   636→   636→          )}
+   637→   637→        </SectionCard>
+   638→   638→
+   639→   639→        <SectionCard title="Quick actions" description="Jump into the most common group-admin workflows" icon={ListTodo} className="xl:col-span-3">
+   640→   640→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+   641→   641→            {quickActions.map((qa) => (
+   642→   642→              <button
+   643→   643→                key={qa.label}
+   644→   644→                onClick={qa.run}
+   645→   645→                className="glass-subtle group flex flex-col items-start gap-2 rounded-2xl border-white/50 p-3.5 text-left transition-all hover:-translate-y-0.5 hover:bg-white/70"
+   646→   646→                aria-label={qa.label}
+   647→   647→              >
+   648→   648→                <span className="flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-105" style={{ background: `${qa.tint}1f` }}>
+   649→   649→                  <qa.icon className="h-4 w-4" style={{ color: qa.tint }} aria-hidden="true" />
+   650→   650→                </span>
+   651→   651→                <span className="text-[13px] font-semibold leading-4 text-[color:var(--ink)]">{qa.label}</span>
+   652→   652→                <span className={`text-[11px] leading-snug ${INK_FAINT}`}>{qa.hint}</span>
+   653→   653→              </button>
+   654→   654→            ))}
+   655→   655→          </div>
+   656→   656→        </SectionCard>
+   657→   657→      </div>
+   658→   658→
+   659→   659→      {/* ── 6. Operations strip: approvals / deadlines / quality ── */}
+   660→   660→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+   661→   661→        <SectionCard
+   662→   662→          title="Pending approvals"
+   663→   663→          description="Submissions waiting for your review"
+   664→   664→          icon={FileCheck2}
+   665→   665→          actions={<Chip tone={data.pendingApprovals.length > 0 ? "amber" : "green"}>{data.pendingApprovals.length}</Chip>}
+   666→   666→        >
+   667→   667→          {data.pendingApprovals.length === 0 ? (
+   668→   668→            <EmptyState title="Queue is clear" message="No submissions are awaiting review right now." icon={BadgeCheck} />
+   669→   669→          ) : (
+   670→   670→            <div className="nice-scroll flex max-h-[290px] flex-col gap-2 overflow-y-auto pr-1">
+   671→   671→              {data.pendingApprovals.map((pa) => (
+   672→   672→                <button
+   673→   673→                  key={pa.id}
+   674→   674→                  onClick={() => openDetail("approvals", pa.id)}
+   675→   675→                  className="group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 px-3.5 py-2.5 text-left transition-all hover:-translate-y-px hover:bg-white/70 hover:shadow-sm"
+   676→   676→                  aria-label={`Review ${pa.title}`}
+   677→   677→                >
+   678→   678→                  <span className="absolute inset-y-0 left-0 w-[3px] rounded-full bg-[#c57926] opacity-70 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+   679→   679→                  <span className="flex items-start justify-between gap-2 pl-1.5">
+   680→   680→                    <span className="line-clamp-1 text-[13px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{pa.title}</span>
+   681→   681→                    <StatusBadge status={pa.status} />
+   682→   682→                  </span>
+   683→   683→                  <span className={`mt-1 flex flex-wrap items-center gap-x-2 pl-1.5 text-xs ${INK_FAINT}`}>
+   684→   684→                    <span className="font-medium">{pa.ref}</span>
+   685→   685→                    <span>·</span>
+   686→   686→                    <span>{pa.subsidiaryName ?? "—"}</span>
+   687→   687→                    <span>·</span>
+   688→   688→                    <span>by {pa.submittedByName ?? "—"}</span>
+   689→   689→                    <span>·</span>
+   690→   690→                    <span>due {fmtDate(pa.dueDate)}</span>
+   691→   691→                  </span>
+   692→   692→                </button>
+   693→   693→              ))}
+   694→   694→            </div>
+   695→   695→          )}
+   696→   696→        </SectionCard>
+   697→   697→
+   698→   698→        <SectionCard
+   699→   699→          title="Upcoming & overdue deadlines"
+   700→   700→          description="Reporting tasks ordered by due date"
+   701→   701→          icon={Clock}
+   702→   702→          actions={<Chip tone="gray">{data.deadlines.length}</Chip>}
+   703→   703→        >
+   704→   704→          {data.deadlines.length === 0 ? (
+   705→   705→            <EmptyState title="No open deadlines" message="All reporting tasks are completed." icon={ListChecks} />
+   706→   706→          ) : (
+   707→   707→            <div className="nice-scroll flex max-h-[290px] flex-col gap-2 overflow-y-auto pr-1">
+   708→   708→              {data.deadlines.map((d) => (
+   709→   709→                <button
+   710→   710→                  key={d.id}
+   711→   711→                  onClick={() => openDetail("tasks", d.id)}
+   712→   712→                  className="group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 px-3.5 py-2.5 text-left transition-all hover:-translate-y-px hover:bg-white/70 hover:shadow-sm"
+   713→   713→                  aria-label={`Open task ${d.title}`}
+   714→   714→                >
+   715→   715→                  <span className="absolute inset-y-0 left-0 w-[3px] rounded-full bg-[#3a7bff] opacity-70 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+   716→   716→                  <span className="flex items-start justify-between gap-2 pl-1.5">
+   717→   717→                    <span className="line-clamp-1 text-[13px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{d.title}</span>
+   718→   718→                    <StatusBadge status={d.priority} />
+   719→   719→                  </span>
+   720→   720→                  <span className={`mt-1 flex flex-wrap items-center gap-x-2 pl-1.5 text-xs ${INK_FAINT}`}>
+   721→   721→                    <span className="font-medium">{d.ref}</span>
+   722→   722→                    <span>·</span>
+   723→   723→                    <span>{d.assigneeLabel}</span>
+   724→   724→                    <span>·</span>
+   725→   725→                    <span>due {fmtDate(d.dueDate)}</span>
+   726→   726→                  </span>
+   727→   727→                </button>
+   728→   728→              ))}
+   729→   729→            </div>
+   730→   730→          )}
+   731→   731→        </SectionCard>
+   732→   732→
+   733→   733→        <SectionCard
+   734→   734→          title="Data quality issues"
+   735→   735→          description="Flagged by reviewers & validation engine"
+   736→   736→          icon={ShieldAlert}
+   737→   737→          actions={<Chip tone={data.dataQuality.length > 0 ? "red" : "green"}>{data.dataQuality.length}</Chip>}
+   738→   738→        >
+   739→   739→          {data.dataQuality.length === 0 ? (
+   740→   740→            <EmptyState title="No quality issues" message="All submissions passed validation." icon={BadgeCheck} />
+   741→   741→          ) : (
+   742→   742→            <div className="nice-scroll flex max-h-[290px] flex-col gap-2 overflow-y-auto pr-1">
+   743→   743→              {data.dataQuality.map((dq) => {
+   744→   744→                const critical = dq.severity === "CRITICAL";
+   745→   745→                const Icon = critical ? AlertOctagon : AlertTriangle;
+   746→   746→                return (
+   747→   747→                  <button
+   748→   748→                    key={dq.id}
+   749→   749→                    onClick={() => navigate("consolidation")}
+   750→   750→                    className="group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 px-3.5 py-2.5 text-left transition-all hover:-translate-y-px hover:bg-white/70 hover:shadow-sm"
+   751→   751→                    aria-label={`Investigate ${dq.title}`}
+   752→   752→                  >
+   753→   753→                    <span className={`absolute inset-y-0 left-0 w-[3px] rounded-full ${critical ? "bg-[#c34a4a]" : "bg-[#c57926]"}`} aria-hidden="true" />
+   754→   754→                    <span className="flex items-start gap-2.5 pl-1.5">
+   755→   755→                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${critical ? "bg-[rgba(195,74,74,0.12)] text-[#c34a4a]" : "bg-[rgba(197,121,38,0.13)] text-[#c57926]"}`}>
+   756→   756→                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+   757→   757→                      </span>
+   758→   758→                      <span className="min-w-0">
+   759→   759→                        <span className="line-clamp-1 text-[13px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{dq.title}</span>
+   760→   760→                        <span className={`mt-0.5 line-clamp-2 block text-xs ${INK_FAINT}`}>{dq.issue}</span>
+   761→   761→                      </span>
+   762→   762→                    </span>
+   763→   763→                  </button>
+   764→   764→                );
+   765→   765→              })}
+   766→   766→            </div>
+   767→   767→          )}
+   768→   768→        </SectionCard>
+   769→   769→      </div>
+   770→   770→
+   771→   771→      {/* ── 7. Activity timeline ── */}
+   772→   772→      <SectionCard
+   773→   773→        title="Recent activity"
+   774→   774→        description="Latest actions across the organization"
+   775→   775→        icon={ActivityIcon}
+   776→   776→        actions={
+   777→   777→          <button onClick={() => navigate("activity")} className="inline-flex items-center gap-1 text-xs font-medium text-[color:var(--esg-blue)] hover:underline">
+   778→   778→            Open activity feed <ArrowRight className="h-3 w-3" aria-hidden="true" />
+   779→   779→          </button>
+   780→   780→        }
+   781→   781→      >
+   782→   782→        {data.activityFeed.length === 0 ? (
+   783→   783→          <EmptyState title="No recent activity" message="User actions will appear here as they happen." />
+   784→   784→        ) : (
+   785→   785→          <div className="relative">
+   786→   786→            <span aria-hidden className="absolute bottom-3 left-[17px] top-3 w-px bg-[rgba(125,177,216,0.4)]" />
+   787→   787→            <div className="flex flex-col gap-1">
+   788→   788→              {data.activityFeed.map((a) => (
+   789→   789→                <button
+   790→   790→                  key={a.id}
+   791→   791→                  onClick={() => navigate("activity")}
+   792→   792→                  className="group relative flex items-start gap-3 rounded-2xl px-1.5 py-2 text-left transition-colors hover:bg-white/55"
+   793→   793→                  aria-label={`Activity by ${a.actorName}`}
+   794→   794→                >
+   795→   795→                  <span className="relative z-10 mt-0.5 shrink-0 rounded-full border border-white/70 bg-white shadow-sm">
+   796→   796→                    <Avatar name={a.actorName || "System"} size={36} />
+   797→   797→                  </span>
+   798→   798→                  <span className="min-w-0 flex-1">
+   799→   799→                    <span className="flex items-center gap-1.5 text-[13px] text-[color:var(--ink-soft)]">
+   800→   800→                      <span className="truncate font-semibold text-[color:var(--ink)]">{a.actorName}</span>
+   801→   801→                      <span className="shrink-0 rounded-md bg-[rgba(58,123,255,0.1)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[#1d5fd6]">
+   802→   802→                        {a.action.replaceAll("_", " ")}
+   803→   803→                      </span>
+   804→   804→                      <span className="truncate">{a.targetLabel}</span>
+   805→   805→                    </span>
+   806→   806→                    <span className={`mt-0.5 block text-xs ${INK_FAINT}`}>
+   807→   807→                      {ROLE_LABELS[a.actorRole] ?? a.actorRole.replaceAll("_", " ")} · {a.orgLabel} · {timeAgo(a.createdAt)}
+   808→   808→                    </span>
+   809→   809→                  </span>
+   810→   810→                  {a.severity === "WARNING" ? <Chip tone="amber">Warning</Chip> : <ChevronRight className={`mt-1 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 ${INK_FAINT}`} aria-hidden="true" />}
+   811→   811→                </button>
+   812→   812→              ))}
+   813→   813→            </div>
+   814→   814→          </div>
+   815→   815→        )}
+   816→   816→      </SectionCard>
+   817→   817→    </div>
+   818→   818→  );
+   819→   819→}
+   820→   820→

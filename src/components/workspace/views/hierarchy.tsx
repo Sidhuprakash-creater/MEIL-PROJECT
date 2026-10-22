@@ -1,6 +1,6 @@
 "use client";
 
-// ── SCREEN 03 — Organization Hierarchy (movable node canvas + branch colors + favicons + view panel) ──
+// ── SCREEN 03 — Organization Hierarchy (movable node canvas + 4 diagram designs + branch colors + favicons + view panel) ──
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -21,14 +21,19 @@ import {
   Info,
   Landmark,
   Layers,
+  LayoutDashboard,
   ListTree,
   Maximize2,
   Minus,
+  MoveHorizontal,
   Network,
+  Orbit,
   Plus,
+  RotateCcw,
   Route,
   Sun,
   Users,
+  Waypoints,
   Waves,
   Wind,
   X,
@@ -95,8 +100,6 @@ const KIND_LABEL: Record<string, string> = {
   SITE: "Site",
   OFFICE: "Office",
 };
-
-const LINE = "bg-[rgba(58,123,255,0.32)]";
 
 const STATUS_TONE: Record<string, string> = {
   APPROVED: "#238653",
@@ -175,6 +178,277 @@ function ancestorsOf(nodes: HierarchyNode[], id: string): HierarchyNode[] | null
   return null;
 }
 
+/* ────────────────────────────── Diagram design engine ────────────────────────────── */
+
+type DiagramMode = "tree" | "flow" | "radial" | "constellation";
+
+const DIAGRAM_MODES: { id: DiagramMode; label: string; hint: string; icon: typeof ListTree }[] = [
+  { id: "tree", label: "Vertical tree", hint: "Classic top-down organization chart", icon: ListTree },
+  { id: "flow", label: "Horizontal flow", hint: "Left-to-right cascade diagram", icon: MoveHorizontal },
+  { id: "radial", label: "Radial orbit", hint: "Group HQ at the center, branches orbiting", icon: Orbit },
+  { id: "constellation", label: "Constellation", hint: "Organic drift layout with flowing curves", icon: Waypoints },
+];
+
+/** Flat layout node — the synthetic group root plus every visible org node. */
+interface LNode {
+  id: string;
+  parentId: string | null;
+  depth: number; // 0 = root, 1 = subsidiary, 2 = unit, 3 = project
+  type: "root" | NodeType;
+  hue: string;
+  name: string;
+  node?: HierarchyNode;
+}
+
+type Pos = { x: number; y: number };
+
+const ROOT_ID = "meil-group-root";
+const GAP_X = 52;
+const GAP_Y = 66;
+
+/** Fixed card metrics per node type — keeps every connector anchored exactly on card edges. */
+function dimsOf(n: LNode): { w: number; h: number } {
+  if (n.type === "root") return { w: 272, h: 128 };
+  if (n.type === "subsidiary") return { w: 252, h: 92 };
+  if (n.type === "unit") return { w: 228, h: 64 };
+  return { w: 210, h: 52 };
+}
+
+/** Deterministic hash for organic jitter + bow direction. */
+function hashStr(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+/** Flatten the filtered tree into layout nodes, honoring collapse state. */
+function buildLNodes(
+  filtered: HierarchyNode[],
+  openMap: Record<string, boolean>,
+  searchActive: boolean,
+  hueMap: Record<string, string>
+): LNode[] {
+  const out: LNode[] = [{ id: ROOT_ID, parentId: null, depth: 0, type: "root", hue: "#3a7bff", name: "MEIL Group" }];
+  const walk = (list: HierarchyNode[], parentId: string, depth: number) => {
+    for (const n of list) {
+      out.push({ id: n.id, parentId, depth, type: n.type, hue: hueMap[n.id] ?? "#3a7bff", name: n.name, node: n });
+      const open = searchActive || (openMap[n.id] ?? true);
+      if (open && n.children && n.children.length > 0) walk(n.children, n.id, depth + 1);
+    }
+  };
+  walk(filtered, ROOT_ID, 1);
+  return out;
+}
+
+/** The four diagram patterns. Positions are top-left card corners in canvas space. */
+function layoutDiagram(nodes: LNode[], mode: DiagramMode): Record<string, Pos> {
+  const childrenMap = new Map<string, LNode[]>();
+  for (const n of nodes) {
+    if (!n.parentId) continue;
+    const arr = childrenMap.get(n.parentId) ?? [];
+    arr.push(n);
+    childrenMap.set(n.parentId, arr);
+  }
+  const kidsOf = (id: string) => childrenMap.get(id) ?? [];
+  const byId = new Map(nodes.map((n) => [n.id, n] as const));
+  const pos: Record<string, Pos> = {};
+
+  if (mode === "tree" || mode === "constellation") {
+    const maxH = [128, 92, 64, 52];
+    const levelY: number[] = [0];
+    for (let d = 1; d < 4; d++) levelY[d] = levelY[d - 1]! + maxH[d - 1]! + GAP_Y;
+
+    const widthOf = (id: string): number => {
+      const n = byId.get(id)!;
+      const kids = kidsOf(id);
+      if (kids.length === 0) return dimsOf(n).w;
+      let sum = 0;
+      for (const k of kids) sum += widthOf(k.id);
+      return Math.max(dimsOf(n).w, sum + GAP_X * (kids.length - 1));
+    };
+
+    const place = (id: string, left: number): number => {
+      const n = byId.get(id)!;
+      const dm = dimsOf(n);
+      const kids = kidsOf(id);
+      if (kids.length === 0) {
+        pos[id] = { x: left, y: levelY[n.depth]! };
+        return left + dm.w / 2;
+      }
+      let cursor = left;
+      const centers: number[] = [];
+      for (const k of kids) {
+        centers.push(place(k.id, cursor));
+        cursor += widthOf(k.id) + GAP_X;
+      }
+      const blockW = cursor - GAP_X - left;
+      const cx = left + blockW / 2;
+      pos[id] = { x: cx - dm.w / 2, y: levelY[n.depth]! };
+      return cx;
+    };
+    place(ROOT_ID, 0);
+
+    if (mode === "constellation") {
+      for (const n of nodes) {
+        if (n.id === ROOT_ID) continue;
+        const h = hashStr(n.id);
+        pos[n.id] = {
+          x: pos[n.id]!.x + ((h % 49) - 24),
+          y: pos[n.id]!.y + (Math.floor(h / 11) % 29) - 14,
+        };
+      }
+    }
+
+    const minX = Math.min(...nodes.map((n) => pos[n.id]!.x));
+    if (minX < 0) for (const n of nodes) pos[n.id] = { ...pos[n.id]!, x: pos[n.id]!.x - minX };
+    return pos;
+  }
+
+  if (mode === "flow") {
+    const maxW = [272, 252, 228, 210];
+    const colX: number[] = [0];
+    for (let d = 1; d < 4; d++) colX[d] = colX[d - 1]! + maxW[d - 1]! + 84;
+
+    const heightOf = (id: string): number => {
+      const n = byId.get(id)!;
+      const kids = kidsOf(id);
+      if (kids.length === 0) return dimsOf(n).h;
+      let sum = 0;
+      for (const k of kids) sum += heightOf(k.id);
+      return Math.max(dimsOf(n).h, sum + GAP_Y * (kids.length - 1));
+    };
+
+    const place = (id: string, top: number): number => {
+      const n = byId.get(id)!;
+      const dm = dimsOf(n);
+      const kids = kidsOf(id);
+      if (kids.length === 0) {
+        pos[id] = { x: colX[n.depth]!, y: top };
+        return top + dm.h / 2;
+      }
+      let cursor = top;
+      const centers: number[] = [];
+      for (const k of kids) {
+        centers.push(place(k.id, cursor));
+        cursor += heightOf(k.id) + GAP_Y;
+      }
+      const blockH = cursor - GAP_Y - top;
+      const cy = top + blockH / 2;
+      pos[id] = { x: colX[n.depth]!, y: cy - dm.h / 2 };
+      return cy;
+    };
+    place(ROOT_ID, 0);
+
+    const minY = Math.min(...nodes.map((n) => pos[n.id]!.y));
+    if (minY < 0) for (const n of nodes) pos[n.id] = { ...pos[n.id]!, y: pos[n.id]!.y - minY };
+    return pos;
+  }
+
+  // radial orbit
+  const ringR = [0, 320, 590, 840];
+  const leafCount = (id: string): number => {
+    const kids = kidsOf(id);
+    if (kids.length === 0) return 1;
+    let s = 0;
+    for (const k of kids) s += leafCount(k.id);
+    return s;
+  };
+  const root = byId.get(ROOT_ID)!;
+  pos[ROOT_ID] = { x: -dimsOf(root).w / 2, y: -dimsOf(root).h / 2 };
+  const assign = (id: string, a0: number, a1: number) => {
+    const kids = kidsOf(id);
+    if (kids.length === 0) return;
+    const total = kids.reduce((a, k) => a + leafCount(k.id), 0);
+    let cur = a0;
+    for (const k of kids) {
+      const span = ((a1 - a0) * leafCount(k.id)) / total;
+      const mid = cur + span / 2;
+      const dm = dimsOf(k);
+      const r = ringR[k.depth]!;
+      pos[k.id] = { x: Math.cos(mid) * r - dm.w / 2, y: Math.sin(mid) * r - dm.h / 2 };
+      assign(k.id, cur, cur + span);
+      cur += span;
+    }
+  };
+  assign(ROOT_ID, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2);
+  return pos;
+}
+
+/** Point where the center→target segment crosses the rect border. */
+function edgePoint(rect: { x: number; y: number; w: number; h: number }, target: Pos): Pos {
+  const cx = rect.x + rect.w / 2;
+  const cy = rect.y + rect.h / 2;
+  const dx = target.x - cx;
+  const dy = target.y - cy;
+  if (dx === 0 && dy === 0) return { x: cx, y: cy };
+  const tx = dx !== 0 ? rect.w / 2 / Math.abs(dx) : Infinity;
+  const ty = dy !== 0 ? rect.h / 2 / Math.abs(dy) : Infinity;
+  const t = Math.min(tx, ty);
+  return { x: cx + dx * t, y: cy + dy * t };
+}
+
+/** Connector path between a parent and child card, styled by diagram mode. */
+function pathFor(parent: LNode, child: LNode, p: Pos, c: Pos, mode: DiagramMode): { d: string; joint: Pos } {
+  const pd = dimsOf(parent);
+  const cd = dimsOf(child);
+  const pcx = p.x + pd.w / 2;
+  const pcy = p.y + pd.h / 2;
+  const ccx = c.x + cd.w / 2;
+  const ccy = c.y + cd.h / 2;
+
+  if (mode === "tree" || mode === "constellation") {
+    const sy = p.y + pd.h;
+    const ty = c.y;
+    if (mode === "constellation") {
+      return { d: `M ${pcx} ${sy} C ${pcx} ${sy + 42}, ${ccx} ${ty - 42}, ${ccx} ${ty}`, joint: { x: ccx, y: ty } };
+    }
+    if (Math.abs(pcx - ccx) < 3) return { d: `M ${pcx} ${sy} L ${ccx} ${ty}`, joint: { x: ccx, y: ty } };
+    const midY = sy + (ty - sy) / 2;
+    return { d: `M ${pcx} ${sy} L ${pcx} ${midY} L ${ccx} ${midY} L ${ccx} ${ty}`, joint: { x: ccx, y: ty } };
+  }
+
+  if (mode === "flow") {
+    const sx = p.x + pd.w;
+    const tx = c.x;
+    if (Math.abs(pcy - ccy) < 3) return { d: `M ${sx} ${pcy} L ${tx} ${ccy}`, joint: { x: tx, y: ccy } };
+    const midX = sx + (tx - sx) / 2;
+    return { d: `M ${sx} ${pcy} L ${midX} ${pcy} L ${midX} ${ccy} L ${tx} ${ccy}`, joint: { x: tx, y: ccy } };
+  }
+
+  // radial — curved edge-to-edge arc
+  const s = edgePoint({ x: p.x, y: p.y, w: pd.w, h: pd.h }, { x: ccx, y: ccy });
+  const e = edgePoint({ x: c.x, y: c.y, w: cd.w, h: cd.h }, { x: pcx, y: pcy });
+  const mx = (s.x + e.x) / 2;
+  const my = (s.y + e.y) / 2;
+  const dx = e.x - s.x;
+  const dy = e.y - s.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const bow = Math.min(26, len * 0.16) * (hashStr(child.id) % 2 === 0 ? 1 : -1);
+  return { d: `M ${s.x} ${s.y} Q ${mx + (-dy / len) * bow} ${my + (dx / len) * bow} ${e.x} ${e.y}`, joint: { x: e.x, y: e.y } };
+}
+
+/** Bounding box of every laid-out card. */
+function boundsOf(nodes: LNode[], pos: Record<string, Pos>) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const n of nodes) {
+    const p = pos[n.id];
+    if (!p) continue;
+    const dm = dimsOf(n);
+    minX = Math.min(minX, p.x);
+    minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x + dm.w);
+    maxY = Math.max(maxY, p.y + dm.h);
+  }
+  if (!isFinite(minX) || !isFinite(minY)) return { minX: 0, minY: 0, maxX: 400, maxY: 300 };
+  return { minX, minY, maxX, maxY };
+}
+
 /* ────────────────────────────── Favicon (node icon badge) ────────────────────────────── */
 
 function NodeFavicon({ icon: Icon, hue, size = 36, status }: { icon: typeof Landmark; hue: string; size?: number; status?: string }) {
@@ -201,7 +475,7 @@ function NodeFavicon({ icon: Icon, hue, size = 36, status }: { icon: typeof Land
   );
 }
 
-/* ────────────────────────────── Node cards ────────────────────────────── */
+/* ────────────────────────────── Expand buttons ────────────────────────────── */
 
 function ExpandButton({
   open,
@@ -229,6 +503,42 @@ function ExpandButton({
     </button>
   );
 }
+
+/** Compact circular expand toggle for canvas node cards. */
+function CanvasExpandButton({ open, count, onClick, name }: { open: boolean; count: number; onClick: () => void; name: string }) {
+  return (
+    <button
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`flex h-6 min-w-[24px] shrink-0 items-center justify-center gap-0.5 rounded-full border px-1 text-[9px] font-semibold transition-colors ${
+        open
+          ? "border-[rgba(58,123,255,0.4)] bg-[rgba(58,123,255,0.12)] text-[#1d5fd6]"
+          : "border-white/70 bg-white/70 text-[color:var(--ink-soft)] hover:bg-white"
+      }`}
+      aria-expanded={open}
+      aria-label={open ? `Collapse ${name}` : `Expand ${name} (${count} hidden)`}
+      title={open ? "Collapse branch" : "Expand branch"}
+    >
+      {count > 0 && <span className="tabular">{count}</span>}
+      {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+    </button>
+  );
+}
+
+/** Tiny stat chip used on canvas node cards. */
+function MiniStat({ icon: Icon, value, tint }: { icon: typeof Users; value: number; tint: string }) {
+  return (
+    <span className="inline-flex items-center gap-0.5 rounded-md px-1 py-px text-[9px] font-semibold tabular" style={{ background: `${tint}16`, color: tint }}>
+      <Icon className="h-2.5 w-2.5" aria-hidden="true" />
+      {value}
+    </span>
+  );
+}
+
+/* ────────────────────────────── Node cards — stacked tree (mobile) ────────────────────────────── */
 
 /** Card for a subsidiary / business-unit node — favicon + colored eyebrow title + branch rail. */
 function OrgCard({
@@ -383,7 +693,7 @@ function ProjectCard({
   );
 }
 
-/* ────────────────────────────── Recursive branch ────────────────────────────── */
+/* ────────────────────────────── Recursive branch (mobile tree) ────────────────────────────── */
 
 interface BranchCtx {
   openMap: Record<string, boolean>;
@@ -453,7 +763,7 @@ function TreeBranch({ nodes, depth, ctx, connectors = true }: { nodes: Hierarchy
   );
 }
 
-/* ────────────────────────────── Root group hero card ────────────────────────────── */
+/* ────────────────────────────── Root group hero card (mobile header) ────────────────────────────── */
 
 function GroupHero({ summary }: { summary: HierarchySummary }) {
   const { navigate } = useWorkspace();
@@ -596,6 +906,312 @@ function StatusCard({
         {isTotal ? "Group-wide total" : `${Math.round(pct)}% of all submissions`}
       </div>
     </button>
+  );
+}
+
+/* ────────────────────────────── Canvas node cards ────────────────────────────── */
+
+/** Shared shell for all canvas node cards — glass surface, drag + click + keyboard. */
+function NodeShell({
+  w,
+  h,
+  radius,
+  selected,
+  label,
+  title,
+  dragging,
+  onPointerDown,
+  onSelect,
+  children,
+}: {
+  w: number;
+  h: number;
+  radius: number;
+  selected: boolean;
+  label: string;
+  title: string;
+  dragging: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={label}
+      title={title}
+      onPointerDown={onPointerDown}
+      onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
+      className={`absolute left-0 top-0 cursor-grab select-none overflow-hidden border backdrop-blur-xl transition-shadow active:cursor-grabbing ${
+        dragging ? "z-30 border-[rgba(58,123,255,0.6)] bg-white/95 shadow-[0_18px_44px_rgba(23,38,61,0.22)]" : "hover:shadow-[0_10px_28px_rgba(23,38,61,0.14)]"
+      } ${selected ? "border-[rgba(58,123,255,0.55)] bg-white/90 ring-2 ring-[rgba(58,123,255,0.35)]" : dragging ? "" : "border-white/70 bg-white/68"}`}
+      style={{ width: w, height: h, borderRadius: radius }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Root node — MEIL Group HQ with live pill + group rollup stats. */
+function RootNodeCard({
+  summary,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+}: {
+  summary: HierarchySummary;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+}) {
+  const { navigate, reportingYear } = useWorkspace();
+  const cells: { label: string; value: number; hex: string }[] = [
+    { label: "Subs", value: summary.subsidiaries, hex: "#6a5bff" },
+    { label: "BUs", value: summary.units, hex: "#3a7bff" },
+    { label: "Sites", value: summary.projects, hex: "#16a3a3" },
+    { label: "People", value: summary.users, hex: "#238653" },
+    { label: "Files", value: summary.submissions, hex: "#c57926" },
+  ];
+  return (
+    <NodeShell
+      w={272}
+      h={128}
+      radius={22}
+      selected={selected}
+      dragging={dragging}
+      label="MEIL Group — Group Headquarters. Click to open the Command Center."
+      title="MEIL Group — Group Headquarters"
+      onPointerDown={onPointerDown}
+      onSelect={onSelect}
+    >
+      <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#3a7bff,#6a5bff,#16a3a3,#238653,#c57926)] opacity-80" />
+      <span aria-hidden className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.25),transparent_65%)] blur-lg" />
+      <span aria-hidden className="pointer-events-none absolute -bottom-10 -left-6 h-24 w-24 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.2),transparent_65%)] blur-lg" />
+
+      <div className="relative p-3">
+        <div className="flex items-center gap-2.5">
+          <NodeFavicon icon={Landmark} hue="#3a7bff" size={42} status="ACTIVE" />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[8.5px] font-extrabold uppercase tracking-[0.16em] text-[#1d5fd6]">Group HQ</span>
+              <span className="inline-flex items-center gap-1 rounded-full border border-[rgba(35,134,83,0.35)] bg-[rgba(35,134,83,0.10)] px-1.5 py-px text-[7.5px] font-bold uppercase tracking-wider text-[#1d6b44]">
+                <span className="relative flex h-1 w-1">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#238653] opacity-60" aria-hidden="true" />
+                  <span className="relative inline-flex h-1 w-1 rounded-full bg-[#238653]" aria-hidden="true" />
+                </span>
+                Live
+              </span>
+            </div>
+            <div className="truncate text-[15px] font-semibold leading-5 text-[color:var(--ink)]">MEIL Group</div>
+            <div className="truncate text-[9px] font-medium text-[color:var(--ink-faint)]">Group ESG command · {reportingYear}</div>
+          </div>
+          <span
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate("dashboard");
+            }}
+            role="button"
+            tabIndex={0}
+            aria-label="Open Command Center"
+            title="Open Command Center"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                e.stopPropagation();
+                navigate("dashboard");
+              }
+            }}
+            className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/70 bg-white/75 text-[#1d5fd6] shadow-sm transition-colors hover:bg-white"
+          >
+            <LayoutDashboard className="h-3 w-3" aria-hidden="true" />
+          </span>
+        </div>
+
+        <div className="mt-2 grid grid-cols-5 gap-px overflow-hidden rounded-xl border border-white/60 bg-[rgba(125,177,216,0.25)]">
+          {cells.map((c) => (
+            <div key={c.label} className="flex flex-col items-center bg-white/62 px-0.5 py-1" title={`${c.label}: ${c.value}`}>
+              <span className="tabular text-[12px] font-semibold leading-4 text-[color:var(--ink)]">{fmtNumber(c.value)}</span>
+              <span className="text-[7.5px] font-bold uppercase tracking-wide text-[color:var(--ink-faint)]" style={{ color: c.hex, opacity: 0.85 }}>
+                {c.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </NodeShell>
+  );
+}
+
+/** Subsidiary canvas node. */
+function SubNodeCard({
+  node,
+  hue,
+  selected,
+  dragging,
+  open,
+  onPointerDown,
+  onSelect,
+  onToggle,
+}: {
+  node: HierarchyNode;
+  hue: string;
+  selected: boolean;
+  dragging: boolean;
+  open: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+  onToggle: () => void;
+}) {
+  const kids = node.children ?? [];
+  return (
+    <NodeShell
+      w={252}
+      h={92}
+      radius={18}
+      selected={selected}
+      dragging={dragging}
+      label={`Subsidiary: ${node.name} — open detail panel`}
+      title={`${node.name} — ${node.meta}`}
+      onPointerDown={onPointerDown}
+      onSelect={onSelect}
+    >
+      <span aria-hidden className="absolute inset-y-2 left-0 w-[3px] rounded-r-full" style={{ background: `linear-gradient(180deg, ${hue}, ${hue}44)` }} />
+      <div className="relative flex h-full flex-col p-2.5 pl-3.5">
+        <div className="flex items-start gap-2">
+          <NodeFavicon icon={Landmark} hue={hue} size={34} status={node.status} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[8.5px] font-extrabold uppercase tracking-[0.14em]" style={{ color: hue }}>
+              Subsidiary
+            </div>
+            <div className="truncate text-[12.5px] font-semibold leading-4 text-[color:var(--ink)]">{node.name}</div>
+            <div className="mt-0.5 flex items-center gap-1">
+              <span className="rounded bg-[rgba(102,119,141,0.10)] px-1 py-px font-mono text-[8.5px] font-medium text-[color:var(--ink-faint)]">{node.code}</span>
+              {node.manager && <span className="truncate text-[8.5px] text-[color:var(--ink-faint)]">Mgr · {node.manager}</span>}
+            </div>
+          </div>
+          {kids.length > 0 && <CanvasExpandButton open={open} count={kids.length} onClick={onToggle} name={node.name} />}
+        </div>
+        {node.stats && (
+          <div className="mt-auto flex items-center gap-1 pl-[42px]">
+            <MiniStat icon={Users} value={node.stats.users} tint="#3a7bff" />
+            <MiniStat icon={Building2} value={node.stats.projects} tint="#16a3a3" />
+            <MiniStat icon={ClipboardList} value={node.stats.submissions} tint="#c57926" />
+          </div>
+        )}
+      </div>
+    </NodeShell>
+  );
+}
+
+/** Business-unit canvas node. */
+function UnitNodeCard({
+  node,
+  hue,
+  selected,
+  dragging,
+  open,
+  onPointerDown,
+  onSelect,
+  onToggle,
+}: {
+  node: HierarchyNode;
+  hue: string;
+  selected: boolean;
+  dragging: boolean;
+  open: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+  onToggle: () => void;
+}) {
+  const kids = node.children ?? [];
+  return (
+    <NodeShell
+      w={228}
+      h={64}
+      radius={16}
+      selected={selected}
+      dragging={dragging}
+      label={`Business Unit: ${node.name} — open detail panel`}
+      title={`${node.name} — ${node.meta}`}
+      onPointerDown={onPointerDown}
+      onSelect={onSelect}
+    >
+      <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full" style={{ background: `linear-gradient(180deg, ${hue}, ${hue}44)` }} />
+      <div className="relative flex h-full flex-col justify-center p-2 pl-3">
+        <div className="flex items-center gap-2">
+          <NodeFavicon icon={Layers} hue={hue} size={28} status={node.status} />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[7.5px] font-extrabold uppercase tracking-[0.14em]" style={{ color: hue }}>
+              Business Unit
+            </div>
+            <div className="truncate text-[11.5px] font-semibold leading-4 text-[color:var(--ink)]">{node.name}</div>
+          </div>
+          {kids.length > 0 && <CanvasExpandButton open={open} count={kids.length} onClick={onToggle} name={node.name} />}
+        </div>
+        {node.stats && (
+          <div className="mt-1 flex items-center gap-1 pl-[36px]">
+            <span className="rounded bg-[rgba(102,119,141,0.10)] px-1 py-px font-mono text-[8px] font-medium text-[color:var(--ink-faint)]">{node.code}</span>
+            <MiniStat icon={Users} value={node.stats.users} tint="#3a7bff" />
+            <MiniStat icon={ClipboardList} value={node.stats.submissions} tint="#c57926" />
+          </div>
+        )}
+      </div>
+    </NodeShell>
+  );
+}
+
+/** Project / site canvas node (leaf). */
+function ProjectNodeCard({
+  node,
+  hue,
+  selected,
+  dragging,
+  onPointerDown,
+  onSelect,
+}: {
+  node: HierarchyNode;
+  hue: string;
+  selected: boolean;
+  dragging: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onSelect: () => void;
+}) {
+  const Icon = KIND_ICON[node.kind ?? ""] ?? Building2;
+  const kindLabel = KIND_LABEL[node.kind ?? ""] ?? "Project";
+  return (
+    <NodeShell
+      w={210}
+      h={52}
+      radius={14}
+      selected={selected}
+      dragging={dragging}
+      label={`Project: ${node.name} (${node.status}) — open detail panel`}
+      title={`${node.name} — ${node.meta}`}
+      onPointerDown={onPointerDown}
+      onSelect={onSelect}
+    >
+      <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full" style={{ background: `linear-gradient(180deg, ${hue}, ${hue}44)` }} />
+      <div className="relative flex h-full items-center gap-2 p-2 pl-3">
+        <NodeFavicon icon={Icon} hue={hue} size={26} status={node.status} />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[7.5px] font-extrabold uppercase tracking-[0.12em]" style={{ color: hue }}>
+            Project · {kindLabel}
+          </div>
+          <div className="truncate text-[11px] font-semibold leading-4 text-[color:var(--ink)]">{node.name}</div>
+        </div>
+        {node.stats && node.stats.submissions > 0 && <MiniStat icon={ClipboardList} value={node.stats.submissions} tint="#0f7c7c" />}
+      </div>
+    </NodeShell>
   );
 }
 
@@ -934,8 +1550,8 @@ function NodePanel({
 
 /* ────────────────────────────── View ────────────────────────────── */
 
-const clampPan = (x: number, y: number) => ({ x: Math.max(-700, Math.min(700, x)), y: Math.max(-450, Math.min(450, y)) });
-const clampZoom = (z: number) => Math.max(0.6, Math.min(1.5, z));
+const clampPan = (x: number, y: number) => ({ x: Math.max(-1800, Math.min(1800, x)), y: Math.max(-1400, Math.min(1400, y)) });
+const clampZoom = (z: number) => Math.max(0.25, Math.min(1.6, z));
 
 export default function HierarchyView() {
   const { navigate } = useWorkspace();
@@ -945,13 +1561,22 @@ export default function HierarchyView() {
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  /* movable canvas state */
+  /* ── movable node canvas state ── */
+  const [mode, setMode] = useState<DiagramMode>("tree");
   const viewportRef = useRef<HTMLDivElement>(null);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging] = useState(false); // canvas pan
   const dragInfo = useRef<{ sx: number; sy: number; bx: number; by: number; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
+
+  const [positions, setPositions] = useState<Record<string, Pos>>({});
+  const posRef = useRef<Record<string, Pos>>({});
+  const animRef = useRef<number | null>(null);
+  const [animating, setAnimating] = useState(false);
+  const [dragNodeId, setDragNodeId] = useState<string | null>(null);
+  const nodeDrag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(null);
+  const firstLayout = useRef(true);
 
   const nodes = data?.nodes ?? [];
   const summary = data?.summary;
@@ -968,6 +1593,95 @@ export default function HierarchyView() {
   );
 
   const hueMap = useMemo(() => buildHueMap(nodes), [nodes]);
+
+  const lnodes = useMemo(() => buildLNodes(filtered, openMap, searchActive, hueMap), [filtered, openMap, searchActive, hueMap]);
+  const targetPos = useMemo(() => (lnodes.length > 0 ? layoutDiagram(lnodes, mode) : {}), [lnodes, mode]);
+
+  /* Rendered positions: live state (drag/animation) or freshly computed target on first paint. */
+  const pos = useMemo(() => (Object.keys(positions).length > 0 ? positions : targetPos), [positions, targetPos]);
+
+  const activeMode = DIAGRAM_MODES.find((m) => m.id === mode) ?? DIAGRAM_MODES[0]!;
+
+  /* ── animated layout transitions (rAF-lerped so nodes + connectors stay in sync) ── */
+  const stopAnim = () => {
+    if (animRef.current !== null) {
+      cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    }
+    setAnimating(false);
+  };
+
+  const animateLayout = (target: Record<string, Pos>) => {
+    stopAnim();
+    const from: Record<string, Pos> = {};
+    for (const id of Object.keys(target)) {
+      const cur = posRef.current[id];
+      from[id] = cur ? { ...cur } : { ...target[id]! };
+    }
+    const t0 = performance.now();
+    const dur = 520;
+    setAnimating(true);
+    const step = (now: number) => {
+      const t = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - t, 3);
+      const next: Record<string, Pos> = {};
+      for (const id of Object.keys(target)) {
+        const f = from[id]!;
+        next[id] = { x: f.x + (target[id]!.x - f.x) * e, y: f.y + (target[id]!.y - f.y) * e };
+      }
+      posRef.current = next;
+      setPositions(next);
+      if (t < 1) {
+        animRef.current = requestAnimationFrame(step);
+      } else {
+        animRef.current = null;
+        setAnimating(false);
+      }
+    };
+    animRef.current = requestAnimationFrame(step);
+  };
+
+  const fitViewWith = (p: Record<string, Pos>, list: LNode[]) => {
+    const vp = viewportRef.current;
+    if (!vp || list.length === 0) return;
+    const b = boundsOf(list, p);
+    const pad = 56;
+    const bw = b.maxX - b.minX + pad * 2;
+    const bh = b.maxY - b.minY + pad * 2;
+    const vw = vp.clientWidth;
+    const vh = vp.clientHeight;
+    if (vw === 0 || vh === 0) return;
+    // Readability floor — wide tree/flow diagrams pan instead of shrinking further,
+    // while radial/constellation get a lower floor so the full orbit fits on screen.
+    const zFloor = mode === "radial" || mode === "constellation" ? 0.3 : 0.45;
+    const z = Math.max(zFloor, Math.min(1, vw / bw, vh / bh));
+    setZoom(+z.toFixed(2));
+    setPan({
+      x: Math.round((vw - (b.maxX - b.minX) * z) / 2 - b.minX * z),
+      y: Math.round((vh - (b.maxY - b.minY) * z) / 2 - b.minY * z),
+    });
+  };
+
+  /* Apply new target layout whenever the design mode / tree shape changes. */
+  useEffect(() => {
+    if (lnodes.length === 0) return;
+    if (firstLayout.current) {
+      firstLayout.current = false;
+      // Seed the ref only — render falls back to `targetPos` while `positions` is still empty.
+      posRef.current = targetPos;
+      const raf = requestAnimationFrame(() => fitViewWith(targetPos, lnodes));
+      return () => cancelAnimationFrame(raf);
+    }
+    // Defer to the next frame: keeps setState out of the synchronous effect body.
+    const rafId = requestAnimationFrame(() => animateLayout(targetPos));
+    const t = window.setTimeout(() => fitViewWith(targetPos, lnodes), 640);
+    return () => {
+      cancelAnimationFrame(rafId);
+      window.clearTimeout(t);
+    };
+  }, [targetPos, lnodes]);
+
+  useEffect(() => () => stopAnim(), []);
 
   const filters: ToolbarFilter[] = [
     {
@@ -1000,16 +1714,7 @@ export default function HierarchyView() {
     setSelectedId(id);
   };
 
-  const branchCtx: BranchCtx = {
-    openMap,
-    searchActive,
-    selectedId,
-    hueMap,
-    onToggle,
-    onSelect: (node) => setSelectedId((cur) => (cur === node.id ? null : node.id)),
-  };
-
-  /* ── pan: pointer drag with click suppression (drag anywhere, click still lands on nodes) ── */
+  /* ── canvas pan: pointer drag with click suppression ── */
   const startPan = (e: React.PointerEvent) => {
     if (e.button !== 0) return;
     dragInfo.current = { sx: e.clientX, sy: e.clientY, bx: pan.x, by: pan.y, moved: false };
@@ -1047,8 +1752,53 @@ export default function HierarchyView() {
     };
   }, [dragging]);
 
+  /* ── node drag: move any node anywhere; connectors follow live ── */
+  const startNodeDrag = (e: React.PointerEvent, n: LNode) => {
+    if (e.button !== 0 || animating) return;
+    const p = pos[n.id];
+    if (!p) return;
+    e.stopPropagation();
+    nodeDrag.current = { id: n.id, sx: e.clientX, sy: e.clientY, ox: p.x, oy: p.y, moved: false };
+    suppressClick.current = false;
+    setDragNodeId(n.id);
+  };
+
+  useEffect(() => {
+    if (!dragNodeId) return;
+    const move = (e: PointerEvent) => {
+      const d = nodeDrag.current;
+      if (!d) return;
+      const dx = e.clientX - d.sx;
+      const dy = e.clientY - d.sy;
+      if (!d.moved && Math.hypot(dx, dy) > 5) d.moved = true;
+      if (d.moved) {
+        const next = { ...posRef.current, [d.id]: { x: d.ox + dx, y: d.oy + dy } };
+        posRef.current = next;
+        setPositions(next);
+      }
+    };
+    const up = () => {
+      suppressClick.current = nodeDrag.current?.moved ?? false;
+      nodeDrag.current = null;
+      setDragNodeId(null);
+      if (suppressClick.current) {
+        window.setTimeout(() => {
+          suppressClick.current = false;
+        }, 120);
+      }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, [dragNodeId]);
+
   /* ── zoom: ⌘/Ctrl + wheel (native non-passive listener) + on-canvas controls ── */
-  const canvasReady = !!data && filtered.length > 0;
+  const canvasReady = !!data && filtered.length > 0 && lnodes.length > 0;
   useEffect(() => {
     const el = viewportRef.current;
     if (!el || !canvasReady) return;
@@ -1062,9 +1812,14 @@ export default function HierarchyView() {
   }, [canvasReady]);
 
   const zoomBy = (d: number) => setZoom((z) => clampZoom(+(z + d).toFixed(2)));
-  const resetView = () => {
-    setPan({ x: 0, y: 0 });
-    setZoom(1);
+
+  const handleCanvasSelect = (n: LNode) => {
+    if (suppressClick.current) return;
+    if (n.type === "root") {
+      navigate("dashboard");
+      return;
+    }
+    selectNode(n.id);
   };
 
   const panel = (floating: boolean) => (
@@ -1083,16 +1838,33 @@ export default function HierarchyView() {
     ? [
         { key: "submissions", icon: FileText, hue: "#3a7bff", label: "Submissions", hint: "All ESG filings across the group", value: summary.submissions, go: () => navigate("submissions") },
         { key: "approved", icon: BadgeCheck, hue: "#238653", label: "Approved", hint: "Eligible for BRSR consolidation", value: summary.approved, go: () => navigate("submissions", { statusFilter: "APPROVED" }) },
-        { key: "pending", icon: Hourglass, hue: "#6a5bff", label: "Pending review", hint: "Awaiting a review decision", value: summary.pendingReview, go: () => navigate("approvals") },
+        { key: "pending", icon: Hourglass, hue: "#c57926", label: "Pending review", hint: "Awaiting a review decision", value: summary.pendingReview, go: () => navigate("approvals") },
         { key: "overdue", icon: AlarmClock, hue: "#c34a4a", label: "Overdue", hint: "Past due date — needs escalation", value: summary.overdue, go: () => navigate("submissions", { statusFilter: "OVERDUE" }) },
       ]
     : [];
+
+  /* connectors + bounds, recomputed live while nodes move */
+  const bounds = useMemo(() => boundsOf(lnodes, pos), [lnodes, pos]);
+  const lnodeById = useMemo(() => new Map(lnodes.map((n) => [n.id, n] as const)), [lnodes]);
+  const edges = useMemo(() => {
+    const out: { key: string; d: string; hue: string; joint: Pos }[] = [];
+    for (const n of lnodes) {
+      if (!n.parentId) continue;
+      const parentNode = lnodeById.get(n.parentId);
+      const p = pos[n.parentId];
+      const c = pos[n.id];
+      if (!parentNode || !p || !c) continue;
+      const { d, joint } = pathFor(parentNode, n, p, c, mode);
+      out.push({ key: n.id, d, hue: n.hue, joint });
+    }
+    return out;
+  }, [lnodes, lnodeById, pos, mode]);
 
   return (
     <div className="view-in space-y-5">
       <PageHeader
         title="Organization Hierarchy"
-        description="Group → Subsidiary → Business Unit → Project / Site. Drag the canvas to move it, ⌘/Ctrl + scroll to zoom, and click any node to inspect performance, submissions, and team."
+        description="Group → Subsidiary → Business Unit → Project / Site. Drag the canvas to pan, drag any node anywhere — connectors follow live. Switch between four diagram designs, ⌘/Ctrl + scroll to zoom, and click any node to inspect performance, submissions, and team."
         icon={FolderTree}
         breadcrumbs={["Group", "Organization", "Hierarchy"]}
       />
@@ -1163,9 +1935,8 @@ export default function HierarchyView() {
         </GlassCard>
       ) : (
         <div className={selectedId ? "grid grid-cols-1 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_400px]" : "grid grid-cols-1 items-start"}>
-          {/* ── tree ── */}
           <div role="tree" aria-label="Organization hierarchy" className="min-w-0">
-            {/* ── movable canvas (md+): drag to pan, ⌘/Ctrl + scroll to zoom ── */}
+            {/* ── movable node canvas (md+) ── */}
             <div
               ref={viewportRef}
               onPointerDown={startPan}
@@ -1175,81 +1946,183 @@ export default function HierarchyView() {
                   e.preventDefault();
                 }
               }}
-              className={`relative hidden select-none overflow-hidden rounded-[26px] border border-white/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_8px_30px_rgba(23,38,61,0.06)] backdrop-blur-xl md:block ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
-              style={{ touchAction: "pan-y" }}
+              role="application"
+              aria-label={`Organization hierarchy diagram — ${activeMode.label}. Drag the canvas to pan, drag nodes to rearrange.`}
+              className={`relative hidden select-none overflow-hidden rounded-[26px] border border-white/60 bg-[rgba(255,255,255,0.30)] shadow-[inset_0_1px_0_rgba(255,255,255,0.65),0_8px_30px_rgba(23,38,61,0.06)] backdrop-blur-xl md:block ${dragging || dragNodeId ? "cursor-grabbing" : "cursor-grab"}`}
+              style={{ touchAction: "pan-y", height: "clamp(540px, 66vh, 720px)" }}
             >
+              <style>{`
+                .edge-dash { stroke-dasharray: 4 7; animation: edge-dash-flow 26s linear infinite; }
+                @keyframes edge-dash-flow { to { stroke-dashoffset: -330; } }
+                .node-in { animation: node-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+                @keyframes node-in { from { opacity: 0; } to { opacity: 1; } }
+                @media (prefers-reduced-motion: reduce) { .edge-dash, .node-in { animation: none; } }
+              `}</style>
+
+              {/* dot grid backdrop */}
               <div
-                className="origin-top relative p-5"
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{ backgroundImage: "radial-gradient(rgba(58,123,255,0.10) 1.2px, transparent 1.2px)", backgroundSize: "26px 26px" }}
+              />
+
+              {/* ── diagram design switcher ── */}
+              <div
+                className="absolute left-3 top-3 z-20 flex max-w-[calc(100%-24px)] items-center gap-1 overflow-x-auto rounded-full border border-white/70 bg-white/85 p-1 shadow-sm backdrop-blur-md"
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <span className="ml-1.5 hidden items-center gap-1 whitespace-nowrap text-[9.5px] font-bold uppercase tracking-[0.14em] text-[color:var(--ink-faint)] md:flex">
+                  <Waypoints className="h-3 w-3 text-[color:var(--esg-blue)]" aria-hidden="true" />
+                  Diagram design
+                </span>
+                {DIAGRAM_MODES.map((m) => {
+                  const active = mode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => setMode(m.id)}
+                      aria-pressed={active}
+                      title={`${m.label} — ${m.hint}`}
+                      className={`flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition-all ${
+                        active
+                          ? "bg-[#3a7bff] text-white shadow-[0_2px_8px_rgba(58,123,255,0.4)]"
+                          : "text-[color:var(--ink-soft)] hover:bg-white/95"
+                      }`}
+                    >
+                      <m.icon className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span className="hidden lg:inline">{m.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* ── moving layer: connectors + draggable nodes ── */}
+              <div
+                className="absolute inset-0"
                 style={{
                   transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${zoom})`,
-                  transition: dragging ? "none" : "transform 240ms cubic-bezier(0.22,1,0.36,1)",
+                  transformOrigin: "0 0",
                   willChange: "transform",
-                  backgroundImage: "radial-gradient(rgba(58,123,255,0.10) 1.2px, transparent 1.2px)",
-                  backgroundSize: "26px 26px",
                 }}
               >
-                {summary && <GroupHero summary={summary} />}
+                <svg aria-hidden className="pointer-events-none absolute left-0 top-0 overflow-visible">
+                  {edges.map((e) => (
+                    <g key={e.key}>
+                      <path d={e.d} fill="none" stroke={e.hue} strokeOpacity={0.13} strokeWidth={5} strokeLinecap="round" />
+                      <path d={e.d} fill="none" stroke={e.hue} strokeOpacity={0.55} strokeWidth={1.6} strokeLinecap="round" className="edge-dash" />
+                      <circle cx={e.joint.x} cy={e.joint.y} r={3} fill={e.hue} stroke="#ffffff" strokeWidth={1.4} />
+                    </g>
+                  ))}
+                </svg>
 
-                {/* connector: root → rail → columns */}
-                <div aria-hidden className={`mx-auto h-7 w-px ${LINE}`} />
-                <div className="relative grid" style={{ gridTemplateColumns: `repeat(${filtered.length}, minmax(290px, 1fr))` }}>
-                  <span
-                    aria-hidden
-                    className={`absolute top-0 h-px ${LINE}`}
-                    style={{ left: `${100 / (2 * filtered.length)}%`, right: `${100 / (2 * filtered.length)}%` }}
-                  />
-                  {filtered.map((s) => {
-                    const hue = hueMap[s.id] ?? "#3a7bff";
-                    return (
-                      <div key={s.id} className="relative px-2.5 pt-7">
-                        <span aria-hidden className="absolute left-1/2 top-0 h-7 w-px -translate-x-1/2" style={{ background: hue, opacity: 0.45 }} />
-                        <span
-                          aria-hidden
-                          className="absolute left-1/2 top-0 h-[7px] w-[7px] -translate-x-1/2 -translate-y-[3px] rounded-full border-2 border-white shadow-sm"
-                          style={{ background: hue, opacity: 0.85 }}
+                {lnodes.map((n) => {
+                  const p = pos[n.id];
+                  if (!p) return null;
+                  if (n.type === "root" && !summary) return null;
+                  const selected = selectedId === n.id;
+                  const draggingThis = dragNodeId === n.id;
+                  const isOpenForKids = (kidsCount: number) => (kidsCount === 0 ? false : searchActive || (openMap[n.id] ?? true));
+                  return (
+                    <div
+                      key={n.id}
+                      className="node-in absolute left-0 top-0"
+                      style={{
+                        transform: `translate3d(${p.x}px, ${p.y}px, 0)`,
+                        zIndex: draggingThis ? 30 : n.type === "root" ? 20 : 10,
+                      }}
+                    >
+                      {n.type === "root" && summary && (
+                        <RootNodeCard
+                          summary={summary}
+                          selected={selected}
+                          dragging={draggingThis}
+                          onPointerDown={(e) => startNodeDrag(e, n)}
+                          onSelect={() => handleCanvasSelect(n)}
                         />
-                        <TreeBranch nodes={[s]} depth={0} ctx={branchCtx} connectors={false} />
-                      </div>
-                    );
-                  })}
-                </div>
+                      )}
+                      {n.type === "subsidiary" && n.node && (
+                        <SubNodeCard
+                          node={n.node}
+                          hue={n.hue}
+                          selected={selected}
+                          dragging={draggingThis}
+                          open={isOpenForKids(n.node.children?.length ?? 0)}
+                          onPointerDown={(e) => startNodeDrag(e, n)}
+                          onSelect={() => handleCanvasSelect(n)}
+                          onToggle={() => onToggle(n.id, !(openMap[n.id] ?? true))}
+                        />
+                      )}
+                      {n.type === "unit" && n.node && (
+                        <UnitNodeCard
+                          node={n.node}
+                          hue={n.hue}
+                          selected={selected}
+                          dragging={draggingThis}
+                          open={isOpenForKids(n.node.children?.length ?? 0)}
+                          onPointerDown={(e) => startNodeDrag(e, n)}
+                          onSelect={() => handleCanvasSelect(n)}
+                          onToggle={() => onToggle(n.id, !(openMap[n.id] ?? true))}
+                        />
+                      )}
+                      {n.type === "project" && n.node && (
+                        <ProjectNodeCard
+                          node={n.node}
+                          hue={n.hue}
+                          selected={selected}
+                          dragging={draggingThis}
+                          onPointerDown={(e) => startNodeDrag(e, n)}
+                          onSelect={() => handleCanvasSelect(n)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              {/* canvas overlays — hint + zoom controls */}
-              <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-1.5 rounded-full border border-white/60 bg-white/75 px-2.5 py-1 text-[10.5px] font-medium text-[color:var(--ink-soft)] shadow-sm backdrop-blur-md">
-                <Hand className="h-3 w-3" aria-hidden="true" />
-                Drag to move
-                <span className="text-[color:var(--ink-faint)]" aria-hidden="true">·</span>
-                Ctrl / ⌘ + scroll to zoom
+              {/* canvas overlays — hint + controls */}
+              <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-140px)] items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-2.5 py-1 text-[10.5px] font-medium text-[color:var(--ink-soft)] shadow-sm backdrop-blur-md">
+                <Hand className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  Drag canvas to pan · drag any node anywhere · {activeMode.hint}
+                </span>
               </div>
               <div
-                className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-full border border-white/60 bg-white/80 p-1 shadow-sm backdrop-blur-md"
+                className="absolute bottom-3 right-3 z-10 flex items-center gap-0.5 rounded-full border border-white/60 bg-white/85 p-1 shadow-sm backdrop-blur-md"
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <button
                   onClick={() => zoomBy(-0.1)}
-                  disabled={zoom <= 0.61}
+                  disabled={zoom <= 0.26}
                   aria-label="Zoom out"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/90 disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/95 disabled:opacity-40"
                 >
                   <Minus className="h-3.5 w-3.5" />
                 </button>
                 <span className="tabular w-9 text-center text-[10.5px] font-semibold text-[color:var(--ink-soft)]">{Math.round(zoom * 100)}%</span>
                 <button
                   onClick={() => zoomBy(0.1)}
-                  disabled={zoom >= 1.49}
+                  disabled={zoom >= 1.59}
                   aria-label="Zoom in"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/90 disabled:opacity-40"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/95 disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </button>
                 <span aria-hidden className="mx-0.5 h-4 w-px bg-[rgba(102,119,141,0.2)]" />
                 <button
-                  onClick={resetView}
-                  aria-label="Reset canvas view"
-                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/90"
+                  onClick={() => fitViewWith(pos, lnodes)}
+                  aria-label="Fit diagram to screen"
+                  title="Fit diagram to screen"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/95"
                 >
                   <Maximize2 className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  onClick={() => animateLayout(targetPos)}
+                  aria-label="Reset node layout to the default pattern"
+                  title="Reset node layout"
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-[color:var(--ink-soft)] transition-colors hover:bg-white/95"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
                 </button>
               </div>
             </div>
@@ -1258,7 +2131,14 @@ export default function HierarchyView() {
             <div className="mt-1 md:hidden">
               {summary && <GroupHero summary={summary} />}
               <div className="mt-4">
-                <TreeBranch nodes={filtered} depth={0} ctx={branchCtx} connectors={true} />
+                <TreeBranch nodes={filtered} depth={0} ctx={{
+                  openMap,
+                  searchActive,
+                  selectedId,
+                  hueMap,
+                  onToggle,
+                  onSelect: (node) => setSelectedId((cur) => (cur === node.id ? null : node.id)),
+                }} connectors={true} />
               </div>
             </div>
 
@@ -1272,7 +2152,7 @@ export default function HierarchyView() {
                 </span>
               ))}
               <span className="ml-auto hidden text-[11px] text-[color:var(--ink-faint)] lg:inline">
-                Node color = subsidiary branch · click any card to open its detail panel
+                Node color = subsidiary branch · drag any node — connectors follow · click a card for its detail panel
               </span>
             </div>
           </div>

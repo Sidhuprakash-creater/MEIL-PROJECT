@@ -4,6 +4,7 @@
 import { useMemo } from "react";
 import {
   Activity as ActivityIcon,
+  AlarmClock,
   AlertOctagon,
   AlertTriangle,
   ArrowRight,
@@ -18,6 +19,8 @@ import {
   Database,
   FileCheck2,
   FileText,
+  FolderTree,
+  Hourglass,
   Landmark,
   Layers,
   LayoutDashboard,
@@ -180,6 +183,69 @@ function MiniRing({ value, tone, size = 58, stroke = 7 }: { value: number; tone:
   );
 }
 
+/** Clickable submission-status card for the Command Center strip. */
+function StatusCard({
+  icon: Icon,
+  hue,
+  label,
+  hint,
+  value,
+  total,
+  footerNote,
+  onClick,
+}: {
+  icon: typeof FileText;
+  hue: string;
+  label: string;
+  hint: string;
+  value: number;
+  total: number;
+  footerNote?: string;
+  onClick: () => void;
+}) {
+  const sharePct = total > 0 ? (value / total) * 100 : 0;
+  return (
+    <button
+      onClick={onClick}
+      aria-label={`${label}: ${value}`}
+      className="glass group relative overflow-hidden rounded-[24px] border-white/60 p-4 text-left shadow-[0_2px_10px_rgba(23,38,61,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_12px_30px_rgba(23,38,61,0.12)]"
+    >
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${hue}, ${hue}22)` }}
+      />
+      <div className="flex items-start justify-between gap-3">
+        <span
+          className="flex h-10 w-10 items-center justify-center rounded-[14px] text-white"
+          style={{
+            background: `linear-gradient(150deg, ${hue} 20%, color-mix(in srgb, ${hue} 72%, #17263D) 100%)`,
+            boxShadow: `0 4px 10px ${hue}44, inset 0 1px 0 rgba(255,255,255,0.4)`,
+          }}
+        >
+          <Icon style={{ width: 18, height: 18 }} aria-hidden="true" />
+        </span>
+        <MiniRing value={sharePct} tone={hue} size={54} stroke={6} />
+      </div>
+      <CountUp value={value} className="tabular mt-3 block text-[28px] font-semibold leading-8 text-[color:var(--ink)]" />
+      <div className="mt-0.5 text-[13px] font-semibold" style={{ color: hue }}>
+        {label}
+      </div>
+      <p className={`mt-0.5 text-[11.5px] leading-snug ${INK_FAINT}`}>{hint}</p>
+      <div className="mt-3 flex items-center justify-between border-t border-[rgba(125,177,216,0.22)] pt-2.5">
+        <span className={`text-[11px] font-medium ${INK_FAINT}`}>{footerNote ?? `${Math.round(sharePct)}% of group total`}</span>
+        <span className="inline-flex items-center gap-0.5 text-[11.5px] font-semibold text-[color:var(--esg-blue)]">
+          View
+          <ArrowUpRight
+            className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            aria-hidden="true"
+          />
+        </span>
+      </div>
+    </button>
+  );
+}
+
 interface DonutSegment {
   label: string;
   value: number;
@@ -329,67 +395,183 @@ export default function DashboardView() {
         }
       />
 
-      {/* ── 1. Group pulse hero ── */}
-      <GlassCard strong className="relative overflow-hidden rounded-[28px] p-5 sm:p-7">
-        <div aria-hidden className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.22),transparent_65%)] blur-2xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.16),transparent_65%)] blur-2xl" />
+      {/* ── 1. Group container — live group view ── */}
+      <GlassCard strong className="relative overflow-hidden rounded-[30px] p-0">
+        {/* decorative layer */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] bg-[linear-gradient(90deg,#3a7bff,#6a5bff,#16a3a3,#238653,#c57926)] opacity-80" />
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.26),transparent_65%)] blur-2xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-36 -left-28 h-80 w-80 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.20),transparent_65%)] blur-2xl" />
 
-        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center">
-          {/* identity */}
-          <div className="flex min-w-0 items-center gap-4 xl:w-[280px] xl:shrink-0">
-            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#3a7bff] via-[#4a7cf0] to-[#6a5bff] shadow-lg shadow-[rgba(58,123,255,0.35)]">
-              <Landmark className="h-7 w-7 text-white" aria-hidden="true" />
-            </span>
-            <div className="min-w-0">
-              <h2 className="truncate text-lg font-semibold tracking-tight text-[color:var(--ink)]">MEIL Group</h2>
-              <p className={`truncate text-[13px] ${INK_FAINT}`}>Group ESG command · {reportingYear}</p>
-              <span className="glass-subtle mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#1d5fd6]">
-                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#238653]" />
-                Live group view
+        <div className="relative p-5 sm:p-7">
+          {/* row 1 — identity + health */}
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="Open organization hierarchy"
+              onClick={() => navigate("hierarchy")}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigate("hierarchy");
+                }
+              }}
+              className="group/id flex min-w-0 cursor-pointer items-center gap-4 rounded-3xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(58,123,255,0.45)]"
+            >
+              <span className="relative shrink-0">
+                <span
+                  className="flex h-[60px] w-[60px] items-center justify-center rounded-[22px] bg-gradient-to-br from-[#3a7bff] via-[#5a6cff] to-[#6a5bff]"
+                  style={{ boxShadow: "0 12px 28px rgba(58,123,255,0.4), inset 0 1px 0 rgba(255,255,255,0.45)" }}
+                >
+                  <Landmark className="h-7 w-7 text-white" aria-hidden="true" />
+                </span>
+                <span className="absolute -right-1 -top-1 flex h-3.5 w-3.5 items-center justify-center">
+                  <span aria-hidden className="absolute h-3 w-3 animate-ping rounded-full bg-[#238653] opacity-70" />
+                  <span className="relative h-3 w-3 rounded-full border-2 border-white bg-[#238653]" />
+                </span>
               </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#1d5fd6]">GROUP HEADQUARTERS</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(35,134,83,0.35)] bg-[rgba(35,134,83,0.10)] px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wider text-[#1d6b44]">
+                    <span aria-hidden className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#238653]" />
+                    Live group view
+                  </span>
+                </div>
+                <h2 className="mt-1 text-[22px] font-semibold tracking-tight text-[color:var(--ink)] transition-colors group-hover/id:text-[#1d5fd6]">MEIL Group</h2>
+                <p className={`mt-0.5 text-[12.5px] ${INK_FAINT}`}>Group ESG command · {reportingYear}</p>
+              </div>
+            </div>
+
+            {/* health */}
+            <div className="flex items-center gap-4">
+              <HealthRing value={approvalRate} gid="cc-health" size={116} stroke={12} />
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-[color:var(--ink)]">Approval health</div>
+                <p className={`mt-0.5 text-xs leading-snug ${INK_FAINT}`}>
+                  {k.approved} of {k.approved + k.pendingReview + k.rejectedReturned} reviewed submissions approved
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {k.overdue > 0 ? <Chip tone="red">{k.overdue} overdue</Chip> : <Chip tone="green">On track</Chip>}
+                  <button
+                    onClick={() => navigate("hierarchy")}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/60 bg-white/60 px-3.5 text-[12.5px] font-semibold text-[#1d5fd6] backdrop-blur transition hover:bg-white/85"
+                  >
+                    <FolderTree className="h-3.5 w-3.5" aria-hidden="true" />
+                    Open hierarchy
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* stat cascade */}
-          <div className="grid flex-1 grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/60 bg-[rgba(125,177,216,0.28)] sm:grid-cols-3 lg:grid-cols-5">
+          {/* row 2 — entity stat tiles */}
+          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
             {heroStats.map((s) => (
               <button
                 key={s.label}
                 onClick={s.go}
-                className="group flex flex-col items-start gap-1 bg-white/45 px-4 py-3.5 text-left backdrop-blur-sm transition-colors hover:bg-white/75"
                 aria-label={`${s.label}: ${s.value} — open module`}
+                className="glass-subtle group relative flex flex-col items-start gap-2 rounded-2xl border border-white/55 p-3.5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:shadow-[0_10px_26px_rgba(23,38,61,0.10)]"
               >
-                <span className={`flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>
-                  <s.icon className="h-3.5 w-3.5" style={{ color: s.color }} aria-hidden="true" />
-                  {s.label}
+                <ArrowUpRight
+                  className="absolute right-3 top-3 h-3.5 w-3.5 text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100"
+                  aria-hidden="true"
+                />
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: `${s.color}1c` }}>
+                  <s.icon className="h-4 w-4" style={{ color: s.color }} aria-hidden="true" />
                 </span>
-                <span className="flex items-baseline gap-1">
-                  <span className="tabular text-[22px] font-semibold leading-7 tracking-tight text-[color:var(--ink)] transition-colors group-hover:text-[#1d5fd6]">
-                    <CountUp value={s.value} format={(n) => fmtNumber(Math.round(n))} />
-                  </span>
-                  <ArrowUpRight className="h-3.5 w-3.5 self-center text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+                <span className="tabular text-[22px] font-semibold leading-6 tracking-tight text-[color:var(--ink)]">
+                  <CountUp value={s.value} format={(n) => fmtNumber(Math.round(n))} />
                 </span>
+                <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>{s.label}</span>
               </button>
             ))}
           </div>
 
-          {/* health ring */}
-          <div className="flex items-center gap-4 xl:w-[228px] xl:shrink-0 xl:justify-end">
-            <HealthRing value={approvalRate} gid="cc-health" />
-            <div className="min-w-0">
-              <div className="text-[13px] font-semibold text-[color:var(--ink)]">Approval health</div>
-              <p className={`mt-0.5 text-xs leading-snug ${INK_FAINT}`}>
-                {k.approved} of {k.approved + awaitingReview + k.rejectedReturned} reviewed submissions approved
-              </p>
-              {k.overdue > 0 ? (
-                <Chip tone="red" className="mt-1.5">{k.overdue} overdue</Chip>
-              ) : (
-                <Chip tone="green" className="mt-1.5">No overdue</Chip>
-              )}
-            </div>
+          {/* row 3 — pipeline micro-strip */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-white/50 bg-white/40 px-4 py-2.5 backdrop-blur-sm">
+            <span className={`text-[10px] font-bold uppercase tracking-wider ${INK_FAINT}`}>Pipeline</span>
+            {pipeline.map((p) => (
+              <button
+                key={p.label}
+                onClick={p.go}
+                aria-label={`${p.label}: ${p.value} — open filtered view`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/60 bg-white/55 px-2.5 py-1 text-[11.5px] font-semibold backdrop-blur transition hover:bg-white/85"
+              >
+                <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: p.color }} />
+                <span className={INK_SOFT}>{p.label}</span>
+                <span className="tabular font-bold text-[color:var(--ink)]">{p.value}</span>
+              </button>
+            ))}
+            <span className="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--ink-faint)]">
+              <span aria-hidden className="relative flex h-2 w-2">
+                <span className="absolute h-2 w-2 animate-ping rounded-full bg-[#238653] opacity-70" />
+                <span className="relative h-2 w-2 rounded-full bg-[#238653]" />
+              </span>
+              Live · synced just now
+            </span>
           </div>
         </div>
       </GlassCard>
+
+      {/* ── 1b. Submission status strip ── */}
+      <section aria-labelledby="cc-status-overview">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 id="cc-status-overview" className="text-[15px] font-semibold text-[color:var(--ink)]">
+              Submission status
+            </h3>
+            <p className={`text-xs ${INK_FAINT}`}>Group-wide totals — click a card to drill in</p>
+          </div>
+          <button
+            onClick={() => navigate("submissions")}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--esg-blue)] hover:underline"
+          >
+            Open submissions register
+            <ArrowRight className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatusCard
+            icon={FileText}
+            hue="#3a7bff"
+            label="Submissions"
+            hint="All ESG filings across the group"
+            value={k.submissions}
+            total={k.submissions}
+            footerNote="All reporting entities"
+            onClick={() => navigate("submissions")}
+          />
+          <StatusCard
+            icon={BadgeCheck}
+            hue="#238653"
+            label="Approved"
+            hint="Approved & eligible for consolidation"
+            value={k.approved}
+            total={k.submissions}
+            onClick={() => navigate("submissions", { statusFilter: "APPROVED" })}
+          />
+          <StatusCard
+            icon={Hourglass}
+            hue="#c57926"
+            label="Pending review"
+            hint="Awaiting an admin review decision"
+            value={k.pendingReview}
+            total={k.submissions}
+            onClick={() => navigate("approvals")}
+          />
+          <StatusCard
+            icon={AlarmClock}
+            hue="#c34a4a"
+            label="Overdue"
+            hint="Past due date — escalate now"
+            value={k.overdue}
+            total={k.submissions}
+            onClick={() => navigate("submissions", { statusFilter: "OVERDUE" })}
+          />
+        </div>
+      </section>
 
       {/* ── 2. Pipeline + ESG trend ── */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">

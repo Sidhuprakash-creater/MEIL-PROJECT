@@ -1,0 +1,490 @@
+   331→
+   332→      {/* ── 1. Group pulse hero ── */}
+   333→      <GlassCard strong className="relative overflow-hidden rounded-[28px] p-5 sm:p-7">
+   334→        <div aria-hidden className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(58,123,255,0.22),transparent_65%)] blur-2xl" />
+   335→        <div aria-hidden className="pointer-events-none absolute -bottom-32 left-1/3 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(22,163,163,0.16),transparent_65%)] blur-2xl" />
+   336→
+   337→        <div className="relative flex flex-col gap-6 xl:flex-row xl:items-center">
+   338→          {/* identity */}
+   339→          <div className="flex min-w-0 items-center gap-4 xl:w-[280px] xl:shrink-0">
+   340→            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[20px] bg-gradient-to-br from-[#3a7bff] via-[#4a7cf0] to-[#6a5bff] shadow-lg shadow-[rgba(58,123,255,0.35)]">
+   341→              <Landmark className="h-7 w-7 text-white" aria-hidden="true" />
+   342→            </span>
+   343→            <div className="min-w-0">
+   344→              <h2 className="truncate text-lg font-semibold tracking-tight text-[color:var(--ink)]">MEIL Group</h2>
+   345→              <p className={`truncate text-[13px] ${INK_FAINT}`}>Group ESG command · {reportingYear}</p>
+   346→              <span className="glass-subtle mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium text-[#1d5fd6]">
+   347→                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#238653]" />
+   348→                Live group view
+   349→              </span>
+   350→            </div>
+   351→          </div>
+   352→
+   353→          {/* stat cascade */}
+   354→          <div className="grid flex-1 grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/60 bg-[rgba(125,177,216,0.28)] sm:grid-cols-3 lg:grid-cols-5">
+   355→            {heroStats.map((s) => (
+   356→              <button
+   357→                key={s.label}
+   358→                onClick={s.go}
+   359→                className="group flex flex-col items-start gap-1 bg-white/45 px-4 py-3.5 text-left backdrop-blur-sm transition-colors hover:bg-white/75"
+   360→                aria-label={`${s.label}: ${s.value} — open module`}
+   361→              >
+   362→                <span className={`flex items-center gap-1.5 text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>
+   363→                  <s.icon className="h-3.5 w-3.5" style={{ color: s.color }} aria-hidden="true" />
+   364→                  {s.label}
+   365→                </span>
+   366→                <span className="flex items-baseline gap-1">
+   367→                  <span className="tabular text-[22px] font-semibold leading-7 tracking-tight text-[color:var(--ink)] transition-colors group-hover:text-[#1d5fd6]">
+   368→                    <CountUp value={s.value} format={(n) => fmtNumber(Math.round(n))} />
+   369→                  </span>
+   370→                  <ArrowUpRight className="h-3.5 w-3.5 self-center text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+   371→                </span>
+   372→              </button>
+   373→            ))}
+   374→          </div>
+   375→
+   376→          {/* health ring */}
+   377→          <div className="flex items-center gap-4 xl:w-[228px] xl:shrink-0 xl:justify-end">
+   378→            <HealthRing value={approvalRate} gid="cc-health" />
+   379→            <div className="min-w-0">
+   380→              <div className="text-[13px] font-semibold text-[color:var(--ink)]">Approval health</div>
+   381→              <p className={`mt-0.5 text-xs leading-snug ${INK_FAINT}`}>
+   382→                {k.approved} of {k.approved + awaitingReview + k.rejectedReturned} reviewed submissions approved
+   383→              </p>
+   384→              {k.overdue > 0 ? (
+   385→                <Chip tone="red" className="mt-1.5">{k.overdue} overdue</Chip>
+   386→              ) : (
+   387→                <Chip tone="green" className="mt-1.5">No overdue</Chip>
+   388→              )}
+   389→            </div>
+   390→          </div>
+   391→        </div>
+   392→      </GlassCard>
+   393→
+   394→      {/* ── 2. Pipeline + ESG trend ── */}
+   395→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+   396→        <SectionCard
+   397→          title="Submission pipeline"
+   398→          description="Where every report stands in the review flow"
+   399→          icon={Workflow}
+   400→          className="xl:col-span-4"
+   401→          actions={<Chip tone="gray">{k.submissions} total</Chip>}
+   402→        >
+   403→          <div className="flex flex-col gap-2">
+   404→            {pipeline.map((p) => {
+   405→              const pct = k.submissions > 0 ? (p.value / k.submissions) * 100 : 0;
+   406→              return (
+   407→                <button
+   408→                  key={p.label}
+   409→                  onClick={p.go}
+   410→                  className="group rounded-2xl border border-transparent px-3 py-2.5 text-left transition-all hover:border-white/60 hover:bg-white/60"
+   411→                  aria-label={`${p.label}: ${p.value} submissions`}
+   412→                >
+   413→                  <div className="flex items-center justify-between gap-2 text-[13px]">
+   414→                    <span className={`flex items-center gap-2 font-medium ${INK_SOFT}`}>
+   415→                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} aria-hidden="true" />
+   416→                      {p.label}
+   417→                    </span>
+   418→                    <span className="tabular">
+   419→                      <span className="font-semibold text-[color:var(--ink)]">{p.value}</span>
+   420→                      <span className={`ml-1.5 text-xs ${INK_FAINT}`}>{Math.round(pct)}%</span>
+   421→                    </span>
+   422→                  </div>
+   423→                  <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.12)]">
+   424→                    <div
+   425→                      className="h-full rounded-full"
+   426→                      style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${p.color}99, ${p.color})`, transition: "width 0.8s cubic-bezier(0.22,1,0.36,1)" }}
+   427→                    />
+   428→                  </div>
+   429→                </button>
+   430→              );
+   431→            })}
+   432→          </div>
+   433→          <div className="mt-3 flex items-center justify-between gap-3 rounded-2xl border border-[rgba(195,74,74,0.16)] bg-[rgba(195,74,74,0.06)] px-3.5 py-2.5">
+   434→            <span className={`text-xs ${INK_SOFT}`}>
+   435→              <span className="font-semibold text-[#a53b3b]">{k.overdue}</span> overdue submission{k.overdue === 1 ? "" : "s"} need escalation
+   436→            </span>
+   437→            <button
+   438→              onClick={() => navigate("submissions", { statusFilter: "OVERDUE" })}
+   439→              className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#a53b3b] hover:underline"
+   440→            >
+   441→              Open <ArrowRight className="h-3 w-3" aria-hidden="true" />
+   442→            </button>
+   443→          </div>
+   444→        </SectionCard>
+   445→
+   446→        <SectionCard
+   447→          title="ESG performance trend"
+   448→          description="Scope 1 & 2 emissions (tCO2e) with renewable share on the right axis"
+   449→          icon={TrendingUp}
+   450→          className="xl:col-span-8"
+   451→          actions={
+   452→            latest && (
+   453→              <div className="flex flex-wrap items-center gap-1.5">
+   454→                <Chip tone="blue">Scope 1 {fmtNumber(latest.scope1)}</Chip>
+   455→                <Chip tone="purple">Scope 2 {fmtNumber(latest.scope2)}</Chip>
+   456→                <Chip tone="teal">Renewable {Math.round(latest.renewable)}%</Chip>
+   457→              </div>
+   458→            )
+   459→          }
+   460→        >
+   461→          <ResponsiveContainer width="100%" height={252}>
+   462→            <LineChart data={data.esgTrend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+   463→              <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,119,141,0.16)" vertical={false} />
+   464→              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} />
+   465→              <YAxis yAxisId="left" width={48} tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} tickFormatter={(v: number) => fmtNumber(v)} />
+   466→              <YAxis yAxisId="right" orientation="right" width={40} tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} tickFormatter={(v: number) => `${v}%`} />
+   467→              <Tooltip content={<GlassChartTip />} cursor={{ stroke: "rgba(58,123,255,0.3)", strokeWidth: 1 }} />
+   468→              <Line yAxisId="left" type="monotone" dataKey="scope1" name="Scope 1" stroke="#3a7bff" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+   469→              <Line yAxisId="left" type="monotone" dataKey="scope2" name="Scope 2" stroke="#6a5bff" strokeWidth={2.5} dot={false} activeDot={{ r: 4 }} />
+   470→              <Line yAxisId="right" type="monotone" dataKey="renewable" name="Renewable %" stroke="#16a3a3" strokeWidth={2.5} strokeDasharray="5 4" dot={false} activeDot={{ r: 4 }} />
+   471→            </LineChart>
+   472→          </ResponsiveContainer>
+   473→          <ChartLegend
+   474→            items={[
+   475→              { label: "Scope 1 (tCO2e)", color: "#3a7bff" },
+   476→              { label: "Scope 2 (tCO2e)", color: "#6a5bff" },
+   477→              { label: "Renewable share (%)", color: "#16a3a3", dashed: true },
+   478→            ]}
+   479→          />
+   480→        </SectionCard>
+   481→      </div>
+   482→
+   483→      {/* ── 3. Completion + approval mix + category pulse ── */}
+   484→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
+   485→        <SectionCard title="Submission completion" description="Reports received vs completed (approved) by month" icon={BarChart3} className="xl:col-span-5">
+   486→          <ResponsiveContainer width="100%" height={248}>
+   487→            <BarChart data={data.completionByMonth} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+   488→              <CartesianGrid strokeDasharray="3 3" stroke="rgba(102,119,141,0.16)" vertical={false} />
+   489→              <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} />
+   490→              <YAxis allowDecimals={false} width={36} tickLine={false} axisLine={false} tick={{ fill: "#8595ab", fontSize: 11 }} />
+   491→              <Tooltip content={<GlassChartTip />} cursor={{ fill: "rgba(58,123,255,0.06)" }} />
+   492→              <Bar dataKey="received" name="Received" fill="rgba(58,123,255,0.45)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+   493→              <Bar dataKey="completed" name="Completed" fill="#238653" radius={[6, 6, 0, 0]} maxBarSize={26} />
+   494→            </BarChart>
+   495→          </ResponsiveContainer>
+   496→          <ChartLegend
+   497→            items={[
+   498→              { label: "Received", color: "rgba(58,123,255,0.45)" },
+   499→              { label: "Completed (approved)", color: "#238653" },
+   500→            ]}
+   501→          />
+   502→        </SectionCard>
+   503→
+   504→        <SectionCard title="Approval mix" description="Reviewed submission outcomes" icon={PieChart} className="xl:col-span-3">
+   505→          <div className="flex h-full flex-col items-center justify-center gap-4">
+   506→            <Donut segments={donutSegments} centerTop={String(k.approved + awaitingReview + k.rejectedReturned)} centerSub="reviewed" />
+   507→            <div className="flex w-full flex-col gap-1.5">
+   508→              {donutSegments.map((s) => (
+   509→                <div key={s.label} className="flex items-center justify-between gap-2 text-xs">
+   510→                  <span className={`flex items-center gap-1.5 ${INK_SOFT}`}>
+   511→                    <span className="h-2 w-2 rounded-full" style={{ background: s.color }} aria-hidden="true" />
+   512→                    {s.label}
+   513→                  </span>
+   514→                  <span className="tabular font-semibold text-[color:var(--ink)]">{s.value}</span>
+   515→                </div>
+   516→              ))}
+   517→            </div>
+   518→          </div>
+   519→        </SectionCard>
+   520→
+   521→        <SectionCard title="Category pulse" description="Top reporting categories by volume" icon={ListChecks} className="xl:col-span-4">
+   522→          {categoryMix.length === 0 ? (
+   523→            <EmptyState title="No categories yet" message="Category mix appears once submissions arrive." />
+   524→          ) : (
+   525→            <div className="flex flex-col gap-3">
+   526→              {categoryMix.map((cm) => {
+   527→                const max = categoryMix[0]?.count || 1;
+   528→                const w = (cm.count / max) * 100;
+   529→                const aw = cm.count > 0 ? (cm.approved / cm.count) * 100 : 0;
+   530→                return (
+   531→                  <button
+   532→                    key={cm.category}
+   533→                    onClick={() => navigate("submissions", { statusFilter: cm.category })}
+   534→                    className="group rounded-xl px-1 py-0.5 text-left"
+   535→                    aria-label={`Open ${cm.category} submissions`}
+   536→                  >
+   537→                    <div className="flex items-center justify-between text-xs">
+   538→                      <span className={`font-medium capitalize group-hover:text-[color:var(--esg-blue)] ${INK_SOFT}`}>
+   539→                        {cm.category.toLowerCase()}
+   540→                      </span>
+   541→                      <span className={`tabular ${INK_FAINT}`}>{cm.approved}/{cm.count} approved</span>
+   542→                    </div>
+   543→                    <div className="relative mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.12)]">
+   544→                      <div className="absolute inset-y-0 left-0 rounded-full bg-[rgba(58,123,255,0.28)]" style={{ width: `${w}%` }} />
+   545→                      <div className="absolute inset-y-0 left-0 rounded-full bg-[#238653]" style={{ width: `${(aw / 100) * w}%` }} />
+   546→                    </div>
+   547→                  </button>
+   548→                );
+   549→              })}
+   550→              <p className={`text-[11px] ${INK_FAINT}`}>
+   551→                <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[rgba(58,123,255,0.28)] align-middle" />
+   552→                volume
+   553→                <span className="mx-1 inline-block h-2 w-2 rounded-full bg-[#238653] align-middle" />
+   554→                approved share
+   555→              </p>
+   556→            </div>
+   557→          )}
+   558→        </SectionCard>
+   559→      </div>
+   560→
+   561→      {/* ── 4. Subsidiary scorecards ── */}
+   562→      <section aria-labelledby="cc-scorecards">
+   563→        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+   564→          <h3 id="cc-scorecards" className="text-[15px] font-semibold text-[color:var(--ink)]">Subsidiary scorecards</h3>
+   565→          <button onClick={() => navigate("subsidiaries")} className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--esg-blue)] hover:underline">
+   566→            Manage subsidiaries <ArrowRight className="h-3 w-3" aria-hidden="true" />
+   567→          </button>
+   568→        </div>
+   569→        {data.orgProgress.length === 0 ? (
+   570→          <SectionCard>
+   571→            <EmptyState title="No subsidiaries yet" message="Create your first subsidiary to see reporting progress here." />
+   572→          </SectionCard>
+   573→        ) : (
+   574→          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+   575→            {data.orgProgress.map((op) => {
+   576→              const pct = op.total > 0 ? (op.approved / op.total) * 100 : 0;
+   577→              const id = subIdByName.get(op.name);
+   578→              return (
+   579→                <GlassCard
+   580→                  key={op.name}
+   581→                  interactive
+   582→                  onClick={() => (id ? openDetail("subsidiaries", id, "overview") : navigate("subsidiaries"))}
+   583→                  className="p-4"
+   584→                  role="button"
+   585→                  aria-label={`Open ${op.name} details — ${Math.round(pct)}% approved`}
+   586→                >
+   587→                  <div className="flex items-center gap-3">
+   588→                    <MiniRing value={pct} tone={op.overdue > 0 ? "#c57926" : "#238653"} />
+   589→                    <div className="min-w-0">
+   590→                      <div className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{op.name}</div>
+   591→                      <div className={`truncate text-xs ${INK_FAINT}`}>{op.level}</div>
+   592→                    </div>
+   593→                  </div>
+   594→                  <div className="mt-3.5 flex items-center justify-between gap-2 border-t border-[rgba(125,177,216,0.22)] pt-3 text-xs">
+   595→                    <span className={`tabular ${INK_SOFT}`}>
+   596→                      <span className="font-semibold text-[color:var(--ink)]">{op.approved}</span>/{op.total} approved
+   597→                    </span>
+   598→                    {op.overdue > 0 ? <Chip tone="red">{op.overdue} overdue</Chip> : <Chip tone="green">On track</Chip>}
+   599→                  </div>
+   600→                </GlassCard>
+   601→              );
+   602→            })}
+   603→          </div>
+   604→        )}
+   605→      </section>
+   606→
+   607→      {/* ── 5. Role performance + quick actions ── */}
+   608→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+   609→        <SectionCard title="Role-wise performance" description="Approval rate of submissions by contributor role" icon={Users} className="xl:col-span-2">
+   610→          {data.rolePerformance.length === 0 ? (
+   611→            <EmptyState title="No role data yet" message="Role performance appears once users start submitting reports." />
+   612→          ) : (
+   613→            <div className="flex flex-col gap-3">
+   614→              {data.rolePerformance.map((rp, i) => {
+   615→                const pct = rp.total > 0 ? (rp.approved / rp.total) * 100 : 0;
+   616→                const tones = ["#3a7bff", "#6a5bff", "#16a3a3", "#238653", "#c57926", "#c34a4a"];
+   617→                const tone = tones[i % tones.length];
+   618→                return (
+   619→                  <div key={rp.role}>
+   620→                    <div className="flex items-center justify-between gap-3 text-xs">
+   621→                      <span className={`flex min-w-0 items-center gap-1.5 font-medium ${INK_SOFT}`}>
+   622→                        <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: tone }} aria-hidden="true" />
+   623→                        <span className="truncate">{ROLE_LABELS[rp.role] ?? rp.role.replaceAll("_", " ")}</span>
+   624→                      </span>
+   625→                      <span className={`tabular shrink-0 ${INK_FAINT}`}>
+   626→                        {rp.approved}/{rp.total} · {rp.onTime} on time
+   627→                      </span>
+   628→                    </div>
+   629→                    <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.14)]">
+   630→                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${tone}99, ${tone})` }} />
+   631→                    </div>
+   632→                  </div>
+   633→                );
+   634→              })}
+   635→            </div>
+   636→          )}
+   637→        </SectionCard>
+   638→
+   639→        <SectionCard title="Quick actions" description="Jump into the most common group-admin workflows" icon={ListTodo} className="xl:col-span-3">
+   640→          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+   641→            {quickActions.map((qa) => (
+   642→              <button
+   643→                key={qa.label}
+   644→                onClick={qa.run}
+   645→                className="glass-subtle group flex flex-col items-start gap-2 rounded-2xl border-white/50 p-3.5 text-left transition-all hover:-translate-y-0.5 hover:bg-white/70"
+   646→                aria-label={qa.label}
+   647→              >
+   648→                <span className="flex h-9 w-9 items-center justify-center rounded-xl transition-transform group-hover:scale-105" style={{ background: `${qa.tint}1f` }}>
+   649→                  <qa.icon className="h-4 w-4" style={{ color: qa.tint }} aria-hidden="true" />
+   650→                </span>
+   651→                <span className="text-[13px] font-semibold leading-4 text-[color:var(--ink)]">{qa.label}</span>
+   652→                <span className={`text-[11px] leading-snug ${INK_FAINT}`}>{qa.hint}</span>
+   653→              </button>
+   654→            ))}
+   655→          </div>
+   656→        </SectionCard>
+   657→      </div>
+   658→
+   659→      {/* ── 6. Operations strip: approvals / deadlines / quality ── */}
+   660→      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+   661→        <SectionCard
+   662→          title="Pending approvals"
+   663→          description="Submissions waiting for your review"
+   664→          icon={FileCheck2}
+   665→          actions={<Chip tone={data.pendingApprovals.length > 0 ? "amber" : "green"}>{data.pendingApprovals.length}</Chip>}
+   666→        >
+   667→          {data.pendingApprovals.length === 0 ? (
+   668→            <EmptyState title="Queue is clear" message="No submissions are awaiting review right now." icon={BadgeCheck} />
+   669→          ) : (
+   670→            <div className="nice-scroll flex max-h-[290px] flex-col gap-2 overflow-y-auto pr-1">
+   671→              {data.pendingApprovals.map((pa) => (
+   672→                <button
+   673→                  key={pa.id}
+   674→                  onClick={() => openDetail("approvals", pa.id)}
+   675→                  className="group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 px-3.5 py-2.5 text-left transition-all hover:-translate-y-px hover:bg-white/70 hover:shadow-sm"
+   676→                  aria-label={`Review ${pa.title}`}
+   677→                >
+   678→                  <span className="absolute inset-y-0 left-0 w-[3px] rounded-full bg-[#c57926] opacity-70 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+   679→                  <span className="flex items-start justify-between gap-2 pl-1.5">
+   680→                    <span className="line-clamp-1 text-[13px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{pa.title}</span>
+   681→                    <StatusBadge status={pa.status} />
+   682→                  </span>
+   683→                  <span className={`mt-1 flex flex-wrap items-center gap-x-2 pl-1.5 text-xs ${INK_FAINT}`}>
+   684→                    <span className="font-medium">{pa.ref}</span>
+   685→                    <span>·</span>
+   686→                    <span>{pa.subsidiaryName ?? "—"}</span>
+   687→                    <span>·</span>
+   688→                    <span>by {pa.submittedByName ?? "—"}</span>
+   689→                    <span>·</span>
+   690→                    <span>due {fmtDate(pa.dueDate)}</span>
+   691→                  </span>
+   692→                </button>
+   693→              ))}
+   694→            </div>
+   695→          )}
+   696→        </SectionCard>
+   697→
+   698→        <SectionCard
+   699→          title="Upcoming & overdue deadlines"
+   700→          description="Reporting tasks ordered by due date"
+   701→          icon={Clock}
+   702→          actions={<Chip tone="gray">{data.deadlines.length}</Chip>}
+   703→        >
+   704→          {data.deadlines.length === 0 ? (
+   705→            <EmptyState title="No open deadlines" message="All reporting tasks are completed." icon={ListChecks} />
+   706→          ) : (
+   707→            <div className="nice-scroll flex max-h-[290px] flex-col gap-2 overflow-y-auto pr-1">
+   708→              {data.deadlines.map((d) => (
+   709→                <button
+   710→                  key={d.id}
+   711→                  onClick={() => openDetail("tasks", d.id)}
+   712→                  className="group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 px-3.5 py-2.5 text-left transition-all hover:-translate-y-px hover:bg-white/70 hover:shadow-sm"
+   713→                  aria-label={`Open task ${d.title}`}
+   714→                >
+   715→                  <span className="absolute inset-y-0 left-0 w-[3px] rounded-full bg-[#3a7bff] opacity-70 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+   716→                  <span className="flex items-start justify-between gap-2 pl-1.5">
+   717→                    <span className="line-clamp-1 text-[13px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{d.title}</span>
+   718→                    <StatusBadge status={d.priority} />
+   719→                  </span>
+   720→                  <span className={`mt-1 flex flex-wrap items-center gap-x-2 pl-1.5 text-xs ${INK_FAINT}`}>
+   721→                    <span className="font-medium">{d.ref}</span>
+   722→                    <span>·</span>
+   723→                    <span>{d.assigneeLabel}</span>
+   724→                    <span>·</span>
+   725→                    <span>due {fmtDate(d.dueDate)}</span>
+   726→                  </span>
+   727→                </button>
+   728→              ))}
+   729→            </div>
+   730→          )}
+   731→        </SectionCard>
+   732→
+   733→        <SectionCard
+   734→          title="Data quality issues"
+   735→          description="Flagged by reviewers & validation engine"
+   736→          icon={ShieldAlert}
+   737→          actions={<Chip tone={data.dataQuality.length > 0 ? "red" : "green"}>{data.dataQuality.length}</Chip>}
+   738→        >
+   739→          {data.dataQuality.length === 0 ? (
+   740→            <EmptyState title="No quality issues" message="All submissions passed validation." icon={BadgeCheck} />
+   741→          ) : (
+   742→            <div className="nice-scroll flex max-h-[290px] flex-col gap-2 overflow-y-auto pr-1">
+   743→              {data.dataQuality.map((dq) => {
+   744→                const critical = dq.severity === "CRITICAL";
+   745→                const Icon = critical ? AlertOctagon : AlertTriangle;
+   746→                return (
+   747→                  <button
+   748→                    key={dq.id}
+   749→                    onClick={() => navigate("consolidation")}
+   750→                    className="group relative w-full overflow-hidden rounded-2xl border border-white/50 bg-white/40 px-3.5 py-2.5 text-left transition-all hover:-translate-y-px hover:bg-white/70 hover:shadow-sm"
+   751→                    aria-label={`Investigate ${dq.title}`}
+   752→                  >
+   753→                    <span className={`absolute inset-y-0 left-0 w-[3px] rounded-full ${critical ? "bg-[#c34a4a]" : "bg-[#c57926]"}`} aria-hidden="true" />
+   754→                    <span className="flex items-start gap-2.5 pl-1.5">
+   755→                      <span className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl ${critical ? "bg-[rgba(195,74,74,0.12)] text-[#c34a4a]" : "bg-[rgba(197,121,38,0.13)] text-[#c57926]"}`}>
+   756→                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+   757→                      </span>
+   758→                      <span className="min-w-0">
+   759→                        <span className="line-clamp-1 text-[13px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{dq.title}</span>
+   760→                        <span className={`mt-0.5 line-clamp-2 block text-xs ${INK_FAINT}`}>{dq.issue}</span>
+   761→                      </span>
+   762→                    </span>
+   763→                  </button>
+   764→                );
+   765→              })}
+   766→            </div>
+   767→          )}
+   768→        </SectionCard>
+   769→      </div>
+   770→
+   771→      {/* ── 7. Activity timeline ── */}
+   772→      <SectionCard
+   773→        title="Recent activity"
+   774→        description="Latest actions across the organization"
+   775→        icon={ActivityIcon}
+   776→        actions={
+   777→          <button onClick={() => navigate("activity")} className="inline-flex items-center gap-1 text-xs font-medium text-[color:var(--esg-blue)] hover:underline">
+   778→            Open activity feed <ArrowRight className="h-3 w-3" aria-hidden="true" />
+   779→          </button>
+   780→        }
+   781→      >
+   782→        {data.activityFeed.length === 0 ? (
+   783→          <EmptyState title="No recent activity" message="User actions will appear here as they happen." />
+   784→        ) : (
+   785→          <div className="relative">
+   786→            <span aria-hidden className="absolute bottom-3 left-[17px] top-3 w-px bg-[rgba(125,177,216,0.4)]" />
+   787→            <div className="flex flex-col gap-1">
+   788→              {data.activityFeed.map((a) => (
+   789→                <button
+   790→                  key={a.id}
+   791→                  onClick={() => navigate("activity")}
+   792→                  className="group relative flex items-start gap-3 rounded-2xl px-1.5 py-2 text-left transition-colors hover:bg-white/55"
+   793→                  aria-label={`Activity by ${a.actorName}`}
+   794→                >
+   795→                  <span className="relative z-10 mt-0.5 shrink-0 rounded-full border border-white/70 bg-white shadow-sm">
+   796→                    <Avatar name={a.actorName || "System"} size={36} />
+   797→                  </span>
+   798→                  <span className="min-w-0 flex-1">
+   799→                    <span className="flex items-center gap-1.5 text-[13px] text-[color:var(--ink-soft)]">
+   800→                      <span className="truncate font-semibold text-[color:var(--ink)]">{a.actorName}</span>
+   801→                      <span className="shrink-0 rounded-md bg-[rgba(58,123,255,0.1)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[#1d5fd6]">
+   802→                        {a.action.replaceAll("_", " ")}
+   803→                      </span>
+   804→                      <span className="truncate">{a.targetLabel}</span>
+   805→                    </span>
+   806→                    <span className={`mt-0.5 block text-xs ${INK_FAINT}`}>
+   807→                      {ROLE_LABELS[a.actorRole] ?? a.actorRole.replaceAll("_", " ")} · {a.orgLabel} · {timeAgo(a.createdAt)}
+   808→                    </span>
+   809→                  </span>
+   810→                  {a.severity === "WARNING" ? <Chip tone="amber">Warning</Chip> : <ChevronRight className={`mt-1 h-4 w-4 shrink-0 opacity-0 transition-opacity group-hover:opacity-60 ${INK_FAINT}`} aria-hidden="true" />}
+   811→                </button>
+   812→              ))}
+   813→            </div>
+   814→          </div>
+   815→        )}
+   816→      </SectionCard>
+   817→    </div>
+   818→  );
+   819→}
+   820→

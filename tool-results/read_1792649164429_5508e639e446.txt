@@ -1,0 +1,978 @@
+     1→"use client";
+     2→
+     3→// ── MEIL ESG workspace — reusable Liquid-Glass component library ──
+     4→import * as React from "react";
+     5→import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Inbox, Loader2, RotateCcw, Search } from "lucide-react";
+     6→import { AnimatePresence, motion } from "framer-motion";
+     7→import { cn } from "@/lib/utils";
+     8→import { Button } from "@/components/ui/button";
+     9→import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+    10→import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+    11→import { Input } from "@/components/ui/input";
+    12→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    13→import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+    14→import { fmtDate, toCsv, downloadFile } from "@/lib/esg/client";
+    15→
+    16→/* ────────────────────────────── Glass surfaces ────────────────────────────── */
+    17→
+    18→export function GlassCard({
+    19→  className,
+    20→  strong,
+    21→  subtle,
+    22→  sheen = true,
+    23→  interactive,
+    24→  children,
+    25→  ...props
+    26→}: React.HTMLAttributes<HTMLDivElement> & { strong?: boolean; subtle?: boolean; sheen?: boolean; interactive?: boolean }) {
+    27→  return (
+    28→    <div
+    29→      className={cn(
+    30→        strong ? "glass-strong" : subtle ? "glass-subtle" : "glass",
+    31→        sheen && "glass-sheen",
+    32→        interactive && "glass-lift cursor-pointer",
+    33→        "rounded-3xl",
+    34→        className
+    35→      )}
+    36→      {...props}
+    37→    >
+    38→      {children}
+    39→    </div>
+    40→  );
+    41→}
+    42→
+    43→/* ────────────────────────────── Page chrome ────────────────────────────── */
+    44→
+    45→export function PageHeader({
+    46→  title,
+    47→  description,
+    48→  icon: Icon,
+    49→  actions,
+    50→  breadcrumbs,
+    51→}: {
+    52→  title: string;
+    53→  description?: string;
+    54→  icon?: React.ComponentType<{ className?: string }>;
+    55→  actions?: React.ReactNode;
+    56→  breadcrumbs?: string[];
+    57→}) {
+    58→  return (
+    59→    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    60→      <div className="min-w-0">
+    61→        {breadcrumbs && breadcrumbs.length > 0 && (
+    62→          <nav aria-label="Breadcrumb" className="mb-2 flex items-center gap-1.5 text-xs text-[color:var(--ink-faint)]">
+    63→            {breadcrumbs.map((b, i) => (
+    64→              <span key={i} className="flex items-center gap-1.5">
+    65→                {i > 0 && <span className="text-[color:var(--border)]">/</span>}
+    66→                <span className={i === breadcrumbs.length - 1 ? "font-medium text-[color:var(--ink-soft)]" : ""}>{b}</span>
+    67→              </span>
+    68→            ))}
+    69→          </nav>
+    70→        )}
+    71→        <div className="flex items-center gap-3">
+    72→          {Icon && (
+    73→            <span className="glass-subtle flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
+    74→              <Icon className="h-5 w-5 text-[color:var(--esg-blue)]" />
+    75→            </span>
+    76→          )}
+    77→          <div>
+    78→            <h1 className="truncate text-xl font-semibold tracking-tight text-[color:var(--ink)] sm:text-2xl">{title}</h1>
+    79→            {description && <p className="mt-0.5 line-clamp-2 text-sm text-[color:var(--muted-foreground)]">{description}</p>}
+    80→          </div>
+    81→        </div>
+    82→      </div>
+    83→      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+    84→    </div>
+    85→  );
+    86→}
+    87→
+    88→/* ────────────────────────────── Status / pill badges ────────────────────────────── */
+    89→
+    90→type Tone = "green" | "blue" | "amber" | "red" | "gray" | "purple" | "teal";
+    91→
+    92→const TONE_STYLES: Record<Tone, string> = {
+    93→  green: "bg-[rgba(35,134,83,0.12)] text-[#1d6b40] border-[rgba(35,134,83,0.25)]",
+    94→  blue: "bg-[rgba(58,123,255,0.12)] text-[#1d5fd6] border-[rgba(58,123,255,0.28)]",
+    95→  amber: "bg-[rgba(197,121,38,0.13)] text-[#9c5d1b] border-[rgba(197,121,38,0.3)]",
+    96→  red: "bg-[rgba(195,74,74,0.12)] text-[#a53b3b] border-[rgba(195,74,74,0.28)]",
+    97→  gray: "bg-[rgba(102,119,141,0.12)] text-[#5b6b80] border-[rgba(102,119,141,0.26)]",
+    98→  purple: "bg-[rgba(106,91,255,0.12)] text-[#5546d6] border-[rgba(106,91,255,0.28)]",
+    99→  teal: "bg-[rgba(22,163,163,0.12)] text-[#0f7c7c] border-[rgba(22,163,163,0.3)]",
+   100→};
+   101→
+   102→export function StatusBadge({ status, className, dot = true }: { status: string; className?: string; dot?: boolean }) {
+   103→  const map: Record<string, { tone: Tone; label: string }> = {
+   104→    APPROVED: { tone: "green", label: "Approved" },
+   105→    COMPLETED: { tone: "green", label: "Completed" },
+   106→    ACTIVE: { tone: "green", label: "Active" },
+   107→    SUCCESS: { tone: "green", label: "Success" },
+   108→    VALIDATED: { tone: "green", label: "Validated" },
+   109→    FINALIZED: { tone: "green", label: "Finalized" },
+   110→    SUBMITTED: { tone: "blue", label: "Submitted" },
+   111→    UNDER_REVIEW: { tone: "blue", label: "Under Review" },
+   112→    SENT: { tone: "blue", label: "Sent" },
+   113→    INFO: { tone: "blue", label: "Info" },
+   114→    REVIEW: { tone: "blue", label: "Review" },
+   115→    SIGNOFF: { tone: "blue", label: "Sign-off" },
+   116→    IN_PROGRESS: { tone: "blue", label: "In Progress" },
+   117→    PENDING: { tone: "amber", label: "Pending" },
+   118→    DUE_SOON: { tone: "amber", label: "Due Soon" },
+   119→    WARNING: { tone: "amber", label: "Warning" },
+   120→    UPCOMING: { tone: "amber", label: "Upcoming" },
+   121→    CHANGES_REQUESTED: { tone: "amber", label: "Changes Requested" },
+   122→    VALIDATION: { tone: "amber", label: "Validation" },
+   123→    CONSOLIDATION: { tone: "purple", label: "Consolidation" },
+   124→    SUSPENDED: { tone: "red", label: "Suspended" },
+   125→    REJECTED: { tone: "red", label: "Rejected" },
+   126→    OVERDUE: { tone: "red", label: "Overdue" },
+   127→    CRITICAL: { tone: "red", label: "Critical" },
+   128→    HIGH: { tone: "red", label: "High" },
+   129→    FAILURE: { tone: "red", label: "Failure" },
+   130→    DENIED: { tone: "red", label: "Denied" },
+   131→    EXCEPTION: { tone: "red", label: "Exception" },
+   132→    DRAFT: { tone: "gray", label: "Draft" },
+   133→    INACTIVE: { tone: "gray", label: "Inactive" },
+   134→    NOT_MAPPED: { tone: "gray", label: "Not Mapped" },
+   135→    ARCHIVED: { tone: "gray", label: "Archived" },
+   136→    INVITED: { tone: "purple", label: "Invited" },
+   137→    SCHEDULED: { tone: "purple", label: "Scheduled" },
+   138→    MEDIUM: { tone: "amber", label: "Medium" },
+   139→    LOW: { tone: "gray", label: "Low" },
+   140→  };
+   141→  const conf = map[status] ?? { tone: "gray" as Tone, label: status.replaceAll("_", " ") };
+   142→  const dotColor: Record<Tone, string> = {
+   143→    green: "bg-[#238653]",
+   144→    blue: "bg-[#3a7bff]",
+   145→    amber: "bg-[#c57926]",
+   146→    red: "bg-[#c34a4a]",
+   147→    gray: "bg-[#8595ab]",
+   148→    purple: "bg-[#6a5bff]",
+   149→    teal: "bg-[#16a3a3]",
+   150→  };
+   151→  return (
+   152→    <span
+   153→      className={cn(
+   154→        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-0.5 text-[11px] font-medium leading-5",
+   155→        TONE_STYLES[conf.tone],
+   156→        className
+   157→      )}
+   158→    >
+   159→      {dot && <span className={cn("h-1.5 w-1.5 rounded-full", dotColor[conf.tone])} />}
+   160→      {conf.label}
+   161→    </span>
+   162→  );
+   163→}
+   164→
+   165→/* ────────────────────────────── KPI card ────────────────────────────── */
+   166→
+   167→const KPI_ICONS_TONES: Record<string, string> = {
+   168→  blue: "text-[#3a7bff] bg-[rgba(58,123,255,0.12)]",
+   169→  purple: "text-[#6a5bff] bg-[rgba(106,91,255,0.12)]",
+   170→  teal: "text-[#16a3a3] bg-[rgba(22,163,163,0.12)]",
+   171→  green: "text-[#238653] bg-[rgba(35,134,83,0.12)]",
+   172→  amber: "text-[#c57926] bg-[rgba(197,121,38,0.13)]",
+   173→  red: "text-[#c34a4a] bg-[rgba(195,74,74,0.12)]",
+   174→};
+   175→
+   176→export function KpiCard({
+   177→  label,
+   178→  value,
+   179→  icon: Icon,
+   180→  tone = "blue",
+   181→  trend,
+   182→  hint,
+   183→  onClick,
+   184→  className,
+   185→}: {
+   186→  label: string;
+   187→  value: React.ReactNode;
+   188→  icon: React.ComponentType<{ className?: string }>;
+   189→  tone?: keyof typeof KPI_ICONS_TONES;
+   190→  trend?: { dir: "up" | "down"; text: string; good?: boolean };
+   191→  hint?: string;
+   192→  onClick?: () => void;
+   193→  className?: string;
+   194→}) {
+   195→  const Tag = onClick ? "button" : "div";
+   196→  return (
+   197→    <Tag
+   198→      onClick={onClick}
+   199→      className={cn(
+   200→        "glass glass-sheen glass-lift group flex w-full flex-col gap-3 rounded-3xl p-4 text-left sm:p-5",
+   201→        onClick && "text-left",
+   202→        className
+   203→      )}
+   204→      aria-label={onClick ? `${label}: view details` : label}
+   205→    >
+   206→      <div className="flex items-start justify-between gap-2">
+   207→        <span className={cn("flex h-9 w-9 items-center justify-center rounded-xl", KPI_ICONS_TONES[tone])}>
+   208→          <Icon className="h-4.5 w-4.5" />
+   209→        </span>
+   210→        {trend && (
+   211→          <span
+   212→            className={cn(
+   213→              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+   214→              trend.good === false ? "bg-[rgba(195,74,74,0.1)] text-[#a53b3b]" : "bg-[rgba(35,134,83,0.1)] text-[#1d6b40]"
+   215→            )}
+   216→          >
+   217→            {trend.dir === "up" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+   218→            {trend.text}
+   219→          </span>
+   220→        )}
+   221→      </div>
+   222→      <div>
+   223→        <div className="tabular text-2xl font-semibold tracking-tight text-[color:var(--ink)] sm:text-[26px]">{value}</div>
+   224→        <div className="mt-0.5 text-[13px] font-medium text-[color:var(--ink-soft)]">{label}</div>
+   225→        {hint && <div className="mt-1 text-xs text-[color:var(--ink-faint)]">{hint}</div>}
+   226→      </div>
+   227→    </Tag>
+   228→  );
+   229→}
+   230→
+   231→/* ────────────────────────────── Loading / empty / error ────────────────────────────── */
+   232→
+   233→export function LoadingBlock({ rows = 3, label = "Loading data…" }: { rows?: number; label?: string }) {
+   234→  return (
+   235→    <div className="flex flex-col gap-3 p-5" role="status" aria-live="polite">
+   236→      <div className="flex items-center gap-2 text-sm text-[color:var(--ink-faint)]">
+   237→        <Loader2 className="h-4 w-4 animate-spin text-[color:var(--esg-blue)]" />
+   238→        {label}
+   239→      </div>
+   240→      {Array.from({ length: rows }).map((_, i) => (
+   241→        <div key={i} className="skeleton-shimmer h-10 rounded-2xl bg-white/40" />
+   242→      ))}
+   243→    </div>
+   244→  );
+   245→}
+   246→
+   247→export function EmptyState({ title, message, action, icon: Icon = Inbox }: { title: string; message?: string; action?: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }) {
+   248→  return (
+   249→    <div className="flex flex-col items-center justify-center gap-2 px-6 py-14 text-center">
+   250→      <span className="glass-subtle flex h-14 w-14 items-center justify-center rounded-2xl">
+   251→        <Icon className="h-6 w-6 text-[color:var(--ink-faint)]" />
+   252→      </span>
+   253→      <div className="mt-2 text-[15px] font-semibold text-[color:var(--ink)]">{title}</div>
+   254→      {message && <p className="max-w-sm text-sm text-[color:var(--muted-foreground)]">{message}</p>}
+   255→      {action && <div className="mt-3">{action}</div>}
+   256→    </div>
+   257→  );
+   258→}
+   259→
+   260→export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
+   261→  return (
+   262→    <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center" role="alert">
+   263→      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[rgba(195,74,74,0.1)]">
+   264→        <AlertTriangle className="h-6 w-6 text-[#c34a4a]" />
+   265→      </span>
+   266→      <div className="mt-2 text-[15px] font-semibold text-[color:var(--ink)]">Something went wrong</div>
+   267→      <p className="max-w-md text-sm text-[color:var(--muted-foreground)]">{message}</p>
+   268→      {onRetry && (
+   269→        <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
+   270→          <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Try again
+   271→        </Button>
+   272→      )}
+   273→    </div>
+   274→  );
+   275→}
+   276→
+   277→/* ────────────────────────────── Toolbar (search + filters) ────────────────────────────── */
+   278→
+   279→export interface ToolbarFilter {
+   280→  key: string;
+   281→  label: string;
+   282→  options: { value: string; label: string }[];
+   283→  value: string;
+   284→  onChange: (v: string) => void;
+   285→}
+   286→
+   287→export function Toolbar({
+   288→  search,
+   289→  onSearch,
+   290→  searchPlaceholder = "Search…",
+   291→  filters = [],
+   292→  onReset,
+   293→  right,
+   294→  resultCount,
+   295→}: {
+   296→  search: string;
+   297→  onSearch: (v: string) => void;
+   298→  searchPlaceholder?: string;
+   299→  filters?: ToolbarFilter[];
+   300→  onReset?: () => void;
+   301→  right?: React.ReactNode;
+   302→  resultCount?: number;
+   303→}) {
+   304→  const hasFilters = filters.some((f) => f.value !== "ALL");
+   305→  return (
+   306→    <div className="flex flex-col gap-3">
+   307→      <div className="flex flex-wrap items-center gap-2">
+   308→        <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
+   309→          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[color:var(--ink-faint)]" />
+   310→          <Input
+   311→            value={search}
+   312→            onChange={(e) => onSearch(e.target.value)}
+   313→            placeholder={searchPlaceholder}
+   314→            className="glass-subtle h-10 rounded-2xl border-white/60 pl-9 text-sm"
+   315→            aria-label={searchPlaceholder}
+   316→          />
+   317→        </div>
+   318→        {filters.map((f) => (
+   319→          <Select key={f.key} value={f.value} onValueChange={f.onChange}>
+   320→            <SelectTrigger className="glass-subtle h-10 w-auto min-w-[130px] rounded-2xl border-white/60 text-sm" aria-label={f.label}>
+   321→              <span className="mr-1 hidden text-xs text-[color:var(--ink-faint)] md:inline">{f.label}:</span>
+   322→              <SelectValue />
+   323→            </SelectTrigger>
+   324→            <SelectContent className="glass-strong border-white/70 rounded-2xl">
+   325→              {f.options.map((o) => (
+   326→                <SelectItem key={o.value} value={o.value}>
+   327→                  {o.label}
+   328→                </SelectItem>
+   329→              ))}
+   330→            </SelectContent>
+   331→          </Select>
+   332→        ))}
+   333→        {(onReset && (hasFilters || search)) && (
+   334→          <Button variant="ghost" size="sm" className="h-10 rounded-2xl text-[color:var(--ink-soft)]" onClick={() => { onReset(); }} aria-label="Reset filters">
+   335→            <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
+   336→          </Button>
+   337→        )}
+   338→        <div className="ml-auto flex items-center gap-2">
+   339→          {resultCount !== undefined && (
+   340→            <span className="text-xs text-[color:var(--ink-faint)]" aria-live="polite">
+   341→              {resultCount} result{resultCount === 1 ? "" : "s"}
+   342→            </span>
+   343→          )}
+   344→          {right}
+   345→        </div>
+   346→      </div>
+   347→    </div>
+   348→  );
+   349→}
+   350→
+   351→/* ────────────────────────────── Data table ────────────────────────────── */
+   352→
+   353→export interface Column<T> {
+   354→  key: string;
+   355→  header: string;
+   356→  sortable?: boolean;
+   357→  sortValue?: (row: T) => string | number;
+   358→  className?: string;
+   359→  headerClassName?: string;
+   360→  render: (row: T) => React.ReactNode;
+   361→}
+   362→
+   363→export function DataTable<T extends { id: string }>({
+   364→  columns,
+   365→  rows,
+   366→  loading,
+   367→  error,
+   368→  onRetry,
+   369→  pageSize = 8,
+   370→  onRowClick,
+   371→  emptyTitle = "No records found",
+   372→  emptyMessage,
+   373→  emptyAction,
+   374→  rowActions,
+   375→  selectable,
+   376→  selectedIds,
+   377→  onSelectionChange,
+   378→  toolbar,
+   379→  mobileCard,
+   380→  stickyHeader = true,
+   381→}: {
+   382→  columns: Column<T>[];
+   383→  rows: T[];
+   384→  loading?: boolean;
+   385→  error?: string | null;
+   386→  onRetry?: () => void;
+   387→  pageSize?: number;
+   388→  onRowClick?: (row: T) => void;
+   389→  emptyTitle?: string;
+   390→  emptyMessage?: string;
+   391→  emptyAction?: React.ReactNode;
+   392→  rowActions?: (row: T) => React.ReactNode;
+   393→  selectable?: boolean;
+   394→  selectedIds?: string[];
+   395→  onSelectionChange?: (ids: string[]) => void;
+   396→  toolbar?: React.ReactNode;
+   397→  mobileCard?: (row: T) => React.ReactNode;
+   398→  stickyHeader?: boolean;
+   399→}) {
+   400→  const [page, setPage] = React.useState(1);
+   401→  const [sortKey, setSortKey] = React.useState<string | null>(null);
+   402→  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
+   403→
+   404→  React.useEffect(() => {
+   405→    setPage(1);
+   406→  }, [rows.length, sortKey, sortDir]);
+   407→
+   408→  const sorted = React.useMemo(() => {
+   409→    if (!sortKey) return rows;
+   410→    const col = columns.find((c) => c.key === sortKey);
+   411→    if (!col?.sortValue) return rows;
+   412→    const sv = col.sortValue;
+   413→    return [...rows].sort((a, b) => {
+   414→      const va = sv(a);
+   415→      const vb = sv(b);
+   416→      const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb));
+   417→      return sortDir === "asc" ? cmp : -cmp;
+   418→    });
+   419→  }, [rows, sortKey, sortDir, columns]);
+   420→
+   421→  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+   422→  const safePage = Math.min(page, totalPages);
+   423→  const pageRows = sorted.slice((safePage - 1) * pageSize, safePage * pageSize);
+   424→
+   425→  const toggleSort = (key: string) => {
+   426→    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+   427→    else {
+   428→      setSortKey(key);
+   429→      setSortDir("asc");
+   430→    }
+   431→  };
+   432→
+   433→  const allOnPageSelected = pageRows.length > 0 && selectedIds && pageRows.every((r) => selectedIds.includes(r.id));
+   434→
+   435→  if (error) return <GlassCard className="overflow-hidden"><ErrorState message={error} onRetry={onRetry} /></GlassCard>;
+   436→  if (loading) return <GlassCard className="overflow-hidden"><LoadingBlock rows={5} /></GlassCard>;
+   437→
+   438→  return (
+   439→    <div className="flex flex-col gap-3">
+   440→      {toolbar}
+   441→      <GlassCard className="overflow-hidden">
+   442→        {pageRows.length === 0 ? (
+   443→          <EmptyState title={emptyTitle} message={emptyMessage} action={emptyAction} />
+   444→        ) : (
+   445→          <>
+   446→            {/* Desktop table */}
+   447→            <div className={cn("nice-scroll hidden overflow-x-auto md:block", stickyHeader && "max-h-[70vh] overflow-y-auto")}>
+   448→              <table className="w-full min-w-[720px] border-collapse text-sm">
+   449→                <thead className={cn(stickyHeader && "sticky top-0 z-10")}>
+   450→                  <tr className="bg-white/70 backdrop-blur-md [&>th]:border-b [&>th]:border-[rgba(125,177,216,0.35)]">
+   451→                    {selectable && (
+   452→                      <th className="w-10 px-4 py-3 text-left">
+   453→                        <input
+   454→                          type="checkbox"
+   455→                          aria-label="Select all on page"
+   456→                          checked={!!allOnPageSelected}
+   457→                          onChange={(e) => {
+   458→                            if (!onSelectionChange || !selectedIds) return;
+   459→                            const pageIds = pageRows.map((r) => r.id);
+   460→                            onSelectionChange(
+   461→                              e.target.checked
+   462→                                ? Array.from(new Set([...selectedIds, ...pageIds]))
+   463→                                : selectedIds.filter((id) => !pageIds.includes(id))
+   464→                            );
+   465→                          }}
+   466→                          className="h-4 w-4 cursor-pointer accent-[color:var(--esg-blue)]"
+   467→                        />
+   468→                      </th>
+   469→                    )}
+   470→                    {columns.map((c) => (
+   471→                      <th
+   472→                        key={c.key}
+   473→                        className={cn(
+   474→                          "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]",
+   475→                          c.sortable && "cursor-pointer select-none hover:text-[color:var(--ink-soft)]",
+   476→                          c.headerClassName
+   477→                        )}
+   478→                        onClick={c.sortable ? () => toggleSort(c.key) : undefined}
+   479→                        aria-sort={sortKey === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}
+   480→                      >
+   481→                        <span className="inline-flex items-center gap-1">
+   482→                          {c.header}
+   483→                          {c.sortable && (
+   484→                            sortKey === c.key
+   485→                              ? sortDir === "asc"
+   486→                                ? <ArrowUp className="h-3 w-3 text-[color:var(--esg-blue)]" />
+   487→                                : <ArrowDown className="h-3 w-3 text-[color:var(--esg-blue)]" />
+   488→                              : <ArrowUpDown className="h-3 w-3 opacity-40" />
+   489→                          )}
+   490→                        </span>
+   491→                      </th>
+   492→                    ))}
+   493→                    {rowActions && <th className="w-12 px-4 py-3" aria-label="Actions" />}
+   494→                  </tr>
+   495→                </thead>
+   496→                <tbody>
+   497→                  {pageRows.map((row) => (
+   498→                    <tr
+   499→                      key={row.id}
+   500→                      onClick={onRowClick ? () => onRowClick(row) : undefined}
+   501→                      className={cn(
+   502→                        "border-b border-[rgba(125,177,216,0.18)] transition-colors last:border-0 hover:bg-[rgba(58,123,255,0.05)]",
+   503→                        onRowClick && "cursor-pointer"
+   504→                      )}
+   505→                    >
+   506→                      {selectable && (
+   507→                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+   508→                          <input
+   509→                            type="checkbox"
+   510→                            aria-label={`Select row ${row.id}`}
+   511→                            checked={!!selectedIds?.includes(row.id)}
+   512→                            onChange={(e) => {
+   513→                              if (!onSelectionChange || !selectedIds) return;
+   514→                              onSelectionChange(e.target.checked ? [...selectedIds, row.id] : selectedIds.filter((id) => id !== row.id));
+   515→                            }}
+   516→                            className="h-4 w-4 cursor-pointer accent-[color:var(--esg-blue)]"
+   517→                          />
+   518→                        </td>
+   519→                      )}
+   520→                      {columns.map((c) => (
+   521→                        <td key={c.key} className={cn("px-4 py-3 align-middle text-[color:var(--ink-soft)]", c.className)}>
+   522→                          {c.render(row)}
+   523→                        </td>
+   524→                      ))}
+   525→                      {rowActions && (
+   526→                        <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+   527→                          <div className="flex justify-end">{rowActions(row)}</div>
+   528→                        </td>
+   529→                      )}
+   530→                    </tr>
+   531→                  ))}
+   532→                </tbody>
+   533→              </table>
+   534→            </div>
+   535→            {/* Mobile cards */}
+   536→            <div className="flex flex-col gap-3 p-3 md:hidden">
+   537→              {pageRows.map((row) =>
+   538→                mobileCard ? (
+   539→                  <div key={row.id} onClick={onRowClick ? () => onRowClick(row) : undefined}>{mobileCard(row)}</div>
+   540→                ) : (
+   541→                  <GlassCard key={row.id} subtle className={cn("p-3", onRowClick && "glass-lift cursor-pointer")} onClick={onRowClick ? () => onRowClick(row) : undefined}>
+   542→                    <div className="flex flex-col gap-1.5">
+   543→                      {columns.slice(0, 5).map((c) => (
+   544→                        <div key={c.key} className="flex items-start justify-between gap-3 text-[13px]">
+   545→                          <span className="shrink-0 text-[color:var(--ink-faint)]">{c.header}</span>
+   546→                          <span className="text-right text-[color:var(--ink-soft)]">{c.render(row)}</span>
+   547→                        </div>
+   548→                      ))}
+   549→                    </div>
+   550→                  </GlassCard>
+   551→                )
+   552→              )}
+   553→            </div>
+   554→            {/* Pagination */}
+   555→            {totalPages > 1 && (
+   556→              <div className="flex items-center justify-between gap-2 border-t border-[rgba(125,177,216,0.25)] px-4 py-2.5">
+   557→                <span className="text-xs text-[color:var(--ink-faint)]">
+   558→                  Page {safePage} of {totalPages} · {sorted.length} records
+   559→                </span>
+   560→                <div className="flex items-center gap-1.5">
+   561→                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)} aria-label="Previous page">
+   562→                    <ChevronLeft className="h-4 w-4" />
+   563→                  </Button>
+   564→                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)} aria-label="Next page">
+   565→                    <ChevronRight className="h-4 w-4" />
+   566→                  </Button>
+   567→                </div>
+   568→              </div>
+   569→            )}
+   570→          </>
+   571→        )}
+   572→      </GlassCard>
+   573→    </div>
+   574→  );
+   575→}
+   576→
+   577→/* ────────────────────────────── Export menu ────────────────────────────── */
+   578→
+   579→export function ExportButton({ filename, rows, formats = ["CSV", "JSON"], size = "sm" }: { filename: string; rows: Record<string, unknown>[]; formats?: string[]; size?: "sm" | "default" }) {
+   580→  const [done, setDone] = React.useState<string | null>(null);
+   581→  const doExport = (format: string) => {
+   582→    if (format === "CSV") downloadFile(`${filename}.csv`, toCsv(rows), "text/csv");
+   583→    else downloadFile(`${filename}.json`, JSON.stringify(rows, null, 2), "application/json");
+   584→    setDone(format);
+   585→    setTimeout(() => setDone(null), 2500);
+   586→  };
+   587→  return (
+   588→    <div className="flex items-center gap-1.5">
+   589→      {done && <span className="text-xs font-medium text-[#1d6b40]" role="status">Exported {done}</span>}
+   590→      {formats.map((f) => (
+   591→        <Button key={f} variant="outline" size={size} className="glass-subtle h-9 rounded-2xl border-white/60" onClick={() => doExport(f)}>
+   592→          <Download className="mr-1.5 h-3.5 w-3.5" /> {f}
+   593→        </Button>
+   594→      ))}
+   595→    </div>
+   596→  );
+   597→}
+   598→
+   599→/* ────────────────────────────── Dialogs / confirm / drawer ────────────────────────────── */
+   600→
+   601→export function GlassDialog({
+   602→  open,
+   603→  onOpenChange,
+   604→  title,
+   605→  description,
+   606→  children,
+   607→  footer,
+   608→  wide,
+   609→}: {
+   610→  open: boolean;
+   611→  onOpenChange: (open: boolean) => void;
+   612→  title: string;
+   613→  description?: string;
+   614→  children: React.ReactNode;
+   615→  footer?: React.ReactNode;
+   616→  wide?: boolean;
+   617→}) {
+   618→  return (
+   619→    <Dialog open={open} onOpenChange={onOpenChange}>
+   620→      <DialogContent className={cn("glass-strong max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}>
+   621→        <DialogHeader>
+   622→          <DialogTitle className="text-lg text-[color:var(--ink)]">{title}</DialogTitle>
+   623→          {description && <DialogDescription className="text-sm text-[color:var(--muted-foreground)]">{description}</DialogDescription>}
+   624→        </DialogHeader>
+   625→        <div className="mt-1">{children}</div>
+   626→        {footer && <DialogFooter className="mt-4 gap-2">{footer}</DialogFooter>}
+   627→      </DialogContent>
+   628→    </Dialog>
+   629→  );
+   630→}
+   631→
+   632→export function ConfirmDialog({
+   633→  open,
+   634→  onOpenChange,
+   635→  title,
+   636→  message,
+   637→  confirmLabel = "Confirm",
+   638→  destructive,
+   639→  requireReason,
+   640→  onConfirm,
+   641→  pending,
+   642→}: {
+   643→  open: boolean;
+   644→  onOpenChange: (open: boolean) => void;
+   645→  title: string;
+   646→  message: string;
+   647→  confirmLabel?: string;
+   648→  destructive?: boolean;
+   649→  requireReason?: boolean;
+   650→  onConfirm: (reason?: string) => void;
+   651→  pending?: boolean;
+   652→}) {
+   653→  const [reason, setReason] = React.useState("");
+   654→  React.useEffect(() => {
+   655→    if (!open) setReason("");
+   656→  }, [open]);
+   657→  const canConfirm = !requireReason || reason.trim().length >= 4;
+   658→  return (
+   659→    <GlassDialog
+   660→      open={open}
+   661→      onOpenChange={onOpenChange}
+   662→      title={title}
+   663→      footer={
+   664→        <>
+   665→          <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => onOpenChange(false)} disabled={pending}>
+   666→            Cancel
+   667→          </Button>
+   668→          <Button
+   669→            variant={destructive ? "destructive" : "default"}
+   670→            className="rounded-2xl"
+   671→            disabled={!canConfirm || pending}
+   672→            onClick={() => onConfirm(requireReason ? reason.trim() : undefined)}
+   673→          >
+   674→            {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   675→            {confirmLabel}
+   676→          </Button>
+   677→        </>
+   678→      }
+   679→    >
+   680→      <p className="text-sm leading-relaxed text-[color:var(--ink-soft)]">{message}</p>
+   681→      {requireReason && (
+   682→        <div className="mt-3">
+   683→          <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="confirm-reason">
+   684→            Reason <span className="text-[#c34a4a]">*</span>
+   685→          </label>
+   686→          <textarea
+   687→            id="confirm-reason"
+   688→            value={reason}
+   689→            onChange={(e) => setReason(e.target.value)}
+   690→            rows={3}
+   691→            placeholder="Document the reason for this decision (min 4 characters)…"
+   692→            className="glass-subtle w-full rounded-2xl border-white/60 p-3 text-sm outline-none placeholder:text-[color:var(--ink-faint)] focus:ring-2 focus:ring-[color:var(--ring)]"
+   693→          />
+   694→          {reason.length > 0 && reason.trim().length < 4 && <p className="mt-1 text-xs text-[#c34a4a]">Reason must be at least 4 characters.</p>}
+   695→        </div>
+   696→      )}
+   697→    </GlassDialog>
+   698→  );
+   699→}
+   700→
+   701→export function DetailSheet({
+   702→  open,
+   703→  onOpenChange,
+   704→  title,
+   705→  subtitle,
+   706→  children,
+   707→  footer,
+   708→  width = "lg",
+   709→}: {
+   710→  open: boolean;
+   711→  onOpenChange: (open: boolean) => void;
+   712→  title: React.ReactNode;
+   713→  subtitle?: React.ReactNode;
+   714→  children: React.ReactNode;
+   715→  footer?: React.ReactNode;
+   716→  width?: "md" | "lg" | "xl";
+   717→}) {
+   718→  const wClass = width === "md" ? "sm:max-w-md" : width === "xl" ? "sm:max-w-2xl" : "sm:max-w-xl";
+   719→  return (
+   720→    <Sheet open={open} onOpenChange={onOpenChange}>
+   721→      <SheetContent side="right" className={cn("glass-strong flex w-full flex-col gap-0 overflow-hidden border-white/80 p-0 sm:w-[initial]", wClass)}>
+   722→        <SheetHeader className="glass-sheen shrink-0 border-b border-[rgba(125,177,216,0.3)] bg-white/50 px-6 py-5 text-left">
+   723→          <SheetTitle className="text-base leading-snug text-[color:var(--ink)]">{title}</SheetTitle>
+   724→          {subtitle && <SheetDescription className="text-[13px] text-[color:var(--muted-foreground)]">{subtitle}</SheetDescription>}
+   725→        </SheetHeader>
+   726→        <div className="nice-scroll flex-1 overflow-y-auto px-6 py-5">{children}</div>
+   727→        {footer && <div className="shrink-0 border-t border-[rgba(125,177,216,0.3)] bg-white/50 px-6 py-4">{footer}</div>}
+   728→      </SheetContent>
+   729→    </Sheet>
+   730→  );
+   731→}
+   732→
+   733→/* ────────────────────────────── Tabs ────────────────────────────── */
+   734→
+   735→export function GlassTabBar({ tabs, value, onChange, className }: { tabs: { value: string; label: string; icon?: React.ComponentType<{ className?: string }>; count?: number }[]; value: string; onChange: (v: string) => void; className?: string }) {
+   736→  return (
+   737→    <div role="tablist" aria-label="Section tabs" className={cn("glass-subtle nice-scroll flex gap-1 overflow-x-auto rounded-2xl p-1", className)}>
+   738→      {tabs.map((t) => {
+   739→        const active = value === t.value;
+   740→        return (
+   741→          <button
+   742→            key={t.value}
+   743→            role="tab"
+   744→            aria-selected={active}
+   745→            onClick={() => onChange(t.value)}
+   746→            className={cn(
+   747→              "relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-medium transition-all",
+   748→              active ? "nav-active" : "text-[color:var(--ink-soft)] hover:bg-white/60"
+   749→            )}
+   750→          >
+   751→            {t.icon && <t.icon className="h-3.5 w-3.5" />}
+   752→            {t.label}
+   753→            {t.count !== undefined && (
+   754→              <span className={cn("ml-0.5 rounded-full px-1.5 py-px text-[10px] font-semibold", active ? "bg-[rgba(58,123,255,0.18)]" : "bg-black/5")}>{t.count}</span>
+   755→            )}
+   756→          </button>
+   757→        );
+   758→      })}
+   759→    </div>
+   760→  );
+   761→}
+   762→
+   763→/* ────────────────────────────── Form fields ────────────────────────────── */
+   764→
+   765→export function Field({ label, required, error, hint, children, htmlFor }: { label: string; required?: boolean; error?: string | null; hint?: string; children: React.ReactNode; htmlFor?: string }) {
+   766→  return (
+   767→    <div className="flex flex-col gap-1.5">
+   768→      <label htmlFor={htmlFor} className="text-[13px] font-medium text-[color:var(--ink)]">
+   769→        {label} {required && <span className="text-[#c34a4a]">*</span>}
+   770→      </label>
+   771→      {children}
+   772→      {hint && !error && <p className="text-xs text-[color:var(--ink-faint)]">{hint}</p>}
+   773→      {error && <p className="text-xs font-medium text-[#c34a4a]" role="alert">{error}</p>}
+   774→    </div>
+   775→  );
+   776→}
+   777→
+   778→/* ────────────────────────────── Avatar ────────────────────────────── */
+   779→
+   780→const AVATAR_TONES = [
+   781→  "bg-[rgba(58,123,255,0.16)] text-[#1d5fd6]",
+   782→  "bg-[rgba(106,91,255,0.16)] text-[#5546d6]",
+   783→  "bg-[rgba(22,163,163,0.16)] text-[#0f7c7c]",
+   784→  "bg-[rgba(35,134,83,0.16)] text-[#1d6b40]",
+   785→  "bg-[rgba(197,121,38,0.16)] text-[#9c5d1b]",
+   786→  "bg-[rgba(195,74,74,0.14)] text-[#a53b3b]",
+   787→];
+   788→
+   789→export function Avatar({ name, className, size = 36 }: { name: string; className?: string; size?: number }) {
+   790→  const initials = name
+   791→    .split(" ")
+   792→    .map((p) => p[0])
+   793→    .filter(Boolean)
+   794→    .slice(0, 2)
+   795→    .join("")
+   796→    .toUpperCase();
+   797→  const tone = AVATAR_TONES[(name.charCodeAt(0) + (name.charCodeAt(name.length - 1) || 0)) % AVATAR_TONES.length];
+   798→  return (
+   799→    <span
+   800→      className={cn("inline-flex shrink-0 items-center justify-center rounded-full border border-white/70 font-semibold shadow-sm", tone, className)}
+   801→      style={{ width: size, height: size, fontSize: size * 0.36 }}
+   802→      aria-hidden="true"
+   803→    >
+   804→      {initials}
+   805→    </span>
+   806→  );
+   807→}
+   808→
+   809→/* ────────────────────────────── Info rows / meta ────────────────────────────── */
+   810→
+   811→export function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+   812→  return (
+   813→    <div className="flex items-start justify-between gap-4 py-1.5">
+   814→      <span className="shrink-0 text-[13px] text-[color:var(--ink-faint)]">{label}</span>
+   815→      <span className="text-right text-[13px] font-medium text-[color:var(--ink-soft)]">{children}</span>
+   816→    </div>
+   817→  );
+   818→}
+   819→
+   820→export function SectionCard({
+   821→  title,
+   822→  description,
+   823→  icon: Icon,
+   824→  actions,
+   825→  children,
+   826→  className,
+   827→  noPad,
+   828→  subtle,
+   829→}: {
+   830→  title?: string;
+   831→  description?: string;
+   832→  icon?: React.ComponentType<{ className?: string }>;
+   833→  actions?: React.ReactNode;
+   834→  children: React.ReactNode;
+   835→  className?: string;
+   836→  noPad?: boolean;
+   837→  subtle?: boolean;
+   838→}) {
+   839→  return (
+   840→    <GlassCard className={cn("overflow-hidden", className)} subtle={subtle}>
+   841→      {title && (
+   842→        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[rgba(125,177,216,0.25)] px-5 pb-3.5 pt-4">
+   843→          <div className="flex items-center gap-2.5">
+   844→            {Icon && (
+   845→              <span className="glass-subtle flex h-8 w-8 items-center justify-center rounded-xl">
+   846→                <Icon className="h-4 w-4 text-[color:var(--esg-blue)]" />
+   847→              </span>
+   848→            )}
+   849→            <div>
+   850→              <h2 className="text-[15px] font-semibold text-[color:var(--ink)]">{title}</h2>
+   851→              {description && <p className="text-xs text-[color:var(--muted-foreground)]">{description}</p>}
+   852→            </div>
+   853→          </div>
+   854→          {actions && <div className="flex items-center gap-2">{actions}</div>}
+   855→        </div>
+   856→      )}
+   857→      <div className={noPad ? "" : "p-4 sm:p-5"}>{children}</div>
+   858→    </GlassCard>
+   859→  );
+   860→}
+   861→
+   862→/* ────────────────────────────── Progress ────────────────────────────── */
+   863→
+   864→export function GlassProgress({ value, tone = "blue", className, showLabel }: { value: number; tone?: "blue" | "green" | "amber" | "red" | "purple"; className?: string; showLabel?: boolean }) {
+   865→  const bg: Record<string, string> = {
+   866→    blue: "bg-gradient-to-r from-[#3a7bff] to-[#6a9bff]",
+   867→    green: "bg-gradient-to-r from-[#238653] to-[#3fa96f]",
+   868→    amber: "bg-gradient-to-r from-[#c57926] to-[#e09a4a]",
+   869→    red: "bg-gradient-to-r from-[#c34a4a] to-[#dd6f6f]",
+   870→    purple: "bg-gradient-to-r from-[#6a5bff] to-[#8f83ff]",
+   871→  };
+   872→  const clamped = Math.max(0, Math.min(100, value));
+   873→  return (
+   874→    <div className={cn("flex items-center gap-2", className)}>
+   875→      <div className="h-2 w-full overflow-hidden rounded-full bg-[rgba(102,119,141,0.14)]" role="progressbar" aria-valuenow={Math.round(clamped)} aria-valuemin={0} aria-valuemax={100}>
+   876→        <motion.div
+   877→          className={cn("h-full rounded-full", bg[tone])}
+   878→          initial={{ width: 0 }}
+   879→          animate={{ width: `${clamped}%` }}
+   880→          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+   881→        />
+   882→      </div>
+   883→      {showLabel && <span className="tabular shrink-0 text-xs font-medium text-[color:var(--ink-soft)]">{Math.round(clamped)}%</span>}
+   884→    </div>
+   885→  );
+   886→}
+   887→
+   888→/* ────────────────────────────── Animated number ────────────────────────────── */
+   889→
+   890→export function CountUp({ value, format = (n: number) => String(n), className }: { value: number; format?: (n: number) => string; className?: string }) {
+   891→  const [display, setDisplay] = React.useState(0);
+   892→  const prev = React.useRef(0);
+   893→  React.useEffect(() => {
+   894→    const from = prev.current;
+   895→    const to = value;
+   896→    prev.current = value;
+   897→    if (from === to) {
+   898→      setDisplay(to);
+   899→      return;
+   900→    }
+   901→    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+   902→    if (reduced) {
+   903→      setDisplay(to);
+   904→      return;
+   905→    }
+   906→    const start = performance.now();
+   907→    const dur = 700;
+   908→    let raf = 0;
+   909→    const tick = (t: number) => {
+   910→      const p = Math.min(1, (t - start) / dur);
+   911→      const eased = 1 - Math.pow(1 - p, 3);
+   912→      setDisplay(from + (to - from) * eased);
+   913→      if (p < 1) raf = requestAnimationFrame(tick);
+   914→    };
+   915→    raf = requestAnimationFrame(tick);
+   916→    return () => cancelAnimationFrame(raf);
+   917→  }, [value]);
+   918→  return <span className={className}>{format(display)}</span>;
+   919→}
+   920→
+   921→/* ────────────────────────────── Toast-friendly generic button w/ pending ────────────────────────────── */
+   922→
+   923→export function ActionButton({
+   924→  children,
+   925→  pending,
+   926→  className,
+   927→  ...props
+   928→}: React.ComponentProps<typeof Button> & { pending?: boolean }) {
+   929→  return (
+   930→    <Button className={cn("rounded-2xl", className)} disabled={pending || props.disabled} {...props}>
+   931→      {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   932→      {children}
+   933→    </Button>
+   934→  );
+   935→}
+   936→
+   937→/* ────────────────────────────── Key-value chips ────────────────────────────── */
+   938→
+   939→export function Chip({ children, tone = "gray", className }: { children: React.ReactNode; tone?: Tone; className?: string }) {
+   940→  return <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium", TONE_STYLES[tone], className)}>{children}</span>;
+   941→}
+   942→
+   943→/* ────────────────────────────── Tooltip helper (icon button) ────────────────────────────── */
+   944→
+   945→export function TipIconButton({
+   946→  tip,
+   947→  children,
+   948→  className,
+   949→  ...props
+   950→}: React.ComponentProps<typeof Button> & { tip: string; children: React.ReactNode }) {
+   951→  return (
+   952→    <Tooltip>
+   953→      <TooltipTrigger asChild>
+   954→        <Button variant="ghost" size="icon" className={cn("h-8 w-8 rounded-xl text-[color:var(--ink-soft)] hover:bg-white/70", className)} {...props}>
+   955→          {children}
+   956→        </Button>
+   957→      </TooltipTrigger>
+   958→      <TooltipContent side="top" className="rounded-xl border-white/70 bg-white/90 text-[color:var(--ink)] shadow-lg backdrop-blur">
+   959→        {tip}
+   960→      </TooltipContent>
+   961→    </Tooltip>
+   962→  );
+   963→}
+   964→
+   965→/* ────────────────────────────── AnimatePresence list helper ────────────────────────────── */
+   966→
+   967→export function FadeList({ children, className }: { children: React.ReactNode; className?: string }) {
+   968→  return (
+   969→    <AnimatePresence mode="popLayout">
+   970→      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25 }} className={className}>
+   971→        {children}
+   972→      </motion.div>
+   973→    </AnimatePresence>
+   974→  );
+   975→}
+   976→
+   977→export { fmtDate };
+   978→
