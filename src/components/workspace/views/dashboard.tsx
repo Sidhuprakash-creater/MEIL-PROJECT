@@ -224,7 +224,7 @@ function StatusCard({
             boxShadow: `0 4px 10px ${hue}44, inset 0 1px 0 rgba(255,255,255,0.4)`,
           }}
         >
-          <Icon className="h-[18px] w-[18px]" hue={hue} />
+          <Icon className="h-[18px] w-[18px] text-white" />
         </span>
         <MiniRing value={sharePct} tone={hue} size={54} stroke={6} />
       </div>

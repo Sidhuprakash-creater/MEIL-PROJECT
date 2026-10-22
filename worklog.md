@@ -244,3 +244,23 @@ Stage Summary:
 - Command Center uses a custom premium duotone icon set end-to-end; People tile shows live "N active now".
 - Users screen shows live presence everywhere (stat strip, filter, avatar dots, rows, mobile cards, detail pill, CSV).
 - Presence definition: ACTIVE account with lastActiveAt < 30 min = "Active now"; < 12h "Active today"; < 36h "Away"; else offline.
+
+---
+Task ID: 4
+Agent: Lead (Z.ai Code main)
+Task: Icon visibility redesign (iOS / SF Symbols style) + independent scroll containers (nav bar never scrolls with content) + scroll-chaining containment
+
+Work Log:
+- Root-caused "icons not properly visible": (a) duotone gradient strokes (1.7px, hue→darken 0.62) rendered muddy/faint at 16–20px on glass; (b) StatusCard in dashboard.tsx rendered hue-colored glyphs ON a dark gradient tile of the same hue (colored-on-colored ≈ invisible).
+- REWROTE src/components/workspace/premium-icons.tsx as an iOS / SF Symbols–inspired set (22 icons, same export names + 4 new: BellIcon, NetworkIcon, ShieldIcon, GearIcon): bold 2px rounded strokes (SF "medium" weight), SOLID single-color glyphs via `hue` prop or currentColor (no gradients, no dark stops), one solid accent shape per icon for the iOS two-tone feel, shared IosIcon frame (fills layer behind lines layer, size prop, aria-hidden).
+- shell.tsx: VIEW_ICONS remapped to the iOS set for all 18 modules (dashboard=GaugeIcon, notifications=BellIcon, hierarchy=NetworkIcon, subsidiaries=OrgIcon, units=UnitsIcon, projects=ProjectsIcon, users=PeopleIcon, roles=ShieldIcon, submissions=FilesIcon, approvals=CheckSealIcon, tasks=TaskCheckIcon, comms=MegaphoneIcon, brsr=ReportChartIcon, consolidation=DatabaseIcon, analytics=TrendIcon, activity=PulseIcon, audit=FileCheckIcon, settings=GearIcon) — sidebar, command palette and quick actions now speak one premium iOS icon language; NotificationBell → BellIcon; profile "My audit trail" → FileCheckIcon; trimmed unused lucide imports.
+- dashboard.tsx StatusCard: glyph now renders text-white on the hue gradient tile (iOS app-icon look — white bold glyph on colored squircle) instead of hue-on-hue.
+- SCROLL FIX (shell.tsx rebuilt as app frame): root div `min-h-screen` → `h-dvh overflow-hidden`; sidebar `sticky top-3` → full-height flex chrome (my-3, stretches minus margins) with its own internal nav scroll; TopBar header `sticky top-3` → static `shrink-0` chrome; <main> is now the ONLY scroll container (`min-h-0 flex-1 overflow-y-auto nice-scroll overscroll-contain`); footer moved to fixed chrome (`shrink-0 mx-3 mt-3`) — always pinned to viewport bottom, content scrolls above it, never overlaps. Top bar + sidebar + footer stay perfectly still while content or any inner list scrolls.
+- globals.css: `.nice-scroll` gained `overscroll-behavior: contain` — scrolling inside dropdowns/notification lists/tables/panels can no longer chain-scroll the shell or main area.
+- hierarchy.tsx: inline detail panel sticky offset retuned for the app frame (`xl:top-24` → `xl:top-4`, `100vh` → `100dvh`).
+- QA: `bun run lint` 0 problems; `bunx tsc --noEmit` clean in src/; agent-browser verification — dashboard: 0 console errors, iOS icons crisp in sidebar/topbar/status cards/hero tiles, body NOT scrollable (`scrollingElement.scrollHeight <= innerHeight`), main scrolls to 500 while header/sidebar/footer remain pixel-still, `overscroll-behavior: contain` confirmed on main; hierarchy: status cards + canvas + node tree render, canvas pan-drag moves diagram with connectors staying attached, subsidiary node click opens detail panel (MEIL Global Holdings stats + Open full profile), sticky panel aligned; users: presence strip (31/0/12/18) with white iOS glyphs on gradient tiles, presence dots in rows; mobile 390×844: fixed top bar, 2×2 presence grid, drawer opens/closes with iOS icons, only main scrolls; dev.log fresh loads clean (Fast Refresh notices were HMR during edits only).
+
+Stage Summary:
+- Icons are now premium iOS / SF Symbols style: bold solid-color 2px glyphs, high-contrast on every surface; white glyphs on gradient tiles for app-icon-style cards; one unified icon language across sidebar, topbar, command palette, headers, and cards.
+- Scroll architecture is now a true app frame: the nav bar, sidebar, and footer are fixed chrome that NEVER scroll; only the main content area scrolls, and inner lists contain their scroll (no chaining). Footer is permanently pinned to the bottom of the viewport.
+- No functional regressions: drag-pan/zoom/diagram modes, node detail panel, status-card routing, presence features, and mobile drawer all re-verified working.

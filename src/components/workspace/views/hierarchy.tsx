@@ -2281,7 +2281,7 @@ export default function HierarchyView() {
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 24 }}
                 transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                className="hidden xl:sticky xl:top-24 xl:block xl:h-[calc(100vh-140px)]"
+                className="hidden xl:sticky xl:top-4 xl:block xl:h-[calc(100dvh-140px)]"
               >
                 <GlassCard strong className="h-full overflow-hidden rounded-[24px]">
                   {panel(false)}

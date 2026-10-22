@@ -234,6 +234,11 @@
 }
 
 /* Soft scrollbars */
+/* overscroll-behavior: contain — scrolling inside any inner list (dropdowns,
+   panels, tables) must never chain-scroll the shell or the main content area. */
+.nice-scroll {
+  overscroll-behavior: contain;
+}
 .nice-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;

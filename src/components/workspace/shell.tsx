@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import {
-  Activity, AlertTriangle, ArrowRight, BadgeCheck, Bell, Building2, ChevronDown, ChevronsLeft, ChevronsRight,
-  ClipboardList, Command, FileBarChart, FileCheck2, Filter, FolderTree, LayoutDashboard, Landmark, Layers,
-  LogOut, Megaphone, Menu, Search, Settings, ShieldCheck, Sparkles, Users, Waves, X,
+  Building2, ChevronDown, ChevronsLeft, ChevronsRight, Command, LogOut, Menu, Search, Settings, Sparkles, X,
 } from "lucide-react";
+import {
+  AlarmAlertIcon, BellIcon, CheckSealIcon, DatabaseIcon, FileCheckIcon, FilesIcon, GaugeIcon, GearIcon,
+  MegaphoneIcon, NetworkIcon, OrgIcon, PeopleIcon, ProjectsIcon, PulseIcon, ReportChartIcon, ShieldIcon,
+  TaskCheckIcon, TrendIcon, UnitsIcon, UserPlusIcon,
+} from "@/components/workspace/premium-icons";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,26 +23,28 @@ import type { ViewId } from "@/lib/esg/types";
 import { useApi, timeAgo } from "@/lib/esg/client";
 import type { Notification } from "@/lib/esg/types";
 
-/* Map view ids to icons */
+/* Map view ids to the premium iOS icon set — one visual language across
+   sidebar, command palette and view headers. Bold 2px solid-color glyphs
+   (SF Symbols style) stay crisp on glass at every size. */
 export const VIEW_ICONS: Record<ViewId, React.ComponentType<{ className?: string }>> = {
-  dashboard: LayoutDashboard,
-  notifications: Bell,
-  hierarchy: FolderTree,
-  subsidiaries: Landmark,
-  units: Layers,
-  projects: Building2,
-  users: Users,
-  roles: ShieldCheck,
-  submissions: ClipboardList,
-  approvals: FileCheck2,
-  tasks: BadgeCheck,
-  comms: Megaphone,
-  brsr: FileBarChart,
-  consolidation: Filter,
-  analytics: Activity,
-  activity: Waves,
-  audit: FileCheck2,
-  settings: Settings,
+  dashboard: GaugeIcon,
+  notifications: BellIcon,
+  hierarchy: NetworkIcon,
+  subsidiaries: OrgIcon,
+  units: UnitsIcon,
+  projects: ProjectsIcon,
+  users: PeopleIcon,
+  roles: ShieldIcon,
+  submissions: FilesIcon,
+  approvals: CheckSealIcon,
+  tasks: TaskCheckIcon,
+  comms: MegaphoneIcon,
+  brsr: ReportChartIcon,
+  consolidation: DatabaseIcon,
+  analytics: TrendIcon,
+  activity: PulseIcon,
+  audit: FileCheckIcon,
+  settings: GearIcon,
 };
 
 const SUBSIDIARIES_LIGHT: { id: string; name: string }[] = [];
@@ -152,7 +156,7 @@ function NotificationBell() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="glass-subtle relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all hover:bg-white/75" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
-          <Bell className="h-[18px] w-[18px] text-[color:var(--ink-soft)]" />
+          <BellIcon className="h-[18px] w-[18px] text-[color:var(--ink-soft)]" />
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#c34a4a] px-1 text-[10px] font-bold text-white shadow-md ring-2 ring-white/80">
               {unreadCount}
@@ -215,16 +219,16 @@ function GlobalSearch({ trigger }: { trigger: React.ReactNode }) {
           </CommandGroup>
           <CommandGroup heading="Quick actions">
             <CommandItem onSelect={() => navigate("users", { create: Date.now() })}>
-              <Users className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Invite a new user
+              <UserPlusIcon className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Invite a new user
             </CommandItem>
             <CommandItem onSelect={() => navigate("tasks", { create: Date.now() })}>
-              <BadgeCheck className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Assign a reporting task
+              <TaskCheckIcon className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Assign a reporting task
             </CommandItem>
             <CommandItem onSelect={() => navigate("brsr", { wizard: Date.now() })}>
-              <FileBarChart className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Create new BRSR report
+              <ReportChartIcon className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Create new BRSR report
             </CommandItem>
             <CommandItem onSelect={() => navigate("comms", { create: Date.now() })}>
-              <Megaphone className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Send an announcement
+              <MegaphoneIcon className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Send an announcement
             </CommandItem>
           </CommandGroup>
         </CommandList>
@@ -240,7 +244,7 @@ function TopBar() {
   const detailMode = !!params.detailId;
 
   return (
-    <header className="glass-chrome glass-sheen sticky top-3 z-30 mx-3 flex items-center gap-2 rounded-3xl px-3 py-2.5 sm:mx-4 sm:gap-3 sm:px-4">
+    <header className="glass-chrome glass-sheen z-30 mx-3 flex shrink-0 items-center gap-2 rounded-3xl px-3 py-2.5 sm:mx-4 sm:gap-3 sm:px-4">
       <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-2xl hover:bg-white/70 lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation">
         <Menu className="h-5 w-5" />
       </Button>
@@ -330,7 +334,7 @@ function TopBar() {
               <Settings className="mr-2 h-4 w-4" /> Settings & Configuration
             </DropdownMenuItem>
             <DropdownMenuItem className="rounded-xl text-[13px]" onClick={() => useWorkspace.getState().navigate("audit")}>
-              <FileCheck2 className="mr-2 h-4 w-4" /> My audit trail
+              <FileCheckIcon className="mr-2 h-4 w-4" /> My audit trail
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[rgba(125,177,216,0.3)]" />
             <DropdownMenuItem className="rounded-xl text-[13px] text-[#a53b3b] data-[highlighted]:bg-[rgba(195,74,74,0.08)]" disabled>
@@ -363,8 +367,12 @@ export function WorkspaceShell() {
   // Module-scope lazy components — stable identity per view, never recreated during render.
   const ViewComponent = VIEW_COMPONENTS[view];
 
+  /* App-frame layout: the shell (sidebar + top bar + footer) is a fixed-height
+     chrome that never scrolls — ONLY <main> scrolls. This keeps navigation
+     perfectly still while content (or any inner list) scrolls independently,
+     and stops backdrop-filter chrome from re-sampling on every scroll frame. */
   return (
-    <div className="relative min-h-screen">
+    <div className="relative h-dvh overflow-hidden">
       {/* Ambient orbs are intentionally static — animating them would force every
           backdrop-filter glass surface to re-sample its backdrop every frame. */}
       <div className="liquid-sky" aria-hidden="true">
@@ -374,11 +382,11 @@ export function WorkspaceShell() {
       </div>
       <div className="liquid-grain" aria-hidden="true" />
 
-      <div className="relative z-10 flex min-h-screen">
-        {/* Desktop sidebar */}
+      <div className="relative z-10 flex h-full">
+        {/* Desktop sidebar — full-height chrome with its own internal nav scroll */}
         <aside
           className={cn(
-            "glass-chrome sticky top-3 z-20 my-3 ml-3 hidden shrink-0 flex-col rounded-3xl transition-[width] duration-300 lg:flex",
+            "glass-chrome z-20 my-3 ml-3 hidden shrink-0 flex-col rounded-3xl transition-[width] duration-300 lg:flex",
             sidebarCollapsed ? "w-[84px]" : "w-[264px]"
           )}
           aria-label="Sidebar"
@@ -411,10 +419,13 @@ export function WorkspaceShell() {
           )}
         </AnimatePresence>
 
-        {/* Main column */}
-        <div className="flex min-w-0 flex-1 flex-col pb-4">
+        {/* Main column — top bar and footer are fixed chrome; only <main> scrolls */}
+        <div className="flex h-full min-w-0 flex-1 flex-col pb-3 pt-3">
           <TopBar />
-          <main className="flex-1 px-3 pt-4 sm:px-4" id="main-content">
+          <main
+            className="nice-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-4 sm:px-4"
+            id="main-content"
+          >
             <React.Suspense
               fallback={
                 <div className="glass glass-sheen flex h-64 items-center justify-center rounded-3xl">
@@ -427,7 +438,7 @@ export function WorkspaceShell() {
               <ViewComponent />
             </React.Suspense>
           </main>
-          <footer className="mx-3 mt-6 sm:mx-4">
+          <footer className="mx-3 mt-3 shrink-0 sm:mx-4">
             <div className="glass-subtle flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 text-[11.5px] text-[color:var(--ink-faint)]">
               <span>MEIL ESG &amp; BRSR Platform · Group Admin Workspace</span>
               <span className="flex items-center gap-1.5">
