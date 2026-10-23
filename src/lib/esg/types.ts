@@ -413,6 +413,24 @@ export interface ConsolidationData {
   anomalies: { ref: string; title: string; metricName: string; metricValue: number; metricUnit: string; expected: string; deviationPct: number; severity: string }[];
   lineage: { ref: string; title: string; status: string; org: string; period: string; evidenceCount: number; usedInReports: string[] }[];
   aggregation: { label: string; scope1: number; scope2: number; energy: number; water: number; waste: number; raw: number; validated: number; approved: number; consolidated: number }[];
+  /* Reporting packages submitted by Subsidiary Admins — the Group reviews them here. */
+  packages: {
+    id: string;
+    ref: string;
+    title: string;
+    subsidiaryName: string;
+    period: string;
+    status: string;
+    readinessPct: number;
+    approved: number;
+    pending: number;
+    missing: number;
+    sourceCount: number;
+    submittedBy: string;
+    submittedAt: string | null;
+    groupFeedback: string;
+    updatedAt: string;
+  }[];
 }
 
 export interface RolesData {

@@ -38,6 +38,7 @@ model BusinessUnit {
   status       String     @default("ACTIVE")
   managerName  String     @default("")
   adminName    String     @default("")
+  description  String     @default("")
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   projects     Project[]
@@ -188,13 +189,14 @@ model Task {
 
 model Notification {
   id       String   @id @default(cuid())
-  ntype    String   // DEADLINE | OVERDUE | SUBMISSION | APPROVAL | DATA_QUALITY | SYSTEM
+  ntype    String   // DEADLINE | OVERDUE | SUBMISSION | APPROVAL | DATA_QUALITY | SYSTEM | PACKAGE | MESSAGE | EVIDENCE | VALIDATION
   title    String
   body     String   @default("")
   severity String   @default("INFO") // INFO | SUCCESS | WARNING | CRITICAL
   read     Boolean  @default(false)
   linkView String   @default("dashboard")
   refId    String   @default("")
+  subsidiaryId String? // null = group-wide (Group Admin); set = subsidiary-scoped
   createdAt DateTime @default(now())
 }
 
@@ -283,6 +285,103 @@ model AuditEvent {
   outcome     String   @default("SUCCESS") // SUCCESS | FAILURE | DENIED
   correlation String   @default("")
   createdAt   DateTime @default(now())
+}
+
+// ─── Subsidiary workspace: reporting timelines (deadline inheritance) ───────
+
+model ReportingTimeline {
+  id              String    @id @default(cuid())
+  ref             String    @unique
+  name            String
+  period          String    @default("FY 2025-26")
+  level           String    // SUBSIDIARY | BUSINESS_UNIT | PROJECT
+  subsidiaryId    String
+  businessUnitId  String?
+  projectId       String?
+  startDate       DateTime
+  dueDate         DateTime?
+  reviewDeadline  DateTime?
+  categories      String    @default("[]") // JSON array of category codes
+  inheritanceMode String    @default("INHERIT") // INHERIT | OVERRIDE
+  overrideReason  String    @default("") // required when OVERRIDE
+  notify          Boolean   @default(true)
+  status          String    @default("ACTIVE") // ACTIVE | CLOSED
+  createdByName   String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([subsidiaryId])
+  @@index([period])
+}
+
+// ─── Subsidiary workspace: reporting packages submitted to Group ────────────
+
+model ReportingPackage {
+  id             String    @id @default(cuid())
+  ref            String    @unique
+  title          String
+  subsidiaryId   String
+  subsidiaryName String    @default("")
+  period         String    @default("FY 2025-26")
+  status         String    @default("DRAFT") // DRAFT | SUBMITTED | UNDER_GROUP_REVIEW | APPROVED | CHANGES_REQUESTED
+  readinessPct   Int       @default(0)
+  summary        String    @default("{}") // JSON {approved, pending, missing, metrics:{name,value,unit}[]}
+  sourceRefs     String    @default("[]") // JSON array of submission refs
+  submittedAt    DateTime?
+  submittedBy    String    @default("")
+  groupFeedback  String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([subsidiaryId])
+}
+
+// ─── Subsidiary workspace: data validation issues ───────────────────────────
+
+model ValidationIssue {
+  id             String    @id @default(cuid())
+  ref            String    @unique
+  severity       String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  rule           String    // MISSING_FIELD | MISSING_EVIDENCE | DUPLICATE | UNIT_MISMATCH | PERIOD_MISMATCH | UNAPPROVED_SOURCE | MISSING_SUBMISSION | CALCULATION_EXCEPTION
+  description    String
+  subsidiaryId   String
+  businessUnitId String?
+  projectId      String?
+  submissionId   String?
+  submissionRef  String    @default("")
+  period         String    @default("FY 2025-26")
+  responsibleName String   @default("")
+  status         String    @default("OPEN") // OPEN | ASSIGNED | RESOLVED | WAIVED
+  ownerName      String    @default("")
+  resolveNote    String    @default("")
+  detectedAt     DateTime  @default(now())
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([subsidiaryId])
+}
+
+// ─── Subsidiary workspace: evidence & document repository ───────────────────
+
+model EvidenceDoc {
+  id             String   @id @default(cuid())
+  name           String
+  fileType       String   @default("PDF") // PDF | XLSX | CSV | IMAGE | DOCX
+  sizeKb         Int      @default(0)
+  version        Int      @default(1)
+  subsidiaryId   String
+  businessUnitId String?
+  projectId      String?
+  submissionId   String?
+  submissionRef  String   @default("")
+  disclosureRef  String   @default("")
+  uploadedBy     String   @default("")
+  status         String   @default("VALID") // VALID | MISSING | EXPIRED
+  uploadedAt     DateTime @default(now())
+
+  @@index([subsidiaryId])
+  @@index([submissionId])
 }
 
 // ─── System settings ───

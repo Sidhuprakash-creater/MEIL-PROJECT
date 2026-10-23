@@ -1,0 +1,685 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→// ── SCREEN 05 — Business Unit Management ──
+     4→     4→import { useEffect, useMemo, useState } from "react";
+     5→     5→import {
+     6→     6→  Activity as ActivityIcon,
+     7→     7→  ArrowLeft,
+     8→     8→  Building2,
+     9→     9→  CheckCircle2,
+    10→    10→  ClipboardList,
+    11→    11→  Gauge,
+    12→    12→  Landmark,
+    13→    13→  Layers,
+    14→    14→  MoreHorizontal,
+    15→    15→  Pencil,
+    16→    16→  Plus,
+    17→    17→  Power,
+    18→    18→  Users,
+    19→    19→} from "lucide-react";
+    20→    20→import { Button } from "@/components/ui/button";
+    21→    21→import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+    22→    22→import { Input } from "@/components/ui/input";
+    23→    23→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    24→    24→import { useWorkspace } from "@/lib/esg/store";
+    25→    25→import { apiDelete, apiPatch, apiPost, fmtDate, timeAgo, useApi, useMutation } from "@/lib/esg/client";
+    26→    26→import type { BusinessUnit, Project, Submission, User } from "@/lib/esg/types";
+    27→    27→import { ROLE_LABELS } from "@/lib/esg/types";
+    28→    28→import {
+    29→    29→  ActionButton,
+    30→    30→  Chip,
+    31→    31→  Column,
+    32→    32→  ConfirmDialog,
+    33→    33→  DataTable,
+    34→    34→  ExportButton,
+    35→    35→  Field,
+    36→    36→  GlassDialog,
+    37→    37→  GlassProgress,
+    38→    38→  GlassTabBar,
+    39→    39→  InfoRow,
+    40→    40→  KpiCard,
+    41→    41→  PageHeader,
+    42→    42→  SectionCard,
+    43→    43→  StatusBadge,
+    44→    44→  Toolbar,
+    45→    45→} from "@/components/workspace/ui";
+    46→    46→import { useToast } from "@/hooks/use-toast";
+    47→    47→
+    48→    48→/* ────────────────────────────── shared cells ────────────────────────────── */
+    49→    49→
+    50→    50→function StatsCell({ st }: { st?: { total: number; approved: number; pending: number; overdue: number } }) {
+    51→    51→  return (
+    52→    52→    <div className="flex items-center gap-1.5">
+    53→    53→      <span className="tabular text-[13px] font-medium text-[color:var(--ink-soft)]">{st ? `${st.approved}/${st.total}` : "0/0"}</span>
+    54→    54→      {st && st.overdue > 0 && <Chip tone="red">{st.overdue} overdue</Chip>}
+    55→    55→    </div>
+    56→    56→  );
+    57→    57→}
+    58→    58→
+    59→    59→/* ────────────────────────────── create / edit dialog ────────────────────────────── */
+    60→    60→
+    61→    61→interface UnitForm {
+    62→    62→  name: string;
+    63→    63→  subsidiaryId: string;
+    64→    64→  code: string;
+    65→    65→  managerName: string;
+    66→    66→  adminName: string;
+    67→    67→  status: string;
+    68→    68→}
+    69→    69→
+    70→    70→const EMPTY_FORM: UnitForm = { name: "", subsidiaryId: "", code: "", managerName: "", adminName: "", status: "ACTIVE" };
+    71→    71→
+    72→    72→const inputCls = "glass-subtle rounded-2xl border-white/60 text-sm";
+    73→    73→
+    74→    74→function UnitForm({
+    75→    75→  editing,
+    76→    76→  subsidiaries,
+    77→    77→  subsLoading,
+    78→    78→  pending,
+    79→    79→  onSubmit,
+    80→    80→  onCancel,
+    81→    81→}: {
+    82→    82→  editing: BusinessUnit | null;
+    83→    83→  subsidiaries: { id: string; name: string }[];
+    84→    84→  subsLoading: boolean;
+    85→    85→  pending: boolean;
+    86→    86→  onSubmit: (form: UnitForm) => void;
+    87→    87→  onCancel: () => void;
+    88→    88→}) {
+    89→    89→  const [form, setForm] = useState<UnitForm>(() =>
+    90→    90→    editing
+    91→    91→      ? {
+    92→    92→          name: editing.name,
+    93→    93→          subsidiaryId: editing.subsidiaryId,
+    94→    94→          code: editing.code,
+    95→    95→          managerName: editing.managerName ?? "",
+    96→    96→          adminName: editing.adminName ?? "",
+    97→    97→          status: editing.status,
+    98→    98→        }
+    99→    99→      : EMPTY_FORM
+   100→   100→  );
+   101→   101→  const [errors, setErrors] = useState<{ name?: string; subsidiaryId?: string }>({});
+   102→   102→
+   103→   103→  const set = (k: keyof UnitForm) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+   104→   104→
+   105→   105→  const submit = () => {
+   106→   106→    const errs: { name?: string; subsidiaryId?: string } = {};
+   107→   107→    if (form.name.trim().length < 2) errs.name = "Name is required (min 2 characters).";
+   108→   108→    if (!form.subsidiaryId) errs.subsidiaryId = "Parent subsidiary is required.";
+   109→   109→    setErrors(errs);
+   110→   110→    if (Object.keys(errs).length > 0) return;
+   111→   111→    onSubmit({ ...form, name: form.name.trim() });
+   112→   112→  };
+   113→   113→
+   114→   114→  return (
+   115→   115→    <>
+   116→   116→      <div className="grid gap-4 sm:grid-cols-2">
+   117→   117→        <Field label="Parent subsidiary" required error={errors.subsidiaryId}>
+   118→   118→          <Select value={form.subsidiaryId} onValueChange={set("subsidiaryId")}>
+   119→   119→            <SelectTrigger className={`${inputCls} w-full`} aria-label="Parent subsidiary">
+   120→   120→              <SelectValue placeholder={subsLoading ? "Loading subsidiaries…" : "Select subsidiary"} />
+   121→   121→            </SelectTrigger>
+   122→   122→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+   123→   123→              {subsidiaries.map((s) => (
+   124→   124→                <SelectItem key={s.id} value={s.id}>
+   125→   125→                  {s.name}
+   126→   126→                </SelectItem>
+   127→   127→              ))}
+   128→   128→            </SelectContent>
+   129→   129→          </Select>
+   130→   130→        </Field>
+   131→   131→        <Field label="Name" required error={errors.name} htmlFor="bu-name">
+   132→   132→          <Input id="bu-name" value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="e.g. Roads & Highways" className={inputCls} />
+   133→   133→        </Field>
+   134→   134→        <Field label="Code" hint="Auto-generated when left blank" htmlFor="bu-code">
+   135→   135→          <Input id="bu-code" value={form.code} onChange={(e) => set("code")(e.target.value)} placeholder="e.g. BU-RDH" className={inputCls} />
+   136→   136→        </Field>
+   137→   137→        <Field label="Manager name" htmlFor="bu-manager">
+   138→   138→          <Input id="bu-manager" value={form.managerName} onChange={(e) => set("managerName")(e.target.value)} placeholder="e.g. Kiran Rao" className={inputCls} />
+   139→   139→        </Field>
+   140→   140→        <Field label="Admin name" htmlFor="bu-admin">
+   141→   141→          <Input id="bu-admin" value={form.adminName} onChange={(e) => set("adminName")(e.target.value)} placeholder="e.g. Sneha Nair" className={inputCls} />
+   142→   142→        </Field>
+   143→   143→        <Field label="Status">
+   144→   144→          <Select value={form.status} onValueChange={set("status")}>
+   145→   145→            <SelectTrigger className={`${inputCls} w-full`} aria-label="Status">
+   146→   146→              <SelectValue />
+   147→   147→            </SelectTrigger>
+   148→   148→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+   149→   149→              <SelectItem value="ACTIVE">Active</SelectItem>
+   150→   150→              <SelectItem value="INACTIVE">Inactive</SelectItem>
+   151→   151→            </SelectContent>
+   152→   152→          </Select>
+   153→   153→        </Field>
+   154→   154→      </div>
+   155→   155→      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+   156→   156→        <Button variant="outline" className="glass-subtle rounded-2xl" onClick={onCancel} disabled={pending}>
+   157→   157→          Cancel
+   158→   158→        </Button>
+   159→   159→        <ActionButton pending={pending} onClick={submit}>
+   160→   160→          {editing ? "Save changes" : "Create unit"}
+   161→   161→        </ActionButton>
+   162→   162→      </div>
+   163→   163→    </>
+   164→   164→  );
+   165→   165→}
+   166→   166→
+   167→   167→function UnitDialog({
+   168→   168→  open,
+   169→   169→  onOpenChange,
+   170→   170→  editing,
+   171→   171→  subsidiaries,
+   172→   172→  subsLoading,
+   173→   173→  pending,
+   174→   174→  onSubmit,
+   175→   175→}: {
+   176→   176→  open: boolean;
+   177→   177→  onOpenChange: (o: boolean) => void;
+   178→   178→  editing: BusinessUnit | null;
+   179→   179→  subsidiaries: { id: string; name: string }[];
+   180→   180→  subsLoading: boolean;
+   181→   181→  pending: boolean;
+   182→   182→  onSubmit: (form: UnitForm) => void;
+   183→   183→}) {
+   184→   184→  return (
+   185→   185→    <GlassDialog
+   186→   186→      open={open}
+   187→   187→      onOpenChange={onOpenChange}
+   188→   188→      wide
+   189→   189→      title={editing ? "Edit business unit" : "New business unit"}
+   190→   190→      description={editing ? `Update details for ${editing.name}.` : "Create a business unit under a subsidiary."}
+   191→   191→    >
+   192→   192→      {open && (
+   193→   193→        <UnitForm
+   194→   194→          key={editing?.id ?? "new"}
+   195→   195→          editing={editing}
+   196→   196→          subsidiaries={subsidiaries}
+   197→   197→          subsLoading={subsLoading}
+   198→   198→          pending={pending}
+   199→   199→          onSubmit={onSubmit}
+   200→   200→          onCancel={() => onOpenChange(false)}
+   201→   201→        />
+   202→   202→      )}
+   203→   203→    </GlassDialog>
+   204→   204→  );
+   205→   205→}
+   206→   206→
+   207→   207→/* ────────────────────────────── detail tabs ────────────────────────────── */
+   208→   208→
+   209→   209→type UnitTab = "overview" | "projects" | "users" | "submissions" | "activity";
+   210→   210→
+   211→   211→function UnitDetail({ unit, onBack, onEdit }: { unit: BusinessUnit; onBack: () => void; onEdit: (u: BusinessUnit) => void }) {
+   212→   212→  const { navigate, openDetail, params } = useWorkspace();
+   213→   213→  const [tab, setTab] = useState<UnitTab>((params.detailTab as UnitTab) ?? "overview");
+   214→   214→
+   215→   215→  const projectsRes = useApi<{ projects: Project[] }>(unit ? "/api/esg/org?type=projects" : null);
+   216→   216→  const usersRes = useApi<{ users: User[] }>(unit ? "/api/esg/users" : null);
+   217→   217→  const subsRes = useApi<{ submissions: Submission[] }>(unit ? "/api/esg/submissions" : null);
+   218→   218→
+   219→   219→  const projects = useMemo(() => (projectsRes.data?.projects ?? []).filter((p) => p.businessUnitId === unit.id), [projectsRes.data, unit.id]);
+   220→   220→  const users = useMemo(() => (usersRes.data?.users ?? []).filter((u) => u.businessUnitId === unit.id), [usersRes.data, unit.id]);
+   221→   221→  const submissions = useMemo(() => (subsRes.data?.submissions ?? []).filter((s) => s.businessUnitId === unit.id), [subsRes.data, unit.id]);
+   222→   222→
+   223→   223→  const activity = useMemo(
+   224→   224→    () =>
+   225→   225→      submissions
+   226→   226→        .flatMap((s) => s.history.map((h) => ({ ...h, ref: s.ref, title: s.title })))
+   227→   227→        .sort((a, b) => (a.at < b.at ? 1 : -1))
+   228→   228→        .slice(0, 20),
+   229→   229→    [submissions]
+   230→   230→  );
+   231→   231→
+   232→   232→  const st = unit.submissionStats;
+   233→   233→  const pct = st && st.total > 0 ? (st.approved / st.total) * 100 : 0;
+   234→   234→
+   235→   235→  const tabs: { value: UnitTab; label: string; icon: typeof Gauge; count?: number }[] = [
+   236→   236→    { value: "overview", label: "Overview", icon: Gauge },
+   237→   237→    { value: "projects", label: "Projects", icon: Building2, count: projects.length },
+   238→   238→    { value: "users", label: "Users", icon: Users, count: users.length },
+   239→   239→    { value: "submissions", label: "Submissions", icon: ClipboardList, count: submissions.length },
+   240→   240→    { value: "activity", label: "Activity", icon: ActivityIcon },
+   241→   241→  ];
+   242→   242→
+   243→   243→  return (
+   244→   244→    <div className="view-in space-y-5">
+   245→   245→      <div>
+   246→   246→        <Button variant="ghost" size="sm" className="mb-3 rounded-2xl text-[color:var(--ink-soft)]" onClick={onBack}>
+   247→   247→          <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden="true" /> Back to list
+   248→   248→        </Button>
+   249→   249→        <PageHeader
+   250→   250→          title={unit.name}
+   251→   251→          description={`Business unit of ${unit.subsidiaryName ?? "—"}`}
+   252→   252→          icon={Layers}
+   253→   253→          breadcrumbs={["Group", "Organization", "Business Units", unit.name]}
+   254→   254→          actions={
+   255→   255→            <>
+   256→   256→              <Chip tone="purple">{unit.code}</Chip>
+   257→   257→              <StatusBadge status={unit.status} />
+   258→   258→              <button
+   259→   259→                onClick={() => onEdit(unit)}
+   260→   260→                className="glass inline-flex h-10 items-center gap-1.5 rounded-2xl border-white/60 px-4 text-[13px] font-medium text-[color:var(--ink)] transition-colors hover:bg-white/70"
+   261→   261→              >
+   262→   262→                <Pencil className="h-3.5 w-3.5 text-[color:var(--esg-blue)]" aria-hidden="true" /> Edit
+   263→   263→              </button>
+   264→   264→            </>
+   265→   265→          }
+   266→   266→        />
+   267→   267→      </div>
+   268→   268→
+   269→   269→      <GlassTabBar tabs={tabs} value={tab} onChange={(v) => setTab(v as UnitTab)} />
+   270→   270→
+   271→   271→      {tab === "overview" && (
+   272→   272→        <div className="space-y-4">
+   273→   273→          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+   274→   274→            <KpiCard label="Projects & Sites" icon={Building2} tone="teal" value={unit.projectCount ?? 0} onClick={() => setTab("projects")} />
+   275→   275→            <KpiCard label="Users" icon={Users} tone="blue" value={unit.userCount ?? 0} onClick={() => setTab("users")} />
+   276→   276→            <KpiCard label="Submissions" icon={ClipboardList} tone="amber" value={st?.total ?? 0} onClick={() => setTab("submissions")} />
+   277→   277→            <KpiCard label="Overdue" icon={ActivityIcon} tone="red" value={st?.overdue ?? 0} onClick={() => setTab("submissions")} />
+   278→   278→          </div>
+   279→   279→          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+   280→   280→            <SectionCard title="Profile" description="Master data for this business unit" icon={Layers}>
+   281→   281→              <div className="divide-y divide-[rgba(125,177,216,0.16)]">
+   282→   282→                <InfoRow label="Code"><Chip tone="purple">{unit.code}</Chip></InfoRow>
+   283→   283→                <InfoRow label="Subsidiary">{unit.subsidiaryName ?? "—"}</InfoRow>
+   284→   284→                <InfoRow label="Manager">{unit.managerName || "—"}</InfoRow>
+   285→   285→                <InfoRow label="Admin">{unit.adminName || "—"}</InfoRow>
+   286→   286→                <InfoRow label="Status"><StatusBadge status={unit.status} /></InfoRow>
+   287→   287→              </div>
+   288→   288→            </SectionCard>
+   289→   289→            <SectionCard title="Submission progress" description="Approved share of all submissions" icon={ClipboardList}>
+   290→   290→              <div className="flex flex-col gap-4">
+   291→   291→                <div>
+   292→   292→                  <div className="mb-2 flex items-center justify-between text-[13px]">
+   293→   293→                    <span className="font-medium text-[color:var(--ink-soft)]">Approved</span>
+   294→   294→                    <span className="tabular font-semibold text-[color:var(--ink)]">{st?.approved ?? 0} of {st?.total ?? 0}</span>
+   295→   295→                  </div>
+   296→   296→                  <GlassProgress value={pct} tone={st && st.overdue > 0 ? "amber" : "green"} showLabel />
+   297→   297→                </div>
+   298→   298→                <div className="flex flex-wrap gap-2">
+   299→   299→                  <Chip tone="amber">{st?.pending ?? 0} pending review</Chip>
+   300→   300→                  <Chip tone={st && st.overdue > 0 ? "red" : "green"}>{st?.overdue ?? 0} overdue</Chip>
+   301→   301→                </div>
+   302→   302→                {activity.length > 0 && (
+   303→   303→                  <div>
+   304→   304→                    <div className="mb-2 text-[13px] font-semibold text-[color:var(--ink)]">Latest events</div>
+   305→   305→                    <ul className="flex flex-col gap-1.5">
+   306→   306→                      {activity.slice(0, 5).map((h, i) => (
+   307→   307→                        <li key={i} className="flex items-center justify-between gap-2 text-xs text-[color:var(--ink-faint)]">
+   308→   308→                          <span className="truncate">
+   309→   309→                            <span className="font-medium text-[color:var(--ink-soft)]">{h.actor}</span> · {h.action.replaceAll("_", " ").toLowerCase()} · {h.title}
+   310→   310→                          </span>
+   311→   311→                          <span className="shrink-0">{timeAgo(h.at)}</span>
+   312→   312→                        </li>
+   313→   313→                      ))}
+   314→   314→                    </ul>
+   315→   315→                  </div>
+   316→   316→                )}
+   317→   317→              </div>
+   318→   318→            </SectionCard>
+   319→   319→          </div>
+   320→   320→        </div>
+   321→   321→      )}
+   322→   322→
+   323→   323→      {tab === "projects" && (
+   324→   324→        <DataTable<Project>
+   325→   325→          columns={[
+   326→   326→            { key: "code", header: "Code", render: (r) => <Chip tone="teal">{r.code}</Chip> },
+   327→   327→            { key: "name", header: "Project / Site", render: (r) => <span className="font-semibold text-[color:var(--ink)]">{r.name}</span> },
+   328→   328→            { key: "location", header: "Location", render: (r) => r.location || "—" },
+   329→   329→            { key: "type", header: "Type", render: (r) => <Chip tone="gray">{r.ptype.replaceAll("_", " ")}</Chip> },
+   330→   330→            { key: "subs", header: "Submissions", render: (r) => <StatsCell st={r.submissionStats} /> },
+   331→   331→            { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+   332→   332→          ]}
+   333→   333→          rows={projects}
+   334→   334→          loading={projectsRes.loading}
+   335→   335→          error={projectsRes.error}
+   336→   336→          onRetry={projectsRes.refetch}
+   337→   337→          onRowClick={(r) => openDetail("projects", r.id, "overview")}
+   338→   338→          emptyTitle="No projects"
+   339→   339→          emptyMessage="Projects registered under this business unit will appear here."
+   340→   340→        />
+   341→   341→      )}
+   342→   342→
+   343→   343→      {tab === "users" && (
+   344→   344→        <DataTable<User>
+   345→   345→          columns={[
+   346→   346→            {
+   347→   347→              key: "name",
+   348→   348→              header: "User",
+   349→   349→              render: (r) => (
+   350→   350→                <div>
+   351→   351→                  <div className="font-semibold text-[color:var(--ink)]">{r.name}</div>
+   352→   352→                  <div className="text-xs text-[color:var(--ink-faint)]">{r.email}</div>
+   353→   353→                </div>
+   354→   354→              ),
+   355→   355→            },
+   356→   356→            { key: "role", header: "Role", render: (r) => ROLE_LABELS[r.role] ?? r.role.replaceAll("_", " ") },
+   357→   357→            { key: "title", header: "Title", render: (r) => r.title || "—" },
+   358→   358→            { key: "subs", header: "Submissions", render: (r) => <StatsCell st={r.submissionStats} /> },
+   359→   359→            { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+   360→   360→          ]}
+   361→   361→          rows={users}
+   362→   362→          loading={usersRes.loading}
+   363→   363→          error={usersRes.error}
+   364→   364→          onRetry={usersRes.refetch}
+   365→   365→          onRowClick={(r) => navigate("users", { detailId: r.id })}
+   366→   366→          emptyTitle="No users"
+   367→   367→          emptyMessage="Users assigned to this business unit will be listed here."
+   368→   368→        />
+   369→   369→      )}
+   370→   370→
+   371→   371→      {tab === "submissions" && (
+   372→   372→        <DataTable<Submission>
+   373→   373→          columns={[
+   374→   374→            { key: "ref", header: "Ref", render: (r) => <span className="tabular font-medium text-[color:var(--ink)]">{r.ref}</span> },
+   375→   375→            { key: "title", header: "Title", render: (r) => <span className="font-semibold text-[color:var(--ink)]">{r.title}</span> },
+   376→   376→            { key: "category", header: "Category", render: (r) => <Chip tone="gray">{r.category}</Chip> },
+   377→   377→            { key: "status", header: "Status", render: (r) => <StatusBadge status={r.status} /> },
+   378→   378→            { key: "due", header: "Due", render: (r) => <span className="tabular">{fmtDate(r.dueDate)}</span> },
+   379→   379→          ]}
+   380→   380→          rows={submissions}
+   381→   381→          loading={subsRes.loading}
+   382→   382→          error={subsRes.error}
+   383→   383→          onRetry={subsRes.refetch}
+   384→   384→          onRowClick={(r) => navigate("submissions", { detailId: r.id })}
+   385→   385→          emptyTitle="No submissions"
+   386→   386→          emptyMessage="Submissions recorded under this business unit will appear here."
+   387→   387→        />
+   388→   388→      )}
+   389→   389→
+   390→   390→      {tab === "activity" && (
+   391→   391→        <SectionCard
+   392→   392→          title="Recent activity"
+   393→   393→          description="Flattened submission history for this business unit"
+   394→   394→          icon={ActivityIcon}
+   395→   395→          actions={
+   396→   396→            <button onClick={() => navigate("activity")} className="text-xs font-medium text-[color:var(--esg-blue)] hover:underline">
+   397→   397→              Open full activity feed
+   398→   398→            </button>
+   399→   399→          }
+   400→   400→        >
+   401→   401→          {activity.length === 0 ? (
+   402→   402→            <div className="flex flex-col items-center gap-2 px-6 py-10 text-center">
+   403→   403→              <p className="text-sm text-[color:var(--muted-foreground)]">No recorded events yet. The full feed lives in Activity Monitoring.</p>
+   404→   404→              <button
+   405→   405→                onClick={() => navigate("activity")}
+   406→   406→                className="glass inline-flex h-10 items-center rounded-2xl border-white/60 px-4 text-[13px] font-medium text-[color:var(--ink)] transition-colors hover:bg-white/70"
+   407→   407→              >
+   408→   408→                Go to Activity Monitoring
+   409→   409→              </button>
+   410→   410→            </div>
+   411→   411→          ) : (
+   412→   412→            <ol className="relative flex flex-col gap-4 border-l-2 border-[rgba(125,177,216,0.3)] pl-5">
+   413→   413→              {activity.map((h, i) => (
+   414→   414→                <li key={`${h.ref}-${i}`} className="relative">
+   415→   415→                  <span className="absolute -left-[27px] top-1.5 h-3 w-3 rounded-full border-2 border-white bg-[#3a7bff]" aria-hidden="true" />
+   416→   416→                  <div className="text-[13px] text-[color:var(--ink-soft)]">
+   417→   417→                    <span className="font-semibold text-[color:var(--ink)]">{h.actor}</span>
+   418→   418→                    <span className="mx-1.5 rounded-md bg-[rgba(58,123,255,0.1)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[#1d5fd6]">
+   419→   419→                      {h.action.replaceAll("_", " ")}
+   420→   420→                    </span>
+   421→   421→                    {h.title}
+   422→   422→                  </div>
+   423→   423→                  <div className="mt-0.5 flex items-center gap-2 text-xs text-[color:var(--ink-faint)]">
+   424→   424→                    <span className="tabular">{h.ref}</span>
+   425→   425→                    <span>·</span>
+   426→   426→                    <span>{timeAgo(h.at)}</span>
+   427→   427→                  </div>
+   428→   428→                </li>
+   429→   429→              ))}
+   430→   430→            </ol>
+   431→   431→          )}
+   432→   432→        </SectionCard>
+   433→   433→      )}
+   434→   434→    </div>
+   435→   435→  );
+   436→   436→}
+   437→   437→
+   438→   438→/* ────────────────────────────── main view ────────────────────────────── */
+   439→   439→
+   440→   440→export default function UnitsView() {
+   441→   441→  const { params, navigate, openDetail } = useWorkspace();
+   442→   442→  const { toast } = useToast();
+   443→   443→  const { data, loading, error, refetch } = useApi<{ businessUnits: BusinessUnit[] }>("/api/esg/org?type=business-units");
+   444→   444→  const { data: subsData, loading: subsLoading } = useApi<{ subsidiaries: { id: string; name: string }[] }>(
+   445→   445→    "/api/esg/org?type=subsidiaries&light=1"
+   446→   446→  );
+   447→   447→
+   448→   448→  const [search, setSearch] = useState("");
+   449→   449→  const [statusFilter, setStatusFilter] = useState("ALL");
+   450→   450→  const [dialogOpen, setDialogOpen] = useState(false);
+   451→   451→  const [editing, setEditing] = useState<BusinessUnit | null>(null);
+   452→   452→  const [confirmTarget, setConfirmTarget] = useState<BusinessUnit | null>(null);
+   453→   453→
+   454→   454→  const saveMut = useMutation();
+   455→   455→  const deactivateMut = useMutation();
+   456→   456→
+   457→   457→  useEffect(() => {
+   458→   458→    if (saveMut.error) toast({ title: "Save failed", description: saveMut.error, variant: "destructive" });
+   459→   459→  }, [saveMut.error, toast]);
+   460→   460→  useEffect(() => {
+   461→   461→    if (deactivateMut.error) toast({ title: "Deactivation refused", description: deactivateMut.error, variant: "destructive" });
+   462→   462→  }, [deactivateMut.error, toast]);
+   463→   463→
+   464→   464→  const units = data?.businessUnits ?? [];
+   465→   465→  const subsidiaries = subsData?.subsidiaries ?? [];
+   466→   466→
+   467→   467→  const rows = useMemo(() => {
+   468→   468→    const q = search.trim().toLowerCase();
+   469→   469→    return units.filter((r) => {
+   470→   470→      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+   471→   471→      if (q) {
+   472→   472→        const hay = [r.name, r.code, r.subsidiaryName ?? "", r.managerName, r.adminName].map((v) => (v ?? "").toLowerCase());
+   473→   473→        if (!hay.some((v) => v.includes(q))) return false;
+   474→   474→      }
+   475→   475→      return true;
+   476→   476→    });
+   477→   477→  }, [units, search, statusFilter]);
+   478→   478→
+   479→   479→  const detailId = params.detailId;
+   480→   480→  const current = detailId ? units.find((u) => u.id === detailId) : null;
+   481→   481→
+   482→   482→  const openCreate = () => {
+   483→   483→    setEditing(null);
+   484→   484→    setDialogOpen(true);
+   485→   485→  };
+   486→   486→  const openEdit = (u: BusinessUnit) => {
+   487→   487→    setEditing(u);
+   488→   488→    setDialogOpen(true);
+   489→   489→  };
+   490→   490→
+   491→   491→  const submit = async (form: UnitForm) => {
+   492→   492→    const payload = {
+   493→   493→      type: "business-unit" as const,
+   494→   494→      name: form.name,
+   495→   495→      subsidiaryId: form.subsidiaryId,
+   496→   496→      code: form.code.trim(),
+   497→   497→      managerName: form.managerName.trim(),
+   498→   498→      adminName: form.adminName.trim(),
+   499→   499→      status: form.status,
+   500→   500→    };
+   501→   501→    const res = editing
+   502→   502→      ? await saveMut.run(() => apiPatch("/api/esg/org", { id: editing.id, ...payload }))
+   503→   503→      : await saveMut.run(() => apiPost("/api/esg/org", payload));
+   504→   504→    if (res) {
+   505→   505→      toast({ title: editing ? "Business unit updated" : "Business unit created", description: form.name });
+   506→   506→      setDialogOpen(false);
+   507→   507→      refetch();
+   508→   508→    }
+   509→   509→  };
+   510→   510→
+   511→   511→  const deactivate = async (reason?: string) => {
+   512→   512→    if (!confirmTarget || !reason) return;
+   513→   513→    const res = await deactivateMut.run(() => apiDelete("/api/esg/org", { type: "business-unit", id: confirmTarget.id, reason }));
+   514→   514→    if (res) {
+   515→   515→      toast({ title: "Business unit deactivated", description: confirmTarget.name });
+   516→   516→      setConfirmTarget(null);
+   517→   517→      refetch();
+   518→   518→    }
+   519→   519→  };
+   520→   520→
+   521→   521→  const activate = async (row: BusinessUnit) => {
+   522→   522→    const res = await saveMut.run(() => apiPatch("/api/esg/org", { type: "business-unit", id: row.id, status: "ACTIVE" }));
+   523→   523→    if (res) {
+   524→   524→      toast({ title: "Business unit activated", description: row.name });
+   525→   525→      refetch();
+   526→   526→    }
+   527→   527→  };
+   528→   528→
+   529→   529→  const columns: Column<BusinessUnit>[] = [
+   530→   530→    { key: "code", header: "Code", sortable: true, sortValue: (r) => r.code, render: (r) => <Chip tone="purple">{r.code}</Chip> },
+   531→   531→    {
+   532→   532→      key: "name",
+   533→   533→      header: "Business Unit",
+   534→   534→      sortable: true,
+   535→   535→      sortValue: (r) => r.name,
+   536→   536→      render: (r) => <span className="font-semibold text-[color:var(--ink)]">{r.name}</span>,
+   537→   537→    },
+   538→   538→    { key: "subsidiary", header: "Subsidiary", sortable: true, sortValue: (r) => r.subsidiaryName ?? "", render: (r) => r.subsidiaryName ?? "—" },
+   539→   539→    { key: "manager", header: "Manager", render: (r) => r.managerName || "—" },
+   540→   540→    { key: "projects", header: "Projects", sortable: true, sortValue: (r) => r.projectCount ?? 0, className: "tabular", render: (r) => r.projectCount ?? 0 },
+   541→   541→    { key: "users", header: "Users", sortable: true, sortValue: (r) => r.userCount ?? 0, className: "tabular", render: (r) => r.userCount ?? 0 },
+   542→   542→    { key: "subs", header: "Submissions", sortable: true, sortValue: (r) => r.submissionStats?.approved ?? 0, render: (r) => <StatsCell st={r.submissionStats} /> },
+   543→   543→    { key: "status", header: "Status", sortable: true, sortValue: (r) => r.status, render: (r) => <StatusBadge status={r.status} /> },
+   544→   544→  ];
+   545→   545→
+   546→   546→  const exportRows = rows.map((r) => ({
+   547→   547→    code: r.code,
+   548→   548→    name: r.name,
+   549→   549→    subsidiary: r.subsidiaryName ?? "",
+   550→   550→    manager: r.managerName,
+   551→   551→    admin: r.adminName,
+   552→   552→    projects: r.projectCount ?? 0,
+   553→   553→    users: r.userCount ?? 0,
+   554→   554→    submissions: r.submissionStats?.total ?? 0,
+   555→   555→    approved: r.submissionStats?.approved ?? 0,
+   556→   556→    overdue: r.submissionStats?.overdue ?? 0,
+   557→   557→    status: r.status,
+   558→   558→  }));
+   559→   559→
+   560→   560→  const dialog = (
+   561→   561→    <UnitDialog
+   562→   562→      open={dialogOpen}
+   563→   563→      onOpenChange={setDialogOpen}
+   564→   564→      editing={editing}
+   565→   565→      subsidiaries={subsidiaries}
+   566→   566→      subsLoading={subsLoading}
+   567→   567→      pending={saveMut.pending}
+   568→   568→      onSubmit={submit}
+   569→   569→    />
+   570→   570→  );
+   571→   571→
+   572→   572→  const confirm = (
+   573→   573→    <ConfirmDialog
+   574→   574→      open={!!confirmTarget}
+   575→   575→      onOpenChange={(o) => !o && setConfirmTarget(null)}
+   576→   576→      title="Deactivate business unit"
+   577→   577→      message={`Deactivating "${confirmTarget?.name}" will disable it for reporting. Business units that still have linked projects cannot be deactivated.`}
+   578→   578→      confirmLabel="Deactivate"
+   579→   579→      destructive
+   580→   580→      requireReason
+   581→   581→      pending={deactivateMut.pending}
+   582→   582→      onConfirm={deactivate}
+   583→   583→    />
+   584→   584→  );
+   585→   585→
+   586→   586→  /* Detail mode */
+   587→   587→  if (detailId && current) {
+   588→   588→    return (
+   589→   589→      <>
+   590→   590→        <UnitDetail
+   591→   591→          key={`${current.id}:${params.detailTab ?? "overview"}`}
+   592→   592→          unit={current}
+   593→   593→          onBack={() => navigate("units")}
+   594→   594→          onEdit={openEdit}
+   595→   595→        />
+   596→   596→        {dialog}
+   597→   597→        {confirm}
+   598→   598→      </>
+   599→   599→    );
+   600→   600→  }
+   601→   601→
+   602→   602→  return (
+   603→   603→    <div className="view-in space-y-5">
+   604→   604→      <PageHeader
+   605→   605→        title="Business Unit Management"
+   606→   606→        description="Manage business units within subsidiaries and their reporting scope."
+   607→   607→        icon={Layers}
+   608→   608→        breadcrumbs={["Group", "Organization", "Business Units"]}
+   609→   609→        actions={
+   610→   610→          <button
+   611→   611→            onClick={openCreate}
+   612→   612→            className="glass inline-flex h-10 items-center gap-1.5 rounded-2xl border-white/60 px-4 text-[13px] font-medium text-[color:var(--ink)] transition-colors hover:bg-white/70"
+   613→   613→          >
+   614→   614→            <Plus className="h-4 w-4 text-[color:var(--esg-blue)]" aria-hidden="true" /> New business unit
+   615→   615→          </button>
+   616→   616→        }
+   617→   617→      />
+   618→   618→
+   619→   619→      <DataTable<BusinessUnit>
+   620→   620→        columns={columns}
+   621→   621→        rows={rows}
+   622→   622→        loading={loading}
+   623→   623→        error={error}
+   624→   624→        onRetry={refetch}
+   625→   625→        pageSize={8}
+   626→   626→        onRowClick={(r) => openDetail("units", r.id, "overview")}
+   627→   627→        emptyTitle={units.length === 0 ? "No business units yet" : "No business units match your filters"}
+   628→   628→        emptyMessage={units.length === 0 ? "Create a business unit under one of your subsidiaries to get started." : "Try adjusting the search or status filter."}
+   629→   629→        toolbar={
+   630→   630→          <Toolbar
+   631→   631→            search={search}
+   632→   632→            onSearch={setSearch}
+   633→   633→            searchPlaceholder="Search business units…"
+   634→   634→            filters={[
+   635→   635→              {
+   636→   636→                key: "status",
+   637→   637→                label: "Status",
+   638→   638→                value: statusFilter,
+   639→   639→                onChange: setStatusFilter,
+   640→   640→                options: [
+   641→   641→                  { value: "ALL", label: "All statuses" },
+   642→   642→                  { value: "ACTIVE", label: "Active" },
+   643→   643→                  { value: "INACTIVE", label: "Inactive" },
+   644→   644→                ],
+   645→   645→              },
+   646→   646→            ]}
+   647→   647→            onReset={() => {
+   648→   648→              setSearch("");
+   649→   649→              setStatusFilter("ALL");
+   650→   650→            }}
+   651→   651→            resultCount={rows.length}
+   652→   652→            right={<ExportButton filename="meil-business-units" rows={exportRows} />}
+   653→   653→          />
+   654→   654→        }
+   655→   655→        rowActions={(row) => (
+   656→   656→          <DropdownMenu>
+   657→   657→            <DropdownMenuTrigger asChild>
+   658→   658→              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" aria-label={`Actions for ${row.name}`}>
+   659→   659→                <MoreHorizontal className="h-4 w-4" />
+   660→   660→              </Button>
+   661→   661→            </DropdownMenuTrigger>
+   662→   662→            <DropdownMenuContent align="end" className="glass-strong rounded-2xl border-white/70">
+   663→   663→              <DropdownMenuItem onClick={() => openEdit(row)}>
+   664→   664→                <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+   665→   665→              </DropdownMenuItem>
+   666→   666→              {row.status === "ACTIVE" ? (
+   667→   667→                <DropdownMenuItem onClick={() => setConfirmTarget(row)} className="text-[#c34a4a] focus:text-[#c34a4a]">
+   668→   668→                  <Power className="mr-2 h-3.5 w-3.5" /> Deactivate
+   669→   669→                </DropdownMenuItem>
+   670→   670→              ) : (
+   671→   671→                <DropdownMenuItem onClick={() => activate(row)}>
+   672→   672→                  <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> Activate
+   673→   673→                </DropdownMenuItem>
+   674→   674→              )}
+   675→   675→            </DropdownMenuContent>
+   676→   676→          </DropdownMenu>
+   677→   677→        )}
+   678→   678→      />
+   679→   679→
+   680→   680→      {dialog}
+   681→   681→      {confirm}
+   682→   682→    </div>
+   683→   683→  );
+   684→   684→}
+   685→   685→

@@ -14,12 +14,13 @@ const REQUIRED_METRICS: { category: string; metric: string; frequency: string }[
 
 export async function GET() {
   return handle(async () => {
-    const [projects, submissions, reports, units, subs] = await Promise.all([
+    const [projects, submissions, reports, units, subs, packages] = await Promise.all([
       db.project.findMany({ include: { businessUnit: { include: { subsidiary: true } } } }),
       db.submission.findMany({ orderBy: { createdAt: "desc" } }),
       db.brsrReport.findMany({ select: { ref: true, status: true } }),
       db.businessUnit.findMany({ select: { id: true, name: true } }),
       db.subsidiary.findMany({ select: { id: true, name: true } }),
+      db.reportingPackage.findMany({ orderBy: { createdAt: "desc" }, take: 12 }),
     ]);
 
     /* Missing data: active projects missing an expected metric for current period */
@@ -136,6 +137,29 @@ export async function GET() {
       anomalies: anomalies.slice(0, 12),
       lineage,
       aggregation,
+      packages: packages.map((p) => {
+        let summary: { approved?: number; pending?: number; missing?: number } = {};
+        try { summary = JSON.parse(p.summary || "{}"); } catch { /* malformed summary */ }
+        let sourceRefs: string[] = [];
+        try { sourceRefs = JSON.parse(p.sourceRefs || "[]"); } catch { /* malformed refs */ }
+        return {
+          id: p.id,
+          ref: p.ref,
+          title: p.title,
+          subsidiaryName: p.subsidiaryName || subs.find((s) => s.id === p.subsidiaryId)?.name || "Subsidiary",
+          period: p.period,
+          status: p.status,
+          readinessPct: p.readinessPct,
+          approved: summary.approved ?? 0,
+          pending: summary.pending ?? 0,
+          missing: summary.missing ?? 0,
+          sourceCount: Array.isArray(sourceRefs) ? sourceRefs.length : 0,
+          submittedBy: p.submittedBy,
+          submittedAt: p.submittedAt?.toISOString() ?? null,
+          groupFeedback: p.groupFeedback,
+          updatedAt: p.updatedAt.toISOString(),
+        };
+      }),
     };
     return ok(data);
   });

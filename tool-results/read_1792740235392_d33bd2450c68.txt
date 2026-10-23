@@ -1,0 +1,461 @@
+     1→/**
+     2→ * MEIL ESG & BRSR Platform — demo data seeder.
+     3→ * Run: bun prisma/seed.ts
+     4→ * THEN provision portal credentials:  bun prisma/seed-auth.ts
+     5→ * (seed-auth assigns employeeIds + password hashes for the Enter-Platform
+     6→ *  gateway — demo password "Esg@2025", Group Admin GRP-0001 / arun.bhaskar@meil.in)
+     7→ */
+     8→import { PrismaClient } from "@prisma/client";
+     9→
+    10→const db = new PrismaClient();
+    11→
+    12→const DAY = 86400000;
+    13→const now = Date.now();
+    14→const at = (daysOffset: number, hour = 10) => {
+    15→  const d = new Date(now + daysOffset * DAY);
+    16→  d.setHours(hour, (daysOffset * 13) % 60, 0, 0);
+    17→  return d;
+    18→};
+    19→
+    20→async function main() {
+    21→  console.log("Clearing existing data…");
+    22→  await db.auditEvent.deleteMany();
+    23→  await db.activityEvent.deleteMany();
+    24→  await db.message.deleteMany();
+    25→  await db.notification.deleteMany();
+    26→  await db.task.deleteMany();
+    27→  await db.submission.deleteMany();
+    28→  await db.brsrReport.deleteMany();
+    29→  await db.disclosure.deleteMany();
+    30→  await db.appSetting.deleteMany();
+    31→  await db.user.deleteMany();
+    32→  await db.project.deleteMany();
+    33→  await db.businessUnit.deleteMany();
+    34→  await db.subsidiary.deleteMany();
+    35→
+    36→  // ── Subsidiaries ──────────────────────────────────────────────
+    37→  const subs = await Promise.all(
+    38→    [
+    39→      { code: "SUB-ENR", name: "MEIL Energy Ltd", sector: "Power & Energy", region: "South India", city: "Hyderabad", managerName: "Rajesh Menon", adminName: "Priya Deshmukh", description: "Thermal & renewable power generation portfolio." },
+    40→      { code: "SUB-INF", name: "MEIL Infrastructure Ltd", sector: "Infrastructure", region: "Pan India", city: "Hyderabad", managerName: "Anil Kapoor", adminName: "Sunita Rao", description: "Roads, tunnels, irrigation and urban infrastructure." },
+    41→      { code: "SUB-WTR", name: "MEIL Water Systems Ltd", sector: "Water & Environment", region: "West India", city: "Mumbai", managerName: "Vikram Shetty", adminName: "Kavita Nair", description: "Water supply, desalination and treatment plants." },
+    42→      { code: "SUB-OVS", name: "MEIL Global Holdings", sector: "Overseas Operations", region: "International", city: "Singapore", managerName: "Daniel Foo", adminName: "Mei Ling Tan", description: "International EPC projects and holdings." },
+    43→    ].map((s) => db.subsidiary.create({ data: s }))
+    44→  );
+    45→
+    46→  // ── Business units ────────────────────────────────────────────
+    47→  const unitDefs: { code: string; name: string; sub: number; managerName: string; adminName: string }[] = [
+    48→    { code: "BU-THERMAL", name: "Thermal Generation", sub: 0, managerName: "Suresh Babu", adminName: "Latha Krishnan" },
+    49→    { code: "BU-RE", name: "Renewable Energy", sub: 0, managerName: "Arvind Swamy", adminName: "Divya Iyer" },
+    50→    { code: "BU-ROAD", name: "Roads & Highways", sub: 1, managerName: "Manoj Sharma", adminName: "Rekha Pillai" },
+    51→    { code: "BU-IRR", name: "Irrigation & Tunnels", sub: 1, managerName: "Harish Chandra", adminName: "Gopal Rao" },
+    52→    { code: "BU-URBAN", name: "Urban Infrastructure", sub: 1, managerName: "Naveen Kumar", adminName: "Shalini Verma" },
+    53→    { code: "BU-DESAL", name: "Desalination", sub: 2, managerName: "Prasad Patil", adminName: "Anita Joshi" },
+    54→    { code: "BU-WTRSUP", name: "Water Supply", sub: 2, managerName: "Kiran Reddy", adminName: "Jyothi Rao" },
+    55→    { code: "BU-EPC", name: "Overseas EPC", sub: 3, managerName: "Wei Zhang", adminName: "Arjun Nair" },
+    56→    { code: "BU-HOLD", name: "Holdings & Advisory", sub: 3, managerName: "Sanjay Gupta", adminName: "Farah Khan" },
+    57→  ];
+    58→  const units = await Promise.all(
+    59→    unitDefs.map((u) =>
+    60→      db.businessUnit.create({
+    61→        data: { code: u.code, name: u.name, subsidiaryId: subs[u.sub].id, managerName: u.managerName, adminName: u.adminName },
+    62→      })
+    63→    )
+    64→  );
+    65→
+    66→  // ── Projects / sites ──────────────────────────────────────────
+    67→  const projDefs: { code: string; name: string; unit: number; location: string; ptype: string; capacityMw: number; status?: string }[] = [
+    68→    { code: "PRJ-KTPP", name: "Kothagudem Thermal Plant", unit: 0, location: "Telangana", ptype: "PLANT", capacityMw: 1080 },
+    69→    { code: "PRJ-STPP", name: "Singareppi Thermal Expansion", unit: 0, location: "Telangana", ptype: "PLANT", capacityMw: 800 },
+    70→    { code: "PRJ-PVAN", name: "Pavagada Solar Park", unit: 1, location: "Karnataka", ptype: "SOLAR_PARK", capacityMw: 600 },
+    71→    { code: "PRJ-WIND", name: "Anantapur Wind Cluster", unit: 1, location: "Andhra Pradesh", ptype: "WIND_FARM", capacityMw: 300 },
+    72→    { code: "PRJ-NH48", name: "NH-48 Highway Package", unit: 2, location: "Maharashtra", ptype: "SITE", capacityMw: 0 },
+    73→    { code: "PRJ-RING", name: "Hyderabad Regional Ring Road", unit: 2, location: "Telangana", ptype: "SITE", capacityMw: 0 },
+    74→    { code: "PRJ-KLBD", name: "Kaleshwaram Lift Package-12", unit: 3, location: "Telangana", ptype: "SITE", capacityMw: 0 },
+    75→    { code: "PRJ-TUNL", name: "Srisailam Left Bank Tunnel", unit: 3, location: "Telangana", ptype: "SITE", capacityMw: 0 },
+    76→    { code: "PRJ-METRO", name: "Metro Rail Package-7", unit: 4, location: "Tamil Nadu", ptype: "SITE", capacityMw: 0 },
+    77→    { code: "PRJ-DESAL", name: "Chennai Desalination Plant-2", unit: 5, location: "Tamil Nadu", ptype: "PLANT", capacityMw: 0 },
+    78→    { code: "PRJ-WTR1", name: "Marathwada Water Grid", unit: 6, location: "Maharashtra", ptype: "PIPELINE", capacityMw: 0 },
+    79→    { code: "PRJ-WTR2", name: "Vidarbha Supply Scheme", unit: 6, location: "Maharashtra", ptype: "PIPELINE", capacityMw: 0 },
+    80→    { code: "PRJ-PH2", name: "Philippines Highway Package-2", unit: 7, location: "Philippines", ptype: "SITE", capacityMw: 0 },
+    81→    { code: "PRJ-ZAMB", name: "Zambia Hydropower Rehab", unit: 7, location: "Zambia", ptype: "HYDRO", capacityMw: 120 },
+    82→    { code: "PRJ-CORP", name: "Corporate Office Campus", unit: 8, location: "Hyderabad", ptype: "OFFICE", capacityMw: 0 },
+    83→    { code: "PRJ-SG", name: "Singapore Advisory Desk", unit: 8, location: "Singapore", ptype: "OFFICE", capacityMw: 0, status: "INACTIVE" },
+    84→  ];
+    85→  const projects = await Promise.all(
+    86→    projDefs.map((p) =>
+    87→      db.project.create({
+    88→        data: {
+    89→          code: p.code, name: p.name, businessUnitId: units[p.unit].id,
+    90→          location: p.location, ptype: p.ptype, capacityMw: p.capacityMw, status: p.status ?? "ACTIVE",
+    91→        },
+    92→      })
+    93→    )
+    94→  );
+    95→
+    96→  // ── Users (11 role types) ─────────────────────────────────────
+    97→  const userDefs: { name: string; email: string; role: string; sub?: number; unit?: number; proj?: number; title: string; status?: string; lastActive?: number }[] = [
+    98→    { name: "Arun Bhaskar", email: "arun.bhaskar@meil.in", role: "GROUP_ADMIN", title: "Group Administrator", lastActive: 0 },
+    99→    { name: "Rajesh Menon", email: "rajesh.menon@meil.in", role: "SUBSIDIARY_MANAGER", sub: 0, title: "MD — MEIL Energy", lastActive: 0 },
+   100→    { name: "Anil Kapoor", email: "anil.kapoor@meil.in", role: "SUBSIDIARY_MANAGER", sub: 1, title: "MD — MEIL Infrastructure", lastActive: 1 },
+   101→    { name: "Vikram Shetty", email: "vikram.shetty@meil.in", role: "SUBSIDIARY_MANAGER", sub: 2, title: "MD — MEIL Water Systems", lastActive: 2 },
+   102→    { name: "Daniel Foo", email: "daniel.foo@meilglobal.com", role: "SUBSIDIARY_MANAGER", sub: 3, title: "MD — MEIL Global", lastActive: 5 },
+   103→    { name: "Priya Deshmukh", email: "priya.deshmukh@meil.in", role: "SUBSIDIARY_ADMIN", sub: 0, title: "Subsidiary ESG Admin", lastActive: 1 },
+   104→    { name: "Sunita Rao", email: "sunita.rao@meil.in", role: "SUBSIDIARY_ADMIN", sub: 1, title: "Subsidiary ESG Admin", lastActive: 3 },
+   105→    { name: "Kavita Nair", email: "kavita.nair@meil.in", role: "SUBSIDIARY_ADMIN", sub: 2, title: "Subsidiary ESG Admin", lastActive: 4 },
+   106→    { name: "Mei Ling Tan", email: "meiling.tan@meilglobal.com", role: "SUBSIDIARY_ADMIN", sub: 3, title: "Subsidiary ESG Admin", lastActive: 6 },
+   107→    { name: "Suresh Babu", email: "suresh.babu@meil.in", role: "BU_MANAGER", sub: 0, unit: 0, title: "BU Head — Thermal", lastActive: 0 },
+   108→    { name: "Arvind Swamy", email: "arvind.swamy@meil.in", role: "BU_MANAGER", sub: 0, unit: 1, title: "BU Head — Renewables", lastActive: 1 },
+   109→    { name: "Manoj Sharma", email: "manoj.sharma@meil.in", role: "BU_MANAGER", sub: 1, unit: 2, title: "BU Head — Roads", lastActive: 2 },
+   110→    { name: "Harish Chandra", email: "harish.chandra@meil.in", role: "BU_MANAGER", sub: 1, unit: 3, title: "BU Head — Irrigation", lastActive: 3 },
+   111→    { name: "Prasad Patil", email: "prasad.patil@meil.in", role: "BU_MANAGER", sub: 2, unit: 5, title: "BU Head — Desalination", lastActive: 4 },
+   112→    { name: "Kiran Reddy", email: "kiran.reddy@meil.in", role: "BU_ADMIN", sub: 2, unit: 6, title: "BU Admin — Water Supply", lastActive: 2 },
+   113→    { name: "Wei Zhang", email: "wei.zhang@meilglobal.com", role: "BU_MANAGER", sub: 3, unit: 7, title: "BU Head — Overseas EPC", lastActive: 7 },
+   114→    { name: "Naveen Kumar", email: "naveen.kumar@meil.in", role: "BU_ADMIN", sub: 1, unit: 4, title: "BU Admin — Urban", lastActive: 5 },
+   115→    { name: "Ramesh Iyer", email: "ramesh.iyer@meil.in", role: "ENV_DATA_USER", sub: 0, unit: 0, proj: 0, title: "Environment Data Officer", lastActive: 0 },
+   116→    { name: "Deepa Krishnan", email: "deepa.krishnan@meil.in", role: "ENV_DATA_USER", sub: 0, unit: 1, proj: 2, title: "Environment Data Officer", lastActive: 1 },
+   117→    { name: "Santosh Rao", email: "santosh.rao@meil.in", role: "FIN_RESOURCE_USER", sub: 0, unit: 0, proj: 1, title: "Finance & Resource Analyst", lastActive: 1 },
+   118→    { name: "Aparna Das", email: "aparna.das@meil.in", role: "HR_USER", sub: 1, unit: 2, proj: 4, title: "HR Data Coordinator", lastActive: 2 },
+   119→    { name: "Mohit Jain", email: "mohit.jain@meil.in", role: "EHS_USER", sub: 0, unit: 0, proj: 0, title: "EHS Safety Officer", lastActive: 0 },
+   120→    { name: "Sneha Kulkarni", email: "sneha.kulkarni@meil.in", role: "EHS_USER", sub: 1, unit: 3, proj: 7, title: "EHS Safety Officer", lastActive: 1 },
+   121→    { name: "Ravi Teja", email: "ravi.teja@meil.in", role: "PROCUREMENT_USER", sub: 1, unit: 2, proj: 5, title: "Procurement Analyst", lastActive: 3 },
+   122→    { name: "Lakshmi Prasad", email: "lakshmi.prasad@meil.in", role: "CSR_USER", sub: 2, unit: 6, proj: 11, title: "CSR Program Lead", lastActive: 4 },
+   123→    { name: "Farhan Ali", email: "farhan.ali@meil.in", role: "COMPLIANCE_USER", sub: 2, unit: 5, proj: 9, title: "Compliance Officer", lastActive: 1 },
+   124→    { name: "Gita Sharma", email: "gita.sharma@meil.in", role: "COMPLIANCE_USER", sub: 1, unit: 4, proj: 8, title: "Compliance Officer", lastActive: 6 },
+   125→    { name: "Tarun Bhatia", email: "tarun.bhatia@meil.in", role: "ENV_DATA_USER", sub: 2, unit: 5, proj: 9, title: "Environment Data Officer", lastActive: 2 },
+   126→    { name: "Nikhil Chandra", email: "nikhil.chandra@meil.in", role: "EHS_USER", sub: 3, unit: 7, proj: 13, title: "EHS Safety Officer", status: "SUSPENDED", lastActive: 21 },
+   127→    { name: "Old Contractor", email: "old.contractor@meil.in", role: "FIN_RESOURCE_USER", sub: 1, unit: 2, proj: 4, title: "Contract Finance", status: "INACTIVE", lastActive: 90 },
+   128→    { name: "New Joiner — ESG", email: "new.joiner@meil.in", role: "HR_USER", sub: 0, unit: 1, title: "HR Data Coordinator", status: "INVITED" },
+   129→  ];
+   130→  /* Presence realism: `lastActive` 0 = "online now" (spread over the last ~25 min),
+   131→     1–5 = hours ago (today / yesterday), ≥6 = days ago (offline). */
+   132→  let onlineIdx = 0;
+   133→  const users = await Promise.all(
+   134→    userDefs.map((u) => {
+   135→      let lastActiveAt: Date | null = null;
+   136→      if (u.lastActive !== undefined) {
+   137→        if (u.lastActive === 0) lastActiveAt = new Date(now - (2 + onlineIdx++ * 5) * 60000);
+   138→        else if (u.lastActive < 6) lastActiveAt = new Date(now - (u.lastActive * 7 + 2) * 3600000);
+   139→        else lastActiveAt = at(-u.lastActive, 9);
+   140→      }
+   141→      return db.user.create({
+   142→        data: {
+   143→          name: u.name, email: u.email, role: u.role, status: u.status ?? "ACTIVE",
+   144→          subsidiaryId: u.sub !== undefined ? subs[u.sub].id : null,
+   145→          businessUnitId: u.unit !== undefined ? units[u.unit].id : null,
+   146→          projectId: u.proj !== undefined ? projects[u.proj].id : null,
+   147→          title: u.title, lastActiveAt,
+   148→        },
+   149→      });
+   150→    })
+   151→  );
+   152→  const uIdx = (email: string) => users.find((u) => u.email.startsWith(email))!.id;
+   153→
+   154→  // ── Submissions ───────────────────────────────────────────────
+   155→  type SubDef = { title: string; category: string; metricName: string; metricValue: number; metricUnit: string; status: string; overdue?: boolean; days: number; sub: number; unit: number; proj?: number; by: string; reviewer?: string; quarter?: string };
+   156→  const subDefs: SubDef[] = [
+   157→    { title: "Scope 1 — Stationary Combustion Emissions", category: "EMISSIONS", metricName: "Scope 1 GHG", metricValue: 48210, metricUnit: "tCO2e", status: "UNDER_REVIEW", days: -4, sub: 0, unit: 0, proj: 0, by: "ramesh", reviewer: "arun.bhaskar" },
+   158→    { title: "Scope 2 — Purchased Electricity", category: "EMISSIONS", metricName: "Scope 2 GHG", metricValue: 31540, metricUnit: "tCO2e", status: "APPROVED", days: -9, sub: 0, unit: 0, proj: 0, by: "ramesh", reviewer: "priya.deshmukh" },
+   159→    { title: "Diesel Consumption — Generators", category: "ENERGY", metricName: "Diesel", metricValue: 1284, metricUnit: "kL", status: "APPROVED", days: -11, sub: 0, unit: 0, proj: 0, by: "santosh", reviewer: "priya.deshmukh" },
+   160→    { title: "Renewable Energy Share — Solar", category: "ENERGY", metricName: "Renewable share", metricValue: 31.6, metricUnit: "%", status: "SUBMITTED", days: -2, sub: 0, unit: 1, proj: 2, by: "deepa" },
+   161→    { title: "Fresh Water Withdrawal", category: "WATER", metricName: "Water withdrawal", metricValue: 84200, metricUnit: "m³", status: "APPROVED", days: -14, sub: 2, unit: 5, proj: 9, by: "tarun", reviewer: "kavita.nair" },
+   162→    { title: "Waste — Hazardous Disposed", category: "WASTE", metricName: "Hazardous waste", metricValue: 46.2, metricUnit: "t", status: "CHANGES_REQUESTED", days: -6, sub: 0, unit: 0, proj: 1, by: "ramesh", reviewer: "priya.deshmukh" },
+   163→    { title: "Lost Time Injury Frequency Rate", category: "SAFETY", metricName: "LTIFR", metricValue: 0.42, metricUnit: "per mn hrs", status: "APPROVED", days: -16, sub: 1, unit: 3, proj: 7, by: "sneha", reviewer: "sunita.rao" },
+   164→    { title: "Employee Training Hours", category: "WORKFORCE", metricName: "Training hrs", metricValue: 12480, metricUnit: "hrs", status: "SUBMITTED", days: -3, sub: 1, unit: 2, proj: 4, by: "aparna" },
+   165→    { title: "Supplier Local Sourcing %", category: "PROCUREMENT", metricName: "Local sourcing", metricValue: 68.4, metricUnit: "%", status: "UNDER_REVIEW", days: -5, sub: 1, unit: 2, proj: 5, by: "ravi.teja", reviewer: "sunita.rao" },
+   166→    { title: "CSR Beneficiaries — Communities", category: "CSR", metricName: "Beneficiaries", metricValue: 15230, metricUnit: "persons", status: "APPROVED", days: -18, sub: 2, unit: 6, proj: 11, by: "lakshmi", reviewer: "kavita.nair" },
+   167→    { title: "Regulatory Non-Compliance Events", category: "COMPLIANCE", metricName: "Non-compliance", metricValue: 0, metricUnit: "events", status: "APPROVED", days: -20, sub: 2, unit: 5, proj: 9, by: "farhan", reviewer: "kavita.nair" },
+   168→    { title: "Stack Emissions Monitoring", category: "ENVIRONMENT", metricName: "PM (particulate)", metricValue: 28.4, metricUnit: "mg/Nm³", status: "DRAFT", days: -1, sub: 0, unit: 0, proj: 0, by: "ramesh" },
+   169→    { title: "Scope 3 — Business Travel", category: "EMISSIONS", metricName: "Scope 3 travel", metricValue: 1240, metricUnit: "tCO2e", status: "SUBMITTED", overdue: true, days: -8, sub: 3, unit: 7, proj: 13, by: "wei.zhang" },
+   170→    { title: "Groundwater Drawal", category: "WATER", metricName: "Groundwater", metricValue: 12400, metricUnit: "m³", status: "ASSIGNED", overdue: true, days: -12, sub: 1, unit: 3, proj: 6, by: "sneha" },
+   171→    { title: "Energy Intensity — Production", category: "ENERGY", metricName: "Energy intensity", metricValue: 2.84, metricUnit: "GJ/t", status: "REJECTED", days: -7, sub: 0, unit: 0, proj: 0, by: "santosh", reviewer: "arun.bhaskar" },
+   172→    { title: "Wastewater Discharge Quality", category: "WATER", metricName: "COD", metricValue: 82, metricUnit: "mg/L", status: "UNDER_REVIEW", days: -2, sub: 2, unit: 5, proj: 9, by: "tarun", reviewer: "kavita.nair" },
+   173→    { title: "Women in Workforce %", category: "WORKFORCE", metricName: "Gender diversity", metricValue: 18.2, metricUnit: "%", status: "DRAFT", days: -1, sub: 1, unit: 2, proj: 4, by: "aparna" },
+   174→    { title: "Fly Ash Utilization %", category: "WASTE", metricName: "Fly ash reuse", metricValue: 74.1, metricUnit: "%", status: "SUBMITTED", days: -4, sub: 0, unit: 0, proj: 0, by: "ramesh" },
+   175→    { title: "Road Safety Incidents", category: "SAFETY", metricName: "Road incidents", metricValue: 2, metricUnit: "events", status: "CHANGES_REQUESTED", overdue: true, days: -10, sub: 1, unit: 2, proj: 5, by: "ravi.teja", reviewer: "sunita.rao" },
+   176→    { title: "Green Procurement Spend", category: "PROCUREMENT", metricName: "Green spend", metricValue: 312, metricUnit: "₹ Cr", status: "SUBMITTED", days: -6, sub: 3, unit: 7, proj: 12, by: "wei.zhang" },
+   177→    { title: "Employee Turnover Rate", category: "WORKFORCE", metricName: "Turnover", metricValue: 9.6, metricUnit: "%", status: "APPROVED", days: -22, sub: 0, unit: 1, proj: 2, by: "deepa", reviewer: "priya.deshmukh" },
+   178→    { title: "Biodiversity — Land Reclaimed", category: "ENVIRONMENT", metricName: "Land reclaimed", metricValue: 112, metricUnit: "ha", status: "SUBMITTED", days: -3, sub: 2, unit: 6, proj: 10, by: "lakshmi" },
+   179→    { title: "DG Set Emissions — Office", category: "EMISSIONS", metricName: "Scope 1 DG", metricValue: 184, metricUnit: "tCO2e", status: "UNDER_REVIEW", days: -1, sub: 0, unit: 8, proj: 14, by: "santosh", reviewer: "arun.bhaskar" },
+   180→    { title: "Rainwater Harvested", category: "WATER", metricName: "Rainwater", metricValue: 6800, metricUnit: "m³", status: "DRAFT", days: -2, sub: 1, unit: 3, proj: 6, by: "sneha" },
+   181→    { title: "Community Investment", category: "CSR", metricName: "CSR spend", metricValue: 42.8, metricUnit: "₹ Cr", status: "APPROVED", days: -25, sub: 0, unit: 1, proj: 2, by: "deepa", reviewer: "priya.deshmukh" },
+   182→    { title: "Noise Level Monitoring", category: "ENVIRONMENT", metricName: "Noise", metricValue: 68.2, metricUnit: "dB(A)", status: "SUBMITTED", days: -5, sub: 2, unit: 5, proj: 9, by: "tarun" },
+   183→    { title: "Contract Labour Count", category: "WORKFORCE", metricName: "Contract labour", metricValue: 4820, metricUnit: "persons", status: "SUBMITTED", overdue: true, days: -9, sub: 1, unit: 4, proj: 8, by: "aparna" },
+   184→    { title: "Spill Events — Fuel & Oil", category: "SAFETY", metricName: "Spills", metricValue: 1, metricUnit: "events", status: "ASSIGNED", days: -3, sub: 3, unit: 7, proj: 13, by: "nikhil" },
+   185→  ];
+   186→  const reviewers = ["arun.bhaskar", "priya.deshmukh", "sunita.rao", "kavita.nair"];
+   187→  const statusFlow: Record<string, string[]> = {
+   188→    DRAFT: ["Created"],
+   189→    ASSIGNED: ["Created", "Assigned to responsible user"],
+   190→    SUBMITTED: ["Created", "Assigned", "Submitted by user"],
+   191→    UNDER_REVIEW: ["Created", "Assigned", "Submitted by user", "Under review"],
+   192→    CHANGES_REQUESTED: ["Created", "Assigned", "Submitted by user", "Reviewed — changes requested"],
+   193→    REJECTED: ["Created", "Assigned", "Submitted by user", "Rejected by reviewer"],
+   194→    APPROVED: ["Created", "Assigned", "Submitted by user", "Reviewed", "Approved"],
+   195→  };
+   196→  let subSeq = 1;
+   197→  await Promise.all(
+   198→    subDefs.map((s) => {
+   199→      const seq = String(subSeq++).padStart(3, "0");
+   200→      const submitted = ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "REJECTED", "APPROVED"].includes(s.status);
+   201→      const reviewed = ["CHANGES_REQUESTED", "REJECTED", "APPROVED"].includes(s.status);
+   202→      return db.submission.create({
+   203→        data: {
+   204→          ref: `SUB-2526-${seq}`,
+   205→          title: s.title, category: s.category, metricName: s.metricName, metricValue: s.metricValue, metricUnit: s.metricUnit,
+   206→          status: s.status, overdue: s.overdue ?? false, period: "FY 2025-26", fiscalQuarter: s.quarter ?? "Q2",
+   207→          dueDate: at(-(s.days) - 5), submittedAt: submitted ? at(s.days) : null, reviewedAt: reviewed ? at(s.days + 1) : null,
+   208→          subsidiaryId: subs[s.sub].id, businessUnitId: units[s.unit].id, projectId: s.proj !== undefined ? projects[s.proj].id : null,
+   209→          submittedById: uIdx(s.by), reviewerId: s.reviewer ? uIdx(s.reviewer) : reviewers[subSeq % reviewers.length],
+   210→          values: JSON.stringify([
+   211→            { label: "Reported value", value: s.metricValue, unit: s.metricUnit },
+   212→            { label: "Prior period", value: +(s.metricValue * 0.92).toFixed(2), unit: s.metricUnit },
+   213→            { label: "Data points", value: 12, unit: "entries" },
+   214→          ]),
+   215→          evidence: JSON.stringify(
+   216→            s.status === "DRAFT" ? [] : [`meter-log-${seq}.pdf`, `calculation-sheet-${seq}.xlsx`, ...(subSeq % 3 === 0 ? [`site-photo-${seq}.jpg`] : [])]
+   217→          ),
+   218→          comments: JSON.stringify(
+   219→            s.status === "CHANGES_REQUESTED"
+   220→              ? [{ author: "Priya Deshmukh", role: "SUBSIDIARY_ADMIN", text: "Please attach the calibration certificate for the meter used and re-check unit conversion.", at: at(s.days + 1).toISOString() }]
+   221→              : s.status === "REJECTED"
+   222→                ? [{ author: "Arun Bhaskar", role: "GROUP_ADMIN", text: "Intensity denominator does not match production figures for the period. Return for correction.", at: at(s.days + 1).toISOString() }]
+   223→                : []
+   224→          ),
+   225→          history: JSON.stringify(statusFlow[s.status].map((step, i) => ({ action: step, actor: i === 0 ? "System" : i === statusFlow[s.status].length - 1 && reviewed ? "Group Admin" : "Workflow", at: at(s.days - (statusFlow[s.status].length - i) * 2).toISOString() }))),
+   226→        },
+   227→      });
+   228→    })
+   229→  );
+   230→
+   231→  // ── Tasks ─────────────────────────────────────────────────────
+   232→  const taskDefs = [
+   233→    { title: "Submit Q2 FY26 environmental metrics for Thermal BU", category: "ENVIRONMENT", assigneeType: "BU", assigneeLabel: "Thermal Generation — all eligible users", unit: 0, due: 3, priority: "HIGH", status: "ACTIVE", recipients: 6, ack: 4, done: 1 },
+   234→    { title: "Upload Q2 safety incident logs (all projects)", category: "SAFETY", assigneeType: "ROLE", assigneeLabel: "EHS / Safety Users (group-wide)", due: 6, priority: "CRITICAL", status: "ACTIVE", recipients: 5, ack: 3, done: 0 },
+   235→    { title: "FY2025-26 H1 HR & workforce data collection", category: "WORKFORCE", assigneeType: "ROLE", assigneeLabel: "HR Users (group-wide)", due: -2, priority: "HIGH", status: "OVERDUE", recipients: 3, ack: 2, done: 0 },
+   236→    { title: "Quarterly water withdrawal reconciliation", category: "WATER", assigneeType: "SUBSIDIARY", assigneeLabel: "MEIL Water Systems — all users", sub: 2, due: 9, priority: "MEDIUM", status: "UPCOMING", recipients: 8, ack: 1, done: 0 },
+   237→    { title: "Update supplier ESG scores for Q2", category: "PROCUREMENT", assigneeType: "ROLE", assigneeLabel: "Procurement Users", due: 12, priority: "MEDIUM", status: "UPCOMING", recipients: 2, ack: 0, done: 0 },
+   238→    { title: "CSR impact report — community programs", category: "CSR", assigneeType: "USER", assigneeLabel: "Lakshmi Prasad", sub: 2, due: -5, priority: "HIGH", status: "OVERDUE", recipients: 1, ack: 1, done: 0 },
+   239→    { title: "BRSR Core — leadership integrity disclosures", category: "COMPLIANCE", assigneeType: "ROLE", assigneeLabel: "Compliance Users", due: 15, priority: "MEDIUM", status: "UPCOMING", recipients: 3, ack: 0, done: 0 },
+   240→    { title: "Diesel consumption log submission — April", category: "ENERGY", assigneeType: "USER", assigneeLabel: "Santosh Rao", sub: 0, due: -14, priority: "MEDIUM", status: "COMPLETED", recipients: 1, ack: 1, done: 1 },
+   241→    { title: "Waste manifest reconciliation — Thermal", category: "WASTE", assigneeType: "USER", assigneeLabel: "Ramesh Iyer", sub: 0, due: -8, priority: "HIGH", status: "COMPLETED", recipients: 1, ack: 1, done: 1 },
+   242→    { title: "Q2 emissions data freeze preparation", category: "EMISSIONS", assigneeType: "ALL", assigneeLabel: "All eligible reporting users", due: 20, priority: "CRITICAL", status: "UPCOMING", recipients: 31, ack: 2, done: 0 },
+   243→    { title: "Renewable certificate (REC) reconciliation", category: "ENERGY", assigneeType: "BU", assigneeLabel: "Renewable Energy — all eligible users", unit: 1, due: 1, priority: "HIGH", status: "ACTIVE", recipients: 4, ack: 4, done: 2 },
+   244→    { title: "Overseas projects — local compliance attestations", category: "COMPLIANCE", assigneeType: "SUBSIDIARY", assigneeLabel: "MEIL Global Holdings — all users", sub: 3, due: 18, priority: "MEDIUM", status: "UPCOMING", recipients: 6, ack: 0, done: 0 },
+   245→  ];
+   246→  await Promise.all(
+   247→    taskDefs.map((t, i) =>
+   248→      db.task.create({
+   249→        data: {
+   250→          ref: `TSK-2526-${String(i + 1).padStart(3, "0")}`,
+   251→          title: t.title, description: "Consolidated reporting instruction issued by Group ESG office. Provide supporting evidence with each data point.",
+   252→          category: t.category, assigneeType: t.assigneeType, assigneeLabel: t.assigneeLabel,
+   253→          subsidiaryId: t.sub !== undefined ? subs[t.sub].id : null,
+   254→          businessUnitId: t.unit !== undefined ? units[t.unit].id : null,
+   255→          period: "FY 2025-26", startDate: at(-20), dueDate: at(t.due), priority: t.priority, status: t.status,
+   256→          requiresEvidence: true, recipients: t.recipients, acknowledged: t.ack, completed: t.done,
+   257→          remindersSent: t.status === "OVERDUE" ? 2 : t.status === "ACTIVE" ? 1 : 0,
+   258→          reminderLog: JSON.stringify(t.status === "OVERDUE" ? [{ at: at(-3).toISOString(), channel: "In-app" }, { at: at(-1).toISOString(), channel: "In-app" }] : []),
+   259→        },
+   260→      })
+   261→    )
+   262→  );
+   263→
+   264→  // ── Notifications ─────────────────────────────────────────────
+   265→  const notifs = [
+   266→    { ntype: "OVERDUE", title: "2 submissions overdue in Roads & Highways", body: "Groundwater Drawal and Road Safety Incidents have crossed their due dates. Escalation to BU Manager is pending.", severity: "CRITICAL", read: false, linkView: "submissions" },
+   267→    { ntype: "SUBMISSION", title: "New submission under review", body: "Scope 1 — Stationary Combustion Emissions submitted by Ramesh Iyer awaits your review.", severity: "INFO", read: false, linkView: "approvals" },
+   268→    { ntype: "APPROVAL", title: "Bulk approval completed", body: "4 submissions approved for MEIL Water Systems in the last batch.", severity: "SUCCESS", read: false, linkView: "approvals" },
+   269→    { ntype: "DEADLINE", title: "Q2 data freeze in 20 days", body: "All eligible users must complete submissions before the Q2 FY26 freeze.", severity: "WARNING", read: true, linkView: "tasks" },
+   270→    { ntype: "DATA_QUALITY", title: "Unit mismatch detected", body: "Waste — Hazardous Disposed: reported in kg instead of tonnes. Correction requested.", severity: "WARNING", read: false, linkView: "consolidation" },
+   271→    { ntype: "SYSTEM", title: "Nightly consolidation job completed", body: "Data consolidation engine processed 1,240 records with 3 exceptions.", severity: "INFO", read: true, linkView: "consolidation" },
+   272→    { ntype: "SUBMISSION", title: "Resubmission received", body: "Waste — Hazardous Disposed was resubmitted with calibration certificates.", severity: "INFO", read: true, linkView: "submissions" },
+   273→    { ntype: "DEADLINE", title: "Reminder wave sent", body: "Automatic reminders dispatched for 2 tasks approaching due dates.", severity: "INFO", read: true, linkView: "tasks" },
+   274→    { ntype: "APPROVAL", title: "BRSR draft awaiting sign-off", body: "FY 2024-25 BRSR report sign-off reminder: CFO sign-off pending.", severity: "WARNING", read: false, linkView: "brsr" },
+   275→  ];
+   276→  await Promise.all(notifs.map((n, i) => db.notification.create({ data: { ...n, refId: "", createdAt: at(-i, 8 + i) } })));
+   277→
+   278→  // ── Messages ──────────────────────────────────────────────────
+   279→  const msgs = [
+   280→    { kind: "ANNOUNCEMENT", channel: "GROUP_WIDE", subject: "FY 2025-26 BRSR reporting calendar published", body: "The consolidated reporting calendar for FY 2025-26 is now available. Q2 data freeze is scheduled in 20 days. Please review your submission schedule.", audienceLabel: "All eligible reporting users", recipients: 31, delivered: 31, failed: 0, readCount: 24, status: "SENT", createdAt: at(-4) },
+   281→    { kind: "REMINDER", channel: "ROLE_GROUP", subject: "Overdue: HR & workforce data collection", body: "The FY2025-26 H1 workforce data collection is overdue. Kindly submit at the earliest to avoid escalation.", audienceLabel: "HR Users", audienceFilter: JSON.stringify({ role: "HR_USER" }), recipients: 3, delivered: 3, failed: 0, readCount: 2, status: "SENT", createdAt: at(-2) },
+   282→    { kind: "MESSAGE", channel: "DIRECT", subject: "Clarification on Scope 3 travel data", body: "Hi Wei, please confirm the travel distance methodology used for the Philippines package.", audienceLabel: "Wei Zhang", recipients: 1, delivered: 1, failed: 0, readCount: 1, status: "SENT", createdAt: at(-1) },
+   283→    { kind: "POLICY", channel: "GROUP_WIDE", subject: "Updated ESG evidence policy v2.1", body: "All submissions must now include meter calibration certificates where applicable. Policy effective immediately.", audienceLabel: "All eligible reporting users", recipients: 31, delivered: 30, failed: 1, readCount: 17, status: "SENT", createdAt: at(-7) },
+   284→    { kind: "ANNOUNCEMENT", channel: "SUBSIDIARY", subject: "Water Systems — audit preparation week", body: "Internal ESG audit will run next week across desalination and water supply BUs.", audienceLabel: "MEIL Water Systems Ltd", audienceFilter: JSON.stringify({ subsidiaryIndex: 2 }), recipients: 8, delivered: 8, failed: 0, readCount: 5, status: "SENT", createdAt: at(-5) },
+   285→    { kind: "ANNOUNCEMENT", channel: "GROUP_WIDE", subject: "Scheduled: Q3 reporting kickoff", body: "Q3 FY26 reporting kickoff session — scheduled announcement.", audienceLabel: "All eligible reporting users", recipients: 31, delivered: 0, failed: 0, readCount: 0, status: "SCHEDULED", scheduledFor: at(10), createdAt: at(-1) },
+   286→  ];
+   287→  await Promise.all(msgs.map((m) => db.message.create({ data: { ...m, sentBy: "Group Admin" } })));
+   288→
+   289→  // ── Disclosure catalog ────────────────────────────────────────
+   290→  const disclosures = [
+   291→    { code: "BRSR-ENV-01", section: "ENVIRONMENT", title: "Total energy consumption (kWh)", unit: "GWh", description: "Aggregate electricity, fuel and other energy sources." },
+   292→    { code: "BRSR-ENV-02", section: "ENVIRONMENT", title: "Renewable energy share", unit: "%", description: "Share of renewables in total consumption." },
+   293→    { code: "BRSR-ENV-03", section: "ENVIRONMENT", title: "Energy intensity per rupee of turnover", unit: "GJ/₹ Cr", description: "Energy per unit of turnover." },
+   294→    { code: "BRSR-ENV-04", section: "ENVIRONMENT", title: "Scope 1 GHG emissions", unit: "tCO2e", description: "Direct emissions from owned/controlled sources." },
+   295→    { code: "BRSR-ENV-05", section: "ENVIRONMENT", title: "Scope 2 GHG emissions", unit: "tCO2e", description: "Indirect emissions from purchased energy." },
+   296→    { code: "BRSR-ENV-06", section: "ENVIRONMENT", title: "Water withdrawal", unit: "m³", description: "Total fresh water withdrawal." },
+   297→    { code: "BRSR-ENV-07", section: "ENVIRONMENT", title: "Water discharge quality", unit: "mg/L", description: "COD/BOD of discharged water." },
+   298→    { code: "BRSR-ENV-08", section: "ENVIRONMENT", title: "Waste generation & disposal", unit: "t", description: "Hazardous and non-hazardous waste." },
+   299→    { code: "BRSR-SOC-01", section: "SOCIAL", title: "Lost Time Injury Frequency Rate", unit: "per mn hrs", description: "Safety performance indicator." },
+   300→    { code: "BRSR-SOC-02", section: "SOCIAL", title: "Employee training hours", unit: "hrs", description: "Aggregate training investments." },
+   301→    { code: "BRSR-SOC-03", section: "SOCIAL", title: "Women in workforce", unit: "%", description: "Gender diversity ratio." },
+   302→    { code: "BRSR-SOC-04", section: "SOCIAL", title: "Employee turnover", unit: "%", description: "Voluntary + involuntary turnover." },
+   303→    { code: "BRSR-SOC-05", section: "SOCIAL", title: "CSR beneficiaries", unit: "persons", description: "Community program reach." },
+   304→    { code: "BRSR-SOC-06", section: "SOCIAL", title: "Contract labour count", unit: "persons", description: "Contract workforce engaged." },
+   305→    { code: "BRSR-GOV-01", section: "GOVERNANCE", title: "Regulatory non-compliance events", unit: "events", description: "Fines/penalties during the period." },
+   306→    { code: "BRSR-GOV-02", section: "GOVERNANCE", title: "Local sourcing share", unit: "%", description: "Procurement from local suppliers." },
+   307→    { code: "BRSR-GOV-03", section: "GOVERNANCE", title: "Green procurement spend", unit: "₹ Cr", description: "Spend on certified green suppliers." },
+   308→    { code: "BRSR-GOV-04", section: "GOVERNANCE", title: "Leadership integrity disclosures", unit: "count", description: "Conflict-of-interest attestations filed." },
+   309→  ];
+   310→  await Promise.all(disclosures.map((d) => db.disclosure.create({ data: d })));
+   311→
+   312→  // ── BRSR reports ──────────────────────────────────────────────
+   313→  const allScope = {
+   314→    subsidiaryIds: subs.map((s) => s.id),
+   315→    businessUnitIds: units.map((u) => u.id),
+   316→    projectIds: projects.map((p) => p.id),
+   317→  };
+   318→  await db.brsrReport.create({
+   319→    data: {
+   320→      ref: "BRSR-FY2425-v2", title: "MEIL Group Consolidated BRSR — FY 2024-25",
+   321→      financialYear: "FY 2024-25", framework: "SEBI BRSR Core v1.0",
+   322→      periodStart: at(-400), periodEnd: at(-35), description: "Consolidated annual Business Responsibility & Sustainability Report for the group.",
+   323→      ownerName: "Group Admin", status: "FINALIZED", wizardStep: 8,
+   324→      scope: JSON.stringify(allScope),
+   325→      sections: JSON.stringify([
+   326→        { id: "s1", title: "General Disclosures", content: "Corporate identity, listed entity details, products and markets — auto-populated from group master data.", sourceRefs: ["ORG-MASTER"] },
+   327→        { id: "s2", title: "Management & Process Disclosures", content: "BRSR committee structure, ESG policy adoption across subsidiaries, and due-diligence processes.", sourceRefs: ["GOV-POLICY"] },
+   328→        { id: "s3", title: "Environmental Performance", content: "Group-wide energy 412 GWh (renewable share 24.1%); Scope 1: 148,200 tCO2e; Scope 2: 96,400 tCO2e.", sourceRefs: ["SUB-2425-012", "SUB-2425-015"] },
+   329→        { id: "s4", title: "Social Performance", content: "Workforce 48,200; LTIFR 0.52; training 38,400 hrs; CSR reach 61,000 beneficiaries.", sourceRefs: ["SUB-2425-021"] },
+   330→        { id: "s5", title: "Governance & Compliance", content: "Zero material non-compliance events; local sourcing 64%; green procurement ₹284 Cr.", sourceRefs: ["SUB-2425-029"] },
+   331→      ]),
+   332→      disclosures: JSON.stringify(
+   333→        disclosures.map((d, i) => ({ code: d.code, title: d.title, mapped: true, status: i === 5 ? "EXCEPTION" : "VALIDATED", value: i === 5 ? null : (i + 1) * 120, unit: d.unit, note: i === 5 ? "Water discharge unit variance documented — see annexure." : "" }))
+   334→      ),
+   335→      signoffs: JSON.stringify([
+   336→        { role: "Group CFO", name: "R. Srinivasan", decision: "APPROVED", at: at(-40).toISOString(), comment: "Reviewed consolidated figures." },
+   337→        { role: "Group CEO", name: "P. Ramachandra", decision: "APPROVED", at: at(-38).toISOString(), comment: "Approved for board submission." },
+   338→        { role: "Board ESG Committee", name: "Committee Chair", decision: "APPROVED", at: at(-36).toISOString(), comment: "Endorsed." },
+   339→      ]),
+   340→      exports: JSON.stringify([
+   341→        { format: "PDF", at: at(-35).toISOString(), by: "Group Admin" },
+   342→        { format: "XLSX", at: at(-35).toISOString(), by: "Group Admin" },
+   343→      ]),
+   344→      version: 2,
+   345→      versions: JSON.stringify([
+   346→        { version: 1, at: at(-60).toISOString(), by: "Group Admin", note: "Initial draft after consolidation." },
+   347→        { version: 2, at: at(-35).toISOString(), by: "Group Admin", note: "Finalized with sign-offs." },
+   348→      ]),
+   349→      finalizedAt: at(-35),
+   350→    },
+   351→  });
+   352→  await db.brsrReport.create({
+   353→    data: {
+   354→      ref: "BRSR-FY2526-d1", title: "MEIL Group Consolidated BRSR — FY 2025-26",
+   355→      financialYear: "FY 2025-26", framework: "SEBI BRSR Core v1.0",
+   356→      periodStart: at(-200), periodEnd: at(165), description: "Work-in-progress consolidated report for the current financial year.",
+   357→      ownerName: "Group Admin", status: "VALIDATION", wizardStep: 4,
+   358→      scope: JSON.stringify(allScope),
+   359→      sections: JSON.stringify([
+   360→        { id: "s1", title: "General Disclosures", content: "Pending final org confirmation.", sourceRefs: [] },
+   361→        { id: "s2", title: "Management & Process Disclosures", content: "", sourceRefs: [] },
+   362→        { id: "s3", title: "Environmental Performance", content: "Provisional (approved-data only): Scope 1: 79,634 tCO2e; Scope 2: 31,540 tCO2e.", sourceRefs: ["SUB-2526-001", "SUB-2526-002"] },
+   363→      ]),
+   364→      disclosures: JSON.stringify(
+   365→        disclosures.map((d, i) => ({ code: d.code, title: d.title, mapped: i < 8, status: i < 5 ? "VALIDATED" : i < 8 ? "PENDING" : "NOT_MAPPED", value: i < 5 ? (i + 2) * 60 : null, unit: d.unit, note: "" }))
+   366→      ),
+   367→      signoffs: JSON.stringify([]),
+   368→      exports: JSON.stringify([]),
+   369→      version: 1,
+   370→      versions: JSON.stringify([{ version: 1, at: at(-10).toISOString(), by: "Group Admin", note: "Wizard draft — validation stage." }]),
+   371→    },
+   372→  });
+   373→
+   374→  // ── Activity events ───────────────────────────────────────────
+   375→  const acts = [
+   376→    { actorName: "Ramesh Iyer", actorRole: "ENV_DATA_USER", action: "SUBMIT", targetType: "Submission", targetLabel: "Scope 1 — Stationary Combustion", orgLabel: "MEIL Energy Ltd" },
+   377→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "APPROVE", targetType: "Submission", targetLabel: "Scope 2 — Purchased Electricity", orgLabel: "MEIL Energy Ltd" },
+   378→    { actorName: "Deepa Krishnan", actorRole: "ENV_DATA_USER", action: "SUBMIT", targetType: "Submission", targetLabel: "Renewable Energy Share — Solar", orgLabel: "MEIL Energy Ltd" },
+   379→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "TASK_ASSIGN", targetType: "Task", targetLabel: "Q2 environmental metrics — Thermal BU", orgLabel: "Group" },
+   380→    { actorName: "Sneha Kulkarni", actorRole: "EHS_USER", action: "EVIDENCE_UPLOAD", targetType: "Submission", targetLabel: "Lost Time Injury Frequency Rate", orgLabel: "MEIL Infrastructure Ltd" },
+   381→    { actorName: "Priya Deshmukh", actorRole: "SUBSIDIARY_ADMIN", action: "REJECT", targetType: "Submission", targetLabel: "Waste — Hazardous Disposed", orgLabel: "MEIL Energy Ltd", severity: "WARNING" },
+   382→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "REPORT_CREATE", targetType: "BRSR Report", targetLabel: "FY 2025-26 Consolidated BRSR", orgLabel: "Group" },
+   383→    { actorName: "Aparna Das", actorRole: "HR_USER", action: "DATA_EDIT", targetType: "Submission", targetLabel: "Employee Training Hours", orgLabel: "MEIL Infrastructure Ltd" },
+   384→    { actorName: "Wei Zhang", actorRole: "BU_MANAGER", action: "SUBMIT", targetType: "Submission", targetLabel: "Scope 3 — Business Travel", orgLabel: "MEIL Global Holdings" },
+   385→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "EXPORT", targetType: "BRSR Report", targetLabel: "FY 2024-25 BRSR (PDF)", orgLabel: "Group" },
+   386→    { actorName: "Kiran Reddy", actorRole: "BU_ADMIN", action: "ACCOUNT_UPDATE", targetType: "User", targetLabel: "Farhan Ali — role review", orgLabel: "MEIL Water Systems Ltd" },
+   387→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "ROLE_CHANGE", targetType: "User", targetLabel: "Nikhil Chandra — suspended", orgLabel: "MEIL Global Holdings", severity: "WARNING" },
+   388→    { actorName: "Tarun Bhatia", actorRole: "ENV_DATA_USER", action: "SUBMIT", targetType: "Submission", targetLabel: "Fresh Water Withdrawal", orgLabel: "MEIL Water Systems Ltd" },
+   389→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "LOGIN", targetType: "Session", targetLabel: "Web session", orgLabel: "Group" },
+   390→    { actorName: "Lakshmi Prasad", actorRole: "CSR_USER", action: "SUBMIT", targetType: "Submission", targetLabel: "Biodiversity — Land Reclaimed", orgLabel: "MEIL Water Systems Ltd" },
+   391→    { actorName: "Ravi Teja", actorRole: "PROCUREMENT_USER", action: "RESUBMIT", targetType: "Submission", targetLabel: "Road Safety Incidents", orgLabel: "MEIL Infrastructure Ltd" },
+   392→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "CONFIG_CHANGE", targetType: "Settings", targetLabel: "Reminder cadence — 3 days", orgLabel: "Group" },
+   393→    { actorName: "Farhan Ali", actorRole: "COMPLIANCE_USER", action: "EVIDENCE_UPLOAD", targetType: "Submission", targetLabel: "Regulatory Non-Compliance Events", orgLabel: "MEIL Water Systems Ltd" },
+   394→    { actorName: "Santosh Rao", actorRole: "FIN_RESOURCE_USER", action: "SUBMIT", targetType: "Submission", targetLabel: "Energy Intensity — Production", orgLabel: "MEIL Energy Ltd" },
+   395→    { actorName: "Priya Deshmukh", actorRole: "SUBSIDIARY_ADMIN", action: "APPROVE", targetType: "Submission", targetLabel: "Diesel Consumption — Generators", orgLabel: "MEIL Energy Ltd" },
+   396→  ];
+   397→  await Promise.all(acts.map((a, i) => db.activityEvent.create({ data: { ...a, createdAt: at(-i * 0.4, 9 + (i % 9)) } })));
+   398→
+   399→  // ── Audit events ──────────────────────────────────────────────
+   400→  const audits = [
+   401→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "SUBMISSION_APPROVE", targetType: "Submission", targetLabel: "SUB-2526-002 — Scope 2 Purchased Electricity", before: '{"status":"UNDER_REVIEW"}', after: '{"status":"APPROVED"}' },
+   402→    { actorName: "Priya Deshmukh", actorRole: "SUBSIDIARY_ADMIN", action: "SUBMISSION_REQUEST_CHANGES", targetType: "Submission", targetLabel: "SUB-2526-006 — Waste Hazardous", before: '{"status":"UNDER_REVIEW"}', after: '{"status":"CHANGES_REQUESTED"}', reason: "Calibration certificate missing" },
+   403→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "USER_SUSPEND", targetType: "User", targetLabel: "Nikhil Chandra", before: '{"status":"ACTIVE"}', after: '{"status":"SUSPENDED"}', reason: "Extended inactivity + policy violation review" },
+   404→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "BRSR_CREATE", targetType: "BrsrReport", targetLabel: "BRSR-FY2526-d1", after: '{"status":"DRAFT"}' },
+   405→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "BRSR_FINALIZE", targetType: "BrsrReport", targetLabel: "BRSR-FY2425-v2", before: '{"status":"SIGNOFF"}', after: '{"status":"FINALIZED","version":2}' },
+   406→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "BRSR_EXPORT", targetType: "BrsrReport", targetLabel: "BRSR-FY2425-v2", after: '{"format":"PDF"}' },
+   407→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "TASK_CREATE", targetType: "Task", targetLabel: "TSK-2526-002 — Safety incident logs", after: '{"priority":"CRITICAL"}' },
+   408→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "SETTINGS_UPDATE", targetType: "AppSetting", targetLabel: "reminder_cadence_days", before: '{"value":7}', after: '{"value":3}' },
+   409→    { actorName: "Priya Deshmukh", actorRole: "SUBSIDIARY_ADMIN", action: "SUBMISSION_APPROVE", targetType: "Submission", targetLabel: "SUB-2526-003 — Diesel Consumption", before: '{"status":"UNDER_REVIEW"}', after: '{"status":"APPROVED"}' },
+   410→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "ROLE_CHANGE", targetType: "User", targetLabel: "Kiran Reddy", before: '{"role":"BU_MANAGER"}', after: '{"role":"BU_ADMIN"}' },
+   411→    { actorName: "System", actorRole: "SCHEDULER", action: "REMINDER_DISPATCH", targetType: "Task", targetLabel: "TSK-2526-003 — HR data collection", after: '{"remindersSent":2}' },
+   412→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "USER_DEACTIVATE", targetType: "User", targetLabel: "Old Contractor", before: '{"status":"ACTIVE"}', after: '{"status":"INACTIVE"}', reason: "Contract ended — retained for audit attribution" },
+   413→    { actorName: "Sunita Rao", actorRole: "SUBSIDIARY_ADMIN", action: "SUBMISSION_RETURN", targetType: "Submission", targetLabel: "SUB-2526-019 — Road Safety Incidents", before: '{"status":"UNDER_REVIEW"}', after: '{"status":"CHANGES_REQUESTED"}', reason: "Incident log inconsistent with FIR records" },
+   414→    { actorName: "System", actorRole: "SCHEDULER", action: "CONSOLIDATION_RUN", targetType: "Engine", targetLabel: "Nightly consolidation", after: '{"records":1240,"exceptions":3}' },
+   415→    { actorName: "Arun Bhaskar", actorRole: "GROUP_ADMIN", action: "LOGIN", targetType: "Session", targetLabel: "Web session @10.24.8.11", outcome: "SUCCESS" },
+   416→    { actorName: "Unknown", actorRole: "ANONYMOUS", action: "LOGIN", targetType: "Session", targetLabel: "Web session @10.24.8.99", outcome: "FAILURE" },
+   417→  ];
+   418→  await Promise.all(audits.map((a, i) => db.auditEvent.create({ data: { ...a, orgScope: "GROUP", correlation: `req-${(1e6 + i * 7777).toString(36)}`, createdAt: at(-i * 0.7, 8 + (i % 11)) } })));
+   419→
+   420→  // ── Settings ──────────────────────────────────────────────────
+   421→  const settings = [
+   422→    { skey: "reporting_year", label: "Active reporting year", category: "REPORTING", svalue: JSON.stringify({ value: "FY 2025-26" }), vtype: "select", options: JSON.stringify(["FY 2024-25", "FY 2025-26", "FY 2026-27"]) },
+   423→    { skey: "q2_freeze_date", label: "Q2 FY26 data freeze date", category: "REPORTING", svalue: JSON.stringify({ value: at(20).toISOString().slice(0, 10) }), vtype: "text" },
+   424→    { skey: "reminder_cadence_days", label: "Deadline reminder cadence (days)", category: "REMINDERS", svalue: JSON.stringify({ value: 3 }), vtype: "number" },
+   425→    { skey: "escalation_enabled", label: "Auto-escalate overdue tasks to managers", category: "REMINDERS", svalue: JSON.stringify({ value: true }), vtype: "toggle" },
+   426→    { skey: "approval_stages", label: "Approval workflow stages", category: "WORKFLOW", svalue: JSON.stringify({ value: "Group Admin → CFO (BRSR only)" }), vtype: "text" },
+   427→    { skey: "brsr_framework", label: "BRSR framework version", category: "REPORTING", svalue: JSON.stringify({ value: "SEBI BRSR Core v1.0" }), vtype: "select", options: JSON.stringify(["SEBI BRSR Core v1.0", "SEBI BRSR Core v1.1 (draft)"]) },
+   428→    { skey: "emissions_factor_set", label: "Emissions factor set", category: "CALCULATION", svalue: JSON.stringify({ value: "GHG Protocol — India Grid 2024 (v4.2)" }), vtype: "select", options: JSON.stringify(["GHG Protocol — India Grid 2024 (v4.2)", "GHG Protocol — India Grid 2023 (v4.1)"]) },
+   429→    { skey: "email_provider", label: "Email delivery provider", category: "INTEGRATIONS", svalue: JSON.stringify({ value: "Not configured — in-app only" }), vtype: "text" },
+   430→    { skey: "session_timeout_min", label: "Session timeout (minutes)", category: "SECURITY", svalue: JSON.stringify({ value: 30 }), vtype: "number" },
+   431→    { skey: "audit_retention_years", label: "Audit retention (years)", category: "SECURITY", svalue: JSON.stringify({ value: 7 }), vtype: "number" },
+   432→    { skey: "anomaly_detection", label: "Statistical anomaly detection", category: "CALCULATION", svalue: JSON.stringify({ value: true }), vtype: "toggle" },
+   433→    { skey: "export_watermark", label: "Watermark exported reports", category: "EXPORTS", svalue: JSON.stringify({ value: true }), vtype: "toggle" },
+   434→  ];
+   435→  await Promise.all(settings.map((s) => db.appSetting.create({ data: s })));
+   436→
+   437→  const counts = {
+   438→    subsidiaries: await db.subsidiary.count(),
+   439→    units: await db.businessUnit.count(),
+   440→    projects: await db.project.count(),
+   441→    users: await db.user.count(),
+   442→    submissions: await db.submission.count(),
+   443→    tasks: await db.task.count(),
+   444→    notifications: await db.notification.count(),
+   445→    messages: await db.message.count(),
+   446→    reports: await db.brsrReport.count(),
+   447→    disclosures: await db.disclosure.count(),
+   448→    activity: await db.activityEvent.count(),
+   449→    audit: await db.auditEvent.count(),
+   450→    settings: await db.appSetting.count(),
+   451→  };
+   452→  console.log("Seed complete:", counts);
+   453→}
+   454→
+   455→main()
+   456→  .catch((e) => {
+   457→    console.error(e);
+   458→    process.exit(1);
+   459→  })
+   460→  .finally(() => db.$disconnect());
+   461→

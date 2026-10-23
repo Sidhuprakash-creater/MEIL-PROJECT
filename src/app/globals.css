@@ -316,3 +316,20 @@
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(125, 177, 216, 0.4), transparent);
 }
+
+/* ── Subsidiary Admin: liquid-green primary action tokens ─────────────── */
+:root {
+  --sa-action: #20a779;
+  --sa-action-hover: #168b65;
+  --sa-action-soft: rgba(32, 167, 121, 0.1);
+}
+.btn-action {
+  background: var(--sa-action);
+  color: #fff;
+  border: none;
+  box-shadow: 0 5px 14px rgba(32, 167, 121, 0.22);
+  transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+}
+.btn-action:hover { background: var(--sa-action-hover); box-shadow: 0 7px 18px rgba(32, 167, 121, 0.3); }
+.btn-action:active { transform: scale(0.98); }
+.btn-action:disabled { opacity: 0.55; box-shadow: none; }
