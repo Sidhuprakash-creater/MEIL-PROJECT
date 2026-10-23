@@ -1,6 +1,9 @@
 /**
  * MEIL ESG & BRSR Platform — demo data seeder.
  * Run: bun prisma/seed.ts
+ * THEN provision portal credentials:  bun prisma/seed-auth.ts
+ * (seed-auth assigns employeeIds + password hashes for the Enter-Platform
+ *  gateway — demo password "Esg@2025", Group Admin GRP-0001 / arun.bhaskar@meil.in)
  */
 import { PrismaClient } from "@prisma/client";
 

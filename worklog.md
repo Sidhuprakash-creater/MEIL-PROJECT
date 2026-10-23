@@ -276,3 +276,27 @@ Work Log:
 
 Stage Summary:
 - Workspace now ends with content only — no bottom status strip. Navigation chrome and scroll behavior unchanged.
+
+---
+Task ID: 7
+Agent: Lead (Z.ai Code main)
+Task: Add the landing page + Enter Platform gateway and wire the full flow: landing → Enter Platform → choose Group Admin → credentials (employee ID / email + password) → current Group Admin workspace. Every button functional.
+
+Work Log:
+- Extracted the uploaded "landing page.tar" (a prior single-route build) and ported its three-stage experience into the current workspace app: `src/components/landing/landing-page.tsx` (+ `landing.css`), `src/components/enter-platform/enter-platform.tsx` (+ `enter-platform.css`), public imagery (logo.svg, meil_kaleshwaram_project.jpg, 4 project photos).
+- Schema (prisma/schema.prisma): User += employeeId (unique, optional), passwordHash (scrypt, optional), lastLoginAt, sessions/auditLogs relations; added `Session` (opaque token, SHA-256 hash stored, TTL/remember-me) and `AuditLog` (auth event trail) models; pushed with db:push.
+- `prisma/seed-auth.ts`: idempotent credential provisioning — employeeIds for all 31 users (GRP-0001 Arun Bhaskar, SUB-100x/200x/300x/400x, BU-100x…BU-400x, EMP-xxxx fallback) + scrypt hash of demo password "Esg@2025"; run order documented in seed.ts header.
+- Ported + adapted auth stack: `src/lib/password.ts` (scrypt hash/verify/timing-equalizer; replaced promisify overload with typed Promise wrapper for TS), `src/lib/rate-limit.ts` (5 failures/15 min lockout), `src/lib/auth-audit.ts` (renamed from tar's audit.ts to avoid clash with esg logAudit), `src/lib/session.ts` (adapted: status !== "ACTIVE" instead of isActive, employeeId fallback to email), `src/lib/platform-config.ts` (portal/role catalogue, session cookie config, VerifiedUser payload).
+- API routes: `POST /api/auth/login` (identifier resolves as email OR employee ID; role/scope/status re-verified server-side; suspended message for SUSPENDED; honest "no password credential" for null hash), `GET /api/auth/session`, `POST /api/auth/logout`, `POST /api/auth/forgot-password` (audit-logged, non-enumerating), `GET /api/master/subsidiaries` + `GET /api/master/business-units` (portal pickers, status-based filtering).
+- `src/app/page.tsx` rewritten as AppGate (single route, staged): landing → gateway (Enter Platform) → server-verified login → workspace. Restores live sessions via /api/auth/session; deep links ?enter=1 / ?dashboard=1; landing CTAs switch to "Open Workspace" when a session exists; non-group scopes (verified subsidiary/BU logins) get an honest "scope console not included" screen with sign-out/back actions.
+- `src/components/workspace/shell.tsx`: SessionUser + SignOut React contexts; WorkspaceShell accepts `{ sessionUser, onSignOut }` and renders the verified identity (sidebar card, profile menu shows employee ID/email); "Sign out (demo session)" disabled item is now a working Sign out → POST /api/auth/logout → gateway.
+- `src/app/layout.tsx`: added Fraunces/Inter/IBM Plex Mono next/font variables (--font-display/--font-body/--font-label) required by the landing design system.
+- CSS isolation: landing.css tokens moved from `body{}` scope to `.lp-root, .ep-root{}` so the workspace keeps its own Geist/tailwind theme untouched; renamed `@keyframes pulse` → `lp-pulse` to avoid clashing with Tailwind's animate-pulse; landing.css co-located at `src/components/landing/landing.css` and imported by the component.
+- enter-platform.tsx: demo credentials table rewritten to match this DB (GRP-0001 Group Admin · Arun Bhaskar, SUB-1001/1002 MEIL Energy, BU-1001 Thermal, BU-3002 Water Supply; password hint Esg@2025); identifier field relabelled "Employee ID / Email" (autoCapitalize off, placeholder shows both forms); forgot-password copy mentions email.
+- Verification (curl + agent-browser): login via GRP-0001 AND via arun.bhaskar@meil.in; wrong password → "Invalid Employee ID / email or password."; suspended account → INACTIVE 403; subsidiary-portal login (SUB-1001 + subsidiary select) succeeds then shows scope notice; ROLE_MISMATCH server refusal; session cookie set/cleared on login/logout; AuditLog records LOGIN_SUCCESS/LOGIN_FAILED/LOGOUT/PASSWORD_RESET_REQUESTED/RATE_LIMITED paths; forgot-password and project-portal notice UI flows; full-page landing scroll + anchor nav + burger menu (mobile 390×844) + mobile gateway + mobile login → workspace; workspace regression (hierarchy canvas + diagram designs + status cards + identity) intact; deep-link ?dashboard=1 restores workspace; "Back to Site"/"Back to Portals" navigation; lint 0 problems; tsc clean (project files); no browser console errors.
+
+Stage Summary:
+- Flow shipped exactly as specified: Landing → Enter Platform → choose Group Portal/Group Admin → credentials (Employee ID or email + password) → the existing Group Admin workspace console, all client-side staged on the single visible route with a server-owned httpOnly session.
+- Demo sign-in: GRP-0001 or arun.bhaskar@meil.in with password Esg@2025 (displayed in the gateway's "Demo environment" panel). All other ACTIVE demo users share the same password; SUSPENDED/INACTIVE/INVITED are refused with real server messages.
+- Security posture kept honest: scrypt hashes, server-side role/scope/status verification, brute-force lockout, append-only auth audit trail, no fake success states.
+- Note: re-running `bun prisma/seed.ts` wipes users — re-run `bun prisma/seed-auth.ts` afterwards to restore portal credentials (documented in seed.ts header).

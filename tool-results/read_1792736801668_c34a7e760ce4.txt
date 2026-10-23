@@ -1,0 +1,884 @@
+     1→"use client";
+     2→
+     3→import { useEffect, useRef, useState } from "react";
+     4→import {
+     5→  ArrowRight,
+     6→  ArrowUpRight,
+     7→  BadgeCheck,
+     8→  Building2,
+     9→  ClipboardList,
+    10→  Clock3,
+    11→  Compass,
+    12→  Droplets,
+    13→  Factory,
+    14→  HardHat,
+    15→  HeartHandshake,
+    16→  Leaf,
+    17→  LockKeyhole,
+    18→  MapPin,
+    19→  Menu,
+    20→  Radar,
+    21→  Scale,
+    22→  ShieldCheck,
+    23→  TrendingDown,
+    24→  TrendingUp,
+    25→  Users,
+    26→  X,
+    27→  Zap,
+    28→} from "lucide-react";
+    29→
+    30→/* ─────────────────────────────────────────────────────────────────────────
+    31→   Data
+    32→   ───────────────────────────────────────────────────────────────────────── */
+    33→
+    34→const NAV_LINKS = [
+    35→  { href: "#home", label: "Home" },
+    36→  { href: "#pillars", label: "Five Pillars" },
+    37→  { href: "#brsr-framework", label: "Principles" },
+    38→  { href: "#workflow", label: "Framework" },
+    39→  { href: "#impact", label: "Impact" },
+    40→];
+    41→
+    42→const METRICS = [
+    43→  {
+    44→    icon: Factory,
+    45→    value: 1.48,
+    46→    decimals: 2,
+    47→    unit: "M",
+    48→    suffix: "tCO₂e",
+    49→    label: "Scope 1 & 2 GHG under continuous monitor",
+    50→    trend: "8.4% intensity YoY",
+    51→    trendIcon: TrendingDown,
+    52→    tone: "gold",
+    53→  },
+    54→  {
+    55→    icon: Zap,
+    56→    value: 42.8,
+    57→    decimals: 1,
+    58→    unit: "%",
+    59→    suffix: "",
+    60→    label: "Renewable share of the group energy mix",
+    61→    trend: "+6.2% clean power",
+    62→    trendIcon: TrendingUp,
+    63→    tone: "teal",
+    64→  },
+    65→  {
+    66→    icon: Droplets,
+    67→    value: 68.5,
+    68→    decimals: 1,
+    69→    unit: "%",
+    70→    suffix: "",
+    71→    label: "Water recycled and reused across operations",
+    72→    trend: "Zero liquid discharge",
+    73→    trendIcon: BadgeCheck,
+    74→    tone: "green",
+    75→  },
+    76→  {
+    77→    icon: HardHat,
+    78→    value: 52.4,
+    79→    decimals: 1,
+    80→    unit: "M",
+    81→    suffix: "hrs",
+    82→    label: "Safe workhours logged group-wide",
+    83→    trend: "Zero fatal incidents",
+    84→    trendIcon: ShieldCheck,
+    85→    tone: "green",
+    86→  },
+    87→  {
+    88→    icon: Radar,
+    89→    value: 200,
+    90→    decimals: 0,
+    91→    unit: "+",
+    92→    suffix: "",
+    93→    label: "Project sites reporting into one ledger",
+    94→    trend: "BRSR Core assured",
+    95→    trendIcon: BadgeCheck,
+    96→    tone: "gold",
+    97→  },
+    98→];
+    99→
+   100→const FRAMEWORKS = [
+   101→  "SEBI BRSR Core",
+   102→  "NGRBC Principles",
+   103→  "GHG Protocol",
+   104→  "ISO 14064",
+   105→  "GRI Standards",
+   106→  "CEA Emission Factors",
+   107→  "CPCB · SPCB",
+   108→  "XBRL Filing",
+   109→  "Integrated Reporting",
+   110→  "Business Responsibility",
+   111→];
+   112→
+   113→const PILLARS = [
+   114→  {
+   115→    accent: "people",
+   116→    num: "01",
+   117→    icon: Users,
+   118→    name: "People",
+   119→    desc: "The fifty thousand hands that build India — their safety, welfare and growth, tracked to the individual and reported to the board.",
+   120→    modules: [
+   121→      "Zero lost-time injury programme",
+   122→      "Workforce demographics & gender parity",
+   123→      "Fair wages & human-rights diligence",
+   124→      "Verified technical training hours",
+   125→    ],
+   126→  },
+   127→  {
+   128→    accent: "planet",
+   129→    num: "02",
+   130→    icon: Leaf,
+   131→    name: "Planet",
+   132→    desc: "Every tonne accounted for. Emissions, water and waste measured at source with statutory emission factors — never estimated after the fact.",
+   133→    modules: [
+   134→      "Scope 1–3 GHG · CEA & IPCC factors",
+   135→      "Renewable energy mix, solar & hydro",
+   136→      "Water recycling, zero liquid discharge",
+   137→      "Waste circularity & CPCB compliance",
+   138→    ],
+   139→  },
+   140→  {
+   141→    accent: "purpose",
+   142→    num: "03",
+   143→    icon: Compass,
+   144→    name: "Purpose",
+   145→    desc: "Nation-building is the business model. Community impact is engineered into the project, not annexed to the annual report.",
+   146→    modules: [
+   147→      "Strategic national infrastructure",
+   148→      "Rural healthcare & education CSR",
+   149→      "Structured grievance redressal",
+   150→      "UN SDG-aligned stakeholder dialogue",
+   151→    ],
+   152→  },
+   153→  {
+   154→    accent: "prosperity",
+   155→    num: "04",
+   156→    icon: TrendingUp,
+   157→    name: "Prosperity",
+   158→    desc: "Value that compounds without a debt to the planet — green supply chains and assets engineered to outlast their builders.",
+   159→    modules: [
+   160→      "Vendor ESG diligence & green sourcing",
+   161→      "Sustainable capital allocation",
+   162→      "Asset durability & build quality",
+   163→      "Clean mobility & e-transit manufacturing",
+   164→    ],
+   165→  },
+   166→  {
+   167→    accent: "principles",
+   168→    num: "05",
+   169→    icon: Scale,
+   170→    name: "Principles",
+   171→    desc: "Governance you can audit. Every number carries a name, a timestamp and an approval trail that ends at the boardroom.",
+   172→    modules: [
+   173→      "Board oversight & ESG committee",
+   174→      "Anti-corruption code of conduct",
+   175→      "BRSR Core reporting & XBRL filing",
+   176→      "Cyber defence & data privacy",
+   177→    ],
+   178→  },
+   179→];
+   180→
+   181→const PRINCIPLES = [
+   182→  { n: "P1", tag: "Governance", title: "Ethics, Transparency & Accountability", sum: "Zero tolerance for corruption, transparent disclosures and director oversight on every material matter." },
+   183→  { n: "P2", tag: "Stewardship", title: "Sustainable Goods & Services", sum: "Life-cycle assessment and resource efficiency engineered into every asset we deliver." },
+   184→  { n: "P3", tag: "Social", title: "Employee Well-being & Safety", sum: "Occupational health, safe remote sites, equal opportunity and continuous skill building." },
+   185→  { n: "P4", tag: "Stakeholders", title: "Stakeholder Engagement", sum: "Structured dialogue with communities, authorities, investors and vulnerable groups." },
+   186→  { n: "P5", tag: "Human Rights", title: "Promotion of Human Rights", sum: "Fair wages, no child labour and freedom of association across every vendor tier." },
+   187→  { n: "P6", tag: "Environment", title: "Environmental Protection", sum: "Emission mitigation, biodiversity stewardship and circular economy in daily practice." },
+   188→  { n: "P7", tag: "Public Policy", title: "Responsible Public Advocacy", sum: "Constructive participation in industry associations and green policy dialogues." },
+   189→  { n: "P8", tag: "Inclusive Growth", title: "Inclusive Development & CSR", sum: "Healthcare access, schools and rural infrastructure under targeted community programmes." },
+   190→  { n: "P9", tag: "Consumer Value", title: "Consumer Value & Redressal", sum: "Infrastructure quality, data privacy and cyber security with grievance closure that sticks." },
+   191→];
+   192→
+   193→const FLOW_STEPS = [
+   194→  {
+   195→    num: "i",
+   196→    title: "Field Ingestion",
+   197→    desc: "Meter readings, diesel logs and water invoices enter with evidence documents attached at the point of capture.",
+   198→    role: "Site ESG Officer",
+   199→  },
+   200→  {
+   201→    num: "ii",
+   202→    title: "Engine Review",
+   203→    desc: "The calculation engine applies verified CEA and IPCC factors; business-unit managers confirm completeness.",
+   204→    role: "BU Reviewer",
+   205→  },
+   206→  {
+   207→    num: "iii",
+   208→    title: "Subsidiary Scrutiny",
+   209→    desc: "Figures are tested against targets, permits cross-checked, and approvals recorded with signed remarks.",
+   210→    role: "Subsidiary ESG Lead",
+   211→  },
+   212→  {
+   213→    num: "iv",
+   214→    title: "Group Consolidation",
+   215→    desc: "The group ledger is locked for the financial year and exported as standardized SEBI BRSR disclosures.",
+   216→    role: "Group ESG Head · CIO",
+   217→  },
+   218→];
+   219→
+   220→const IMPACT_CHIPS = [
+   221→  { icon: Leaf, tone: "gold", val: "480,000+", label: "tCO₂e emissions avoided" },
+   222→  { icon: Droplets, tone: "teal", val: "8.4 bn L", label: "Industrial water recycled" },
+   223→  { icon: HeartHandshake, tone: "green", val: "500,000+", label: "Community beneficiaries" },
+   224→  { icon: HardHat, tone: "gold", val: "52.4 mn", label: "Zero-LTI safe manhours" },
+   225→];
+   226→
+   227→const PROJECTS = [
+   228→  {
+   229→    img: "/project-zojila.jpg",
+   230→    alt: "Tunnel portal carved into the snow-bound Himalayas at Zojila pass",
+   231→    loc: "Sonamarg → Minamarg · J&K",
+   232→    index: "01",
+   233→    name: "Zojila Strategic Tunnel",
+   234→    tagline: "14.15 km all-weather Himalayan corridor",
+   235→    stats: [
+   236→      { k: "Travel time cut", v: "−3.5 hours" },
+   237→      { k: "Carbon abatement", v: "−42,000 tCO₂e" },
+   238→    ],
+   239→    narrative:
+   240→      "Retires the most hazardous pass on the Indian road network. Fewer idling engines below 3,500 metres, fewer convoys stranded by avalanche — and an unbroken lifeline to Ladakh through the deepest winters.",
+   241→    progress: { label: "Excavation & lining", value: "86% complete", bar: 86, tone: "" },
+   242→  },
+   243→  {
+   244→    img: "/project-solar.jpg",
+   245→    alt: "Endless rows of photovoltaic panels at the Charanka solar park at golden hour",
+   246→    loc: "Patan District · Gujarat",
+   247→    index: "02",
+   248→    name: "Charanka 250 MW Solar Park",
+   249→    tagline: "Utility-scale desert photovoltaics",
+   250→    stats: [
+   251→      { k: "Annual clean energy", v: "380,000 MWh" },
+   252→      { k: "Offset against coal", v: "−310,000 tCO₂e" },
+   253→    ],
+   254→    narrative:
+   255→      "Feeds the western regional grid from an arid landscape, with robotic dry-cleaning arrays that cut module water consumption by ninety percent — power purchased, not apologised for.",
+   256→    progress: { label: "Power purchase agreement", value: "102% of target", bar: 100, tone: "project-bar-fill--green" },
+   257→  },
+   258→  {
+   259→    img: "/project-irrigation.jpg",
+   260→    alt: "Lift irrigation pump station with steel penstocks beside a river canal",
+   261→    loc: "Godavari Basin · Telangana & AP",
+   262→    index: "03",
+   263→    name: "Kaleshwaram Lift Irrigation",
+   264→    tagline: "The world's largest multi-stage lift scheme",
+   265→    stats: [
+   266→      { k: "Command area", v: "18.2 lakh acres" },
+   267→      { k: "Villages supplied", v: "500+" },
+   268→    ],
+   269→    narrative:
+   270→      "Flood water lifted across the Deccan to recharge dry uplands — the regional water table up 3.2 metres, drinking security for five hundred villages, food security for a generation of farmers.",
+   271→    progress: { label: "Pumping reliability", value: "99.4% operational", bar: 99.4, tone: "project-bar-fill--teal" },
+   272→  },
+   273→  {
+   274→    img: "/project-evbus.jpg",
+   275→    alt: "Electric city buses charging at a modern depot at dusk",
+   276→    loc: "Pan-India Municipal Transit",
+   277→    index: "04",
+   278→    name: "Olectra e-Bus Fleet",
+   279→    tagline: "10,000 electric buses under deployment",
+   280→    stats: [
+   281→      { k: "Diesel displaced", v: "150M+ litres" },
+   282→      { k: "Tailpipe removed", v: "−400,000 tCO₂e" },
+   283→    ],
+   284→    narrative:
+   285→      "Silent, zero-emission mass transit across Delhi, Mumbai, Pune, Hyderabad and Surat — taking particulate matter out of the commute, one route at a time.",
+   286→    progress: { label: "Fleet deployment", value: "91% on schedule", bar: 91, tone: "project-bar-fill--ink" },
+   287→  },
+   288→];
+   289→
+   290→const ROLES = [
+   291→  { icon: ShieldCheck, name: "Super Admin", mail: "admin@meil.in" },
+   292→  { icon: Clock3, name: "Group ESG Head", mail: "esg.head@meil.in" },
+   293→  { icon: Building2, name: "Zojila Project Director", mail: "pm.zojila@meil.in" },
+   294→  { icon: ClipboardList, name: "Site ESG Officer", mail: "esg.zojila@meil.in" },
+   295→];
+   296→
+   297→/* ─────────────────────────────────────────────────────────────────────────
+   298→   Animated counter
+   299→   ───────────────────────────────────────────────────────────────────────── */
+   300→
+   301→function Counter({ value, decimals }: { value: number; decimals: number }) {
+   302→  const ref = useRef<HTMLSpanElement>(null);
+   303→  const [out, setOut] = useState(decimals > 0 ? (0).toFixed(decimals) : "0");
+   304→
+   305→  useEffect(() => {
+   306→    const el = ref.current;
+   307→    if (!el) return;
+   308→    let raf = 0;
+   309→    const io = new IntersectionObserver(
+   310→      (entries) => {
+   311→        if (!entries[0].isIntersecting) return;
+   312→        io.disconnect();
+   313→        const start = performance.now();
+   314→        const dur = 1900;
+   315→        const tick = (now: number) => {
+   316→          const p = Math.min((now - start) / dur, 1);
+   317→          const eased = p === 1 ? 1 : 1 - Math.pow(2, -10 * p);
+   318→          setOut((value * eased).toFixed(decimals));
+   319→          if (p < 1) raf = requestAnimationFrame(tick);
+   320→        };
+   321→        raf = requestAnimationFrame(tick);
+   322→      },
+   323→      { threshold: 0.5 }
+   324→    );
+   325→    io.observe(el);
+   326→    return () => {
+   327→      io.disconnect();
+   328→      cancelAnimationFrame(raf);
+   329→    };
+   330→  }, [value, decimals]);
+   331→
+   332→  return <span ref={ref}>{out}</span>;
+   333→}
+   334→
+   335→/* ─────────────────────────────────────────────────────────────────────────
+   336→   Page
+   337→   ───────────────────────────────────────────────────────────────────────── */
+   338→
+   339→export default function LandingPage({
+   340→  onEnter,
+   341→}: {
+   342→  onEnter?: () => void;
+   343→} ) {
+   344→  const [scrolled, setScrolled] = useState(false);
+   345→  const [active, setActive] = useState("home");
+   346→  const [menuOpen, setMenuOpen] = useState(false);
+   347→  const progressRef = useRef<HTMLDivElement>(null);
+   348→
+   349→  useEffect(() => {
+   350→    // reveal on scroll
+   351→    const io = new IntersectionObserver(
+   352→      (entries) => {
+   353→        entries.forEach((e) => {
+   354→          if (e.isIntersecting) {
+   355→            e.target.classList.add("revealed");
+   356→            io.unobserve(e.target);
+   357→          }
+   358→        });
+   359→      },
+   360→      { threshold: 0.12, rootMargin: "0px 0px -48px 0px" }
+   361→    );
+   362→    document.querySelectorAll("[data-reveal]").forEach((el) => io.observe(el));
+   363→
+   364→    // scroll state
+   365→    const sectionIds = ["home", "pillars", "brsr-framework", "workflow", "impact"];
+   366→    const onScroll = () => {
+   367→      const y = window.scrollY;
+   368→      setScrolled(y > 30);
+   369→      const max = document.documentElement.scrollHeight - window.innerHeight;
+   370→      if (progressRef.current) {
+   371→        progressRef.current.style.width = `${max > 0 ? (y / max) * 100 : 0}%`;
+   372→      }
+   373→      let current = "home";
+   374→      for (const id of sectionIds) {
+   375→        const el = document.getElementById(id);
+   376→        if (el && el.getBoundingClientRect().top <= 220) current = id;
+   377→      }
+   378→      setActive(current);
+   379→    };
+   380→    onScroll();
+   381→    window.addEventListener("scroll", onScroll, { passive: true });
+   382→    return () => {
+   383→      io.disconnect();
+   384→      window.removeEventListener("scroll", onScroll);
+   385→    };
+   386→  }, []);
+   387→
+   388→  return (
+   389→    <div className="lp-root">
+   390→      <div className="lp-progress" ref={progressRef} aria-hidden />
+   391→
+   392→      {/* ═══ NAVIGATION ═══ */}
+   393→      <header className={`nav${scrolled ? " scrolled" : ""}`}>
+   394→        <div className="nav-shell">
+   395→          <div className="nav-bar">
+   396→            <a className="brand" href="#home" aria-label="MEIL Group home">
+   397→              <span className="brand-mark">M</span>
+   398→              <span className="brand-text">
+   399→                <b>MEIL Group</b>
+   400→                <small>BRSR &amp; ESG Intelligence</small>
+   401→              </span>
+   402→            </a>
+   403→
+   404→            <nav className="nav-links" aria-label="Primary">
+   405→              {NAV_LINKS.map((l) => (
+   406→                <a
+   407→                  key={l.href}
+   408→                  className={`nav-link${active === l.href.slice(1) ? " active" : ""}`}
+   409→                  href={l.href}
+   410→                >
+   411→                  {l.label}
+   412→                </a>
+   413→              ))}
+   414→            </nav>
+   415→
+   416→            <div className="nav-cta-group">
+   417→              <button className="btn btn-gold" type="button" onClick={onEnter}>
+   418→                <span>Enter Platform</span>
+   419→                <ArrowRight className="btn-arrow" size={15} strokeWidth={2.4} />
+   420→              </button>
+   421→            </div>
+   422→
+   423→            <button
+   424→              className="nav-burger"
+   425→              aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+   426→              aria-expanded={menuOpen}
+   427→              onClick={() => setMenuOpen((v) => !v)}
+   428→            >
+   429→              {menuOpen ? <X size={19} /> : <Menu size={19} />}
+   430→            </button>
+   431→          </div>
+   432→
+   433→          <nav
+   434→            className={`nav-mobile${menuOpen ? " open" : ""}`}
+   435→            aria-label="Mobile"
+   436→          >
+   437→            {NAV_LINKS.map((l) => (
+   438→              <a
+   439→                key={l.href}
+   440→                className={active === l.href.slice(1) ? "active" : ""}
+   441→                href={l.href}
+   442→                onClick={() => setMenuOpen(false)}
+   443→              >
+   444→                {l.label}
+   445→              </a>
+   446→            ))}
+   447→            <button
+   448→              className="btn btn-gold"
+   449→              type="button"
+   450→              style={{ marginTop: 10, justifyContent: "center" }}
+   451→              onClick={() => {
+   452→                setMenuOpen(false);
+   453→                onEnter?.();
+   454→              }}
+   455→            >
+   456→              <span>Enter Platform</span>
+   457→              <ArrowRight size={15} strokeWidth={2.4} />
+   458→            </button>
+   459→          </nav>
+   460→        </div>
+   461→      </header>
+   462→
+   463→      <main>
+   464→        {/* ═══ HERO ═══ */}
+   465→        <section className="hero" id="home">
+   466→          <div className="hero-media">
+   467→            <img
+   468→              src="/meil_kaleshwaram_project.jpg"
+   469→              alt="Aerial view of the MEIL Kaleshwaram lift irrigation project and Medigadda barrage at dusk"
+   470→              fetchPriority="high"
+   471→            />
+   472→          </div>
+   473→          <div className="hero-veil" />
+   474→          <div className="aurora hero-aurora-1" />
+   475→          <div className="aurora hero-aurora-2" />
+   476→
+   477→          <div className="hero-inner container-wide">
+   478→            <div className="hero-content">
+   479→              <p className="eyebrow eyebrow--paper hero-eyebrow" data-reveal>
+   480→                MEIL Group · Sustainability Intelligence · Since 1985
+   481→              </p>
+   482→
+   483→              <h1 className="hero-title" data-reveal style={{ "--rd": "90ms" } as React.CSSProperties}>
+   484→                The infrastructure of a nation,
+   485→                <br />
+   486→                <em>accountable</em> to its future.
+   487→              </h1>
+   488→
+   489→              <p className="hero-lede" data-reveal style={{ "--rd": "180ms" } as React.CSSProperties}>
+   490→                One platform where every megaproject, subsidiary and business unit
+   491→                reports sustainability the way we build — <strong>measured, verified
+   492→                and engineered to endure</strong>. Aligned to SEBI BRSR Core, the NGRBC
+   493→                nine principles and the GHG Protocol.
+   494→              </p>
+   495→
+   496→              <div className="hero-ctas" data-reveal style={{ "--rd": "270ms" } as React.CSSProperties}>
+   497→                <button className="btn btn-gold btn-lg" type="button" onClick={onEnter}>
+   498→                  <span>Enter the Platform</span>
+   499→                  <ArrowRight className="btn-arrow" size={17} strokeWidth={2.4} />
+   500→                </button>
+   501→                <a className="btn btn-glass btn-lg" href="#brsr-framework">
+   502→                  <span>Explore the Principles</span>
+   503→                  <ArrowUpRight size={16} strokeWidth={2.2} />
+   504→                </a>
+   505→              </div>
+   506→
+   507→              <ul className="hero-trust" data-reveal style={{ "--rd": "360ms" } as React.CSSProperties}>
+   508→                {[
+   509→                  "SEBI BRSR Core assured",
+   510→                  "GHG Protocol Scope 1·2·3",
+   511→                  "ISO 14064 aligned",
+   512→                  "CEA emission factors v2.4",
+   513→                ].map((t) => (
+   514→                  <li key={t} className="trust-chip">
+   515→                    <BadgeCheck size={13} strokeWidth={2.2} />
+   516→                    {t}
+   517→                  </li>
+   518→                ))}
+   519→              </ul>
+   520→            </div>
+   521→          </div>
+   522→
+   523→          <div className="hero-cue" aria-hidden>
+   524→            <span>Scroll</span>
+   525→            <div className="hero-cue-line" />
+   526→          </div>
+   527→        </section>
+   528→
+   529→        {/* ═══ METRICS BAND ═══ */}
+   530→        <div className="metrics-band container-wide">
+   531→          <div className="metrics-card glass-dark glass-edge noise" data-reveal="scale">
+   532→            <div className="metrics-grid">
+   533→              {METRICS.map((m) => (
+   534→                <div className="metric" key={m.label}>
+   535→                  <div className="metric-top">
+   536→                    <span className={`metric-ico metric-ico--${m.tone}`}>
+   537→                      <m.icon size={18} strokeWidth={2} />
+   538→                    </span>
+   539→                  </div>
+   540→                  <span className="metric-num">
+   541→                    <Counter value={m.value} decimals={m.decimals} />
+   542→                    {m.unit}
+   543→                    {m.suffix ? <small>{m.suffix}</small> : null}
+   544→                  </span>
+   545→                  <span className="metric-label">{m.label}</span>
+   546→                  <span className={`metric-trend metric-trend--${m.tone}`}>
+   547→                    <m.trendIcon size={11} strokeWidth={2.4} />
+   548→                    {m.trend}
+   549→                  </span>
+   550→                </div>
+   551→              ))}
+   552→            </div>
+   553→          </div>
+   554→        </div>
+   555→
+   556→        {/* ═══ FRAMEWORK MARQUEE ═══ */}
+   557→        <div className="marquee-band" style={{ marginTop: 26 }}>
+   558→          <div className="marquee-track" aria-hidden>
+   559→            {[...FRAMEWORKS, ...FRAMEWORKS].map((f, i) => (
+   560→              <span className="marquee-item" key={`${f}-${i}`}>
+   561→                {f}
+   562→              </span>
+   563→            ))}
+   564→          </div>
+   565→        </div>
+   566→
+   567→        {/* ═══ FIVE PILLARS ═══ */}
+   568→        <section className="pillars-section section" id="pillars">
+   569→          <div className="aurora aurora-a" />
+   570→          <div className="aurora aurora-b" />
+   571→
+   572→          <div className="container-wide">
+   573→            <div className="section-head">
+   574→              <span className="eyebrow eyebrow--paper eyebrow--center" data-reveal>
+   575→                The 5P Framework
+   576→              </span>
+   577→              <h2 className="section-title section-title--paper" data-reveal style={{ "--rd": "90ms" } as React.CSSProperties}>
+   578→                Five pillars, one <em>chain of custody</em>.
+   579→              </h2>
+   580→              <p className="section-sub section-sub--paper" data-reveal style={{ "--rd": "180ms" } as React.CSSProperties}>
+   581→                From a meter reading at a Himalayan tunnel head to a signed SEBI
+   582→                disclosure — every indicator is captured with source evidence,
+   583→                calculated with statutory factors and approved through four tiers
+   584→                of scrutiny.
+   585→              </p>
+   586→            </div>
+   587→
+   588→            <div className="pillar-grid">
+   589→              {PILLARS.map((p, i) => (
+   590→                <article
+   591→                  className="pillar-card glass-dark glass-edge sweep"
+   592→                  data-accent={p.accent}
+   593→                  key={p.name}
+   594→                  data-reveal
+   595→                  style={{ "--rd": `${i * 90}ms` } as React.CSSProperties}
+   596→                >
+   597→                  <span className="pillar-ghost">{p.num}</span>
+   598→                  <span className="pillar-icon">
+   599→                    <p.icon size={24} strokeWidth={1.9} />
+   600→                  </span>
+   601→                  <span className="pillar-kicker">Pillar {p.num}</span>
+   602→                  <h3 className="pillar-name">{p.name}</h3>
+   603→                  <p className="pillar-desc">{p.desc}</p>
+   604→                  <ul className="pillar-list">
+   605→                    {p.modules.map((m) => (
+   606→                      <li key={m}>
+   607→                        <BadgeCheck size={14} strokeWidth={2.2} />
+   608→                        {m}
+   609→                      </li>
+   610→                    ))}
+   611→                  </ul>
+   612→                </article>
+   613→              ))}
+   614→            </div>
+   615→          </div>
+   616→        </section>
+   617→
+   618→        {/* ═══ BRSR MATRIX ═══ */}
+   619→        <section className="brsr-section section" id="brsr-framework">
+   620→          <div className="container-wide">
+   621→            <div className="section-head">
+   622→              <span className="eyebrow eyebrow--ink eyebrow--center" data-reveal>
+   623→                SEBI-Mandated · NGRBC
+   624→              </span>
+   625→              <h2 className="section-title" data-reveal style={{ "--rd": "90ms" } as React.CSSProperties}>
+   626→                Nine principles, mapped <em>to the letter</em>.
+   627→              </h2>
+   628→              <p className="section-sub" data-reveal style={{ "--rd": "180ms" } as React.CSSProperties}>
+   629→                Every indicator in the platform is traced to the National
+   630→                Guidelines for Responsible Business Conduct — so a disclosure is
+   631→                never an interpretation.
+   632→              </p>
+   633→            </div>
+   634→
+   635→            <div className="matrix" data-reveal="scale">
+   636→              {PRINCIPLES.map((p) => (
+   637→                <div className="matrix-cell" key={p.n}>
+   638→                  <div className="matrix-head">
+   639→                    <span className="matrix-num">{p.n}</span>
+   640→                    <span className="matrix-tag">{p.tag}</span>
+   641→                  </div>
+   642→                  <h3 className="matrix-title">{p.title}</h3>
+   643→                  <p className="matrix-sum">{p.sum}</p>
+   644→                </div>
+   645→              ))}
+   646→            </div>
+   647→          </div>
+   648→        </section>
+   649→
+   650→        {/* ═══ WORKFLOW ═══ */}
+   651→        <section className="workflow-section section" id="workflow">
+   652→          <div className="container-wide">
+   653→            <div className="section-head">
+   654→              <span className="eyebrow eyebrow--paper eyebrow--center" data-reveal>
+   655→                Governance in Action
+   656→              </span>
+   657→              <h2 className="section-title section-title--paper" data-reveal style={{ "--rd": "90ms" } as React.CSSProperties}>
+   658→                Four tiers from field <em>to filing</em>.
+   659→              </h2>
+   660→              <p className="section-sub section-sub--paper" data-reveal style={{ "--rd": "180ms" } as React.CSSProperties}>
+   661→                Spreadsheets do not survive an audit. Every figure moves through a
+   662→                traceable chain of custody — with evidence attached at the point
+   663→                of entry.
+   664→              </p>
+   665→            </div>
+   666→
+   667→            <ol className="flow-rail">
+   668→              {FLOW_STEPS.map((s, i) => (
+   669→                <li className="flow-step" key={s.title} data-reveal style={{ "--rd": `${i * 110}ms` } as React.CSSProperties}>
+   670→                  <span className="flow-node">{s.num}</span>
+   671→                  <div className="flow-card glass-dark glass-edge">
+   672→                    <h3 className="flow-title">{s.title}</h3>
+   673→                    <p className="flow-desc">{s.desc}</p>
+   674→                    <span className="flow-role">{s.role}</span>
+   675→                  </div>
+   676→                </li>
+   677→              ))}
+   678→            </ol>
+   679→          </div>
+   680→        </section>
+   681→
+   682→        {/* ═══ IMPACT ═══ */}
+   683→        <section className="impact-section section" id="impact">
+   684→          <div className="container-wide">
+   685→            <div className="section-head">
+   686→              <span className="eyebrow eyebrow--ink eyebrow--center" data-reveal>
+   687→                Measured Outcomes
+   688→              </span>
+   689→              <h2 className="section-title" data-reveal style={{ "--rd": "90ms" } as React.CSSProperties}>
+   690→                Progress you can <em>audit</em>.
+   691→              </h2>
+   692→              <p className="section-sub" data-reveal style={{ "--rd": "180ms" } as React.CSSProperties}>
+   693→                Sustainability milestones across the group&rsquo;s flagship
+   694→                projects — restated with the same rigour we apply to a balance
+   695→                sheet.
+   696→              </p>
+   697→            </div>
+   698→
+   699→            <div className="impact-strip">
+   700→              {IMPACT_CHIPS.map((c, i) => (
+   701→                <div
+   702→                  className="impact-chip glass-light"
+   703→                  key={c.label}
+   704→                  data-reveal
+   705→                  style={{ "--rd": `${i * 80}ms` } as React.CSSProperties}
+   706→                >
+   707→                  <span className={`impact-chip-ico impact-chip-ico--${c.tone}`}>
+   708→                    <c.icon size={21} strokeWidth={1.9} />
+   709→                  </span>
+   710→                  <span>
+   711→                    <span className="impact-chip-val">{c.val}</span>
+   712→                    <span className="impact-chip-label">{c.label}</span>
+   713→                  </span>
+   714→                </div>
+   715→              ))}
+   716→            </div>
+   717→
+   718→            <div className="impact-grid">
+   719→              {PROJECTS.map((p, i) => (
+   720→                <article
+   721→                  className="project-card"
+   722→                  key={p.name}
+   723→                  data-reveal
+   724→                  style={{ "--rd": `${(i % 2) * 110}ms` } as React.CSSProperties}
+   725→                >
+   726→                  <figure className="project-media">
+   727→                    <img src={p.img} alt={p.alt} loading="lazy" />
+   728→                    <span className="project-loc">
+   729→                      <MapPin size={11} strokeWidth={2.4} />
+   730→                      {p.loc}
+   731→                    </span>
+   732→                    <span className="project-index">{p.index}</span>
+   733→                  </figure>
+   734→                  <div className="project-body">
+   735→                    <h3 className="project-name">{p.name}</h3>
+   736→                    <p className="project-tagline">{p.tagline}</p>
+   737→                    <div className="project-stats">
+   738→                      {p.stats.map((s) => (
+   739→                        <div className="project-stat" key={s.k}>
+   740→                          <small>{s.k}</small>
+   741→                          <b>{s.v}</b>
+   742→                        </div>
+   743→                      ))}
+   744→                    </div>
+   745→                    <p className="project-narrative">{p.narrative}</p>
+   746→                    <div className="project-progress">
+   747→                      <div className="project-progress-labels">
+   748→                        <span>{p.progress.label}</span>
+   749→                        <span>{p.progress.value}</span>
+   750→                      </div>
+   751→                      <div className="project-bar">
+   752→                        <div
+   753→                          className={`project-bar-fill ${p.progress.tone}`}
+   754→                          style={{ "--bar": `${Math.min(p.progress.bar, 100)}%` } as React.CSSProperties}
+   755→                        />
+   756→                      </div>
+   757→                    </div>
+   758→                  </div>
+   759→                </article>
+   760→              ))}
+   761→            </div>
+   762→          </div>
+   763→        </section>
+   764→
+   765→        {/* ═══ ACCESS CTA ═══ */}
+   766→        <section className="access-section">
+   767→          <div className="container-wide">
+   768→            <div className="access-panel noise" data-reveal="scale">
+   769→              <div className="aurora aurora-a" />
+   770→              <div className="aurora aurora-b" />
+   771→
+   772→              <div className="access-content">
+   773→                <div data-reveal="left">
+   774→                  <span className="eyebrow eyebrow--paper">Role-Based Access</span>
+   775→                  <h2 className="access-title">
+   776→                    Step inside the <em>reporting room</em>.
+   777→                  </h2>
+   778→                  <p className="access-sub">
+   779→                    Walk the platform with pre-configured executive, manager and
+   780→                    auditor profiles — switch roles and watch the same ledger
+   781→                    reshape itself for each responsibility.
+   782→                  </p>
+   783→                  <button className="btn btn-gold btn-lg" type="button" onClick={onEnter}>
+   784→                    <span>Login to Platform</span>
+   785→                    <ArrowRight className="btn-arrow" size={17} strokeWidth={2.4} />
+   786→                  </button>
+   787→                  <p className="access-note">
+   788→                    <LockKeyhole size={12} strokeWidth={2.2} />
+   789→                    Encrypted session · SSO-ready · Audit logged
+   790→                  </p>
+   791→                </div>
+   792→
+   793→                <div className="role-list" data-reveal="right">
+   794→                  {ROLES.map((r) => (
+   795→                    <button className="role-chip" type="button" key={r.name} onClick={onEnter}>
+   796→                      <span className="role-ico">
+   797→                        <r.icon size={18} strokeWidth={1.9} />
+   798→                      </span>
+   799→                      <span>
+   800→                        <span className="role-name">{r.name}</span>
+   801→                        <span className="role-mail">{r.mail}</span>
+   802→                      </span>
+   803→                    </button>
+   804→                  ))}
+   805→                </div>
+   806→              </div>
+   807→            </div>
+   808→          </div>
+   809→        </section>
+   810→      </main>
+   811→
+   812→      {/* ═══ FOOTER ═══ */}
+   813→      <footer className="footer">
+   814→        <div className="container-wide">
+   815→          <div className="footer-top">
+   816→            <div className="footer-brand">
+   817→              <a className="brand" href="#home" aria-label="MEIL Group home">
+   818→                <span className="brand-mark">M</span>
+   819→                <span className="brand-text">
+   820→                  <b>MEIL Group</b>
+   821→                  <small>BRSR &amp; ESG Intelligence</small>
+   822→                </span>
+   823→              </a>
+   824→              <p>
+   825→                Megha Engineering &amp; Infrastructures Limited — building
+   826→                India&rsquo;s critical infrastructure since 1985, and accounting
+   827→                for every megawatt, litre and lifehour in the open.
+   828→              </p>
+   829→            </div>
+   830→
+   831→            <div className="footer-col">
+   832→              <h4>Frameworks</h4>
+   833→              <ul className="footer-links">
+   834→                <li><a href="#brsr-framework">SEBI BRSR Core</a></li>
+   835→                <li><a href="#brsr-framework">NGRBC Nine Principles</a></li>
+   836→                <li><a href="#pillars">GHG Protocol Scope 1–3</a></li>
+   837→                <li><a href="#pillars">CEA Emission Factors</a></li>
+   838→                <li><a href="#pillars">CPCB · SPCB Compliance</a></li>
+   839→              </ul>
+   840→            </div>
+   841→
+   842→            <div className="footer-col">
+   843→              <h4>Flagships</h4>
+   844→              <ul className="footer-links">
+   845→                <li><a href="#impact">Zojila Strategic Tunnel</a></li>
+   846→                <li><a href="#impact">Kaleshwaram Lift Irrigation</a></li>
+   847→                <li><a href="#impact">Polavaram Project</a></li>
+   848→                <li><a href="#impact">Charanka Solar Park</a></li>
+   849→                <li><a href="#impact">Olectra e-Mobility</a></li>
+   850→              </ul>
+   851→            </div>
+   852→
+   853→            <div className="footer-col">
+   854→              <h4>Portal</h4>
+   855→              <div className="footer-status">
+   856→                <div className="footer-status-row">
+   857→                  <span className="pulse-dot" />
+   858→                  Reporting portal active
+   859→                </div>
+   860→                <p>
+   861→                  Centralised ESG consolidation for MEIL subsidiaries, business
+   862→                  units and project sites. FY 2025–26 collection in progress.
+   863→                </p>
+   864→              </div>
+   865→            </div>
+   866→          </div>
+   867→
+   868→          <div className="footer-bottom">
+   869→            <span>
+   870→              © {new Date().getFullYear()} Megha Engineering &amp;
+   871→              Infrastructures Limited. All rights reserved.
+   872→            </span>
+   873→            <div className="footer-legal">
+   874→              <a href="#home">Privacy</a>
+   875→              <a href="#home">Terms</a>
+   876→              <a href="#home">Information Security</a>
+   877→            </div>
+   878→          </div>
+   879→        </div>
+   880→      </footer>
+   881→    </div>
+   882→  );
+   883→}
+   884→

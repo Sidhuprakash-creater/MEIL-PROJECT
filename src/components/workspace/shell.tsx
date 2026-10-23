@@ -49,6 +49,39 @@ export const VIEW_ICONS: Record<ViewId, React.ComponentType<{ className?: string
 
 const SUBSIDIARIES_LIGHT: { id: string; name: string }[] = [];
 
+/* ───────────────────────── Verified session user ────────────────────────
+   The AppGate (/) resolves the signed-in identity from /api/auth/session
+   and provides it here. Defaults match the demo Group Admin so the
+   workspace still renders standalone exactly as before. */
+
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string; // employee ID or email used at sign-in
+  role: string;
+  roleLabel: string;
+}
+
+const DEMO_SESSION_USER: SessionUser = {
+  id: "demo",
+  name: "Arun Bhaskar",
+  email: "GRP-0001 · arun.bhaskar@meil.in",
+  role: "GROUP_ADMIN",
+  roleLabel: "Group Admin",
+};
+
+const SessionUserContext = React.createContext<SessionUser>(DEMO_SESSION_USER);
+const SignOutContext = React.createContext<() => void>(() => undefined);
+
+function useSessionUser(): SessionUser {
+  return React.useContext(SessionUserContext);
+}
+
+function shortName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : name;
+}
+
 /* ───────────────────────────── Sidebar ───────────────────────────── */
 
 function NavItem({ view, collapsed }: { view: ViewId; collapsed: boolean }) {
@@ -85,6 +118,7 @@ function NavItem({ view, collapsed }: { view: ViewId; collapsed: boolean }) {
 
 function SidebarContent({ collapsed }: { collapsed: boolean }) {
   const { navigate } = useWorkspace();
+  const user = useSessionUser();
   return (
     <div className={cn("flex h-full flex-col", collapsed ? "px-2.5 py-4" : "px-3.5 py-4")}>
       {/* Brand */}
@@ -103,10 +137,10 @@ function SidebarContent({ collapsed }: { collapsed: boolean }) {
       {/* Group Admin identity card */}
       {!collapsed && (
         <div className="glass-subtle glass-sheen mb-4 flex items-center gap-3 rounded-2xl p-2.5">
-          <Avatar name="Arun Bhaskar" size={34} />
+          <Avatar name={user.name} size={34} />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] font-semibold text-[color:var(--ink)]">Arun Bhaskar</div>
-            <div className="truncate text-[11px] text-[color:var(--ink-faint)]">Group Admin · Super Admin</div>
+            <div className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{user.name}</div>
+            <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{user.roleLabel} · Super Admin</div>
           </div>
           <span className="flex h-2 w-2 shrink-0 rounded-full bg-[#238653] pulse-dot" aria-label="Online" />
         </div>
@@ -239,6 +273,8 @@ function GlobalSearch({ trigger }: { trigger: React.ReactNode }) {
 
 function TopBar() {
   const { view, params, reportingYear, setReportingYear, orgScope, setOrgScope, toggleSidebar, sidebarCollapsed, setMobileNav } = useWorkspace();
+  const user = useSessionUser();
+  const onSignOut = React.useContext(SignOutContext);
   const meta = VIEW_META[view];
   const { data: subs } = useApi<{ subsidiaries: { id: string; name: string }[] }>("/api/esg/org?type=subsidiaries&light=1");
   const detailMode = !!params.detailId;
@@ -315,17 +351,17 @@ function TopBar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="glass-subtle flex h-10 items-center gap-2 rounded-2xl pl-1.5 pr-2.5 transition-colors hover:bg-white/75" aria-label="Profile menu">
-              <Avatar name="Arun Bhaskar" size={30} />
-              <span className="hidden text-[13px] font-semibold text-[color:var(--ink)] lg:inline">Arun B.</span>
+              <Avatar name={user.name} size={30} />
+              <span className="hidden text-[13px] font-semibold text-[color:var(--ink)] lg:inline">{shortName(user.name)}</span>
               <ChevronDown className="hidden h-3.5 w-3.5 text-[color:var(--ink-faint)] lg:inline" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="glass-strong w-64 rounded-3xl border-white/80 p-2">
             <div className="flex items-center gap-3 px-2 py-2">
-              <Avatar name="Arun Bhaskar" size={40} />
+              <Avatar name={user.name} size={40} />
               <div className="min-w-0">
-                <div className="truncate text-[13.5px] font-semibold text-[color:var(--ink)]">Arun Bhaskar</div>
-                <div className="truncate text-[11.5px] text-[color:var(--ink-faint)]">arun.bhaskar@meil.in</div>
+                <div className="truncate text-[13.5px] font-semibold text-[color:var(--ink)]">{user.name}</div>
+                <div className="truncate text-[11.5px] text-[color:var(--ink-faint)]">{user.email}</div>
                 <div className="mt-1"><StatusBadge status="ACTIVE" /></div>
               </div>
             </div>
@@ -337,8 +373,11 @@ function TopBar() {
               <FileCheckIcon className="mr-2 h-4 w-4" /> My audit trail
             </DropdownMenuItem>
             <DropdownMenuSeparator className="bg-[rgba(125,177,216,0.3)]" />
-            <DropdownMenuItem className="rounded-xl text-[13px] text-[#a53b3b] data-[highlighted]:bg-[rgba(195,74,74,0.08)]" disabled>
-              <LogOut className="mr-2 h-4 w-4" /> Sign out (demo session)
+            <DropdownMenuItem
+              className="rounded-xl text-[13px] text-[#a53b3b] data-[highlighted]:bg-[rgba(195,74,74,0.08)]"
+              onClick={onSignOut}
+            >
+              <LogOut className="mr-2 h-4 w-4" /> Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -349,7 +388,13 @@ function TopBar() {
 
 /* ───────────────────────────── Workspace shell ───────────────────────────── */
 
-export function WorkspaceShell() {
+export function WorkspaceShell({
+  sessionUser,
+  onSignOut,
+}: {
+  sessionUser?: SessionUser;
+  onSignOut?: () => void;
+} = {}) {
   const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen } = useWorkspace();
 
   /* ⌘K keyboard shortcut */
@@ -372,6 +417,8 @@ export function WorkspaceShell() {
      perfectly still while content (or any inner list) scrolls independently,
      and stops backdrop-filter chrome from re-sampling on every scroll frame. */
   return (
+    <SessionUserContext.Provider value={sessionUser ?? DEMO_SESSION_USER}>
+      <SignOutContext.Provider value={onSignOut ?? (() => undefined)}>
     <div className="relative h-dvh overflow-hidden">
       {/* Ambient orbs are intentionally static — animating them would force every
           backdrop-filter glass surface to re-sample its backdrop every frame. */}
@@ -441,5 +488,7 @@ export function WorkspaceShell() {
         </div>
       </div>
     </div>
+      </SignOutContext.Provider>
+    </SessionUserContext.Provider>
   );
 }

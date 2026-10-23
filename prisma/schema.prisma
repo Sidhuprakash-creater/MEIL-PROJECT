@@ -66,6 +66,8 @@ model User {
   id            String      @id @default(cuid())
   name          String
   email         String      @unique
+  employeeId    String?     @unique // portal login handle (e.g. GRP-0001) — optional for data users
+  passwordHash  String?     // scrypt hash (scrypt$N$r$p$salt$key) — null = no portal credential issued
   role          String      // GROUP_ADMIN | SUBSIDIARY_MANAGER | SUBSIDIARY_ADMIN | BU_MANAGER | BU_ADMIN | ENV_DATA_USER | FIN_RESOURCE_USER | HR_USER | EHS_USER | PROCUREMENT_USER | CSR_USER | COMPLIANCE_USER
   status        String      @default("ACTIVE") // ACTIVE | SUSPENDED | INACTIVE | INVITED
   subsidiaryId  String?
@@ -78,8 +80,50 @@ model User {
   title         String      @default("")
   joinedAt      DateTime    @default(now())
   lastActiveAt  DateTime?
+  lastLoginAt   DateTime?
+  sessions      Session[]
+  auditLogs     AuditLog[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+}
+
+// ─── Server-side auth sessions (opaque token; only its SHA-256 hash is stored) ──
+
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ─── Authentication audit trail (login success/failure, logout, resets) ─────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  eventType  String // LOGIN_SUCCESS | LOGIN_FAILED | LOGOUT | PASSWORD_RESET_REQUESTED | RATE_LIMITED
+  result     String // SUCCESS | FAILURE | INFO
+  employeeId String? // attempted identifier (works even when no user matched)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  portal     String? // group | subsidiary | business_unit | project
+  role       String? // requested role
+  scopeRef   String? // subsidiary/BU code the attempt was scoped to
+  reason     String? // INVALID_CREDENTIALS | ROLE_MISMATCH | SCOPE_MISMATCH | INACTIVE | RATE_LIMITED | VALIDATION
+  detail     String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
 }
 
 // ─── ESG data submissions ───
