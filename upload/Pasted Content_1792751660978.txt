@@ -1,0 +1,1137 @@
+# MASTER IMPLEMENTATION PROMPT
+# MEIL ESG/BRSR — SUBSIDIARY MANAGER WORKSPACE
+
+## 1. OBJECTIVE
+
+Act as a senior enterprise software architect, full-stack developer, UI/UX designer, motion designer, database engineer, security engineer, and ESG/BRSR workflow specialist.
+
+Build a complete, production-oriented Subsidiary Manager Workspace for the existing MEIL ESG/BRSR Reporting Platform.
+
+Inspect the existing repository, routing, database, authentication, role permissions, APIs, report schema, evidence storage, Group Admin workspace, and Subsidiary Admin workspace before implementing anything.
+
+This must be a fully functional extension of the existing application, not a standalone prototype.
+
+Reuse existing design tokens, shared components, APIs, database entities, and reporting workflows wherever possible. Do not unnecessarily rebuild existing working functionality.
+
+## 2. FINAL ROLE DEFINITIONS
+
+The organization hierarchy is:
+
+Group Admin
+  └── Subsidiary
+      ├── Subsidiary Admin
+      ├── Subsidiary Manager
+      └── Business Units
+          ├── BU Manager
+          ├── BU Admin
+          └── Projects / Sites
+              └── Assigned Data Entry Users
+
+The seven data-entry roles are:
+
+1. Environment Data User.
+2. Finance & Resource Contributor.
+3. HR User.
+4. EHS / Safety User.
+5. Procurement User.
+6. CSR / Community User.
+7. Compliance User.
+
+### Subsidiary Manager responsibilities
+
+The Subsidiary Manager must:
+
+- View the assigned subsidiary's reporting dashboard.
+- Monitor BU and project reports.
+- View submitted, pending, approved, rejected, and overdue reports.
+- Review complete submitted report content.
+- Verify supporting evidence.
+- Approve satisfactory reports.
+- Reject incorrect, incomplete, or inadequately supported reports.
+- Provide a mandatory rejection reason.
+- Return rejected reports to the responsible BU/project user for correction.
+- Review corrected and resubmitted reports.
+- Monitor reporting deadlines.
+- Inspect reporting activity and previous decisions.
+- Track reporting completeness and data-quality issues.
+- View relevant subsidiary-level ESG analytics.
+
+### Explicit restrictions
+
+The Subsidiary Manager must NOT:
+
+- Create Business Units.
+- Add projects.
+- Edit the organizational hierarchy by creating or moving BUs/projects.
+- Manage users or roles by default.
+- Override Group-level security policies.
+- Change centrally mandated reporting rules.
+- Create or finalize the consolidated Group BRSR report.
+- Access another subsidiary without explicit authorization.
+- Approve or reject reports that are outside their assigned review authority.
+
+The Subsidiary Admin remains responsible for organizational administration, project creation, reporting timelines, and report monitoring.
+
+The Subsidiary Manager is responsible for report verification and approval/rejection.
+
+The Group Admin owns group-wide consolidation and the consolidated BRSR report.
+
+## 3. VISUAL DESIGN SYSTEM
+
+Use the existing MEIL visual reference and the established sky-blue Liquid Glass design language.
+
+### Primary palette
+
+Sky blue is the primary theme.
+
+Liquid green is used for primary positive actions, approval actions, successful states, and completed progress.
+
+Supporting colors:
+
+- White and translucent white.
+- Pale sky blue.
+- Graphite black.
+- Muted slate.
+- Amber for pending or warning states.
+- Red for rejection, overdue, and critical issues.
+
+Recommended tokens:
+
+--color-primary: #48A9F5;
+--color-primary-strong: #2588E8;
+--color-primary-soft: #E5F4FF;
+
+--color-action: #20A779;
+--color-action-hover: #168B65;
+--color-action-soft: #E3F7EF;
+
+--color-background: #F3FAFF;
+--color-surface: rgba(255,255,255,0.70);
+--color-surface-solid: #FFFFFF;
+
+--color-text-primary: #17283F;
+--color-text-secondary: #657990;
+--color-border: rgba(122,178,218,0.28);
+
+--color-success: #208B60;
+--color-warning: #C68127;
+--color-danger: #C94D55;
+--color-info: #2588E8;
+
+Integrate these tokens with the existing application theme instead of duplicating styles.
+
+### Liquid Glass and glassmorphism
+
+Implement:
+
+- Translucent white/pale-blue panels.
+- Controlled backdrop blur.
+- Thin translucent borders.
+- Soft layered shadows.
+- Subtle inner highlights.
+- Gentle ambient blue lighting.
+- Premium rounded corners.
+- Refined hover depth.
+- Clear visual hierarchy.
+- Smooth, restrained transitions.
+
+Keep report tables, long documents, evidence previews, and forms highly readable. Use solid surfaces where transparency reduces contrast.
+
+Use professional Lucide icons or the existing icon library. Do not use emoji as interface icons, neon sci-fi effects, excessive gradients, or oversized decorative graphics.
+
+## 4. GLOBAL APPLICATION SHELL
+
+Build a dedicated Subsidiary Manager interface with a shared application shell.
+
+### Header
+
+Include:
+
+- MEIL ESG/BRSR branding.
+- Assigned subsidiary name.
+- Breadcrumbs.
+- Reporting financial-year selector.
+- Search across authorized reports.
+- Notifications and unread count.
+- Current user profile.
+- Relevant contextual actions.
+
+### Sidebar
+
+Create these primary navigation screens:
+
+OVERVIEW
+1. Dashboard.
+2. Notifications & Alerts.
+
+REPORT REVIEW
+3. Review Queue.
+4. BU Reports.
+5. Project Reports.
+6. Evidence Review.
+7. Corrections & Rejections.
+
+MONITORING
+8. Tasks & Deadlines.
+9. ESG Analytics.
+10. Activity & History.
+
+ACCOUNT
+11. Profile & Preferences.
+
+Use professional icons, active-route indicators, smooth collapse/expand, tooltips, keyboard navigation, and a responsive mobile drawer.
+
+Do not expose Subsidiary Admin-only organizational creation tools or Group Admin-only consolidated report creation tools in this workspace.
+
+### Global interaction requirements
+
+Every navigation item, menu, dropdown, button, tab, filter, card action, search field, and chart drill-down must perform its intended action.
+
+No decorative control should appear interactive without having a working behavior.
+
+## 5. SCREEN 01 — DASHBOARD
+
+Create a premium reporting review command center.
+
+### Dashboard KPI cards
+
+Business Unit reporting:
+
+- Total BUs.
+- BU reports submitted.
+- BU reports pending.
+- BU reports overdue.
+- BU reports approved.
+- BU reports rejected.
+
+Project reporting:
+
+- Total projects.
+- Project reports submitted.
+- Project reports pending.
+- Project reports overdue.
+- Project reports approved.
+- Project reports rejected.
+
+Review workload:
+
+- Awaiting my review.
+- Approaching review deadline.
+- Overdue review actions.
+- Rejected reports awaiting correction.
+- Resubmissions awaiting review.
+- Completed reviews.
+
+Use only records and counts within the manager's authorized subsidiary scope.
+
+### Dashboard sections
+
+1. My Review Queue.
+2. BU Report Status.
+3. Project Report Status.
+4. Submission Completion by BU.
+5. Project Reporting Progress.
+6. Approval/rejection trend.
+7. Upcoming Deadlines.
+8. Overdue Reporting.
+9. Recent Review Decisions.
+10. Recent Reporting Activity.
+
+### Clickable cards
+
+Every KPI card must open the relevant filtered page.
+
+Examples:
+
+- Awaiting My Review → Review Queue.
+- BU Reports Submitted → BU Reports filtered to Submitted.
+- BU Reports Overdue → overdue BU reporting records.
+- Project Reports Pending → pending project reporting records.
+- Rejected Reports → Corrections & Rejections.
+- Upcoming Deadlines → Tasks & Deadlines.
+
+All cards must use consistent backend query logic.
+
+## 6. SCREEN 02 — NOTIFICATIONS & ALERTS
+
+Provide a centralized notification center.
+
+Notification events include:
+
+- New BU report submitted.
+- New project report submitted.
+- Report assigned for review.
+- Review deadline approaching.
+- Review deadline missed.
+- Report approved.
+- Report rejected.
+- Correction requested.
+- Corrected report resubmitted.
+- Supporting evidence updated.
+- Validation issue detected.
+- Group reporting announcement.
+
+Features:
+
+- All notifications.
+- Unread notifications.
+- Filters by category and date.
+- Mark as read/unread.
+- Mark all as read.
+- Open the related report.
+- Open the relevant BU/project context.
+- Notification history.
+- Permitted notification preferences.
+
+Notifications must reflect actual application events and persisted state.
+
+## 7. SCREEN 03 — REVIEW QUEUE
+
+This is the manager's primary workspace.
+
+Display all reports currently awaiting a decision from this Subsidiary Manager.
+
+### Queue columns
+
+- Submission ID.
+- Report title.
+- Report type.
+- BU.
+- Project/site.
+- Reporting period.
+- Responsible user.
+- Submission date.
+- Applicable review deadline.
+- Days remaining or overdue.
+- Evidence status.
+- Validation status.
+- Current workflow status.
+- Actions.
+
+### Features
+
+- Search by report ID, title, BU, project, or submitter.
+- Filter by BU.
+- Filter by project.
+- Filter by reporting period.
+- Filter by report category.
+- Filter by evidence status.
+- Filter by validation status.
+- Filter by urgency.
+- Sort by submission date.
+- Sort by review deadline.
+- Sort by reporting period.
+- Pagination.
+- Open report.
+- Open evidence.
+- View history.
+
+### Prioritization
+
+Highlight:
+
+1. Overdue review actions.
+2. Reports with approaching deadlines.
+3. Reports with validation warnings.
+4. Reports with missing or questionable evidence.
+5. Older submissions awaiting review.
+
+Do not silently approve or reject reports automatically based on priority.
+
+## 8. SCREEN 04 — BU REPORTS
+
+Create a dedicated directory for Business Unit reporting records.
+
+### Tabs
+
+- All.
+- Submitted.
+- Pending Review.
+- Approved.
+- Rejected.
+- Overdue.
+
+Use workflow state and deadline flags separately so a report may be pending review and overdue at the same time.
+
+### Table columns
+
+- Report ID.
+- BU name.
+- Report category.
+- Reporting period.
+- Submitted by.
+- Submitted date.
+- Due date.
+- Evidence status.
+- Validation status.
+- Review status.
+- Actions.
+
+### Actions
+
+- Open report.
+- Read report content.
+- Open Evidence.
+- View validation results.
+- View previous versions.
+- View review history.
+- Approve, when authorized.
+- Reject, when authorized.
+
+The manager must not create or edit the BU itself from this screen.
+
+## 9. SCREEN 05 — PROJECT REPORTS
+
+Create a dedicated directory for project/site submissions.
+
+### Tabs
+
+- All.
+- Submitted.
+- Pending Review.
+- Approved.
+- Rejected.
+- Overdue.
+
+### Table columns
+
+- Report ID.
+- Project/site name.
+- Parent BU.
+- Reporting category.
+- Reporting period.
+- Responsible user.
+- Submitted date.
+- Submission deadline.
+- Evidence status.
+- Validation status.
+- Current status.
+- Actions.
+
+Features:
+
+- Search and filters.
+- Open report.
+- Read submitted values.
+- Open Evidence.
+- Inspect validation issues.
+- View report versions.
+- View previous review decisions.
+- Approve/reject when authorized.
+
+Do not add project creation, editing, or organizational restructuring controls.
+
+## 10. REPORT DETAIL AND REVIEW EXPERIENCE
+
+Create a reusable report review interface for both BU and project submissions.
+
+### Report header
+
+Display:
+
+- Report title.
+- Submission ID.
+- Report type.
+- BU name.
+- Project/site name when applicable.
+- Reporting period.
+- Submitted by.
+- Submission timestamp.
+- Applicable deadline.
+- Current status.
+- Assigned reviewer.
+
+### Report content
+
+Show:
+
+- All submitted fields.
+- ESG metric values.
+- Narrative disclosures.
+- Data tables.
+- Calculation results.
+- Source references.
+- Validation warnings.
+- Required-field completeness.
+- Supporting evidence associations.
+- Previous versions where relevant.
+
+Use clear sections, collapsible groups, tables, and disclosure panels for long reports.
+
+Allow the manager to inspect the complete report before making a decision.
+
+### Evidence button
+
+Clicking Evidence must open a right-side drawer or modal without leaving the report.
+
+Display:
+
+- File name.
+- File type.
+- Upload timestamp.
+- Uploaded by.
+- Related report section or metric.
+- Evidence status.
+- Version history.
+- Preview where supported.
+- Secure download.
+
+The manager should be able to switch between evidence documents and the report without losing review context.
+
+Provide close controls, keyboard accessibility, loading states, and clear errors for unavailable documents.
+
+### Review decision panel
+
+Display:
+
+- Validation summary.
+- Evidence completeness.
+- Required-field completeness.
+- Outstanding warnings.
+- Previous reviewer comments.
+- Approve action.
+- Reject action.
+
+Do not approve automatically because the report passes validation.
+
+The manager must make the decision explicitly.
+
+## 11. APPROVE WORKFLOW
+
+When the manager selects Approve:
+
+1. Verify that the manager is authorized to review this report.
+2. Confirm that the report is in an eligible state.
+3. Confirm that the version being reviewed is still the current eligible version.
+4. Check mandatory review requirements.
+5. Show a confirmation dialog containing the report identity.
+6. Allow the manager to confirm or cancel.
+7. Persist the decision using the backend.
+8. Record the reviewer, timestamp, report version, and decision.
+9. Update the report workflow state.
+10. Update dashboard and queue counts.
+11. Notify the responsible user.
+12. Notify the Subsidiary Admin.
+13. Make the approved report eligible for the next configured reporting stage.
+14. Refresh relevant reporting views.
+
+Handle concurrent review decisions safely.
+
+If the report changes after the manager opens it, require a refresh or renewed review rather than approving an outdated version.
+
+An approved report must not be silently overwritten. Any permitted correction after approval must follow an auditable revision or reopening workflow.
+
+## 12. REJECT WORKFLOW
+
+Rejection requires a mandatory reason.
+
+When the manager selects Reject:
+
+1. Verify review permissions.
+2. Verify the report's current state and version.
+3. Open a rejection dialog.
+4. Display the report identity.
+5. Require a meaningful rejection reason.
+6. Allow specific correction instructions.
+7. Optionally identify the affected report fields or evidence items.
+8. Confirm the decision.
+9. Persist the rejection reason and decision.
+10. Record reviewer identity, timestamp, and report version.
+11. Update the workflow state.
+12. Notify the responsible BU/project user.
+13. Notify the Subsidiary Admin.
+14. Return the report to the correction workflow.
+15. Preserve the rejected version and its evidence.
+
+The rejection dialog must validate the reason and prevent accidental empty submissions.
+
+Never silently discard a report or overwrite its history.
+
+## 13. CORRECTION AND RESUBMISSION WORKFLOW
+
+Create a dedicated Corrections & Rejections screen.
+
+### Views
+
+- Rejected reports.
+- Awaiting correction.
+- Correction in progress where tracked.
+- Resubmitted reports.
+- Resubmissions awaiting review.
+- Correction deadline approaching.
+- Overdue corrections.
+
+### Rejection details
+
+Display:
+
+- Report ID.
+- BU/project.
+- Rejection date.
+- Reviewer.
+- Rejection reason.
+- Requested corrections.
+- Affected fields.
+- Evidence issues.
+- Responsible user.
+- Applicable correction deadline.
+- Current correction status.
+- Previous report version.
+- Latest submitted version.
+
+When a corrected version is submitted:
+
+- Preserve the rejected version.
+- Record the new version.
+- Record the resubmission timestamp.
+- Keep previous rejection comments.
+- Notify the appropriate reviewer.
+- Return the report to the required review workflow.
+- Recalculate relevant dashboard counts.
+
+Do not automatically approve a resubmission.
+
+The manager must review the corrected version and make a new decision.
+
+## 14. SCREEN 06 — EVIDENCE REVIEW
+
+Build a dedicated evidence-review screen that can also be opened from the report detail drawer.
+
+Features:
+
+- View evidence attached to submitted reports.
+- Filter by BU/project.
+- Filter by reporting period.
+- Filter by document type.
+- Filter by evidence status.
+- Search by filename.
+- Open the parent report.
+- Inspect document metadata.
+- Preview supported formats.
+- Download authorized evidence.
+- Compare evidence versions where supported.
+- Identify missing required evidence.
+- Identify unreadable or invalid files.
+
+Use the same underlying evidence records across the repository and report detail panels.
+
+### Security
+
+- Private object storage.
+- Server-side authorization.
+- Protected downloads or short-lived signed URLs.
+- File-type and size validation.
+- Safe preview handling.
+- No public exposure of private evidence.
+- No cross-subsidiary leakage.
+
+Evidence access must respect the manager's assigned subsidiary and report permissions.
+
+## 15. SCREEN 07 — TASKS & DEADLINES
+
+The manager needs deadline visibility, but must not own organizational deadline configuration.
+
+### Dashboard sections
+
+- Reviews due today.
+- Reviews due soon.
+- Overdue review actions.
+- Upcoming submission deadlines.
+- Rejected reports awaiting correction.
+- Overdue correction actions.
+- Reports blocked by missing evidence.
+
+### Deadline inheritance
+
+The platform uses:
+
+Subsidiary deadline
+  → BU deadline
+      → Project deadline
+
+Deadlines inherit from the parent level by default, with authorized overrides managed through the Subsidiary Admin's timeline module.
+
+The Subsidiary Manager can view applicable deadlines and monitor completion.
+
+The manager cannot modify deadlines by default.
+
+If an authorized extension-request workflow is introduced, it must submit a request to the permitted deadline owner rather than changing the deadline directly.
+
+### Features
+
+- Calendar view.
+- List view.
+- Upcoming deadlines.
+- Overdue items.
+- Reporting-period filters.
+- BU/project filters.
+- Open related report.
+- Open related correction request.
+- Notification status.
+
+Calculate overdue conditions from actual deadline data and outstanding workflow obligations.
+
+## 16. SCREEN 08 — ESG ANALYTICS
+
+Build a subsidiary-scoped analytics dashboard.
+
+### Reporting analytics
+
+- BU report completion.
+- Project report completion.
+- Submitted versus pending.
+- Approved versus rejected.
+- Review turnaround time.
+- Overdue submission trends.
+- Overdue review actions.
+- Correction and resubmission rates.
+- Missing evidence distribution.
+- Validation issue distribution.
+- Reporting progress by period.
+- Reporting completeness by BU.
+
+### ESG metrics
+
+Display relevant categories when authorized and available:
+
+- Energy.
+- Emissions.
+- Water.
+- Waste.
+- EHS/safety.
+- Workforce.
+- Procurement.
+- CSR/community.
+- Compliance.
+
+Do not imply that the manager can edit source data or create the consolidated Group report.
+
+### Chart requirements
+
+- Interactive line charts.
+- Bar charts.
+- Stacked status bars.
+- Progress rings.
+- Trend indicators.
+- Tooltips.
+- Legends.
+- Period filters.
+- BU/project filters.
+- Click-to-drill into underlying records.
+- Accessible labels.
+- Export authorized analytics.
+
+Use real data or clearly labeled demo data.
+
+Never fabricate actual MEIL performance values.
+
+## 17. SCREEN 09 — ACTIVITY & HISTORY
+
+Display a traceable history of reporting and review activity.
+
+Track:
+
+- Reports submitted.
+- Reports opened for review where tracked.
+- Approval decisions.
+- Rejection decisions.
+- Rejection reasons.
+- Corrected versions.
+- Resubmissions.
+- Evidence updates.
+- Review comments.
+- Reporting status transitions.
+- Relevant deadline events.
+
+### Filters
+
+- Date range.
+- BU.
+- Project.
+- Report ID.
+- Reviewer.
+- Activity type.
+- Reporting period.
+
+### Report history
+
+Display a chronological timeline showing:
+
+- Event.
+- Actor.
+- Timestamp.
+- Version.
+- Decision.
+- Comment or reason.
+- Relevant supporting evidence.
+
+Keep authoritative audit records protected from unauthorized modification or deletion.
+
+Distinguish operational activity feeds from security/audit events.
+
+## 18. SCREEN 10 — PROFILE & PREFERENCES
+
+Include:
+
+- Profile information.
+- Current role.
+- Assigned subsidiary.
+- Permitted account preferences.
+- Notification preferences.
+- Session/security information.
+- Sign-out.
+
+Do not provide organizational creation, user administration, or global permission configuration in this screen.
+
+## 19. REPORT STATUS MODEL
+
+Use workflow state separately from deadline state.
+
+### Workflow state
+
+- Draft.
+- Submitted.
+- Pending Review.
+- Approved.
+- Rejected.
+
+A corrected report is resubmitted as a new version/revision and returns to the configured review workflow.
+
+### Deadline state
+
+- Not Started.
+- Upcoming.
+- Due Soon.
+- Submitted On Time.
+- Submitted Late.
+- Overdue.
+- Closed.
+
+Overdue is a calculated condition, not a mutually exclusive workflow status.
+
+A report can be Pending Review and overdue for review, or Rejected and overdue for correction.
+
+Store the deadline type and calculate the status from the applicable workflow stage.
+
+### Dashboard counting rules
+
+Define explicitly whether each metric counts:
+
+- Unique report records.
+- Unique reporting periods.
+- Unique BUs.
+- Unique projects.
+
+Never combine these measures into a single ambiguous count.
+
+The same backend query definitions must drive dashboard KPIs and filtered destination screens.
+
+## 20. SCREEN 11 IS NOT REQUIRED
+
+The Subsidiary Manager workspace must contain exactly 10 primary functional screens plus Profile & Preferences, for a total of 11 primary screens.
+
+Do not add unnecessary navigation items.
+
+Report details, evidence drawers, rejection dialogs, correction forms, and report-version histories must remain contextual subviews within the appropriate modules.
+
+## 21. CARD DESIGN AND INTERACTIONS
+
+Use reusable design-system components.
+
+### KPI cards
+
+Include:
+
+- Professional icon.
+- Label.
+- Large number.
+- Supporting context.
+- Optional trend.
+- Optional progress ring.
+- Subtle shadow.
+- Hover and focus feedback.
+- Click-through behavior when applicable.
+
+### Review queue cards
+
+Show:
+
+- Report title.
+- BU/project.
+- Reporting period.
+- Time remaining.
+- Evidence status.
+- Validation status.
+- Review priority.
+- Open report action.
+
+### Buttons
+
+Liquid green primary actions:
+
+- Approve.
+- Confirm Review.
+- Confirm Decision.
+- Save permitted preferences.
+
+Use a clear secondary treatment for Open Report, View Evidence, and Cancel.
+
+Use red styling for Reject and destructive confirmations, with a mandatory rejection reason.
+
+Do not make rejection visually attractive in a way that encourages unnecessary rejection. Both approval and rejection must be deliberate, accessible actions.
+
+## 22. MOTION AND ANIMATION
+
+Use Framer Motion or the existing animation system.
+
+Implement:
+
+- Subtle page transitions.
+- Sidebar expand/collapse.
+- Card hover elevation.
+- Smooth dropdowns.
+- Animated progress rings.
+- Bar chart reveal.
+- Smooth line chart transitions.
+- Review drawer slide-in.
+- Evidence panel transitions.
+- Rejection dialog transitions.
+- Loading indicators.
+- Count-up animation where appropriate.
+- Success/error feedback.
+
+Use short, restrained transitions.
+
+Respect prefers-reduced-motion.
+
+Avoid continuous expensive blur effects, excessive bouncing, and animations that delay critical review actions.
+
+## 23. FUNCTIONALITY CONTRACT
+
+Every visible interactive element must work.
+
+This includes:
+
+- Navigation.
+- Tabs.
+- Buttons.
+- Menus.
+- Dropdowns.
+- Search.
+- Filters.
+- Sorting.
+- Pagination.
+- KPI cards.
+- Chart drill-downs.
+- Report rows.
+- Evidence panels.
+- Approve/reject dialogs.
+- Forms.
+- Date pickers.
+- Notification actions.
+- Export actions.
+
+### Backend persistence
+
+Every review decision must be persisted through authorized backend operations.
+
+The interface must not update a report to Approved or Rejected optimistically and leave the database unchanged.
+
+Show loading state while an operation is running.
+
+Show success only after the backend confirms success.
+
+Handle validation failures, permission errors, concurrent updates, network errors, and unavailable evidence.
+
+Never ship fake buttons, empty click handlers, placeholder routes, or fabricated success notifications.
+
+## 24. TECHNICAL IMPLEMENTATION
+
+Inspect the existing codebase and reuse its current stack.
+
+Preferred options where compatible:
+
+Frontend:
+- React.
+- TypeScript.
+- Existing Next.js/React framework.
+- Existing Tailwind CSS/design system.
+- Lucide icons.
+- Framer Motion.
+- Existing charting library or Recharts.
+
+Backend:
+- Reuse the existing backend.
+- If a backend must be added, choose one primary stack, such as NestJS or FastAPI.
+- Do not introduce competing backends unnecessarily.
+
+Database:
+- Reuse the existing PostgreSQL/Supabase PostgreSQL schema where applicable.
+- Reuse existing submission, version, evidence, user, role, organization, and reporting entities.
+- Extend existing tables through safe migrations rather than creating duplicate records or competing schemas.
+
+Core entities may include:
+
+- users.
+- roles.
+- permissions.
+- subsidiaries.
+- business_units.
+- projects.
+- reporting_periods.
+- reporting_timelines.
+- data_submissions.
+- submission_versions.
+- submission_values.
+- evidence_documents.
+- review_decisions.
+- reviewer_assignments.
+- notifications.
+- validation_issues.
+- audit_events.
+
+Adapt the names and relationships to the existing schema.
+
+Use Redis only where appropriate for caching, queues, rate limiting, or temporary coordination. Do not use it as the sole source of truth for approval decisions.
+
+Use private object storage for supporting evidence.
+
+Use background jobs for notifications, reminders, and other asynchronous tasks where necessary.
+
+## 25. SECURITY REQUIREMENTS
+
+Enforce server-side authorization.
+
+- Restrict the manager to the assigned subsidiary.
+- Restrict decisions to eligible assigned reports.
+- Verify the report version at decision time.
+- Prevent duplicate or conflicting review decisions.
+- Prevent approval/rejection of ineligible states.
+- Validate every submitted rejection reason.
+- Protect evidence documents.
+- Preserve previous versions.
+- Preserve review decisions.
+- Record actor identity and timestamps.
+- Prevent cross-subsidiary access by manipulating URLs or IDs.
+- Keep Group Admin and Subsidiary Admin permissions separate.
+
+Do not rely solely on frontend route guards.
+
+Use transactions or concurrency controls where needed to prevent inconsistent report states.
+
+## 26. RESPONSIVE DESIGN
+
+Desktop:
+- Persistent sidebar.
+- Wide review tables.
+- KPI grids.
+- Large report detail panels.
+- Right-side evidence drawer.
+- Rich analytics.
+
+Tablet:
+- Collapsible sidebar.
+- Responsive card grids.
+- Scrollable tables.
+- Stacked report details.
+
+Mobile:
+- Drawer navigation.
+- Touch-friendly decision controls.
+- Responsive report content.
+- Evidence viewer that opens as a full-screen panel when necessary.
+- No clipped menus or inaccessible dialogs.
+
+Maintain accessible contrast and keyboard navigation throughout.
+
+## 27. IMPLEMENTATION PHASES
+
+Phase 1 — Foundation:
+- Inspect the repository.
+- Reuse existing design tokens.
+- Build the manager application shell.
+- Implement role-aware navigation.
+- Build Dashboard.
+- Build Review Queue.
+- Build BU Reports.
+- Build Project Reports.
+
+Phase 2 — Review workflow:
+- Build report detail views.
+- Implement evidence side panel.
+- Implement approval workflow.
+- Implement rejection workflow.
+- Implement correction and resubmission.
+- Build Corrections & Rejections.
+
+Phase 3 — Monitoring:
+- Build Notifications & Alerts.
+- Build Tasks & Deadlines.
+- Build ESG Analytics.
+- Build Activity & History.
+- Build Profile & Preferences.
+
+Phase 4 — Integration and security:
+- Connect all screens to the existing APIs.
+- Enforce report-level authorization.
+- Integrate notifications.
+- Integrate protected evidence storage.
+- Integrate dashboard counts and analytics.
+- Test concurrent review behavior.
+
+Phase 5 — Verification:
+- Test every screen.
+- Test every button and filter.
+- Test approval/rejection.
+- Test mandatory rejection reasons.
+- Test resubmission.
+- Test evidence permissions.
+- Test dashboard counts.
+- Test deadline calculations.
+- Test report-version preservation.
+- Test unauthorized access.
+- Test responsive behavior.
+- Fix critical runtime and data-integrity issues.
+
+Do not declare completion based on visual rendering alone.
+
+## 28. REQUIRED ACCEPTANCE TESTS
+
+1. The manager sees only authorized subsidiary records.
+2. The dashboard displays correct BU and project reporting totals.
+3. Every KPI opens the corresponding filtered screen.
+4. The Review Queue displays reports awaiting the manager's decision.
+5. BU reports open correctly.
+6. Project reports open correctly.
+7. The Evidence button opens the side panel without losing report context.
+8. Evidence authorization is enforced server-side.
+9. The manager can approve an eligible report.
+10. Approval is persisted and attributed to the correct reviewer.
+11. The manager cannot approve an ineligible or stale report version.
+12. The manager can reject an eligible report.
+13. Rejection without a reason is blocked.
+14. The rejection reason is visible to the responsible user.
+15. Rejected reports return to the correction workflow.
+16. Resubmission preserves previous versions and decisions.
+17. Resubmitted reports re-enter the configured review process.
+18. Dashboard counts update after decisions and resubmissions.
+19. Deadline and overdue calculations use actual dates.
+20. The manager cannot create BUs or projects.
+21. The manager cannot alter organizational structure.
+22. The manager cannot create or finalize the consolidated Group BRSR report.
+23. The Subsidiary Admin can monitor the manager's decisions.
+24. Group Admin ownership of consolidated reporting remains unchanged.
+25. Every visible interaction works.
+26. Backend failures produce truthful error states.
+27. Unauthorized cross-subsidiary requests are denied.
+28. Audit history preserves the report review lifecycle.
+
+## FINAL INSTRUCTION
+
+Build a premium, fully functional MEIL ESG/BRSR Subsidiary Manager Workspace using sky blue, liquid green, iOS Liquid Glass, refined glassmorphism, professional icons, soft shadows, interactive charts, and subtle motion.
+
+Follow the finalized organizational hierarchy.
+
+The Subsidiary Manager reviews and decides on reports. The Subsidiary Admin manages BUs, projects, timelines, and monitoring. The Group Admin owns consolidated Group BRSR report creation and finalization.
+
+Preserve existing functionality, connect every screen to the actual application data, enforce permissions on the backend, maintain complete report and evidence history, and test the entire workflow end to end.

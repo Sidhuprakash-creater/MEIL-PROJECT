@@ -269,6 +269,206 @@ async function main() {
     data: { ntype: "SYSTEM", title: "Group Admin announcement", body: "BRSR Core disclosure catalogue v1.2 is now mandatory for FY 2025-26 subsidiary packages.", severity: "INFO", linkView: "esg", subsidiaryId: null, createdAt: at(-6, 12) },
   });
 
+  // ══════════════════════ 6. SUBSIDIARY MANAGER review-flow demo data ══════════════════════
+  // Idempotent extras for the Subsidiary Manager workspace (refs SUB-2526-90x
+  // are owned exclusively by this block): urgent reviews, an overdue review, a
+  // resubmission after rejection and a zero-evidence report so every queue
+  // priority band is populated for the demo subsidiary.
+  {
+    const sub0 = subs[0];
+    const uos0 = unitsOf(0);
+    const pos0 = projectsOf(0);
+    await db.submission.deleteMany({ where: { ref: { startsWith: "SUB-2526-90" } } });
+    const byName = async (name: string) =>
+      (await db.user.findFirst({ where: { subsidiaryId: sub0.id, name }, select: { id: true } }))?.id ?? null;
+    const deepa = await byName("Deepa Krishnan");
+    const ramesh = await byName("Ramesh Iyer");
+    const mohit = await byName("Mohit Jain");
+    const mgrName = sub0.managerName || "Rajesh Menon";
+
+    const mkSub = (args: {
+      ref: string; title: string; category: string; metricName: string; metricValue: number; metricUnit: string;
+      status: string; overdue: boolean; dueOffset: number; submittedOffset: number; fiscalQuarter: string;
+      buId?: string | null; prjId?: string | null; submittedById?: string | null;
+      values: { label: string; value: number; unit: string }[];
+      evidence?: string[];
+      comments?: { author: string; role: string; text: string; at: string }[];
+      history: { action: string; actor: string; at: string; note?: string }[];
+    }) =>
+      db.submission.create({
+        data: {
+          ref: args.ref, title: args.title, category: args.category,
+          metricName: args.metricName, metricValue: args.metricValue, metricUnit: args.metricUnit,
+          status: args.status, overdue: args.overdue, period: PERIOD, fiscalQuarter: args.fiscalQuarter,
+          dueDate: at(args.dueOffset, 18),
+          submittedAt: args.status === "DRAFT" ? null : at(args.submittedOffset, 11),
+          subsidiaryId: sub0.id, businessUnitId: args.buId ?? null, projectId: args.prjId ?? null,
+          submittedById: args.submittedById ?? null,
+          values: JSON.stringify(args.values),
+          evidence: JSON.stringify(args.evidence ?? []),
+          comments: JSON.stringify(args.comments ?? []),
+          history: JSON.stringify(args.history),
+        },
+      });
+
+    // 901 — RESUBMISSION awaiting review, review window closes in ~2 days.
+    await mkSub({
+      ref: "SUB-2526-901", title: "Scope 2 — Purchased Electricity (Renewables)", category: "ENERGY",
+      metricName: "Renewable electricity purchased", metricValue: 4120, metricUnit: "MWh",
+      status: "SUBMITTED", overdue: false, dueOffset: 2, submittedOffset: -1, fiscalQuarter: "Q2",
+      buId: uos0[0]?.id ?? null, submittedById: deepa,
+      values: [
+        { label: "Renewable electricity (open access)", value: 2680, unit: "MWh" },
+        { label: "I-REC retirement", value: 1440, unit: "MWh" },
+        { label: "Grid emission factor applied", value: 0.71, unit: "tCO2/MWh" },
+      ],
+      evidence: ["open-access-settlement-q2.xlsx", "irec-retirement-statement.pdf"],
+      comments: [
+        { author: mgrName, role: "SUBSIDIARY_MANAGER", text: "Rejected: I-REC retirement statement was for a different settlement period.\n\nCorrection instructions: Retire certificates for Apr–Jun and re-attach the matching statement.", at: at(-6, 15).toISOString() },
+      ],
+      history: [
+        { action: "Created", actor: "System", at: at(-14, 9).toISOString() },
+        { action: "Submitted by user", actor: "Workflow", at: at(-9, 10).toISOString() },
+        { action: "Rejected by Rajesh Menon (Subsidiary Manager) — returned for correction", actor: mgrName, at: at(-6, 15).toISOString(), note: "I-REC retirement statement was for a different settlement period." },
+        { action: "Resubmitted after corrections by Deepa Krishnan", actor: "Workflow", at: at(-1, 11).toISOString() },
+      ],
+    });
+
+    // 902 — OVERDUE review (report sat in queue past its review deadline).
+    await mkSub({
+      ref: "SUB-2526-902", title: "Groundwater Drawal — Irrigation Pumping", category: "WATER",
+      metricName: "Groundwater withdrawn", metricValue: 1.84, metricUnit: "ML",
+      status: "SUBMITTED", overdue: true, dueOffset: -5, submittedOffset: -12, fiscalQuarter: "Q1",
+      buId: uos0[1]?.id ?? null, submittedById: ramesh,
+      values: [
+        { label: "Groundwater withdrawn (metered)", value: 1.62, unit: "ML" },
+        { label: "Groundwater withdrawn (estimated)", value: 0.22, unit: "ML" },
+      ],
+      evidence: ["groundwater-meter-log-q1.csv"],
+      history: [
+        { action: "Created", actor: "System", at: at(-20, 9).toISOString() },
+        { action: "Submitted by user", actor: "Workflow", at: at(-12, 10).toISOString() },
+      ],
+    });
+
+    // 903 — UNDER_REVIEW, project-level, comfortably inside its window.
+    await mkSub({
+      ref: "SUB-2526-903", title: "GHG Scope 1 — Stationary Combustion", category: "EMISSIONS",
+      metricName: "Scope 1 stationary combustion", metricValue: 984, metricUnit: "tCO2e",
+      status: "UNDER_REVIEW", overdue: false, dueOffset: 12, submittedOffset: -4, fiscalQuarter: "Q2",
+      buId: uos0[1]?.id ?? null, prjId: pos0[0]?.id ?? null, submittedById: ramesh,
+      values: [
+        { label: "Diesel (gensets)", value: 214, unit: "tCO2e" },
+        { label: "Furnace oil", value: 588, unit: "tCO2e" },
+        { label: "Natural gas", value: 182, unit: "tCO2e" },
+      ],
+      evidence: ["fuel-consumption-register-q2.xlsx"],
+      history: [
+        { action: "Created", actor: "System", at: at(-11, 9).toISOString() },
+        { action: "Submitted by user", actor: "Workflow", at: at(-4, 12).toISOString() },
+        { action: "Review started", actor: "Workflow", at: at(-2, 9).toISOString() },
+      ],
+    });
+
+    // 904 — SUBMITTED with ZERO evidence (queue's missing-evidence band).
+    await mkSub({
+      ref: "SUB-2526-904", title: "Effluent Quality — Q1 Compliance", category: "SAFETY",
+      metricName: "Effluent samples within limits", metricValue: 96, metricUnit: "%",
+      status: "SUBMITTED", overdue: false, dueOffset: 8, submittedOffset: -3, fiscalQuarter: "Q1",
+      buId: uos0[0]?.id ?? null, submittedById: mohit,
+      values: [
+        { label: "Samples collected", value: 24, unit: "count" },
+        { label: "Within CPCB limits", value: 23, unit: "count" },
+      ],
+      evidence: [],
+      history: [
+        { action: "Created", actor: "System", at: at(-9, 9).toISOString() },
+        { action: "Submitted by user", actor: "Workflow", at: at(-3, 14).toISOString() },
+      ],
+    });
+
+    // Review-window overrides that make the queue's urgency bands real:
+    //  · Solar Operations BU (901/904) → review due within days  (DUE SOON band)
+    //  · Thermal/GHD BU (902/903) → review window closed          (OVERDUE band)
+    // The BU rows already exist from section 3 (RTL-0002/RTL-0003) — update
+    // them in place so resolveEffectiveDeadline resolves to these windows.
+    if (uos0[0]) {
+      await db.reportingTimeline.updateMany({
+        where: { subsidiaryId: sub0.id, businessUnitId: uos0[0].id },
+        data: {
+          dueDate: at(3, 18), reviewDeadline: at(3, 18), inheritanceMode: "OVERRIDE",
+          overrideReason: "Aligned the review window with the quarter-end consolidation cut-off.",
+        },
+      });
+    }
+    if (uos0[1]) {
+      await db.reportingTimeline.updateMany({
+        where: { subsidiaryId: sub0.id, businessUnitId: uos0[1].id },
+        data: {
+          dueDate: at(-5, 18), reviewDeadline: at(-2, 18), inheritanceMode: "OVERRIDE",
+          overrideReason: "Q1 review window lapsed while the reviewer queue was cleared — escalated for priority decision.",
+        },
+      });
+    }
+
+    // Evidence docs for the new submissions (the generic loop above only
+    // covers pre-existing submissions).
+    const FTYPE: Record<string, string> = { pdf: "PDF", xlsx: "XLSX", csv: "CSV" };
+    const evFiles: { ref: string; files: string[]; bu: string | null; prj: string | null }[] = [
+      { ref: "SUB-2526-901", files: ["open-access-settlement-q2.xlsx", "irec-retirement-statement.pdf"], bu: uos0[0]?.id ?? null, prj: null },
+      { ref: "SUB-2526-902", files: ["groundwater-meter-log-q1.csv"], bu: uos0[1]?.id ?? null, prj: null },
+      { ref: "SUB-2526-903", files: ["fuel-consumption-register-q2.xlsx"], bu: uos0[1]?.id ?? null, prj: pos0[0]?.id ?? null },
+    ];
+    for (const e of evFiles) {
+      const created = await db.submission.findUnique({ where: { ref: e.ref }, select: { id: true, submittedAt: true } });
+      if (!created) continue;
+      for (let i = 0; i < e.files.length; i++) {
+        const f = e.files[i];
+        const ext = f.split(".").pop()?.toLowerCase() ?? "pdf";
+        await db.evidenceDoc.create({
+          data: {
+            name: f, fileType: FTYPE[ext] ?? "PDF",
+            sizeKb: 240 + i * 610, version: 1,
+            subsidiaryId: sub0.id, businessUnitId: e.bu, projectId: e.prj,
+            submissionId: created.id, submissionRef: e.ref,
+            disclosureRef: `BRSR-C2-ENR-0${i + 3}`,
+            uploadedBy: "Deepa Krishnan",
+            status: "VALID",
+            uploadedAt: created.submittedAt ?? at(-1, 11),
+          },
+        });
+      }
+    }
+
+    // Queue notification so the manager's bell reflects the resubmission.
+    await db.notification.create({
+      data: {
+        ntype: "SUBMISSION",
+        title: "Corrected report resubmitted",
+        body: "Scope 2 — Purchased Electricity (Renewables) was resubmitted by Deepa Krishnan after corrections and is awaiting your review.",
+        severity: "INFO", linkView: "queue", subsidiaryId: sub0.id, createdAt: at(-1, 12),
+      },
+    });
+
+    // One decision already recorded by the manager this period (completed-reviews KPI).
+    const anyApproved = await db.submission.findFirst({
+      where: { subsidiaryId: sub0.id, status: "APPROVED", reviewerId: null },
+      orderBy: { ref: "asc" },
+    });
+    if (anyApproved && !anyApproved.history.includes(`Approved by ${mgrName}`)) {
+      const comments = JSON.parse(anyApproved.comments || "[]") as { author: string; role: string; text: string; at: string }[];
+      const history = JSON.parse(anyApproved.history || "[]") as { action: string; actor: string; at: string; note?: string }[];
+      await db.submission.update({
+        where: { id: anyApproved.id },
+        data: {
+          reviewerId: (await db.user.findFirst({ where: { subsidiaryId: sub0.id, role: "SUBSIDIARY_MANAGER" }, select: { id: true } }))?.id ?? anyApproved.reviewerId,
+          comments: JSON.stringify([...comments]),
+          history: JSON.stringify([...history, { action: `Approved by ${mgrName} (Subsidiary Manager)`, actor: mgrName, at: at(-3, 16).toISOString() }]),
+        },
+      });
+    }
+  }
+
   console.log("Subsidiary workspace seed complete:");
   console.log(`  Timelines: ${await db.reportingTimeline.count()} · Packages: ${await db.reportingPackage.count()} · Validation issues: ${await db.validationIssue.count()} · Evidence docs: ${await db.evidenceDoc.count()} · Scoped notifications: ${await db.notification.count({ where: { subsidiaryId: { not: null } } })}`);
 }

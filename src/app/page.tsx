@@ -73,12 +73,33 @@ const SaWorkspaceShell = dynamic(
   }
 );
 
+const SmWorkspaceShell = dynamic(
+  () => import("@/components/manager/shell").then((m) => m.SmWorkspaceShell),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
+        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
+          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
+            <span className="bg-gradient-to-br from-[#7c5cff] to-[#3a7bff] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
+            <div className="text-xs text-[#66778d]">Loading Subsidiary Manager workspace…</div>
+          </div>
+        </div>
+      </div>
+    ),
+  }
+);
+
 type Gate = "landing" | "enter" | "workspace";
 
 /* Group-scope roles that may open the full group console workspace. */
 const GROUP_ROLES = new Set(["GROUP_ADMIN", "ORG_MANAGER"]);
-/* Subsidiary-scope role that opens the subsidiary admin workspace. */
+/* Subsidiary-scope roles with shipped consoles. */
 const SUBSIDIARY_ADMIN_ROLES = new Set(["SUBSIDIARY_ADMIN"]);
+const SUBSIDIARY_MANAGER_ROLES = new Set(["SUBSIDIARY_MANAGER"]);
 
 export default function Page() {
   const [gate, setGate] = useState<Gate>("landing");
@@ -87,9 +108,10 @@ export default function Page() {
   const [signingOut, setSigningOut] = useState(false);
 
   /* Resolve which console a verified role may open. */
-  const consoleForRole = useCallback((role: string): "group" | "subsidiary" | "none" => {
+  const consoleForRole = useCallback((role: string): "group" | "subsidiary" | "manager" | "none" => {
     if (GROUP_ROLES.has(role)) return "group";
     if (SUBSIDIARY_ADMIN_ROLES.has(role)) return "subsidiary";
+    if (SUBSIDIARY_MANAGER_ROLES.has(role)) return "manager";
     return "none";
   }, []);
 
@@ -142,7 +164,8 @@ export default function Page() {
       setScopedUser(null);
       setGate("workspace");
     } else {
-      /* Honest scope notice — this release ships the Group + Subsidiary consoles. */
+      /* Honest scope notice — this release ships the Group, Subsidiary Admin
+         and Subsidiary Manager consoles. */
       setScopedUser(user);
     }
   }, [consoleForRole]);
@@ -189,8 +212,9 @@ export default function Page() {
               {" "}({scopedUser.roleLabel}
               {scopedUser.scope.subsidiary ? ` · ${scopedUser.scope.subsidiary.name}` : ""}
               {scopedUser.scope.businessUnit ? ` · ${scopedUser.scope.businessUnit.name}` : ""}).
-              This release ships the Group Admin and Subsidiary Admin consoles. Your
-              scope&apos;s dedicated console is delivered in a later phase.
+              This release ships the Group Admin, Subsidiary Admin and Subsidiary
+              Manager consoles. Your scope&apos;s dedicated console is delivered in a
+              later phase.
             </p>
             <div style={{ display: "flex", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
               <button
@@ -245,6 +269,21 @@ export default function Page() {
       if (SUBSIDIARY_ADMIN_ROLES.has(role) && session.user.scope.subsidiary) {
         return (
           <SaWorkspaceShell
+            sessionUser={{
+              id: session.user.id,
+              name: session.user.name,
+              email: session.user.employeeId,
+              role: session.user.role,
+              roleLabel: session.user.roleLabel,
+              subsidiary: session.user.scope.subsidiary,
+            }}
+            onSignOut={() => void handleSignOut()}
+          />
+        );
+      }
+      if (SUBSIDIARY_MANAGER_ROLES.has(role) && session.user.scope.subsidiary) {
+        return (
+          <SmWorkspaceShell
             sessionUser={{
               id: session.user.id,
               name: session.user.name,
