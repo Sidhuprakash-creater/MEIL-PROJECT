@@ -49,23 +49,26 @@ export async function GET(req: NextRequest) {
       db.user.findMany({ where: { subsidiaryId: ctx.subsidiaryId }, select: { id: true, name: true } }),
     ]);
 
-    /* Tab-strip counts: computed over the FULL period-scoped set only. */
+    /* Level filter FIRST so tab-strip counts always match the rows shown for this level. */
+    let scoped = all;
+    if (level === "BU") scoped = scoped.filter((s) => !s.projectId);
+    else if (level === "PROJECT") scoped = scoped.filter((s) => !!s.projectId);
+
+    /* Tab-strip counts: computed over the level-scoped period set. */
     const counts = {
-      all: all.length,
-      draft: all.filter(TAB_FILTERS.draft).length,
-      submitted: all.filter(TAB_FILTERS.submitted).length,
-      pending: all.filter(TAB_FILTERS.pending).length,
-      approved: all.filter(TAB_FILTERS.approved).length,
-      rejected: all.filter(TAB_FILTERS.rejected).length,
-      overdue: all.filter(TAB_FILTERS.overdue).length,
+      all: scoped.length,
+      draft: scoped.filter(TAB_FILTERS.draft).length,
+      submitted: scoped.filter(TAB_FILTERS.submitted).length,
+      pending: scoped.filter(TAB_FILTERS.pending).length,
+      approved: scoped.filter(TAB_FILTERS.approved).length,
+      rejected: scoped.filter(TAB_FILTERS.rejected).length,
+      overdue: scoped.filter(TAB_FILTERS.overdue).length,
     };
 
-    /* Row set: tab + level + other filters applied on top. */
-    let rows = all;
+    /* Row set: tab + remaining filters applied on top. */
+    let rows = scoped;
     const tabFn = TAB_FILTERS[tab] ?? TAB_FILTERS.all;
     rows = rows.filter(tabFn);
-    if (level === "BU") rows = rows.filter((s) => !s.projectId);
-    else if (level === "PROJECT") rows = rows.filter((s) => !!s.projectId);
     if (category) rows = rows.filter((s) => s.category === category);
     if (buId) rows = rows.filter((s) => s.businessUnitId === buId);
     if (projectId) rows = rows.filter((s) => s.projectId === projectId);

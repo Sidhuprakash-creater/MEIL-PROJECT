@@ -29,9 +29,11 @@ export async function GET(req: NextRequest) {
     ]);
 
     const isOverdue = (s: { overdue: boolean; status: string }) => s.overdue && s.status !== "APPROVED";
+    /* Definitions aligned with /api/sa/submissions TAB_FILTERS so every dashboard card
+       value equals the destination tab count the user lands on. */
     const bucket = (list: typeof subs) => {
-      const submitted = list.filter((s) => ["SUBMITTED", "UNDER_REVIEW"].includes(s.status)).length;
-      const pending = list.filter((s) => ["DRAFT", "ASSIGNED"].includes(s.status)).length;
+      const submitted = list.filter((s) => s.status === "SUBMITTED").length;
+      const pending = list.filter((s) => s.status === "UNDER_REVIEW").length;
       const overdue = list.filter((s) => isOverdue(s)).length;
       const approved = list.filter((s) => s.status === "APPROVED").length;
       const rejected = list.filter((s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status)).length;

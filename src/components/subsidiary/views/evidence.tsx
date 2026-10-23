@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 /* ── local types ── */
 type EvidenceResponse = { docs: EvidenceRow[]; total: number; summary: EvidenceSummary; page: number; pageSize: number };
 type EvidenceDetail = EvidenceRow & { previewAvailable: boolean; contentHash: string };
+type EvidenceDetailResponse = { doc: EvidenceDetail };
 type UnitsResponse = { units: UnitRow[]; total: number };
 
 const STATUSES = ["VALID", "MISSING", "EXPIRED"] as const;
@@ -127,7 +128,8 @@ export default function EvidenceView() {
   const { data: unitsData } = useSaApi<UnitsResponse>("/api/sa/units?pageSize=50", { pollMs: 0 });
   const {
     data: detail, loading: detailLoading, error: detailError, refetch: detailRefetch,
-  } = useSaApi<EvidenceDetail>(detailId ? `/api/sa/evidence/${detailId}` : null, { pollMs: 0 });
+  } = useSaApi<EvidenceDetailResponse>(detailId ? `/api/sa/evidence/${detailId}` : null, { pollMs: 0 });
+  const detailData = detail?.doc ?? null;
 
   /* ── surface server errors via toast ── */
   useEffect(() => {
@@ -366,20 +368,20 @@ export default function EvidenceView() {
       <GlassDialog
         open={!!detailId}
         onOpenChange={(o) => { if (!o) setDetailId(null); }}
-        title={detail ? detail.name : "Document metadata"}
-        description={detail ? `${TYPE_LABELS[detail.fileType] ?? detail.fileType} · v${detail.version} · ${fmtSize(detail.sizeKb)}` : "Loading…"}
+        title={detailData ? detailData.name : "Document metadata"}
+        description={detailData ? `${TYPE_LABELS[detailData.fileType] ?? detailData.fileType} · v${detailData.version} · ${fmtSize(detailData.sizeKb)}` : "Loading…"}
         wide
       >
-        {detailLoading && !detail ? (
+        {detailLoading && !detailData ? (
           <LoadingBlock rows={5} label="Loading document metadata…" />
-        ) : detailError && !detail ? (
+        ) : detailError && !detailData ? (
           <ErrorState message={detailError} onRetry={detailRefetch} />
-        ) : detail ? (
+        ) : detailData ? (
           <div className="space-y-4">
             {/* framed preview placeholder — honest per contract (no file storage in the sandbox) */}
-            {(detail.fileType === "IMAGE" || detail.fileType === "PDF") && (
+            {(detailData.fileType === "IMAGE" || detailData.fileType === "PDF") && (
               <div className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[rgba(125,177,216,0.55)] bg-white/50 p-7 text-center">
-                {detail.fileType === "IMAGE" ? (
+                {detailData.fileType === "IMAGE" ? (
                   <ImageIcon className="h-6 w-6 text-[color:var(--ink-faint)]" aria-hidden="true" />
                 ) : (
                   <FileText className="h-6 w-6 text-[color:var(--ink-faint)]" aria-hidden="true" />
@@ -392,29 +394,29 @@ export default function EvidenceView() {
 
             <div className="glass-subtle rounded-2xl p-3.5">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <StatusBadgeLite status={detail.status} />
-                <Chip tone={TYPE_TONE[detail.fileType] ?? "gray"}>{TYPE_LABELS[detail.fileType] ?? detail.fileType}</Chip>
-                <Chip tone="gray">Version v{detail.version}</Chip>
+                <StatusBadgeLite status={detailData.status} />
+                <Chip tone={TYPE_TONE[detailData.fileType] ?? "gray"}>{TYPE_LABELS[detailData.fileType] ?? detailData.fileType}</Chip>
+                <Chip tone="gray">Version v{detailData.version}</Chip>
               </div>
-              <InfoRow label="File name">{detail.name}</InfoRow>
-              <InfoRow label="Organization">{detail.buName ?? "—"}{detail.projectName ? ` · ${detail.projectName}` : ""}</InfoRow>
-              <InfoRow label="Uploaded by">{detail.uploadedBy || "—"}</InfoRow>
-              <InfoRow label="Uploaded at">{fmtDateTime(detail.uploadedAt)}</InfoRow>
-              <InfoRow label="Size">{fmtSize(detail.sizeKb)}</InfoRow>
-              <InfoRow label="Disclosure ref"><span className="font-mono text-[12px]">{detail.disclosureRef || "—"}</span></InfoRow>
-              <InfoRow label="Content hash"><span className="font-mono text-[12px]">{detail.contentHash}</span></InfoRow>
-              <InfoRow label="Preview">{detail.previewAvailable ? "Available" : "Not available (storage sandboxed)"}</InfoRow>
+              <InfoRow label="File name">{detailData.name}</InfoRow>
+              <InfoRow label="Organization">{detailData.buName ?? "—"}{detailData.projectName ? ` · ${detailData.projectName}` : ""}</InfoRow>
+              <InfoRow label="Uploaded by">{detailData.uploadedBy || "—"}</InfoRow>
+              <InfoRow label="Uploaded at">{fmtDateTime(detailData.uploadedAt)}</InfoRow>
+              <InfoRow label="Size">{fmtSize(detailData.sizeKb)}</InfoRow>
+              <InfoRow label="Disclosure ref"><span className="font-mono text-[12px]">{detailData.disclosureRef || "—"}</span></InfoRow>
+              <InfoRow label="Content hash"><span className="font-mono text-[12px]">{detailData.contentHash}</span></InfoRow>
+              <InfoRow label="Preview">{detailData.previewAvailable ? "Available" : "Not available (storage sandboxed)"}</InfoRow>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[rgba(125,177,216,0.35)] bg-white/55 p-3.5">
               <div>
                 <div className="text-[13px] font-semibold text-[color:var(--ink)]">Linked submission</div>
-                <div className="font-mono text-[11.5px] text-[color:var(--ink-faint)]">{detail.submissionRef || "—"}</div>
+                <div className="font-mono text-[11.5px] text-[color:var(--ink-faint)]">{detailData.submissionRef || "—"}</div>
               </div>
               <Button
                 className="btn-action rounded-2xl"
-                disabled={!detail.submissionRef}
-                onClick={() => navigate("submissions", { ref: detail.submissionRef })}
+                disabled={!detailData.submissionRef}
+                onClick={() => navigate("submissions", { ref: detailData.submissionRef })}
               >
                 Open linked submission <ArrowRight className="ml-1.5 h-4 w-4" />
               </Button>
@@ -424,8 +426,8 @@ export default function EvidenceView() {
               <p className="text-[11.5px] text-[color:var(--ink-faint)]">
                 Downloads in this sandbox produce a metadata receipt — no file bytes are stored on the platform.
               </p>
-              <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" disabled={downloadingId === detail.id} onClick={() => download(detail)}>
-                {downloadingId === detail.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+              <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" disabled={!detailData || downloadingId === detailData.id} onClick={() => { if (detailData) download(detailData); }}>
+                {downloadingId === detailData.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
                 Download receipt
               </Button>
             </div>

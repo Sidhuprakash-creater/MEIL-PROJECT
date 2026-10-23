@@ -313,14 +313,14 @@ function TopBar() {
 
       {/* Breadcrumbs with subsidiary context */}
       <div className="hidden min-w-0 flex-col md:flex">
-        <div className="flex items-center gap-1.5 text-[11px] font-medium text-[color:var(--ink-faint)]">
-          <span>{user.subsidiary.name}</span>
-          <span>/</span>
-          <span>{meta.group}</span>
+        <div className="flex max-w-[280px] items-center gap-1.5 overflow-hidden whitespace-nowrap text-[11px] font-medium text-[color:var(--ink-faint)]">
+          <span className="truncate">{user.subsidiary.name}</span>
+          <span className="shrink-0">/</span>
+          <span className="truncate">{meta.group}</span>
           {detailMode && (
             <>
-              <span>/</span>
-              <span className="text-[color:var(--esg-blue)]">Detail</span>
+              <span className="shrink-0">/</span>
+              <span className="shrink-0 text-[color:var(--esg-blue)]">Detail</span>
             </>
           )}
         </div>
@@ -328,8 +328,8 @@ function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-2.5">
-        {/* Assigned subsidiary scope chip */}
-        <div className="glass-subtle hidden h-10 items-center gap-2 rounded-2xl px-3 lg:flex" title="Your session is scoped to this subsidiary">
+        {/* Assigned subsidiary scope chip (redundant with the profile menu below 2xl) */}
+        <div className="glass-subtle hidden h-10 items-center gap-2 rounded-2xl px-3 2xl:flex" title="Your session is scoped to this subsidiary">
           <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--esg-blue)]" aria-hidden="true" />
           <span className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Scope</span>
           <span className="max-w-[150px] truncate text-[12.5px] font-semibold text-[color:var(--ink)]">{user.subsidiary.name}</span>
@@ -342,7 +342,7 @@ function TopBar() {
         <div className="glass-subtle hidden items-center rounded-2xl border-white/60 sm:flex">
           <span className="pl-3 pr-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">Period</span>
           <Select value={reportingYear} onValueChange={setReportingYear}>
-            <SelectTrigger className="h-9 w-[122px] rounded-2xl border-0 bg-transparent text-[13px] font-semibold text-[color:var(--ink)] shadow-none focus:ring-0" aria-label="Reporting year">
+            <SelectTrigger className="h-9 w-[126px] rounded-2xl border-0 bg-transparent text-[13px] font-semibold text-[color:var(--ink)] shadow-none focus:ring-0" aria-label="Reporting year">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="glass-strong rounded-2xl border-white/70">

@@ -24,8 +24,8 @@ import { fmtDate, fmtDateTime, useSaApi } from "@/lib/sa/client";
 import type { ProjectRow, SubmissionDetail, SubmissionRow, UnitRow } from "@/lib/sa/types";
 
 /* ── local types ── */
-type Level = "BU" | "PROJECT";
-type StatusKey = "submitted" | "pending" | "approved" | "rejected" | "overdue";
+type Level = "ALL" | "BU" | "PROJECT";
+type StatusKey = "all" | "submitted" | "pending" | "approved" | "rejected" | "overdue";
 type SubmissionsResponse = {
   submissions: SubmissionRow[];
   total: number;
@@ -33,6 +33,7 @@ type SubmissionsResponse = {
   pageSize: number;
   counts: { all: number; draft: number; submitted: number; pending: number; approved: number; rejected: number; overdue: number };
 };
+type SubmissionDetailResponse = { submission: SubmissionDetail };
 type UnitsResponse = { units: UnitRow[]; total: number };
 type ProjectsResponse = { projects: ProjectRow[]; total: number };
 type MonitorRow = SubmissionRow & {
@@ -40,19 +41,25 @@ type MonitorRow = SubmissionRow & {
   validationIssues?: { ref: string; severity: string; description: string; status: string }[];
 };
 
-const STATUS_KEYS: StatusKey[] = ["submitted", "pending", "approved", "rejected", "overdue"];
+const STATUS_KEYS: StatusKey[] = ["all", "submitted", "pending", "approved", "rejected", "overdue"];
+const KPI_KEYS: StatusKey[] = ["submitted", "pending", "approved", "rejected", "overdue"];
 const STATUS_TAB_LABELS: Record<StatusKey, string> = {
-  submitted: "Submitted", pending: "Pending Review", approved: "Approved", rejected: "Rejected", overdue: "Overdue",
+  all: "All", submitted: "Submitted", pending: "Pending Review", approved: "Approved", rejected: "Rejected", overdue: "Overdue",
 };
 const STATUS_HUE: Record<StatusKey, string> = {
-  submitted: "#3a7bff", pending: "#7c5cff", approved: "#20a779", rejected: "#c34a4a", overdue: "#c57926",
+  all: "#3a7bff", submitted: "#3a7bff", pending: "#7c5cff", approved: "#20a779", rejected: "#c34a4a", overdue: "#c57926",
 };
 const STATUS_ICON: Record<StatusKey, React.ComponentType<{ className?: string; hue?: string }>> = {
-  submitted: CheckSealIcon, pending: HourglassIcon, approved: CheckSealIcon, rejected: ShieldAlert, overdue: AlarmAlertIcon,
+  all: FilesIcon, submitted: CheckSealIcon, pending: HourglassIcon, approved: CheckSealIcon, rejected: ShieldAlert, overdue: AlarmAlertIcon,
 };
 const STATUS_HINT: Record<StatusKey, string> = {
-  submitted: "Sent by BU / project teams", pending: "With the Subsidiary Manager", approved: "Cleared for consolidation",
+  all: "Every report across all statuses", submitted: "Sent by BU / project teams", pending: "With the Subsidiary Manager", approved: "Cleared for consolidation",
   rejected: "Changes requested / rejected", overdue: "Past deadline, not approved",
+};
+
+const fmtMetric = (v: unknown) => {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n.toLocaleString("en-IN") : String(v ?? "—");
 };
 
 /* KPI card — same pattern as the Command Center StatusCard. */
@@ -93,8 +100,8 @@ export default function MonitoringView() {
   const { toast } = useToast();
 
   /* ── view state ── */
-  const [level, setLevel] = useState<Level>("BU");
-  const [statusFilter, setStatusFilter] = useState<StatusKey>("submitted");
+  const [level, setLevel] = useState<Level>("ALL");
+  const [statusFilter, setStatusFilter] = useState<StatusKey>("all");
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
   const [orgId, setOrgId] = useState("ALL");
@@ -106,7 +113,7 @@ export default function MonitoringView() {
   const statusParam = typeof params.statusFilter === "string" ? params.statusFilter : "";
   const navTs = typeof params.ts === "number" ? params.ts : 0;
   useEffect(() => {
-    if (levelParam === "BU" || levelParam === "PROJECT") setLevel(levelParam);
+    if (levelParam === "ALL" || levelParam === "BU" || levelParam === "PROJECT") setLevel(levelParam);
     if ((STATUS_KEYS as string[]).includes(statusParam)) setStatusFilter(statusParam as StatusKey);
   }, [levelParam, statusParam, navTs]);
 
@@ -117,9 +124,10 @@ export default function MonitoringView() {
   }, [search]);
 
   /* ── data ── */
-  const orgQuery = orgId !== "ALL" ? (level === "BU" ? `&buId=${encodeURIComponent(orgId)}` : `&projectId=${encodeURIComponent(orgId)}`) : "";
+  const orgQuery = level !== "ALL" && orgId !== "ALL" ? (level === "BU" ? `&buId=${encodeURIComponent(orgId)}` : `&projectId=${encodeURIComponent(orgId)}`) : "";
+  const levelQuery = level === "ALL" ? "" : `&level=${level}`;
   const listPath =
-    `/api/sa/submissions?level=${level}&tab=${statusFilter}&period=${encodeURIComponent(reportingYear)}&pageSize=50` +
+    `/api/sa/submissions?${levelQuery}${levelQuery ? "&" : ""}tab=${statusFilter}&period=${encodeURIComponent(reportingYear)}&pageSize=50` +
     `${q ? `&q=${encodeURIComponent(q)}` : ""}${orgQuery}`;
   const { data, loading, error, refetch } = useSaApi<SubmissionsResponse>(listPath, { deps: [reportingYear] });
 
@@ -128,7 +136,8 @@ export default function MonitoringView() {
 
   const {
     data: detail, loading: detailLoading, error: detailError, refetch: detailRefetch,
-  } = useSaApi<SubmissionDetail>(detailId ? `/api/sa/submissions/${detailId}` : null, { pollMs: 0 });
+  } = useSaApi<SubmissionDetailResponse>(detailId ? `/api/sa/submissions/${detailId}` : null, { pollMs: 0 });
+  const detailData = detail?.submission ?? null;
 
   /* ── surface server errors via toast ── */
   useEffect(() => {
@@ -242,10 +251,10 @@ export default function MonitoringView() {
     </div>
   );
 
-  const detailOrg = detail
-    ? detail.level === "PROJECT"
-      ? `${detail.projectName ?? "—"} (BU · ${detail.buName ?? "—"})`
-      : detail.buName ?? "—"
+  const detailOrg = detailData
+    ? detailData.level === "PROJECT"
+      ? `${detailData.projectName ?? "—"} (BU · ${detailData.buName ?? "—"})`
+      : detailData.buName ?? "—"
     : "—";
 
   return (
@@ -264,7 +273,7 @@ export default function MonitoringView() {
 
       {/* ── KPI strip — 5 clickable status cards ── */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        {STATUS_KEYS.map((key) => (
+        {KPI_KEYS.map((key) => (
           <StatusCard
             key={key}
             icon={STATUS_ICON[key]}
@@ -281,6 +290,7 @@ export default function MonitoringView() {
       <div className="flex flex-col gap-2">
         <GlassTabBar
           tabs={[
+            { value: "ALL", label: "All Reports", icon: FilesIcon },
             { value: "BU", label: "BU Reports", icon: UnitsIcon },
             { value: "PROJECT", label: "Project Reports", icon: ProjectsIcon },
           ]}
@@ -301,15 +311,19 @@ export default function MonitoringView() {
         search={search}
         onSearch={setSearch}
         searchPlaceholder="Search ref, title or metric…"
-        filters={[
-          {
-            key: "org",
-            label: level === "BU" ? "Business unit" : "Project",
-            options: orgOptions,
-            value: orgId,
-            onChange: setOrgId,
-          },
-        ]}
+        filters={
+          level === "ALL"
+            ? []
+            : [
+                {
+                  key: "org",
+                  label: level === "BU" ? "Business unit" : "Project",
+                  options: orgOptions,
+                  value: orgId,
+                  onChange: setOrgId,
+                },
+              ]
+        }
         onReset={() => { setSearch(""); setQ(""); setOrgId("ALL"); }}
         resultCount={data?.total ?? 0}
         right={<ExportButton filename="report-monitoring" rows={exportRows} />}
@@ -341,35 +355,35 @@ export default function MonitoringView() {
       <GlassDialog
         open={!!detailId}
         onOpenChange={(o) => { if (!o) { setDetailId(null); setSheetOpen(false); } }}
-        title={detail ? `${detail.ref} — ${detail.title}` : "Report detail"}
-        description={detail ? `${detail.level === "PROJECT" ? "Project report" : "BU report"} · ${detail.period}` : "Loading report…"}
+        title={detailData ? `${detailData.ref} — ${detailData.title}` : "Report detail"}
+        description={detailData ? `${detailData.level === "PROJECT" ? "Project report" : "BU report"} · ${detailData.period}` : "Loading report…"}
         wide
       >
-        {detailLoading && !detail ? (
+        {detailLoading && !detailData ? (
           <LoadingBlock rows={5} label="Loading report detail…" />
-        ) : detailError && !detail ? (
+        ) : detailError && !detailData ? (
           <ErrorState message={detailError} onRetry={detailRefetch} />
-        ) : detail ? (
+        ) : detailData ? (
           <div className="space-y-4">
             {/* header meta */}
             <div className="glass-subtle rounded-2xl p-3.5">
               <div className="mb-2 flex flex-wrap items-center gap-2">
-                <StatusBadge status={detail.status} />
-                {detail.overdue && detail.status !== "APPROVED" && <Chip tone="red">Overdue</Chip>}
-                <Chip tone={detail.level === "PROJECT" ? "purple" : "blue"}>{detail.level === "PROJECT" ? "Project report" : "BU report"}</Chip>
+                <StatusBadge status={detailData.status} />
+                {detailData.overdue && detailData.status !== "APPROVED" && <Chip tone="red">Overdue</Chip>}
+                <Chip tone={detailData.level === "PROJECT" ? "purple" : "blue"}>{detailData.level === "PROJECT" ? "Project report" : "BU report"}</Chip>
               </div>
               <InfoRow label="Organization">{detailOrg}</InfoRow>
-              <InfoRow label="Period">{detail.period} · {detail.fiscalQuarter}</InfoRow>
-              <InfoRow label="Submitted">{detail.submittedAt ? fmtDateTime(detail.submittedAt) : "Not submitted"}{detail.submittedByName ? ` by ${detail.submittedByName}` : ""}</InfoRow>
-              <InfoRow label="Due">{fmtDate(detail.dueDate)}</InfoRow>
-              <InfoRow label="Reviewer">{detail.reviewerName ?? "—"}</InfoRow>
-              <InfoRow label="Metric">{detail.metricName} · {detail.metricValue.toLocaleString("en-IN")} {detail.metricUnit}</InfoRow>
+              <InfoRow label="Period">{detailData.period} · {detailData.fiscalQuarter}</InfoRow>
+              <InfoRow label="Submitted">{detailData.submittedAt ? fmtDateTime(detailData.submittedAt) : "Not submitted"}{detailData.submittedByName ? ` by ${detailData.submittedByName}` : ""}</InfoRow>
+              <InfoRow label="Due">{fmtDate(detailData.dueDate)}</InfoRow>
+              <InfoRow label="Reviewer">{detailData.reviewerName ?? "—"}</InfoRow>
+              <InfoRow label="Metric">{detailData.metricName} · {fmtMetric(detailData.metricValue)} {detailData.metricUnit}</InfoRow>
             </div>
 
             {/* data values */}
             <div>
               <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Data values</h3>
-              {detail.values.length === 0 ? (
+              {detailData.values.length === 0 ? (
                 <p className="text-[13px] text-[color:var(--ink-faint)]">No structured values recorded on this report.</p>
               ) : (
                 <div className="glass-subtle overflow-hidden rounded-2xl">
@@ -382,10 +396,10 @@ export default function MonitoringView() {
                       </tr>
                     </thead>
                     <tbody>
-                      {detail.values.map((v, i) => (
+                      {detailData.values.map((v, i) => (
                         <tr key={`${v.label}-${i}`} className="border-b border-[rgba(125,177,216,0.15)] last:border-0">
                           <td className="px-3.5 py-2 text-[color:var(--ink-soft)]">{v.label}</td>
-                          <td className="px-3.5 py-2 text-right font-semibold tabular text-[color:var(--ink)]">{v.value.toLocaleString("en-IN")}</td>
+                          <td className="px-3.5 py-2 text-right font-semibold tabular text-[color:var(--ink)]">{fmtMetric(v.value)}</td>
                           <td className="px-3.5 py-2 text-right text-[color:var(--ink-faint)]">{v.unit}</td>
                         </tr>
                       ))}
@@ -402,7 +416,7 @@ export default function MonitoringView() {
                   <FilesIcon className="h-4 w-4 text-[color:var(--esg-blue)]" />
                 </span>
                 <div>
-                  <div className="text-[13px] font-semibold text-[color:var(--ink)]">Evidence ({detail.evidence.length})</div>
+                  <div className="text-[13px] font-semibold text-[color:var(--ink)]">Evidence ({detailData.evidence.length})</div>
                   <div className="text-[11px] text-[color:var(--ink-faint)]">Files attached to this report</div>
                 </div>
               </div>
@@ -418,11 +432,11 @@ export default function MonitoringView() {
                 <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 Approve / Reject decisions belong to the Subsidiary Manager. Decisions shown here are read-only.
               </div>
-              {detail.comments.length === 0 ? (
+              {detailData.comments.length === 0 ? (
                 <p className="text-[13px] text-[color:var(--ink-faint)]">No reviewer comments recorded yet.</p>
               ) : (
                 <div className="space-y-2.5">
-                  {detail.comments.map((c, i) => (
+                  {detailData.comments.map((c, i) => (
                     <blockquote key={i} className="rounded-2xl border-l-4 border-[rgba(58,123,255,0.5)] bg-white/60 p-3">
                       <p className="text-[13px] leading-relaxed text-[color:var(--ink-soft)]">“{c.text}”</p>
                       <footer className="mt-1 text-[11px] text-[color:var(--ink-faint)]">{c.author} · {c.role} · {fmtDateTime(c.at)}</footer>
@@ -435,11 +449,11 @@ export default function MonitoringView() {
             {/* history timeline */}
             <div>
               <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">History</h3>
-              {detail.history.length === 0 ? (
+              {detailData.history.length === 0 ? (
                 <p className="text-[13px] text-[color:var(--ink-faint)]">No history entries yet.</p>
               ) : (
                 <ol className="nice-scroll relative max-h-56 space-y-3 overflow-y-auto border-l-2 border-[rgba(125,177,216,0.4)] pl-4">
-                  {detail.history.map((h, i) => (
+                  {detailData.history.map((h, i) => (
                     <li key={i} className="relative">
                       <span className="absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#3a7bff]" aria-hidden="true" />
                       <div className="text-[13px] font-medium text-[color:var(--ink)]">{h.action.replaceAll("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase())}</div>
@@ -460,11 +474,11 @@ export default function MonitoringView() {
                   Open validation <ArrowRight className="ml-1 h-3 w-3" />
                 </Button>
               </div>
-              {detail.validationIssues.length === 0 ? (
+              {detailData.validationIssues.length === 0 ? (
                 <p className="text-[13px] text-[color:var(--ink-faint)]">No validation issues linked to this report.</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
-                  {detail.validationIssues.map((v) => (
+                  {detailData.validationIssues.map((v) => (
                     <button
                       key={v.ref}
                       onClick={() => navigate("validation")}
@@ -487,13 +501,13 @@ export default function MonitoringView() {
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent side="right" className="glass-strong flex w-full flex-col gap-0 overflow-hidden border-white/80 p-0 sm:max-w-md">
           <SheetHeader className="glass-sheen shrink-0 border-b border-[rgba(125,177,216,0.3)] bg-white/50 px-5 py-4 text-left">
-            <SheetTitle className="text-base leading-snug text-[color:var(--ink)]">Evidence — {detail?.ref ?? "report"}</SheetTitle>
+            <SheetTitle className="text-base leading-snug text-[color:var(--ink)]">Evidence — {detailData?.ref ?? "report"}</SheetTitle>
             <SheetDescription className="text-[12px] text-[color:var(--muted-foreground)]">
-              {detail ? `${detail.evidence.length} file${detail.evidence.length === 1 ? "" : "s"} attached to this report` : "Attached files"}
+              {detailData ? `${detailData.evidence.length} file${detailData.evidence.length === 1 ? "" : "s"} attached to this report` : "Attached files"}
             </SheetDescription>
           </SheetHeader>
           <div className="nice-scroll flex-1 overflow-y-auto px-5 py-4">
-            {!detail || detail.evidence.length === 0 ? (
+            {!detailData || detailData.evidence.length === 0 ? (
               <EmptyState
                 title="No evidence attached"
                 message="This report has no supporting files yet."
@@ -501,7 +515,7 @@ export default function MonitoringView() {
               />
             ) : (
               <ul className="space-y-2">
-                {detail.evidence.map((name, i) => (
+                {detailData.evidence.map((name, i) => (
                   <li key={`${name}-${i}`} className="glass-subtle flex items-center gap-2.5 rounded-2xl px-3 py-2.5">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[rgba(58,123,255,0.12)]">
                       <FileText className="h-4 w-4 text-[color:var(--esg-blue)]" aria-hidden="true" />
@@ -516,14 +530,14 @@ export default function MonitoringView() {
           <div className="shrink-0 border-t border-[rgba(125,177,216,0.3)] bg-white/50 px-5 py-4">
             <Button
               className="btn-action w-full rounded-2xl"
-              onClick={() => navigate("evidence", { q: detail?.ref ?? "" })}
-              disabled={!detail}
+              onClick={() => navigate("evidence", { q: detailData?.ref ?? "" })}
+              disabled={!detailData}
             >
               <FolderOpen className="mr-1.5 h-4 w-4" /> Open Evidence &amp; Documents
             </Button>
             <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-[color:var(--ink-faint)]">
               {sheetOpen && detailLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-              Opens the evidence repository filtered to {detail?.ref ?? "this report"}
+              Opens the evidence repository filtered to {detailData?.ref ?? "this report"}
             </p>
           </div>
         </SheetContent>

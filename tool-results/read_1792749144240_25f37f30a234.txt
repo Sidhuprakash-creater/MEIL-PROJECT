@@ -1,0 +1,534 @@
+     1→"use client";
+     2→
+     3→// ── SUBSIDIARY ADMIN · Report Monitoring (OPERATIONAL — no decision controls) ──
+     4→// Decisions (Approve / Reject / Return) belong to the Subsidiary Manager.
+     5→// This view monitors BU & project reports and surfaces review outcomes read-only.
+     6→import { useEffect, useState } from "react";
+     7→import {
+     8→  ArrowRight, FileText, FolderOpen, Loader2, Radar, ShieldAlert,
+     9→} from "lucide-react";
+    10→import {
+    11→  AlarmAlertIcon, CheckSealIcon, FilesIcon, HourglassIcon, ProjectsIcon,
+    12→  UnitsIcon,
+    13→} from "@/components/workspace/premium-icons";
+    14→import {
+    15→  Chip, CountUp, DataTable, EmptyState, ErrorState, ExportButton, GlassDialog,
+    16→  GlassTabBar, InfoRow, LoadingBlock, PageHeader, StatusBadge, Toolbar,
+    17→  type Column,
+    18→} from "@/components/workspace/ui";
+    19→import { Button } from "@/components/ui/button";
+    20→import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+    21→import { useToast } from "@/hooks/use-toast";
+    22→import { useSaWorkspace } from "@/lib/sa/store";
+    23→import { fmtDate, fmtDateTime, useSaApi } from "@/lib/sa/client";
+    24→import type { ProjectRow, SubmissionDetail, SubmissionRow, UnitRow } from "@/lib/sa/types";
+    25→
+    26→/* ── local types ── */
+    27→type Level = "BU" | "PROJECT";
+    28→type StatusKey = "submitted" | "pending" | "approved" | "rejected" | "overdue";
+    29→type SubmissionsResponse = {
+    30→  submissions: SubmissionRow[];
+    31→  total: number;
+    32→  page: number;
+    33→  pageSize: number;
+    34→  counts: { all: number; draft: number; submitted: number; pending: number; approved: number; rejected: number; overdue: number };
+    35→};
+    36→type UnitsResponse = { units: UnitRow[]; total: number };
+    37→type ProjectsResponse = { projects: ProjectRow[]; total: number };
+    38→type MonitorRow = SubmissionRow & {
+    39→  /* Optional column fed from list data only — never fetched per-row. */
+    40→  validationIssues?: { ref: string; severity: string; description: string; status: string }[];
+    41→};
+    42→
+    43→const STATUS_KEYS: StatusKey[] = ["submitted", "pending", "approved", "rejected", "overdue"];
+    44→const STATUS_TAB_LABELS: Record<StatusKey, string> = {
+    45→  submitted: "Submitted", pending: "Pending Review", approved: "Approved", rejected: "Rejected", overdue: "Overdue",
+    46→};
+    47→const STATUS_HUE: Record<StatusKey, string> = {
+    48→  submitted: "#3a7bff", pending: "#7c5cff", approved: "#20a779", rejected: "#c34a4a", overdue: "#c57926",
+    49→};
+    50→const STATUS_ICON: Record<StatusKey, React.ComponentType<{ className?: string; hue?: string }>> = {
+    51→  submitted: CheckSealIcon, pending: HourglassIcon, approved: CheckSealIcon, rejected: ShieldAlert, overdue: AlarmAlertIcon,
+    52→};
+    53→const STATUS_HINT: Record<StatusKey, string> = {
+    54→  submitted: "Sent by BU / project teams", pending: "With the Subsidiary Manager", approved: "Cleared for consolidation",
+    55→  rejected: "Changes requested / rejected", overdue: "Past deadline, not approved",
+    56→};
+    57→
+    58→/* KPI card — same pattern as the Command Center StatusCard. */
+    59→function StatusCard({
+    60→  icon: Icon, hue, label, hint, value, onClick,
+    61→}: {
+    62→  icon: React.ComponentType<{ className?: string; hue?: string }>;
+    63→  hue: string; label: string; hint: string; value: number; onClick: () => void;
+    64→}) {
+    65→  return (
+    66→    <button
+    67→      onClick={onClick}
+    68→      aria-label={`${label}: ${value}`}
+    69→      className="glass glass-sheen group relative flex flex-col gap-3 overflow-hidden rounded-[24px] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_14px_34px_rgba(56,113,153,0.14)]"
+    70→    >
+    71→      <span className="absolute inset-x-0 top-0 h-[3px] opacity-80" style={{ background: `linear-gradient(90deg, ${hue}, ${hue}22)` }} />
+    72→      <div className="flex items-center justify-between">
+    73→        <span
+    74→          className="flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-md"
+    75→          style={{ background: `linear-gradient(135deg, ${hue}, color-mix(in srgb, ${hue} 62%, #17263d))`, boxShadow: `0 6px 16px color-mix(in srgb, ${hue} 38%, transparent), inset 0 1px 0 rgba(255,255,255,0.4)` }}
+    76→        >
+    77→          <Icon className="h-[18px] w-[18px] text-white" />
+    78→        </span>
+    79→        <span className="text-[26px] font-bold tabular leading-none text-[color:var(--ink)]">
+    80→          <CountUp value={value} />
+    81→        </span>
+    82→      </div>
+    83→      <div className="min-w-0">
+    84→        <div className="truncate text-[13px] font-semibold" style={{ color: hue }}>{label}</div>
+    85→        <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{hint}</div>
+    86→      </div>
+    87→    </button>
+    88→  );
+    89→}
+    90→
+    91→export default function MonitoringView() {
+    92→  const { navigate, params, reportingYear } = useSaWorkspace();
+    93→  const { toast } = useToast();
+    94→
+    95→  /* ── view state ── */
+    96→  const [level, setLevel] = useState<Level>("BU");
+    97→  const [statusFilter, setStatusFilter] = useState<StatusKey>("submitted");
+    98→  const [search, setSearch] = useState("");
+    99→  const [q, setQ] = useState("");
+   100→  const [orgId, setOrgId] = useState("ALL");
+   101→  const [detailId, setDetailId] = useState<string | null>(null);
+   102→  const [sheetOpen, setSheetOpen] = useState(false);
+   103→
+   104→  /* ── deep-link params (level / statusFilter; ts nonce re-applies same-view KPI navigations) ── */
+   105→  const levelParam = typeof params.level === "string" ? params.level : "";
+   106→  const statusParam = typeof params.statusFilter === "string" ? params.statusFilter : "";
+   107→  const navTs = typeof params.ts === "number" ? params.ts : 0;
+   108→  useEffect(() => {
+   109→    if (levelParam === "BU" || levelParam === "PROJECT") setLevel(levelParam);
+   110→    if ((STATUS_KEYS as string[]).includes(statusParam)) setStatusFilter(statusParam as StatusKey);
+   111→  }, [levelParam, statusParam, navTs]);
+   112→
+   113→  /* ── debounced search → server q ── */
+   114→  useEffect(() => {
+   115→    const t = window.setTimeout(() => setQ(search.trim()), 300);
+   116→    return () => window.clearTimeout(t);
+   117→  }, [search]);
+   118→
+   119→  /* ── data ── */
+   120→  const orgQuery = orgId !== "ALL" ? (level === "BU" ? `&buId=${encodeURIComponent(orgId)}` : `&projectId=${encodeURIComponent(orgId)}`) : "";
+   121→  const listPath =
+   122→    `/api/sa/submissions?level=${level}&tab=${statusFilter}&period=${encodeURIComponent(reportingYear)}&pageSize=50` +
+   123→    `${q ? `&q=${encodeURIComponent(q)}` : ""}${orgQuery}`;
+   124→  const { data, loading, error, refetch } = useSaApi<SubmissionsResponse>(listPath, { deps: [reportingYear] });
+   125→
+   126→  const { data: unitsData } = useSaApi<UnitsResponse>("/api/sa/units?pageSize=50", { pollMs: 0 });
+   127→  const { data: projectsData } = useSaApi<ProjectsResponse>("/api/sa/projects?pageSize=50", { pollMs: 0 });
+   128→
+   129→  const {
+   130→    data: detail, loading: detailLoading, error: detailError, refetch: detailRefetch,
+   131→  } = useSaApi<SubmissionDetail>(detailId ? `/api/sa/submissions/${detailId}` : null, { pollMs: 0 });
+   132→
+   133→  /* ── surface server errors via toast ── */
+   134→  useEffect(() => {
+   135→    if (error) toast({ title: "Could not load report monitoring", description: error, variant: "destructive" });
+   136→  }, [error, toast]);
+   137→  useEffect(() => {
+   138→    if (detailError) toast({ title: "Could not load report detail", description: detailError, variant: "destructive" });
+   139→  }, [detailError, toast]);
+   140→
+   141→  const counts = data?.counts;
+   142→  const rows: MonitorRow[] = data?.submissions ?? [];
+   143→
+   144→  /* ── handlers ── */
+   145→  const openStatus = (key: StatusKey) => {
+   146→    // Same-view navigation carrying the statusFilter (per contract) — ts nonce re-triggers the param effect.
+   147→    navigate("monitoring", { level, statusFilter: key, ts: Date.now() });
+   148→    setStatusFilter(key);
+   149→  };
+   150→  const changeLevel = (v: string) => {
+   151→    setLevel(v as Level);
+   152→    setOrgId("ALL"); // a BU filter is meaningless for PROJECT level (and vice versa)
+   153→  };
+   154→
+   155→  const orgOptions =
+   156→    level === "BU"
+   157→      ? [{ value: "ALL", label: "All business units" }, ...(unitsData?.units ?? []).map((u) => ({ value: u.id, label: u.name }))]
+   158→      : [{ value: "ALL", label: "All projects" }, ...(projectsData?.projects ?? []).map((p) => ({ value: p.id, label: p.name }))];
+   159→
+   160→  const exportRows = rows.map((r) => ({
+   161→    ref: r.ref, title: r.title, level: r.level,
+   162→    org: r.level === "PROJECT" ? r.projectName ?? "" : r.buName ?? "",
+   163→    parentBU: r.level === "PROJECT" ? r.buName ?? "" : "",
+   164→    category: r.category, metric: r.metricName, value: r.metricValue, unit: r.metricUnit,
+   165→    period: r.period, status: r.status, overdue: r.overdue ? "YES" : "NO",
+   166→    dueDate: fmtDate(r.dueDate), submittedAt: fmtDateTime(r.submittedAt),
+   167→    submittedBy: r.submittedByName ?? "", reviewer: r.reviewerName ?? "", evidenceCount: r.evidenceCount,
+   168→  }));
+   169→
+   170→  /* ── table columns ── */
+   171→  const columns: Column<MonitorRow>[] = [
+   172→    {
+   173→      key: "report", header: "Report", sortable: true, sortValue: (r) => r.ref,
+   174→      render: (r) => (
+   175→        <div className="min-w-[180px]">
+   176→          <div className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{r.title}</div>
+   177→          <div className="font-mono text-[10.5px] text-[color:var(--ink-faint)]">{r.ref}</div>
+   178→        </div>
+   179→      ),
+   180→    },
+   181→    {
+   182→      key: "org", header: "Organization", sortable: true, sortValue: (r) => (r.level === "PROJECT" ? r.projectName ?? "" : r.buName ?? ""),
+   183→      render: (r) =>
+   184→        r.level === "PROJECT" ? (
+   185→          <div>
+   186→            <div className="truncate text-[13px] font-medium text-[color:var(--ink-soft)]">{r.projectName ?? "—"}</div>
+   187→            <div className="truncate text-[10.5px] text-[color:var(--ink-faint)]">BU · {r.buName ?? "—"}</div>
+   188→          </div>
+   189→        ) : (
+   190→          <span className="text-[13px]">{r.buName ?? "—"}</span>
+   191→        ),
+   192→    },
+   193→    { key: "period", header: "Period", render: (r) => <span className="whitespace-nowrap text-[12.5px]">{r.period}</span> },
+   194→    {
+   195→      key: "submitted", header: "Submitted", sortable: true, sortValue: (r) => r.submittedAt ?? "",
+   196→      render: (r) => <span className="whitespace-nowrap text-[12.5px]">{r.submittedAt ? fmtDateTime(r.submittedAt) : "—"}</span>,
+   197→    },
+   198→    {
+   199→      key: "due", header: "Due", sortable: true, sortValue: (r) => r.dueDate,
+   200→      render: (r) => (
+   201→        <span className="flex flex-wrap items-center gap-1.5 whitespace-nowrap text-[12.5px]">
+   202→          {fmtDate(r.dueDate)}
+   203→          {r.overdue && r.status !== "APPROVED" && <Chip tone="red">Overdue</Chip>}
+   204→        </span>
+   205→      ),
+   206→    },
+   207→    { key: "status", header: "Status", sortable: true, sortValue: (r) => r.status, render: (r) => <StatusBadge status={r.status} /> },
+   208→    { key: "reviewer", header: "Reviewer", render: (r) => <span className="whitespace-nowrap text-[12.5px]">{r.reviewerName ?? "—"}</span> },
+   209→    { key: "evidence", header: "Evidence", render: (r) => <span className="tabular text-[13px]">{r.evidenceCount}</span> },
+   210→    {
+   211→      key: "validation", header: "Validation",
+   212→      render: (r) =>
+   213→        r.validationIssues?.length ? (
+   214→          <button
+   215→            onClick={(e) => { e.stopPropagation(); navigate("validation"); }}
+   216→            className="transition-transform hover:scale-[1.03]"
+   217→            aria-label="Open validation issues"
+   218→          >
+   219→            <Chip tone="red">{r.validationIssues.length} issue{r.validationIssues.length === 1 ? "" : "s"}</Chip>
+   220→          </button>
+   221→        ) : (
+   222→          <span className="text-[color:var(--ink-faint)]">—</span>
+   223→        ),
+   224→    },
+   225→  ];
+   226→
+   227→  const mobileCard = (r: MonitorRow) => (
+   228→    <div className="glass glass-sheen rounded-2xl p-3">
+   229→      <div className="flex items-start justify-between gap-2">
+   230→        <div className="min-w-0">
+   231→          <div className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{r.title}</div>
+   232→          <div className="font-mono text-[10.5px] text-[color:var(--ink-faint)]">{r.ref}</div>
+   233→        </div>
+   234→        <StatusBadge status={r.status} />
+   235→      </div>
+   236→      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-[color:var(--ink-faint)]">
+   237→        <Chip tone={r.level === "PROJECT" ? "purple" : "blue"}>{r.level === "PROJECT" ? r.projectName ?? "Project" : r.buName ?? "BU"}</Chip>
+   238→        {r.overdue && r.status !== "APPROVED" && <Chip tone="red">Overdue</Chip>}
+   239→        <span>Due {fmtDate(r.dueDate)}</span>
+   240→        <span>· {r.evidenceCount} evidence</span>
+   241→      </div>
+   242→    </div>
+   243→  );
+   244→
+   245→  const detailOrg = detail
+   246→    ? detail.level === "PROJECT"
+   247→      ? `${detail.projectName ?? "—"} (BU · ${detail.buName ?? "—"})`
+   248→      : detail.buName ?? "—"
+   249→    : "—";
+   250→
+   251→  return (
+   252→    <div className="view-in space-y-4 pb-6">
+   253→      <PageHeader
+   254→        title="Report Monitoring"
+   255→        description={`${reportingYear} · Operational view of BU and project reports. Approve / Reject decisions belong to the Subsidiary Manager — outcomes below are read-only.`}
+   256→        icon={Radar}
+   257→        actions={
+   258→          <span className="glass-subtle inline-flex items-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-medium text-[color:var(--ink-soft)]">
+   259→            <ShieldAlert className="h-4 w-4 text-[#c57926]" aria-hidden="true" />
+   260→            Read-only monitoring
+   261→          </span>
+   262→        }
+   263→      />
+   264→
+   265→      {/* ── KPI strip — 5 clickable status cards ── */}
+   266→      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+   267→        {STATUS_KEYS.map((key) => (
+   268→          <StatusCard
+   269→            key={key}
+   270→            icon={STATUS_ICON[key]}
+   271→            hue={STATUS_HUE[key]}
+   272→            label={STATUS_TAB_LABELS[key]}
+   273→            hint={STATUS_HINT[key]}
+   274→            value={counts?.[key] ?? 0}
+   275→            onClick={() => openStatus(key)}
+   276→          />
+   277→        ))}
+   278→      </div>
+   279→
+   280→      {/* ── level toggle + status sub-tabs ── */}
+   281→      <div className="flex flex-col gap-2">
+   282→        <GlassTabBar
+   283→          tabs={[
+   284→            { value: "BU", label: "BU Reports", icon: UnitsIcon },
+   285→            { value: "PROJECT", label: "Project Reports", icon: ProjectsIcon },
+   286→          ]}
+   287→          value={level}
+   288→          onChange={changeLevel}
+   289→          className="self-start"
+   290→        />
+   291→        <GlassTabBar
+   292→          tabs={STATUS_KEYS.map((key) => ({ value: key, label: STATUS_TAB_LABELS[key], count: counts?.[key] ?? 0 }))}
+   293→          value={statusFilter}
+   294→          onChange={(v) => setStatusFilter(v as StatusKey)}
+   295→          aria-label="Status filter"
+   296→        />
+   297→      </div>
+   298→
+   299→      {/* ── toolbar ── */}
+   300→      <Toolbar
+   301→        search={search}
+   302→        onSearch={setSearch}
+   303→        searchPlaceholder="Search ref, title or metric…"
+   304→        filters={[
+   305→          {
+   306→            key: "org",
+   307→            label: level === "BU" ? "Business unit" : "Project",
+   308→            options: orgOptions,
+   309→            value: orgId,
+   310→            onChange: setOrgId,
+   311→          },
+   312→        ]}
+   313→        onReset={() => { setSearch(""); setQ(""); setOrgId("ALL"); }}
+   314→        resultCount={data?.total ?? 0}
+   315→        right={<ExportButton filename="report-monitoring" rows={exportRows} />}
+   316→      />
+   317→
+   318→      {/* ── table ── */}
+   319→      <DataTable<MonitorRow>
+   320→        columns={columns}
+   321→        rows={rows}
+   322→        loading={loading && !data}
+   323→        error={error && !data ? error : null}
+   324→        onRetry={refetch}
+   325→        pageSize={8}
+   326→        onRowClick={(r) => setDetailId(r.id)}
+   327→        emptyTitle={
+   328→          (counts?.[statusFilter] ?? 0) === 0 && !q && orgId === "ALL"
+   329→            ? `No ${STATUS_TAB_LABELS[statusFilter].toLowerCase()} reports`
+   330→            : "Nothing matches your filters"
+   331→        }
+   332→        emptyMessage={
+   333→          (counts?.[statusFilter] ?? 0) === 0 && !q && orgId === "ALL"
+   334→            ? `There are no ${STATUS_TAB_LABELS[statusFilter].toLowerCase()} ${level === "BU" ? "BU" : "project"} reports for ${reportingYear}.`
+   335→            : "Try adjusting the search, organization filter or status tab."
+   336→        }
+   337→        mobileCard={mobileCard}
+   338→      />
+   339→
+   340→      {/* ── report detail dialog (wide) ── */}
+   341→      <GlassDialog
+   342→        open={!!detailId}
+   343→        onOpenChange={(o) => { if (!o) { setDetailId(null); setSheetOpen(false); } }}
+   344→        title={detail ? `${detail.ref} — ${detail.title}` : "Report detail"}
+   345→        description={detail ? `${detail.level === "PROJECT" ? "Project report" : "BU report"} · ${detail.period}` : "Loading report…"}
+   346→        wide
+   347→      >
+   348→        {detailLoading && !detail ? (
+   349→          <LoadingBlock rows={5} label="Loading report detail…" />
+   350→        ) : detailError && !detail ? (
+   351→          <ErrorState message={detailError} onRetry={detailRefetch} />
+   352→        ) : detail ? (
+   353→          <div className="space-y-4">
+   354→            {/* header meta */}
+   355→            <div className="glass-subtle rounded-2xl p-3.5">
+   356→              <div className="mb-2 flex flex-wrap items-center gap-2">
+   357→                <StatusBadge status={detail.status} />
+   358→                {detail.overdue && detail.status !== "APPROVED" && <Chip tone="red">Overdue</Chip>}
+   359→                <Chip tone={detail.level === "PROJECT" ? "purple" : "blue"}>{detail.level === "PROJECT" ? "Project report" : "BU report"}</Chip>
+   360→              </div>
+   361→              <InfoRow label="Organization">{detailOrg}</InfoRow>
+   362→              <InfoRow label="Period">{detail.period} · {detail.fiscalQuarter}</InfoRow>
+   363→              <InfoRow label="Submitted">{detail.submittedAt ? fmtDateTime(detail.submittedAt) : "Not submitted"}{detail.submittedByName ? ` by ${detail.submittedByName}` : ""}</InfoRow>
+   364→              <InfoRow label="Due">{fmtDate(detail.dueDate)}</InfoRow>
+   365→              <InfoRow label="Reviewer">{detail.reviewerName ?? "—"}</InfoRow>
+   366→              <InfoRow label="Metric">{detail.metricName} · {detail.metricValue.toLocaleString("en-IN")} {detail.metricUnit}</InfoRow>
+   367→            </div>
+   368→
+   369→            {/* data values */}
+   370→            <div>
+   371→              <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Data values</h3>
+   372→              {detail.values.length === 0 ? (
+   373→                <p className="text-[13px] text-[color:var(--ink-faint)]">No structured values recorded on this report.</p>
+   374→              ) : (
+   375→                <div className="glass-subtle overflow-hidden rounded-2xl">
+   376→                  <table className="w-full text-[13px]">
+   377→                    <thead>
+   378→                      <tr className="border-b border-[rgba(125,177,216,0.3)] text-left text-[11px] uppercase tracking-wide text-[color:var(--ink-faint)]">
+   379→                        <th className="px-3.5 py-2 font-semibold">Metric</th>
+   380→                        <th className="px-3.5 py-2 text-right font-semibold">Value</th>
+   381→                        <th className="px-3.5 py-2 text-right font-semibold">Unit</th>
+   382→                      </tr>
+   383→                    </thead>
+   384→                    <tbody>
+   385→                      {detail.values.map((v, i) => (
+   386→                        <tr key={`${v.label}-${i}`} className="border-b border-[rgba(125,177,216,0.15)] last:border-0">
+   387→                          <td className="px-3.5 py-2 text-[color:var(--ink-soft)]">{v.label}</td>
+   388→                          <td className="px-3.5 py-2 text-right font-semibold tabular text-[color:var(--ink)]">{v.value.toLocaleString("en-IN")}</td>
+   389→                          <td className="px-3.5 py-2 text-right text-[color:var(--ink-faint)]">{v.unit}</td>
+   390→                        </tr>
+   391→                      ))}
+   392→                    </tbody>
+   393→                  </table>
+   394→                </div>
+   395→              )}
+   396→            </div>
+   397→
+   398→            {/* evidence entry point — opens the side panel */}
+   399→            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[rgba(125,177,216,0.35)] bg-white/55 p-3.5">
+   400→              <div className="flex items-center gap-2.5">
+   401→                <span className="glass-subtle flex h-9 w-9 items-center justify-center rounded-xl">
+   402→                  <FilesIcon className="h-4 w-4 text-[color:var(--esg-blue)]" />
+   403→                </span>
+   404→                <div>
+   405→                  <div className="text-[13px] font-semibold text-[color:var(--ink)]">Evidence ({detail.evidence.length})</div>
+   406→                  <div className="text-[11px] text-[color:var(--ink-faint)]">Files attached to this report</div>
+   407→                </div>
+   408→              </div>
+   409→              <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" onClick={() => setSheetOpen(true)}>
+   410→                <FolderOpen className="mr-1.5 h-3.5 w-3.5" /> Evidence
+   411→              </Button>
+   412→            </div>
+   413→
+   414→            {/* review decisions — READ-ONLY banner */}
+   415→            <div>
+   416→              <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Review decisions</h3>
+   417→              <div className="mb-2.5 flex items-start gap-2 rounded-2xl border border-[rgba(197,121,38,0.35)] bg-[rgba(197,121,38,0.08)] p-3 text-[12.5px] font-medium leading-relaxed text-[#7a4a12]">
+   418→                <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+   419→                Approve / Reject decisions belong to the Subsidiary Manager. Decisions shown here are read-only.
+   420→              </div>
+   421→              {detail.comments.length === 0 ? (
+   422→                <p className="text-[13px] text-[color:var(--ink-faint)]">No reviewer comments recorded yet.</p>
+   423→              ) : (
+   424→                <div className="space-y-2.5">
+   425→                  {detail.comments.map((c, i) => (
+   426→                    <blockquote key={i} className="rounded-2xl border-l-4 border-[rgba(58,123,255,0.5)] bg-white/60 p-3">
+   427→                      <p className="text-[13px] leading-relaxed text-[color:var(--ink-soft)]">“{c.text}”</p>
+   428→                      <footer className="mt-1 text-[11px] text-[color:var(--ink-faint)]">{c.author} · {c.role} · {fmtDateTime(c.at)}</footer>
+   429→                    </blockquote>
+   430→                  ))}
+   431→                </div>
+   432→              )}
+   433→            </div>
+   434→
+   435→            {/* history timeline */}
+   436→            <div>
+   437→              <h3 className="mb-2 text-[13px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">History</h3>
+   438→              {detail.history.length === 0 ? (
+   439→                <p className="text-[13px] text-[color:var(--ink-faint)]">No history entries yet.</p>
+   440→              ) : (
+   441→                <ol className="nice-scroll relative max-h-56 space-y-3 overflow-y-auto border-l-2 border-[rgba(125,177,216,0.4)] pl-4">
+   442→                  {detail.history.map((h, i) => (
+   443→                    <li key={i} className="relative">
+   444→                      <span className="absolute -left-[22px] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#3a7bff]" aria-hidden="true" />
+   445→                      <div className="text-[13px] font-medium text-[color:var(--ink)]">{h.action.replaceAll("_", " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase())}</div>
+   446→                      <div className="text-[11px] text-[color:var(--ink-faint)]">
+   447→                        {h.actor} · {fmtDateTime(h.at)}{h.note ? ` — ${h.note}` : ""}
+   448→                      </div>
+   449→                    </li>
+   450→                  ))}
+   451→                </ol>
+   452→              )}
+   453→            </div>
+   454→
+   455→            {/* validation issues */}
+   456→            <div>
+   457→              <div className="mb-2 flex items-center justify-between">
+   458→                <h3 className="text-[13px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Validation</h3>
+   459→                <Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("validation")}>
+   460→                  Open validation <ArrowRight className="ml-1 h-3 w-3" />
+   461→                </Button>
+   462→              </div>
+   463→              {detail.validationIssues.length === 0 ? (
+   464→                <p className="text-[13px] text-[color:var(--ink-faint)]">No validation issues linked to this report.</p>
+   465→              ) : (
+   466→                <div className="flex flex-wrap gap-1.5">
+   467→                  {detail.validationIssues.map((v) => (
+   468→                    <button
+   469→                      key={v.ref}
+   470→                      onClick={() => navigate("validation")}
+   471→                      className="transition-transform hover:scale-[1.03]"
+   472→                      title={`${v.description} (${v.status})`}
+   473→                    >
+   474→                      <Chip tone={v.severity === "CRITICAL" || v.severity === "HIGH" ? "red" : v.severity === "MEDIUM" ? "amber" : "gray"}>
+   475→                        {v.severity} · {v.ref}
+   476→                      </Chip>
+   477→                    </button>
+   478→                  ))}
+   479→                </div>
+   480→              )}
+   481→            </div>
+   482→          </div>
+   483→        ) : null}
+   484→      </GlassDialog>
+   485→
+   486→      {/* ── evidence side panel — overlays the report dialog; closing returns to it ── */}
+   487→      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+   488→        <SheetContent side="right" className="glass-strong flex w-full flex-col gap-0 overflow-hidden border-white/80 p-0 sm:max-w-md">
+   489→          <SheetHeader className="glass-sheen shrink-0 border-b border-[rgba(125,177,216,0.3)] bg-white/50 px-5 py-4 text-left">
+   490→            <SheetTitle className="text-base leading-snug text-[color:var(--ink)]">Evidence — {detail?.ref ?? "report"}</SheetTitle>
+   491→            <SheetDescription className="text-[12px] text-[color:var(--muted-foreground)]">
+   492→              {detail ? `${detail.evidence.length} file${detail.evidence.length === 1 ? "" : "s"} attached to this report` : "Attached files"}
+   493→            </SheetDescription>
+   494→          </SheetHeader>
+   495→          <div className="nice-scroll flex-1 overflow-y-auto px-5 py-4">
+   496→            {!detail || detail.evidence.length === 0 ? (
+   497→              <EmptyState
+   498→                title="No evidence attached"
+   499→                message="This report has no supporting files yet."
+   500→                icon={FileText}
+   501→              />
+   502→            ) : (
+   503→              <ul className="space-y-2">
+   504→                {detail.evidence.map((name, i) => (
+   505→                  <li key={`${name}-${i}`} className="glass-subtle flex items-center gap-2.5 rounded-2xl px-3 py-2.5">
+   506→                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[rgba(58,123,255,0.12)]">
+   507→                      <FileText className="h-4 w-4 text-[color:var(--esg-blue)]" aria-hidden="true" />
+   508→                    </span>
+   509→                    <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-[color:var(--ink-soft)]" title={name}>{name}</span>
+   510→                    <span className="shrink-0 font-mono text-[10px] text-[color:var(--ink-faint)]">#{i + 1}</span>
+   511→                  </li>
+   512→                ))}
+   513→              </ul>
+   514→            )}
+   515→          </div>
+   516→          <div className="shrink-0 border-t border-[rgba(125,177,216,0.3)] bg-white/50 px-5 py-4">
+   517→            <Button
+   518→              className="btn-action w-full rounded-2xl"
+   519→              onClick={() => navigate("evidence", { q: detail?.ref ?? "" })}
+   520→              disabled={!detail}
+   521→            >
+   522→              <FolderOpen className="mr-1.5 h-4 w-4" /> Open Evidence &amp; Documents
+   523→            </Button>
+   524→            <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-[color:var(--ink-faint)]">
+   525→              {sheetOpen && detailLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+   526→              Opens the evidence repository filtered to {detail?.ref ?? "this report"}
+   527→            </p>
+   528→          </div>
+   529→        </SheetContent>
+   530→      </Sheet>
+   531→    </div>
+   532→  );
+   533→}
+   534→

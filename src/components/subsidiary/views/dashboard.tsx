@@ -182,9 +182,9 @@ export default function DashboardView() {
           <Chip tone="blue">Business-unit level</Chip>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.SUBMITTED} label="BU Submitted" hint="Submitted + under review" value={k.buSubmitted} onClick={() => navigate("monitoring", { level: "BU", statusFilter: "submitted" })} />
-          <StatusCard icon={FilesIcon} hue={STATUS_HUE.DRAFT} label="BU Pending" hint="Draft & assigned work" value={k.buPending} onClick={() => navigate("submissions", { tab: "draft", level: "BU" })} />
-          <StatusCard icon={AlarmAlertIcon} hue={STATUS_HUE.REJECTED} label="BU Overdue" hint="Past deadline, not approved" value={k.buOverdue} onClick={() => navigate("submissions", { tab: "overdue", level: "BU" })} />
+          <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.SUBMITTED} label="BU Submitted" hint="Sent by BU & project teams" value={k.buSubmitted} onClick={() => navigate("monitoring", { level: "BU", statusFilter: "submitted" })} />
+          <StatusCard icon={HourglassIcon} hue={STATUS_HUE.UNDER_REVIEW} label="BU In Review" hint="With the Subsidiary Manager" value={k.buPending} onClick={() => navigate("monitoring", { level: "BU", statusFilter: "pending" })} />
+          <StatusCard icon={AlarmAlertIcon} hue={STATUS_HUE.REJECTED} label="BU Overdue" hint="Past deadline, not approved" value={k.buOverdue} onClick={() => navigate("monitoring", { level: "BU", statusFilter: "overdue" })} />
           <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.APPROVED} label="BU Approved" hint="Cleared for consolidation" value={k.buApproved} onClick={() => navigate("monitoring", { level: "BU", statusFilter: "approved" })} />
           <StatusCard icon={ShieldAlert} hue={STATUS_HUE.REJECTED} label="BU Rejected" hint="Awaiting correction" value={k.buRejected} onClick={() => navigate("monitoring", { level: "BU", statusFilter: "rejected" })} />
         </div>
@@ -198,9 +198,9 @@ export default function DashboardView() {
           <Chip tone="purple">Project / site level</Chip>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.SUBMITTED} label="Project Submitted" hint="Submitted + under review" value={k.prjSubmitted} onClick={() => navigate("monitoring", { level: "PROJECT", statusFilter: "submitted" })} />
-          <StatusCard icon={FilesIcon} hue={STATUS_HUE.DRAFT} label="Project Pending" hint="Draft & assigned work" value={k.prjPending} onClick={() => navigate("submissions", { tab: "draft", level: "PROJECT" })} />
-          <StatusCard icon={AlarmAlertIcon} hue={STATUS_HUE.REJECTED} label="Project Overdue" hint="Past deadline, not approved" value={k.prjOverdue} onClick={() => navigate("submissions", { tab: "overdue", level: "PROJECT" })} />
+          <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.SUBMITTED} label="Project Submitted" hint="Sent by BU & project teams" value={k.prjSubmitted} onClick={() => navigate("monitoring", { level: "PROJECT", statusFilter: "submitted" })} />
+          <StatusCard icon={HourglassIcon} hue={STATUS_HUE.UNDER_REVIEW} label="Project In Review" hint="With the Subsidiary Manager" value={k.prjPending} onClick={() => navigate("monitoring", { level: "PROJECT", statusFilter: "pending" })} />
+          <StatusCard icon={AlarmAlertIcon} hue={STATUS_HUE.REJECTED} label="Project Overdue" hint="Past deadline, not approved" value={k.prjOverdue} onClick={() => navigate("monitoring", { level: "PROJECT", statusFilter: "overdue" })} />
           <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.APPROVED} label="Project Approved" hint="Cleared for consolidation" value={k.prjApproved} onClick={() => navigate("monitoring", { level: "PROJECT", statusFilter: "approved" })} />
           <StatusCard icon={ShieldAlert} hue={STATUS_HUE.REJECTED} label="Project Rejected" hint="Awaiting correction" value={k.prjRejected} onClick={() => navigate("monitoring", { level: "PROJECT", statusFilter: "rejected" })} />
         </div>
