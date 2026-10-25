@@ -1,0 +1,737 @@
+     1→// MEIL ESG / BRSR Reporting Platform — Source of Truth Schema
+     2→// Core architecture: GROUP → SUBSIDIARY → BUSINESS UNIT → PROJECT/SITE
+     3→// ESG Data Control Chain: SOURCE → EVIDENCE → VALIDATION → CALCULATION → SUBMISSION → REVIEW → APPROVAL → CONSOLIDATION → BRSR MAPPING → REPORT → AUDIT
+     4→
+     5→generator client {
+     6→  provider = "prisma-client-js"
+     7→}
+     8→
+     9→datasource db {
+    10→  provider = "sqlite"
+    11→  url      = env("DATABASE_URL")
+    12→}
+    13→
+    14→// ============================================================
+    15→// ORGANIZATION HIERARCHY
+    16→// ============================================================
+    17→
+    18→model Group {
+    19→  id          String   @id @default(cuid())
+    20→  code        String   @unique
+    21→  name        String
+    22→  legalName   String?
+    23→  status      String   @default("ACTIVE")
+    24→  metadata    String?
+    25→  createdAt   DateTime @default(now())
+    26→  updatedAt   DateTime @updatedAt
+    27→  subsidiaries Subsidiary[]
+    28→  users       User[]
+    29→  reportingYears ReportingYear[]
+    30→}
+    31→
+    32→model Subsidiary {
+    33→  id          String   @id @default(cuid())
+    34→  groupId     String
+    35→  code        String   @unique
+    36→  name        String
+    37→  legalName   String?
+    38→  cin         String?
+    39→  status      String   @default("ACTIVE")
+    40→  createdAt   DateTime @default(now())
+    41→  updatedAt   DateTime @updatedAt
+    42→  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+    43→  businessUnits BusinessUnit[]
+    44→}
+    45→
+    46→model BusinessUnit {
+    47→  id           String   @id @default(cuid())
+    48→  subsidiaryId String
+    49→  code         String   @unique
+    50→  name         String
+    51→  sector       String?
+    52→  status       String   @default("ACTIVE")
+    53→  createdAt    DateTime @default(now())
+    54→  updatedAt    DateTime @updatedAt
+    55→  subsidiary   Subsidiary @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+    56→  projects     Project[]
+    57→}
+    58→
+    59→model Project {
+    60→  id              String   @id @default(cuid())
+    61→  businessUnitId  String
+    62→  projectCode     String   @unique
+    63→  projectName     String
+    64→  location        String?
+    65→  country         String?
+    66→  state           String?
+    67→  status          String   @default("ACTIVE")
+    68→  reportingOwnerId String?
+    69→  createdAt       DateTime @default(now())
+    70→  updatedAt       DateTime @updatedAt
+    71→  businessUnit    BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+    72→  energyRecords   EnergyRecord[]
+    73→  waterRecords    WaterRecord[]
+    74→  wasteRecords    WasteRecord[]
+    75→  workforceRecords WorkforceRecord[]
+    76→  safetyRecords   SafetyRecord[]
+    77→  travelRecords   TravelRecord[]
+    78→  submissions     Submission[]
+    79→  activities      Activity[]
+    80→}
+    81→
+    82→// ============================================================
+    83→// USERS, ROLES, PERMISSIONS (RBAC)
+    84→// ============================================================
+    85→
+    86→model Role {
+    87→  id          String   @id @default(cuid())
+    88→  key         String   @unique
+    89→  name        String
+    90→  description String?
+    91→  phase       Int      @default(1)
+    92→  createdAt   DateTime @default(now())
+    93→  users       UserRole[]
+    94→  permissions RolePermission[]
+    95→}
+    96→
+    97→model Permission {
+    98→  id       String @id @default(cuid())
+    99→  key      String @unique
+   100→  category String
+   101→  roles    RolePermission[]
+   102→}
+   103→
+   104→model RolePermission {
+   105→  id           String @id @default(cuid())
+   106→  roleId       String
+   107→  permissionId String
+   108→  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+   109→  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+   110→  @@unique([roleId, permissionId])
+   111→}
+   112→
+   113→model User {
+   114→  id           String   @id @default(cuid())
+   115→  email        String   @unique
+   116→  name         String
+   117→  employeeCode String?
+   118→  passwordHash String
+   119→  groupId      String?
+   120→  status       String   @default("ACTIVE")
+   121→  demo         Boolean  @default(false)
+   122→  createdAt    DateTime @default(now())
+   123→  updatedAt    DateTime @updatedAt
+   124→  group        Group?   @relation(fields: [groupId], references: [id])
+   125→  userRoles    UserRole[]
+   126→  userScopes   UserScope[]
+   127→  submissions  Submission[]  @relation("SubmissionReviewer")
+   128→  evidence      Evidence[]
+   129→  auditLogs     AuditLog[]
+   130→  notifications Notification[]
+   131→}
+   132→
+   133→model UserRole {
+   134→  id     String @id @default(cuid())
+   135→  userId String
+   136→  roleId String
+   137→  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+   138→  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+   139→  @@unique([userId, roleId])
+   140→}
+   141→
+   142→model UserScope {
+   143→  id             String  @id @default(cuid())
+   144→  userId         String
+   145→  scopeType      String  // GROUP | SUBSIDIARY | BUSINESS_UNIT | PROJECT
+   146→  scopeId        String
+   147→  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+   148→}
+   149→
+   150→// ============================================================
+   151→// REPORTING PERIODS
+   152→// ============================================================
+   153→
+   154→model ReportingYear {
+   155→  id        String   @id @default(cuid())
+   156→  groupId   String
+   157→  year      Int
+   158→  label     String
+   159→  status    String   @default("OPEN")
+   160→  createdAt DateTime @default(now())
+   161→  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+   162→  periods   ReportingPeriod[]
+   163→}
+   164→
+   165→model ReportingPeriod {
+   166→  id               String    @id @default(cuid())
+   167→  reportingYearId  String
+   168→  periodType       String    // MONTHLY | QUARTERLY | ANNUAL
+   169→  periodLabel      String    // e.g. "April 2026", "Q1 FY27", "FY 2026"
+   170→  year             Int
+   171→  month            Int?
+   172→  quarter          Int?
+   173→  startDate        DateTime
+   174→  endDate          DateTime
+   175→  submissionDeadline DateTime?
+   176→  reviewDeadline   DateTime?
+   177→  approvalDeadline DateTime?
+   178→  status           String    @default("OPEN") // OPEN | DRAFT | SUBMITTED | UNDER_REVIEW | CORRECTION_REQUESTED | BU_APPROVED | SUBSIDIARY_APPROVED | HQ_REVIEW | LOCKED
+   179→  createdAt        DateTime  @default(now())
+   180→  reportingYear    ReportingYear @relation(fields: [reportingYearId], references: [id], onDelete: Cascade)
+   181→  energyRecords    EnergyRecord[]
+   182→  waterRecords     WaterRecord[]
+   183→  wasteRecords     WasteRecord[]
+   184→  workforceRecords WorkforceRecord[]
+   185→  safetyRecords    SafetyRecord[]
+   186→  travelRecords    TravelRecord[]
+   187→  submissions      Submission[]
+   188→}
+   189→
+   190→// ============================================================
+   191→// UNITS & CONVERSIONS (CALCULATION ENGINE)
+   192→// ============================================================
+   193→
+   194→model UnitMaster {
+   195→  id         String  @id @default(cuid())
+   196→  code      String  @unique
+   197→  name      String
+   198→  category  String  // ENERGY | VOLUME | MASS | COUNT | EMISSION
+   199→  baseUnit  String?
+   200→  createdAt DateTime @default(now())
+   201→}
+   202→
+   203→model ConversionRule {
+   204→  id            String  @id @default(cuid())
+   205→  fromUnit      String
+   206→  toUnit        String
+   207→  factor        Float
+   208→  category      String
+   209→  version       Int     @default(1)
+   210→  createdAt     DateTime @default(now())
+   211→}
+   212→
+   213→model EmissionFactor {
+   214→  id            String   @id @default(cuid())
+   215→  name          String
+   216→  category      String   // STATIONARY | MOBILE | ELECTRICITY | TRAVEL | WASTE | FUGITIVE
+   217→  source        String
+   218→  fuelType      String?
+   219→  geography     String   @default("IN")
+   220→  factorValue   Float    // kgCO2e per unit
+   221→  factorUnit    String
+   222→  ch4Factor     Float?
+   223→  n2oFactor     Float?
+   224→  scope         String   @default("SCOPE_1")
+   225→  effectiveFrom DateTime
+   226→  effectiveTo   DateTime?
+   227→  version       Int      @default(1)
+   228→  methodology   String?
+   229→  sourceDocument String?
+   230→  status        String   @default("ACTIVE")
+   231→  createdAt     DateTime @default(now())
+   232→}
+   233→
+   234→// ============================================================
+   235→// ESG SOURCE RECORDS (project/site level)
+   236→// ============================================================
+   237→
+   238→model EnergyRecord {
+   239→  id                String   @id @default(cuid())
+   240→  projectId        String
+   241→  reportingPeriodId String
+   242→  module           String   @default("ENERGY")
+   243→  source           String   // Electricity | Diesel | Petrol | Coal | CNG | LPG | Renewable | Grid | PPA
+   244→  sourceCategory   String   // RENEWABLE | NON_RENEWABLE
+   245→  quantity         Float
+   246→  sourceUnit       String
+   247→  normalizedValue  Float?
+   248→  normalizedUnit   String?
+   249→  vendor           String?
+   250→  meterRef         String?
+   251→  evidenceId       String?
+   252→  validationStatus String   @default("PENDING")
+   253→  calculationStatus String  @default("PENDING")
+   254→  revisionNumber   Int      @default(1)
+   255→  status           String   @default("DRAFT")
+   256→  enteredBy        String
+   257→  enteredAt        DateTime @default(now())
+   258→  updatedBy        String?
+   259→  updatedAt        DateTime? @updatedAt
+   260→  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   261→  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   262→  calculationResults CalculationResult[]
+   263→  validationResults ValidationResult[]
+   264→}
+   265→
+   266→model WaterRecord {
+   267→  id                String   @id @default(cuid())
+   268→  projectId        String
+   269→  reportingPeriodId String
+   270→  module           String   @default("WATER")
+   271→  source           String   // Ground | Surface | ThirdParty | Recycled | Rainwater
+   272→  withdrawal       Float
+   273→  consumption      Float?
+   274→  discharge       Float?
+   275→  recycledReused   Float?
+   276→  treatment        String?
+   277→  destination      String?
+   278→  sourceUnit       String
+   279→  waterStress      Boolean  @default(false)
+   280→  zldActive        Boolean  @default(false)
+   281→  evidenceId       String?
+   282→  validationStatus String   @default("PENDING")
+   283→  calculationStatus String  @default("PENDING")
+   284→  revisionNumber   Int      @default(1)
+   285→  status           String   @default("DRAFT")
+   286→  enteredBy        String
+   287→  enteredAt        DateTime @default(now())
+   288→  updatedAt        DateTime? @updatedAt
+   289→  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   290→  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   291→  calculationResults CalculationResult[]
+   292→  validationResults ValidationResult[]
+   293→}
+   294→
+   295→model WasteRecord {
+   296→  id                String   @id @default(cuid())
+   297→  projectId        String
+   298→  reportingPeriodId String
+   299→  module           String   @default("WASTE")
+   300→  wasteType        String
+   301→  hazardous        Boolean  @default(false)
+   302→  generatedQty    Float
+   303→  recoveredQty     Float?
+   304→  recycledQty      Float?
+   305→  reusedQty        Float?
+   306→  disposedQty      Float?
+   307→  disposalRoute    String?
+   308→  vendor           String?
+   309→  manifestRef      String?
+   310→  sourceUnit       String
+   311→  evidenceId       String?
+   312→  validationStatus String   @default("PENDING")
+   313→  calculationStatus String  @default("PENDING")
+   314→  revisionNumber   Int      @default(1)
+   315→  status           String   @default("DRAFT")
+   316→  enteredBy        String
+   317→  enteredAt        DateTime @default(now())
+   318→  updatedAt        DateTime? @updatedAt
+   319→  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   320→  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   321→  calculationResults CalculationResult[]
+   322→  validationResults ValidationResult[]
+   323→}
+   324→
+   325→model WorkforceRecord {
+   326→  id                String   @id @default(cuid())
+   327→  projectId        String
+   328→  reportingPeriodId String
+   329→  module           String   @default("PEOPLE")
+   330→  category         String   // EMPLOYEE | WORKER
+   331→  permanent        Int
+   332→  nonPermanent     Int
+   333→  male             Int
+   334→  female           Int
+   335→  other            Int?
+   336→  differentlyAbled Int?
+   337→  newHires         Int?
+   338→  exits            Int?
+   339→  trainingHours    Float?
+   340→  evidenceId       String?
+   341→  validationStatus String   @default("PENDING")
+   342→  status           String   @default("DRAFT")
+   343→  revisionNumber   Int      @default(1)
+   344→  enteredBy        String
+   345→  enteredAt        DateTime @default(now())
+   346→  updatedAt        DateTime? @updatedAt
+   347→  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   348→  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   349→  validationResults ValidationResult[]
+   350→}
+   351→
+   352→model SafetyRecord {
+   353→  id                String   @id @default(cuid())
+   354→  projectId        String
+   355→  reportingPeriodId String
+   356→  module           String   @default("SAFETY")
+   357→  recordType       String   // INCIDENT | INJURY | FATALITY | LTI | RECORDABLE | TRAINING | ASSESSMENT
+   358→  fatalities       Int      @default(0)
+   359→  injuries         Int      @default(0)
+   360→  lostTimeIncidents Int     @default(0)
+   361→  recordableInjuries Int    @default(0)
+   362→  highConsequenceIncidents Int @default(0)
+   363→  trainingHours    Float?
+   364→  safetyHours      Float?
+   365→  manHoursWorked   Float?
+   366→  correctiveActions String?
+   367→  evidenceId       String?
+   368→  validationStatus String   @default("PENDING")
+   369→  status           String   @default("DRAFT")
+   370→  revisionNumber   Int      @default(1)
+   371→  enteredBy        String
+   372→  enteredAt        DateTime @default(now())
+   373→  updatedAt        DateTime? @updatedAt
+   374→  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   375→  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   376→  validationResults ValidationResult[]
+   377→}
+   378→
+   379→model TravelRecord {
+   380→  id                String   @id @default(cuid())
+   381→  projectId        String
+   382→  reportingPeriodId String
+   383→  module           String   @default("TRAVEL")
+   384→  mode             String   // FLIGHT | RAIL | ROAD
+   385→  distance         Float
+   386→  passengers       Int      @default(1)
+   387→  sourceUnit       String
+   388→  origin           String?
+   389→  destination      String?
+   390→  travelDate       DateTime?
+   391→  factorId         String?
+   392→  calculatedEmissions Float?
+   393→  evidenceId       String?
+   394→  validationStatus String   @default("PENDING")
+   395→  calculationStatus String  @default("PENDING")
+   396→  status           String   @default("DRAFT")
+   397→  revisionNumber   Int      @default(1)
+   398→  enteredBy        String
+   399→  enteredAt        DateTime @default(now())
+   400→  updatedAt        DateTime? @updatedAt
+   401→  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   402→  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   403→  calculationResults CalculationResult[]
+   404→  validationResults ValidationResult[]
+   405→}
+   406→
+   407→// ============================================================
+   408→// EVIDENCE MANAGEMENT
+   409→// ============================================================
+   410→
+   411→model Evidence {
+   412→  id              String   @id @default(cuid())
+   413→  fileName        String
+   414→  documentType    String   // INVOICE | METER_READING | WASTE_MANIFEST | POLICY | CERTIFICATE | TRAINING_RECORD | REGISTER
+   415→  documentDate    DateTime?
+   416→  reportingPeriodId String?
+   417→  projectId       String?
+   418→  module          String?
+   419→  sourceRecordId  String?
+   420→  uploaderId      String
+   421→  filePath        String
+   422→  fileSize        Int
+   423→  mimeType        String
+   424→  hash            String?
+   425→  version         Int      @default(1)
+   426→  status          String   @default("UPLOADED") // REQUIRED | UPLOADED | UNDER_REVIEW | VERIFIED | REJECTED | EXPIRED
+   427→  verificationComment String?
+   428→  verifiedBy      String?
+   429→  verifiedAt      DateTime?
+   430→  createdAt       DateTime @default(now())
+   431→  updatedAt       DateTime @updatedAt
+   432→  uploader        User     @relation(fields: [uploaderId], references: [id])
+   433→}
+   434→
+   435→// ============================================================
+   436→// VALIDATION & ANOMALY
+   437→// ============================================================
+   438→
+   439→model ValidationRule {
+   440→  id          String   @id @default(cuid())
+   441→  code        String   @unique
+   442→  name        String
+   443→  module      String
+   444→  severity    String   // INFO | WARNING | ERROR | BLOCKING
+   445→  description String
+   446→  active      Boolean  @default(true)
+   447→}
+   448→
+   449→model ValidationResult {
+   450→  id          String   @id @default(cuid())
+   451→  ruleId      String?
+   452→  ruleCode    String
+   453→  recordId    String
+   454→  recordType  String   // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+   455→  severity    String
+   456→  message     String
+   457→  field       String?
+   458→  suggestedAction String?
+   459→  status      String   @default("OPEN") // OPEN | RESOLVED | WAIVED
+   460→  detectedAt  DateTime @default(now())
+   461→  resolvedAt  DateTime?
+   462→  resolutionComment String?
+   463→  energyRecord  EnergyRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+   464→  waterRecord   WaterRecord?  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+   465→  wasteRecord   WasteRecord?  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+   466→  workforceRecord WorkforceRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+   467→  safetyRecord  SafetyRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+   468→  travelRecord  TravelRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+   469→}
+   470→
+   471→model AnomalyEvent {
+   472→  id          String   @id @default(cuid())
+   473→  recordType  String
+   474→  recordId    String
+   475→  metric      String
+   476→  expectedRange String
+   477→  actualValue String
+   478→  severity    String   @default("WARNING")
+   479→  status      String   @default("OPEN")
+   480→  detectedAt  DateTime @default(now())
+   481→  resolvedAt  DateTime?
+   482→  resolutionComment String?
+   483→}
+   484→
+   485→// ============================================================
+   486→// CALCULATION RESULTS & LINEAGE
+   487→// ============================================================
+   488→
+   489→model CalculationResult {
+   490→  id              String   @id @default(cuid())
+   491→  recordType      String
+   492→  recordId        String
+   493→  energyRecordId  String?
+   494→  waterRecordId   String?
+   495→  wasteRecordId   String?
+   496→  travelRecordId  String?
+   497→  factorId        String?
+   498→  factorVersion   Int?
+   499→  conversionRuleId String?
+   500→  sourceValue     Float
+   501→  sourceUnit      String
+   502→  normalizedValue Float?
+   503→  normalizedUnit  String?
+   504→  calculatedValue Float
+   505→  resultUnit      String  // kgCO2e | GJ | m3
+   506→  scope           String?
+   507→  methodologyNote String?
+   508→  calculatedAt    DateTime @default(now())
+   509→  energyRecord    EnergyRecord? @relation(fields: [energyRecordId], references: [id], onDelete: Cascade)
+   510→  waterRecord     WaterRecord?  @relation(fields: [waterRecordId], references: [id], onDelete: Cascade)
+   511→  wasteRecord     WasteRecord?  @relation(fields: [wasteRecordId], references: [id], onDelete: Cascade)
+   512→  travelRecord    TravelRecord? @relation(fields: [travelRecordId], references: [id], onDelete: Cascade)
+   513→}
+   514→
+   515→// ============================================================
+   516→// WORKFLOW: SUBMISSIONS, APPROVALS, CORRECTIONS
+   517→// ============================================================
+   518→
+   519→model Submission {
+   520→  id              String   @id @default(cuid())
+   521→  projectId       String
+   522→  reportingPeriodId String
+   523→  module          String   // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+   524→  title           String
+   525→  status          String   @default("DRAFT")
+   526→  recordIds       String   // JSON array of source record IDs
+   527→  completionPct   Float    @default(0)
+   528→  evidenceCount   Int      @default(0)
+   529→  validationPassed Int     @default(0)
+   530→  validationErrors Int     @default(0)
+   531→  submittedBy     String
+   532→  submittedAt     DateTime?
+   533→  currentReviewerId String?
+   534→  currentReviewer  User?   @relation("SubmissionReviewer", fields: [currentReviewerId], references: [id])
+   535→  reviewComment   String?
+   536→  lockedAt        DateTime?
+   537→  lockedBy        String?
+   538→  createdAt       DateTime @default(now())
+   539→  updatedAt       DateTime @updatedAt
+   540→  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   541→  reportingPeriod ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+   542→  history         SubmissionStatusHistory[]
+   543→  corrections     CorrectionRequest[]
+   544→}
+   545→
+   546→model SubmissionStatusHistory {
+   547→  id            String   @id @default(cuid())
+   548→  submissionId  String
+   549→  fromStatus    String
+   550→  toStatus      String
+   551→  actorId       String
+   552→  actorName     String
+   553→  actorRole     String
+   554→  action        String   // SUBMIT | REVIEW | APPROVE | REJECT | CORRECTION_REQUEST | RESUBMIT | LOCK
+   555→  comment       String?
+   556→  reason        String?
+   557→  oldValues     String?
+   558→  newValues     String?
+   559→  createdAt     DateTime @default(now())
+   560→  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+   561→}
+   562→
+   563→model CorrectionRequest {
+   564→  id            String   @id @default(cuid())
+   565→  submissionId  String
+   566→  requesterId   String
+   567→  requesterName String
+   568→  field         String
+   569→  issue         String
+   570→  severity      String   @default("WARNING")
+   571→  status        String   @default("OPEN") // OPEN | ADDRESSED | RESOLVED | WAIVED
+   572→  comment       String?
+   573→  resolutionComment String?
+   574→  createdAt     DateTime @default(now())
+   575→  resolvedAt    DateTime?
+   576→  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+   577→}
+   578→
+   579→// ============================================================
+   580→// BRSR ENGINE (configuration-driven, versioned)
+   581→// ============================================================
+   582→
+   583→model BrsrFramework {
+   584→  id          String   @id @default(cuid())
+   585→  name        String
+   586→  version     String
+   587→  reportingYear Int
+   588→  tier        String   @default("CORE") // CORE | ESSENTIAL | LEADERSHIP
+   589→  status      String   @default("ACTIVE")
+   590→  createdAt   DateTime @default(now())
+   591→  sections    BrsrSection[]
+   592→  principles  BrsrPrinciple[]
+   593→  questions   BrsrQuestion[]
+   594→  answers     BrsrAnswer[]
+   595→}
+   596→
+   597→model BrsrSection {
+   598→  id          String   @id @default(cuid())
+   599→  frameworkId String
+   600→  code        String   // A | B | C
+   601→  name        String
+   602→  description String?
+   603→  sortOrder   Int
+   604→  framework   BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+   605→  questions   BrsrQuestion[]
+   606→}
+   607→
+   608→model BrsrPrinciple {
+   609→  id          String   @id @default(cuid())
+   610→  frameworkId String
+   611→  code        String   // P1-P9
+   612→  name        String
+   613→  title       String
+   614→  description String?
+   615→  sortOrder   Int
+   616→  framework   BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+   617→  questions   BrsrQuestion[]
+   618→}
+   619→
+   620→model BrsrQuestion {
+   621→  id            String   @id @default(cuid())
+   622→  frameworkId   String
+   623→  sectionId     String
+   624→  principleId   String?
+   625→  questionCode  String
+   626→  questionText  String
+   627→  answerType    String   // TEXT | NUMERIC | BOOLEAN | SELECT | TABLE | SOURCE_MAPPED
+   628→  unit          String?
+   629→  evidenceRequired Boolean @default(false)
+   630→  applicabilityRule String?
+   631→  mappingSource String?  // source module/record this maps to
+   632→  calculationMethod String?
+   633→  sortOrder     Int
+   634→  framework     BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+   635→  section       BrsrSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+   636→  principle     BrsrPrinciple? @relation(fields: [principleId], references: [id], onDelete: SetNull)
+   637→  answers       BrsrAnswer[]
+   638→}
+   639→
+   640→model BrsrAnswer {
+   641→  id            String   @id @default(cuid())
+   642→  frameworkId   String
+   643→  questionId    String
+   644→  projectId     String?
+   645→  reportingPeriodId String?
+   646→  answerValue   String?
+   647→  numericValue  Float?
+   648→  sourceType    String   // MANUAL | SOURCE_RECORD | DERIVED_KPI | CONSOLIDATED_KPI
+   649→  sourceRecordId String?
+   650→  sourceRecordType String?
+   651→  calculationResultId String?
+   652→  evidenceId    String?
+   653→  status        String   @default("MISSING") // MISSING | DRAFT | SUBMITTED | APPROVED | LOCKED | EVIDENCE_VERIFIED
+   654→  readinessWeight Float  @default(1)
+   655→  updatedAt     DateTime @updatedAt
+   656→  framework     BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+   657→  question      BrsrQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+   658→}
+   659→
+   660→// ============================================================
+   661→// AUDIT LOG (immutable)
+   662→// ============================================================
+   663→
+   664→model AuditLog {
+   665→  id          String   @id @default(cuid())
+   666→  actorId     String
+   667→  actorName   String
+   668→  actorRole   String
+   669→  action      String   // CREATE | UPDATE | SUBMIT | VALIDATE | CORRECTION_REQUEST | RESUBMIT | REVIEW | APPROVE | REJECT | LOCK | EVIDENCE_UPLOAD | EVIDENCE_VERIFY | CALCULATION | BRSR_MAPPING | REPORT_GENERATE
+   670→  entityType  String
+   671→  entityId    String
+   672→  oldState    String?
+   673→  newState    String?
+   674→  reason      String?
+   675→  metadata    String?
+   676→  ipAddress   String?
+   677→  createdAt   DateTime @default(now())
+   678→  actor       User     @relation(fields: [actorId], references: [id])
+   679→}
+   680→
+   681→// ============================================================
+   682→// ACTIVITY FEED & NOTIFICATIONS
+   683→// ============================================================
+   684→
+   685→model Activity {
+   686→  id          String   @id @default(cuid())
+   687→  projectId   String
+   688→  actorId     String
+   689→  actorName   String
+   690→  actorRole   String
+   691→  action      String   // DATA_ENTRY | SUBMIT | APPROVE | EVIDENCE_UPLOAD | CALCULATION | CORRECTION
+   692→  title       String
+   693→  description String?
+   694→  module      String?
+   695→  status      String?
+   696→  createdAt   DateTime @default(now())
+   697→  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+   698→}
+   699→
+   700→model Notification {
+   701→  id          String   @id @default(cuid())
+   702→  userId      String
+   703→  type        String   // SUBMISSION_DUE | CORRECTION_REQUESTED | EVIDENCE_REJECTED | APPROVAL_PENDING | PERIOD_DEADLINE | ANOMALY_DETECTED | BRSR_ITEM_MISSING | REPORT_GENERATED
+   704→  title       String
+   705→  message     String
+   706→  severity    String   @default("INFO")
+   707→  read        Boolean  @default(false)
+   708→  linkEntity  String?
+   709→  linkId      String?
+   710→  createdAt   DateTime @default(now())
+   711→  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+   712→}
+   713→
+   714→// ============================================================
+   715→// REPORTS (versioned, real generated output)
+   716→// ============================================================
+   717→
+   718→model Report {
+   719→  id            String   @id @default(cuid())
+   720→  reportType    String   // BRSR | ESG_SUMMARY | EMISSIONS | ENERGY | WATER | WASTE | WORKFORCE | SAFETY | EVIDENCE_PACKAGE | AUDIT_PACKAGE
+   721→  frameworkId   String?
+   722→  reportingYear Int?
+   723→  periodLabel   String?
+   724→  scopeType     String?
+   725→  scopeId       String?
+   726→  scopeName     String?
+   727→  generatedBy   String
+   728→  generatedByName String?
+   729→  status        String   @default("COMPLETED") // QUEUED | PROCESSING | COMPLETED | FAILED
+   730→  fileName      String?
+   731→  fileType      String?  // PDF | XLSX | CSV
+   732→  content       String?
+   733→  checksum      String?
+   734→  version       Int      @default(1)
+   735→  createdAt     DateTime @default(now())
+   736→}
+   737→

@@ -44,8 +44,8 @@ import {
   X,
 } from "lucide-react";
 import {
-  PROJECT_USER_PORTAL_NOTICE,
-  PROJECT_USER_PORTAL_URL,
+  PORTAL_ROLES,
+  ROLES,
   PORTAL_ROLE_LABELS,
   PORTAL_TITLES,
   type PortalId,
@@ -65,6 +65,15 @@ interface BUOpt extends SubsidiaryOpt {
   subsidiaryId: string;
 }
 
+interface ProjectOpt {
+  id: string;
+  code: string;
+  name: string;
+  location: string;
+  subsidiaryName: string;
+  businessUnitName: string;
+}
+
 interface ApiError {
   code: string;
   message: string;
@@ -74,7 +83,7 @@ interface ApiError {
 /* ── portal catalogue ──────────────────────────────────────────────────────── */
 
 interface PortalDef {
-  id: PortalId | "project";
+  id: PortalId;
   tier: string;
   accent: "gold" | "teal" | "green" | "amber";
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
@@ -118,9 +127,8 @@ const PORTALS: PortalDef[] = [
     accent: "amber",
     icon: HardHat,
     title: "Project User Portal",
-    desc: "Access project-level ESG data entry and reporting.",
-    cta: "External Link",
-    external: true,
+    desc: "Site-operations workspace: ESG data entry, evidence vault, submissions, BRSR mapping and analytics.",
+    cta: "Continue",
   },
 ];
 
@@ -128,6 +136,7 @@ const STEP_LABELS: Record<PortalId, string[]> = {
   group: ["Role", "Credentials"],
   subsidiary: ["Subsidiary", "Role", "Credentials"],
   business_unit: ["Subsidiary", "Business Unit", "Role", "Credentials"],
+  project: ["Project", "Role", "Credentials"],
 };
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -365,6 +374,9 @@ function PortalFlow({
   const [businessUnits, setBusinessUnits] = useState<BUOpt[]>([]);
   const [buLoading, setBuLoading] = useState(false);
   const [businessUnit, setBusinessUnit] = useState<BUOpt | null>(null);
+  const [projects, setProjects] = useState<ProjectOpt[]>([]);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [project, setProject] = useState<ProjectOpt | null>(null);
   const [role, setRole] = useState("");
   const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("");
@@ -383,6 +395,19 @@ function PortalFlow({
 
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (successTimer.current) clearTimeout(successTimer.current); }, []);
+
+  /* Project portal — load the active project list once */
+  useEffect(() => {
+    if (portal !== "project") return;
+    let cancelled = false;
+    setProjectLoading(true);
+    fetch("/api/master/projects")
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setProjects(d.projects ?? []); })
+      .catch(() => { if (!cancelled) setProjects([]); })
+      .finally(() => { if (!cancelled) setProjectLoading(false); });
+    return () => { cancelled = true; };
+  }, [portal]);
 
   /* changing subsidiary clears everything downstream (spec §4) */
   const selectSubsidiary = useCallback(
@@ -418,6 +443,16 @@ function PortalFlow({
     setFieldErrors({});
   }, []);
 
+  /* changing project clears role + credentials (same cascade rules) */
+  const selectProject = useCallback((opt: ProjectOpt | null) => {
+    setProject(opt);
+    setRole("");
+    setEmployeeId("");
+    setPassword("");
+    setError(null);
+    setFieldErrors({});
+  }, []);
+
   const changeRole = (v: string) => {
     setRole(v);
     setError(null);
@@ -429,8 +464,9 @@ function PortalFlow({
   const doneCount = useMemo(() => {
     if (portal === "group") return role ? 1 : 0;
     if (portal === "subsidiary") return role ? 2 : subsidiary ? 1 : 0;
+    if (portal === "project") return role ? 2 : project ? 1 : 0;
     return role ? 3 : businessUnit ? 2 : subsidiary ? 1 : 0;
-  }, [portal, role, subsidiary, businessUnit]);
+  }, [portal, role, subsidiary, businessUnit, project]);
 
   /* client-side required-field validation */
   const validate = (): boolean => {
@@ -438,6 +474,8 @@ function PortalFlow({
     if (needsSubs && !subsidiary) fe.subsidiaryId = "Please select your subsidiary.";
     if (portal === "business_unit" && !businessUnit)
       fe.businessUnitId = "Please select your business unit.";
+    if (portal === "project" && !project)
+      fe.projectId = "Please select your project.";
     if (!role) fe.role = "Please select your role.";
     if (!employeeId.trim()) fe.employeeId = "Employee ID or email is required.";
     if (!password) fe.password = "Password is required.";
@@ -463,6 +501,7 @@ function PortalFlow({
           password,
           subsidiaryId: subsidiary?.id,
           businessUnitId: businessUnit?.id,
+          projectId: project?.id,
           rememberMe: remember,
         }),
       });
@@ -521,12 +560,29 @@ function PortalFlow({
             ["SUBSIDIARY_ADMIN", PORTAL_ROLE_LABELS.subsidiary.admin],
             ["SUBSIDIARY_MANAGER", PORTAL_ROLE_LABELS.subsidiary.manager],
           ]
-        : [
-            ["BU_ADMIN", PORTAL_ROLE_LABELS.business_unit.admin],
-            ["BU_MANAGER", PORTAL_ROLE_LABELS.business_unit.manager],
-          ];
+        : portal === "project"
+          ? (PORTAL_ROLES.project as readonly string[]).map((code) => [
+              code,
+              (ROLES as Record<string, string>)[code] ?? code,
+            ])
+          : [
+              ["BU_ADMIN", PORTAL_ROLE_LABELS.business_unit.admin],
+              ["BU_MANAGER", PORTAL_ROLE_LABELS.business_unit.manager],
+            ];
 
-  const credsReady = portal === "group" ? !!role : !!role && (portal === "subsidiary" ? !!subsidiary : !!businessUnit);
+  const roleDisabled =
+    (portal === "subsidiary" && !subsidiary) ||
+    (portal === "business_unit" && !businessUnit) ||
+    (portal === "project" && !project);
+
+  const credsReady =
+    portal === "group"
+      ? !!role
+      : portal === "subsidiary"
+        ? !!role && !!subsidiary
+        : portal === "project"
+          ? !!role && !!project
+          : !!role && !!businessUnit;
 
   return (
     <div className="ep-flow" style={{ ["--ep-accent" as string]: `var(--${def.accent === "gold" ? "gold-400" : def.accent === "teal" ? "teal-400" : def.accent === "green" ? "green-400" : "gold-400"})` }}>
@@ -565,6 +621,49 @@ function PortalFlow({
       )}
 
       <form onSubmit={submit} noValidate>
+        {/* STEP 1 — project (Project User portal) */}
+        {portal === "project" && (
+          <div className="ep-block">
+            <label className="ep-label" htmlFor="ep-project-select">
+              <span>
+                Select Project / Site<span className="ep-req">*</span>
+              </span>
+              <span className="ep-hint">
+                {projectLoading
+                  ? "Loading projects…"
+                  : project
+                    ? `${project.subsidiaryName} · ${project.businessUnitName}`
+                    : `${projects.length} active sites`}
+              </span>
+            </label>
+            <div className="ep-select-wrap">
+              <select
+                id="ep-project-select"
+                className={`ep-select${fieldErrors.projectId ? " is-invalid" : ""}`}
+                value={project?.id ?? ""}
+                disabled={projectLoading}
+                onChange={(e) => selectProject(projects.find((p) => p.id === e.target.value) ?? null)}
+                aria-describedby={fieldErrors.projectId ? "ep-project-err" : undefined}
+              >
+                <option value="">
+                  {projectLoading ? "Loading projects…" : project ? "" : "Choose your project…"}
+                </option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} · {p.subsidiaryName}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={16} strokeWidth={2.2} />
+            </div>
+            {fieldErrors.projectId && (
+              <div className="ep-field-err" id="ep-project-err" role="alert">
+                <AlertCircle size={13} /> {fieldErrors.projectId}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* STEP 1 — subsidiary (subsidiary & BU portals) */}
         {needsSubs && (
           <SubsidiaryCombobox
@@ -615,10 +714,10 @@ function PortalFlow({
         )}
 
         {/* STEP 3 — role */}
-        <div className={`ep-block${(portal === "subsidiary" && !subsidiary) || (portal === "business_unit" && !businessUnit) ? " is-disabled" : ""}`}>
+        <div className={`ep-block${roleDisabled ? " is-disabled" : ""}`}>
           <label className="ep-label" htmlFor="ep-role-select">
             <span>
-              Select {portal === "group" ? "Group" : portal === "subsidiary" ? "Subsidiary" : "Business Unit"} Role<span className="ep-req">*</span>
+              Select {portal === "group" ? "Group" : portal === "subsidiary" ? "Subsidiary" : portal === "project" ? "Project" : "Business Unit"} Role<span className="ep-req">*</span>
             </span>
             <span className="ep-hint">Verified server-side</span>
           </label>
@@ -627,7 +726,7 @@ function PortalFlow({
               id="ep-role-select"
               className={`ep-select${fieldErrors.role ? " is-invalid" : ""}`}
               value={role}
-              disabled={(portal === "subsidiary" && !subsidiary) || (portal === "business_unit" && !businessUnit)}
+              disabled={roleDisabled}
               onChange={(e) => changeRole(e.target.value)}
             >
               <option value="">Choose your role…</option>
@@ -864,6 +963,11 @@ const DEMO_ACCOUNTS: Array<[string, string, string]> = [
   ["Subsidiary", "SUB-1002", "Subsidiary Admin · MEIL Energy"],
   ["Business Unit", "BU-1001", "BU Manager · Thermal"],
   ["Business Unit", "BU-3002", "BU Admin · Water Supply"],
+  ["Project", "ENV-1001", "Site Data Entry · Pavagada Solar Park"],
+  ["Project", "FIN-1001", "Finance & Resource · Kothagudem Thermal"],
+  ["Project", "EHS-1001", "EHS Officer · Kothagudem Thermal"],
+  ["Project", "HR-1001", "HR / Workforce · NH-48 Highway"],
+  ["Project", "ANA-1001", "ESG Analyst · Group-wide"],
 ];
 
 export default function EnterPlatform({
@@ -892,15 +996,6 @@ export default function EnterPlatform({
 
   const openPortal = (p: PortalDef) => {
     setNotice(null);
-    if (p.id === "project") {
-      /* external-link entry point — never navigate to a broken URL */
-      if (PROJECT_USER_PORTAL_URL) {
-        window.open(PROJECT_USER_PORTAL_URL, "_blank", "noopener,noreferrer");
-      } else {
-        setNotice(PROJECT_USER_PORTAL_NOTICE);
-      }
-      return;
-    }
     if (p.id === "subsidiary" || p.id === "business_unit") loadSubsidiaries();
     setView(p.id);
   };

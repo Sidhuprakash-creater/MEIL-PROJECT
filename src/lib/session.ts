@@ -121,6 +121,53 @@ function permissionsFor(role: string): string[] {
         "Project performance tracking",
         "Data quality review",
       ];
+    case "ENV_DATA_USER":
+      return [
+        "Site ESG data entry (energy, water, waste, people, safety, travel)",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "FIN_RESOURCE_USER":
+      return [
+        "Financial & resource data entry",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "EHS_USER":
+      return [
+        "Safety & environmental data entry",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "HR_USER":
+      return [
+        "Workforce & social data entry",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "PROCUREMENT_USER":
+      return [
+        "Supply-chain & procurement data entry",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "CSR_USER":
+      return [
+        "CSR & community data entry",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "COMPLIANCE_USER":
+      return [
+        "Regulatory & governance data entry",
+        "Evidence upload",
+        "Submission for review",
+      ];
+    case "ESG_ANALYST":
+      return [
+        "Group-wide ESG analytics",
+        "Read-only data exploration",
+      ];
     default:
       return [];
   }
@@ -140,6 +187,7 @@ export function toVerifiedUser(user: {
     name: string;
     subsidiaryId: string;
   } | null;
+  project?: { id: string; code: string; name: string } | null;
 }): VerifiedUser {
   const scopeType = scopeTypeForRole(user.role);
   return {
@@ -165,6 +213,13 @@ export function toVerifiedUser(user: {
             subsidiaryId: user.businessUnit.subsidiaryId,
           }
         : undefined,
+      project: user.project
+        ? {
+            id: user.project.id,
+            code: user.project.code,
+            name: user.project.name,
+          }
+        : undefined,
     },
     dashboardPath: DASHBOARD_PATHS[scopeType],
     permissions: permissionsFor(user.role),
@@ -181,7 +236,7 @@ export async function getSessionPayload(): Promise<SessionPayload | null> {
     where: { tokenHash: hashToken(token) },
     include: {
       user: {
-        include: { subsidiary: true, businessUnit: true },
+        include: { subsidiary: true, businessUnit: true, project: true },
       },
     },
   });

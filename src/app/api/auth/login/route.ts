@@ -41,14 +41,14 @@ async function findUserByIdentifier(identifier: string) {
   if (raw.includes("@")) {
     const byEmail = await db.user.findUnique({
       where: { email: raw.toLowerCase() },
-      include: { subsidiary: true, businessUnit: true },
+      include: { subsidiary: true, businessUnit: true, project: true },
     });
     if (byEmail) return byEmail;
   }
 
   return db.user.findUnique({
     where: { employeeId: raw.toUpperCase() },
-    include: { subsidiary: true, businessUnit: true },
+    include: { subsidiary: true, businessUnit: true, project: true },
   });
 }
 
@@ -70,6 +70,7 @@ export async function POST(request: Request) {
   const password = String(body.password ?? "");
   const subsidiaryId = body.subsidiaryId ? String(body.subsidiaryId) : null;
   const businessUnitId = body.businessUnitId ? String(body.businessUnitId) : null;
+  const projectId = body.projectId ? String(body.projectId) : null;
   const rememberMe = Boolean(body.rememberMe);
 
   const fieldErrors: Record<string, string> = {};
@@ -96,6 +97,9 @@ export async function POST(request: Request) {
   if (portal === "business_unit") {
     if (!subsidiaryId) fieldErrors.subsidiaryId = "Please select your subsidiary.";
     if (!businessUnitId) fieldErrors.businessUnitId = "Please select your business unit.";
+  }
+  if (portal === "project" && !projectId) {
+    fieldErrors.projectId = "Please select your project.";
   }
 
   if (Object.keys(fieldErrors).length > 0) {
@@ -289,6 +293,54 @@ export async function POST(request: Request) {
         requestedBU
           ? `This account is not authorized for ${requestedBU.name}. Select your assigned business unit to continue.`
           : "This account is not authorized for the selected business unit."
+      );
+    }
+  }
+
+  if (portal === "project") {
+    const requestedProject = projectId
+      ? await db.project.findUnique({ where: { id: projectId } })
+      : null;
+    if (!requestedProject || requestedProject.status !== "ACTIVE") {
+      await logAudit({
+        eventType: "LOGIN_FAILED",
+        result: "FAILURE",
+        employeeId: identifier,
+        userId: user.id,
+        portal,
+        role,
+        scopeRef: requestedProject?.code,
+        reason: "SCOPE_MISMATCH",
+        detail: "project",
+        ip,
+        userAgent,
+      });
+      return fail(
+        403,
+        "SCOPE_MISMATCH",
+        "This project is not available. Select your assigned project to continue."
+      );
+    }
+    /* Site-level analysts read group-wide analytics: any project may be
+       selected. Every other project-portal role must match its home project. */
+    if (user.role !== "ESG_ANALYST" && user.projectId !== requestedProject.id) {
+      await logAudit({
+        eventType: "LOGIN_FAILED",
+        result: "FAILURE",
+        employeeId: identifier,
+        userId: user.id,
+        portal,
+        role,
+        scopeRef: requestedProject.code,
+        reason: "SCOPE_MISMATCH",
+        detail: "project",
+        ip,
+        userAgent,
+      });
+      return fail(
+        403,
+        "SCOPE_MISMATCH",
+        `This account is not registered under ${requestedProject.name}. Select your assigned project to continue.`
       );
     }
   }

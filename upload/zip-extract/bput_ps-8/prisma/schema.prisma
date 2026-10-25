@@ -1,0 +1,736 @@
+// MEIL ESG / BRSR Reporting Platform — Source of Truth Schema
+// Core architecture: GROUP → SUBSIDIARY → BUSINESS UNIT → PROJECT/SITE
+// ESG Data Control Chain: SOURCE → EVIDENCE → VALIDATION → CALCULATION → SUBMISSION → REVIEW → APPROVAL → CONSOLIDATION → BRSR MAPPING → REPORT → AUDIT
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ORGANIZATION HIERARCHY
+// ============================================================
+
+model Group {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  legalName   String?
+  status      String   @default("ACTIVE")
+  metadata    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  subsidiaries Subsidiary[]
+  users       User[]
+  reportingYears ReportingYear[]
+}
+
+model Subsidiary {
+  id          String   @id @default(cuid())
+  groupId     String
+  code        String   @unique
+  name        String
+  legalName   String?
+  cin         String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  group       Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  businessUnits BusinessUnit[]
+}
+
+model BusinessUnit {
+  id           String   @id @default(cuid())
+  subsidiaryId String
+  code         String   @unique
+  name         String
+  sector       String?
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  subsidiary   Subsidiary @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  projects     Project[]
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  businessUnitId  String
+  projectCode     String   @unique
+  projectName     String
+  location        String?
+  country         String?
+  state           String?
+  status          String   @default("ACTIVE")
+  reportingOwnerId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  businessUnit    BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  energyRecords   EnergyRecord[]
+  waterRecords    WaterRecord[]
+  wasteRecords    WasteRecord[]
+  workforceRecords WorkforceRecord[]
+  safetyRecords   SafetyRecord[]
+  travelRecords   TravelRecord[]
+  submissions     Submission[]
+  activities      Activity[]
+}
+
+// ============================================================
+// USERS, ROLES, PERMISSIONS (RBAC)
+// ============================================================
+
+model Role {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  description String?
+  phase       Int      @default(1)
+  createdAt   DateTime @default(now())
+  users       UserRole[]
+  permissions RolePermission[]
+}
+
+model Permission {
+  id       String @id @default(cuid())
+  key      String @unique
+  category String
+  roles    RolePermission[]
+}
+
+model RolePermission {
+  id           String @id @default(cuid())
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@unique([roleId, permissionId])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  employeeCode String?
+  passwordHash String
+  groupId      String?
+  status       String   @default("ACTIVE")
+  demo         Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  group        Group?   @relation(fields: [groupId], references: [id])
+  userRoles    UserRole[]
+  userScopes   UserScope[]
+  submissions  Submission[]  @relation("SubmissionReviewer")
+  evidence      Evidence[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+}
+
+model UserRole {
+  id     String @id @default(cuid())
+  userId String
+  roleId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@unique([userId, roleId])
+}
+
+model UserScope {
+  id             String  @id @default(cuid())
+  userId         String
+  scopeType      String  // GROUP | SUBSIDIARY | BUSINESS_UNIT | PROJECT
+  scopeId        String
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// REPORTING PERIODS
+// ============================================================
+
+model ReportingYear {
+  id        String   @id @default(cuid())
+  groupId   String
+  year      Int
+  label     String
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  periods   ReportingPeriod[]
+}
+
+model ReportingPeriod {
+  id               String    @id @default(cuid())
+  reportingYearId  String
+  periodType       String    // MONTHLY | QUARTERLY | ANNUAL
+  periodLabel      String    // e.g. "April 2026", "Q1 FY27", "FY 2026"
+  year             Int
+  month            Int?
+  quarter          Int?
+  startDate        DateTime
+  endDate          DateTime
+  submissionDeadline DateTime?
+  reviewDeadline   DateTime?
+  approvalDeadline DateTime?
+  status           String    @default("OPEN") // OPEN | DRAFT | SUBMITTED | UNDER_REVIEW | CORRECTION_REQUESTED | BU_APPROVED | SUBSIDIARY_APPROVED | HQ_REVIEW | LOCKED
+  createdAt        DateTime  @default(now())
+  reportingYear    ReportingYear @relation(fields: [reportingYearId], references: [id], onDelete: Cascade)
+  energyRecords    EnergyRecord[]
+  waterRecords     WaterRecord[]
+  wasteRecords     WasteRecord[]
+  workforceRecords WorkforceRecord[]
+  safetyRecords    SafetyRecord[]
+  travelRecords    TravelRecord[]
+  submissions      Submission[]
+}
+
+// ============================================================
+// UNITS & CONVERSIONS (CALCULATION ENGINE)
+// ============================================================
+
+model UnitMaster {
+  id         String  @id @default(cuid())
+  code      String  @unique
+  name      String
+  category  String  // ENERGY | VOLUME | MASS | COUNT | EMISSION
+  baseUnit  String?
+  createdAt DateTime @default(now())
+}
+
+model ConversionRule {
+  id            String  @id @default(cuid())
+  fromUnit      String
+  toUnit        String
+  factor        Float
+  category      String
+  version       Int     @default(1)
+  createdAt     DateTime @default(now())
+}
+
+model EmissionFactor {
+  id            String   @id @default(cuid())
+  name          String
+  category      String   // STATIONARY | MOBILE | ELECTRICITY | TRAVEL | WASTE | FUGITIVE
+  source        String
+  fuelType      String?
+  geography     String   @default("IN")
+  factorValue   Float    // kgCO2e per unit
+  factorUnit    String
+  ch4Factor     Float?
+  n2oFactor     Float?
+  scope         String   @default("SCOPE_1")
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  version       Int      @default(1)
+  methodology   String?
+  sourceDocument String?
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+}
+
+// ============================================================
+// ESG SOURCE RECORDS (project/site level)
+// ============================================================
+
+model EnergyRecord {
+  id                String   @id @default(cuid())
+  projectId        String
+  reportingPeriodId String
+  module           String   @default("ENERGY")
+  source           String   // Electricity | Diesel | Petrol | Coal | CNG | LPG | Renewable | Grid | PPA
+  sourceCategory   String   // RENEWABLE | NON_RENEWABLE
+  quantity         Float
+  sourceUnit       String
+  normalizedValue  Float?
+  normalizedUnit   String?
+  vendor           String?
+  meterRef         String?
+  evidenceId       String?
+  validationStatus String   @default("PENDING")
+  calculationStatus String  @default("PENDING")
+  revisionNumber   Int      @default(1)
+  status           String   @default("DRAFT")
+  enteredBy        String
+  enteredAt        DateTime @default(now())
+  updatedBy        String?
+  updatedAt        DateTime? @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+}
+
+model WaterRecord {
+  id                String   @id @default(cuid())
+  projectId        String
+  reportingPeriodId String
+  module           String   @default("WATER")
+  source           String   // Ground | Surface | ThirdParty | Recycled | Rainwater
+  withdrawal       Float
+  consumption      Float?
+  discharge       Float?
+  recycledReused   Float?
+  treatment        String?
+  destination      String?
+  sourceUnit       String
+  waterStress      Boolean  @default(false)
+  zldActive        Boolean  @default(false)
+  evidenceId       String?
+  validationStatus String   @default("PENDING")
+  calculationStatus String  @default("PENDING")
+  revisionNumber   Int      @default(1)
+  status           String   @default("DRAFT")
+  enteredBy        String
+  enteredAt        DateTime @default(now())
+  updatedAt        DateTime? @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+}
+
+model WasteRecord {
+  id                String   @id @default(cuid())
+  projectId        String
+  reportingPeriodId String
+  module           String   @default("WASTE")
+  wasteType        String
+  hazardous        Boolean  @default(false)
+  generatedQty    Float
+  recoveredQty     Float?
+  recycledQty      Float?
+  reusedQty        Float?
+  disposedQty      Float?
+  disposalRoute    String?
+  vendor           String?
+  manifestRef      String?
+  sourceUnit       String
+  evidenceId       String?
+  validationStatus String   @default("PENDING")
+  calculationStatus String  @default("PENDING")
+  revisionNumber   Int      @default(1)
+  status           String   @default("DRAFT")
+  enteredBy        String
+  enteredAt        DateTime @default(now())
+  updatedAt        DateTime? @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+}
+
+model WorkforceRecord {
+  id                String   @id @default(cuid())
+  projectId        String
+  reportingPeriodId String
+  module           String   @default("PEOPLE")
+  category         String   // EMPLOYEE | WORKER
+  permanent        Int
+  nonPermanent     Int
+  male             Int
+  female           Int
+  other            Int?
+  differentlyAbled Int?
+  newHires         Int?
+  exits            Int?
+  trainingHours    Float?
+  evidenceId       String?
+  validationStatus String   @default("PENDING")
+  status           String   @default("DRAFT")
+  revisionNumber   Int      @default(1)
+  enteredBy        String
+  enteredAt        DateTime @default(now())
+  updatedAt        DateTime? @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  validationResults ValidationResult[]
+}
+
+model SafetyRecord {
+  id                String   @id @default(cuid())
+  projectId        String
+  reportingPeriodId String
+  module           String   @default("SAFETY")
+  recordType       String   // INCIDENT | INJURY | FATALITY | LTI | RECORDABLE | TRAINING | ASSESSMENT
+  fatalities       Int      @default(0)
+  injuries         Int      @default(0)
+  lostTimeIncidents Int     @default(0)
+  recordableInjuries Int    @default(0)
+  highConsequenceIncidents Int @default(0)
+  trainingHours    Float?
+  safetyHours      Float?
+  manHoursWorked   Float?
+  correctiveActions String?
+  evidenceId       String?
+  validationStatus String   @default("PENDING")
+  status           String   @default("DRAFT")
+  revisionNumber   Int      @default(1)
+  enteredBy        String
+  enteredAt        DateTime @default(now())
+  updatedAt        DateTime? @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  validationResults ValidationResult[]
+}
+
+model TravelRecord {
+  id                String   @id @default(cuid())
+  projectId        String
+  reportingPeriodId String
+  module           String   @default("TRAVEL")
+  mode             String   // FLIGHT | RAIL | ROAD
+  distance         Float
+  passengers       Int      @default(1)
+  sourceUnit       String
+  origin           String?
+  destination      String?
+  travelDate       DateTime?
+  factorId         String?
+  calculatedEmissions Float?
+  evidenceId       String?
+  validationStatus String   @default("PENDING")
+  calculationStatus String  @default("PENDING")
+  status           String   @default("DRAFT")
+  revisionNumber   Int      @default(1)
+  enteredBy        String
+  enteredAt        DateTime @default(now())
+  updatedAt        DateTime? @updatedAt
+  project          Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod  ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+}
+
+// ============================================================
+// EVIDENCE MANAGEMENT
+// ============================================================
+
+model Evidence {
+  id              String   @id @default(cuid())
+  fileName        String
+  documentType    String   // INVOICE | METER_READING | WASTE_MANIFEST | POLICY | CERTIFICATE | TRAINING_RECORD | REGISTER
+  documentDate    DateTime?
+  reportingPeriodId String?
+  projectId       String?
+  module          String?
+  sourceRecordId  String?
+  uploaderId      String
+  filePath        String
+  fileSize        Int
+  mimeType        String
+  hash            String?
+  version         Int      @default(1)
+  status          String   @default("UPLOADED") // REQUIRED | UPLOADED | UNDER_REVIEW | VERIFIED | REJECTED | EXPIRED
+  verificationComment String?
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  uploader        User     @relation(fields: [uploaderId], references: [id])
+}
+
+// ============================================================
+// VALIDATION & ANOMALY
+// ============================================================
+
+model ValidationRule {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  module      String
+  severity    String   // INFO | WARNING | ERROR | BLOCKING
+  description String
+  active      Boolean  @default(true)
+}
+
+model ValidationResult {
+  id          String   @id @default(cuid())
+  ruleId      String?
+  ruleCode    String
+  recordId    String
+  recordType  String   // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+  severity    String
+  message     String
+  field       String?
+  suggestedAction String?
+  status      String   @default("OPEN") // OPEN | RESOLVED | WAIVED
+  detectedAt  DateTime @default(now())
+  resolvedAt  DateTime?
+  resolutionComment String?
+  energyRecord  EnergyRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  waterRecord   WaterRecord?  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  wasteRecord   WasteRecord?  @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  workforceRecord WorkforceRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  safetyRecord  SafetyRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  travelRecord  TravelRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+}
+
+model AnomalyEvent {
+  id          String   @id @default(cuid())
+  recordType  String
+  recordId    String
+  metric      String
+  expectedRange String
+  actualValue String
+  severity    String   @default("WARNING")
+  status      String   @default("OPEN")
+  detectedAt  DateTime @default(now())
+  resolvedAt  DateTime?
+  resolutionComment String?
+}
+
+// ============================================================
+// CALCULATION RESULTS & LINEAGE
+// ============================================================
+
+model CalculationResult {
+  id              String   @id @default(cuid())
+  recordType      String
+  recordId        String
+  energyRecordId  String?
+  waterRecordId   String?
+  wasteRecordId   String?
+  travelRecordId  String?
+  factorId        String?
+  factorVersion   Int?
+  conversionRuleId String?
+  sourceValue     Float
+  sourceUnit      String
+  normalizedValue Float?
+  normalizedUnit  String?
+  calculatedValue Float
+  resultUnit      String  // kgCO2e | GJ | m3
+  scope           String?
+  methodologyNote String?
+  calculatedAt    DateTime @default(now())
+  energyRecord    EnergyRecord? @relation(fields: [energyRecordId], references: [id], onDelete: Cascade)
+  waterRecord     WaterRecord?  @relation(fields: [waterRecordId], references: [id], onDelete: Cascade)
+  wasteRecord     WasteRecord?  @relation(fields: [wasteRecordId], references: [id], onDelete: Cascade)
+  travelRecord    TravelRecord? @relation(fields: [travelRecordId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// WORKFLOW: SUBMISSIONS, APPROVALS, CORRECTIONS
+// ============================================================
+
+model Submission {
+  id              String   @id @default(cuid())
+  projectId       String
+  reportingPeriodId String
+  module          String   // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+  title           String
+  status          String   @default("DRAFT")
+  recordIds       String   // JSON array of source record IDs
+  completionPct   Float    @default(0)
+  evidenceCount   Int      @default(0)
+  validationPassed Int     @default(0)
+  validationErrors Int     @default(0)
+  submittedBy     String
+  submittedAt     DateTime?
+  currentReviewerId String?
+  currentReviewer  User?   @relation("SubmissionReviewer", fields: [currentReviewerId], references: [id])
+  reviewComment   String?
+  lockedAt        DateTime?
+  lockedBy        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  history         SubmissionStatusHistory[]
+  corrections     CorrectionRequest[]
+}
+
+model SubmissionStatusHistory {
+  id            String   @id @default(cuid())
+  submissionId  String
+  fromStatus    String
+  toStatus      String
+  actorId       String
+  actorName     String
+  actorRole     String
+  action        String   // SUBMIT | REVIEW | APPROVE | REJECT | CORRECTION_REQUEST | RESUBMIT | LOCK
+  comment       String?
+  reason        String?
+  oldValues     String?
+  newValues     String?
+  createdAt     DateTime @default(now())
+  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+model CorrectionRequest {
+  id            String   @id @default(cuid())
+  submissionId  String
+  requesterId   String
+  requesterName String
+  field         String
+  issue         String
+  severity      String   @default("WARNING")
+  status        String   @default("OPEN") // OPEN | ADDRESSED | RESOLVED | WAIVED
+  comment       String?
+  resolutionComment String?
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+  submission    Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// BRSR ENGINE (configuration-driven, versioned)
+// ============================================================
+
+model BrsrFramework {
+  id          String   @id @default(cuid())
+  name        String
+  version     String
+  reportingYear Int
+  tier        String   @default("CORE") // CORE | ESSENTIAL | LEADERSHIP
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  sections    BrsrSection[]
+  principles  BrsrPrinciple[]
+  questions   BrsrQuestion[]
+  answers     BrsrAnswer[]
+}
+
+model BrsrSection {
+  id          String   @id @default(cuid())
+  frameworkId String
+  code        String   // A | B | C
+  name        String
+  description String?
+  sortOrder   Int
+  framework   BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  questions   BrsrQuestion[]
+}
+
+model BrsrPrinciple {
+  id          String   @id @default(cuid())
+  frameworkId String
+  code        String   // P1-P9
+  name        String
+  title       String
+  description String?
+  sortOrder   Int
+  framework   BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  questions   BrsrQuestion[]
+}
+
+model BrsrQuestion {
+  id            String   @id @default(cuid())
+  frameworkId   String
+  sectionId     String
+  principleId   String?
+  questionCode  String
+  questionText  String
+  answerType    String   // TEXT | NUMERIC | BOOLEAN | SELECT | TABLE | SOURCE_MAPPED
+  unit          String?
+  evidenceRequired Boolean @default(false)
+  applicabilityRule String?
+  mappingSource String?  // source module/record this maps to
+  calculationMethod String?
+  sortOrder     Int
+  framework     BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  section       BrsrSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  principle     BrsrPrinciple? @relation(fields: [principleId], references: [id], onDelete: SetNull)
+  answers       BrsrAnswer[]
+}
+
+model BrsrAnswer {
+  id            String   @id @default(cuid())
+  frameworkId   String
+  questionId    String
+  projectId     String?
+  reportingPeriodId String?
+  answerValue   String?
+  numericValue  Float?
+  sourceType    String   // MANUAL | SOURCE_RECORD | DERIVED_KPI | CONSOLIDATED_KPI
+  sourceRecordId String?
+  sourceRecordType String?
+  calculationResultId String?
+  evidenceId    String?
+  status        String   @default("MISSING") // MISSING | DRAFT | SUBMITTED | APPROVED | LOCKED | EVIDENCE_VERIFIED
+  readinessWeight Float  @default(1)
+  updatedAt     DateTime @updatedAt
+  framework     BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  question      BrsrQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// AUDIT LOG (immutable)
+// ============================================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorId     String
+  actorName   String
+  actorRole   String
+  action      String   // CREATE | UPDATE | SUBMIT | VALIDATE | CORRECTION_REQUEST | RESUBMIT | REVIEW | APPROVE | REJECT | LOCK | EVIDENCE_UPLOAD | EVIDENCE_VERIFY | CALCULATION | BRSR_MAPPING | REPORT_GENERATE
+  entityType  String
+  entityId    String
+  oldState    String?
+  newState    String?
+  reason      String?
+  metadata    String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  actor       User     @relation(fields: [actorId], references: [id])
+}
+
+// ============================================================
+// ACTIVITY FEED & NOTIFICATIONS
+// ============================================================
+
+model Activity {
+  id          String   @id @default(cuid())
+  projectId   String
+  actorId     String
+  actorName   String
+  actorRole   String
+  action      String   // DATA_ENTRY | SUBMIT | APPROVE | EVIDENCE_UPLOAD | CALCULATION | CORRECTION
+  title       String
+  description String?
+  module      String?
+  status      String?
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // SUBMISSION_DUE | CORRECTION_REQUESTED | EVIDENCE_REJECTED | APPROVAL_PENDING | PERIOD_DEADLINE | ANOMALY_DETECTED | BRSR_ITEM_MISSING | REPORT_GENERATED
+  title       String
+  message     String
+  severity    String   @default("INFO")
+  read        Boolean  @default(false)
+  linkEntity  String?
+  linkId      String?
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// REPORTS (versioned, real generated output)
+// ============================================================
+
+model Report {
+  id            String   @id @default(cuid())
+  reportType    String   // BRSR | ESG_SUMMARY | EMISSIONS | ENERGY | WATER | WASTE | WORKFORCE | SAFETY | EVIDENCE_PACKAGE | AUDIT_PACKAGE
+  frameworkId   String?
+  reportingYear Int?
+  periodLabel   String?
+  scopeType     String?
+  scopeId       String?
+  scopeName     String?
+  generatedBy   String
+  generatedByName String?
+  status        String   @default("COMPLETED") // QUEUED | PROCESSING | COMPLETED | FAILED
+  fileName      String?
+  fileType      String?  // PDF | XLSX | CSV
+  content       String?
+  checksum      String?
+  version       Int      @default(1)
+  createdAt     DateTime @default(now())
+}

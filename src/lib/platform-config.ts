@@ -22,6 +22,7 @@ export const DASHBOARD_PATHS = {
   group: "/dashboard/group",
   subsidiary: "/dashboard/subsidiary",
   business_unit: "/dashboard/business-unit",
+  project: "/dashboard/project",
 } as const;
 
 export type DashboardScope = keyof typeof DASHBOARD_PATHS;
@@ -37,6 +38,14 @@ export const ROLES = {
   SUBSIDIARY_MANAGER: "Subsidiary Manager",
   BU_ADMIN: "Business Unit Admin",
   BU_MANAGER: "Business Unit Manager",
+  ENV_DATA_USER: "Site Data Entry",
+  FIN_RESOURCE_USER: "Finance & Resource Contributor",
+  EHS_USER: "EHS Officer",
+  HR_USER: "HR / Workforce Analyst",
+  PROCUREMENT_USER: "Procurement Lead",
+  CSR_USER: "CSR / Community User",
+  COMPLIANCE_USER: "Compliance / Governance",
+  ESG_ANALYST: "ESG Analyst",
 } as const;
 
 export type RoleCode = keyof typeof ROLES;
@@ -45,6 +54,16 @@ export const PORTAL_ROLES = {
   group: ["GROUP_ADMIN", "ORG_MANAGER"],
   subsidiary: ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"],
   business_unit: ["BU_ADMIN", "BU_MANAGER"],
+  project: [
+    "ENV_DATA_USER",
+    "FIN_RESOURCE_USER",
+    "EHS_USER",
+    "HR_USER",
+    "PROCUREMENT_USER",
+    "CSR_USER",
+    "COMPLIANCE_USER",
+    "ESG_ANALYST",
+  ],
 } as const satisfies Record<string, readonly RoleCode[]>;
 
 export type PortalId = keyof typeof PORTAL_ROLES;
@@ -53,12 +72,14 @@ export const PORTAL_ROLE_LABELS: Record<PortalId, { admin: string; manager: stri
   group: { admin: "Group Admin", manager: "Organization Manager" },
   subsidiary: { admin: "Subsidiary Admin", manager: "Subsidiary Manager" },
   business_unit: { admin: "Business Unit Admin", manager: "Business Unit Manager" },
+  project: { admin: "Site Data Entry", manager: "ESG Analyst" },
 };
 
 export const PORTAL_TITLES: Record<PortalId, string> = {
   group: "Group Portal",
   subsidiary: "Subsidiary Portal",
   business_unit: "Business Unit Portal",
+  project: "Project User Portal",
 };
 
 export function roleLabel(role: string): string {
@@ -68,6 +89,11 @@ export function roleLabel(role: string): string {
 export function scopeTypeForRole(role: string): DashboardScope {
   if (role === "GROUP_ADMIN" || role === "ORG_MANAGER") return "group";
   if (role === "SUBSIDIARY_ADMIN" || role === "SUBSIDIARY_MANAGER") return "subsidiary";
+  if (role === "BU_ADMIN" || role === "BU_MANAGER") return "business_unit";
+  if (
+    (PORTAL_ROLES.project as readonly string[]).includes(role)
+  )
+    return "project";
   return "business_unit";
 }
 
@@ -82,6 +108,7 @@ export interface VerifiedScope {
   type: DashboardScope;
   subsidiary?: { id: string; code: string; name: string };
   businessUnit?: { id: string; code: string; name: string; subsidiaryId: string };
+  project?: { id: string; code: string; name: string };
 }
 
 export interface VerifiedUser {
