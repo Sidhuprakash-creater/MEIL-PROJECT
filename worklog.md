@@ -409,3 +409,20 @@ Stage Summary:
 - All 8 zip users + legacy EMP site users authenticate through the existing gateway (no separate auth); credentials: ENV-1001/FIN-1001/EHS-1001/HR-1001/PRC-1001/CSR-1001/CMP-1001/ANA-1001 @ Esg@2025.
 - Backend fully integrated under /api/so/* with platform sessions + static role-permission matrix; data chain source→evidence→validation→calculation→submission→audit→BRSR works end-to-end; site submissions surface to parent consoles via Notification bridge.
 - Known scope notes: ESG_ANALYST skips project-ownership check (group-wide read); site roles hold no review/approve permissions by design (review happens in the BU/Subsidiary tier — parent consoles); group node is synthetic MEIL-GROUP; evidence files stored under public/evidence-uploads.
+
+---
+Task ID: DL-FIX-1
+Agent: main thread (Z.ai Code)
+Task: Fix "Download workspace failed: Failed to archive workspace files" — user cannot download the project
+
+Work Log:
+- Diagnosed: platform workspace archiver choked on 1.8 GB / ~64,000 files — node_modules 1.3 GB (60,601 files), .next turbopack cache 334 MB with actively-written .sst files (files mutating mid-archive = classic archiver abort), verify/ 34 MB of stale test screenshots, .git 68 MB
+- Stopped dev server, deleted .next (regenerates) and verify/ (throwaway artifacts), ran git gc
+- Restarted dev server via nohup bun run dev, verified GET / 200
+- Built a guaranteed user-facing download: download/meil-esg-platform-source.zip (3.0 MB, 486 files, unzip -t OK) containing src, prisma, public, mini-services, examples, tests, worklog.md, all configs, bun.lock and .env
+- Verified codebase has no stale src/generated or pu-schema references (single unified prisma/schema.prisma + default @prisma/client); zip compiles out-of-the-box after bun install + db push + seeds
+
+Stage Summary:
+- Root cause: workspace too large / too many files for the platform archive step; live turbopack cache files were the immediate failure trigger
+- Deliverable: download/meil-esg-platform-source.zip — full runnable project source (3 MB); run: bun install → bun run db:push → bunx tsx prisma/seed-auth.ts, seed-sa.ts, seed-so.ts → bun run dev
+- node_modules (1.3 GB) cannot be removed (project must run), so the platform's own button may still be slow/fragile; the zip in download/ is the reliable path
