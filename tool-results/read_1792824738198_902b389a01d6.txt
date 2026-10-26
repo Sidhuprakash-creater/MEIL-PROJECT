@@ -1,0 +1,939 @@
+     1→"use client";
+     2→
+     3→// ── SUBSIDIARY ADMIN · SCREEN 05 — User Management ──
+     4→// Role grants are constrained to ASSIGNABLE_ROLES (server-enforced 403):
+     5→// Group Admin / Organization Manager / Subsidiary Admin are reserved to the
+     6→// Group office and are never offered in the invite / edit dialogs.
+     7→import { useEffect, useMemo, useState } from "react";
+     8→import {
+     9→  Activity as ActivityIcon,
+    10→  CalendarClock,
+    11→  CheckCircle2,
+    12→  ClipboardList,
+    13→  Copy,
+    14→  KeyRound,
+    15→  Mail,
+    16→  Moon,
+    17→  MoreHorizontal,
+    18→  Pencil,
+    19→  Phone,
+    20→  Plus,
+    21→  ShieldCheck,
+    22→  UserCheck,
+    23→  UserX,
+    24→} from "lucide-react";
+    25→import { Button } from "@/components/ui/button";
+    26→import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+    27→import { Input } from "@/components/ui/input";
+    28→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    29→import { useSaWorkspace } from "@/lib/sa/store";
+    30→import { apiPatch, apiPost, fmtDateTime, timeAgo, useMutation, useSaApi } from "@/lib/sa/client";
+    31→import { ROLE_LABELS } from "@/lib/sa/types";
+    32→import type { ActivityRow, SubmissionRow, UserRow } from "@/lib/sa/types";
+    33→import {
+    34→  ActionButton, Avatar, Chip, Column, ConfirmDialog, DataTable, EmptyState, ErrorState, ExportButton, Field,
+    35→  GlassDialog, GlassTabBar, InfoRow, KpiCard, LoadingBlock, PageHeader, SectionCard, StatusBadge, Toolbar,
+    36→} from "@/components/workspace/ui";
+    37→import { CheckSealIcon, PeopleIcon, PulseIcon, UserPlusIcon } from "@/components/workspace/premium-icons";
+    38→import { useToast } from "@/hooks/use-toast";
+    39→
+    40→const inputCls = "glass-subtle rounded-2xl border-white/60 text-sm";
+    41→
+    42→type Presence = UserRow["presence"];
+    43→
+    44→const PRESENCE_META: Record<Presence, { label: string; color: string }> = {
+    45→  online: { label: "Active now", color: "#20a779" },
+    46→  today: { label: "Active today", color: "#3a7bff" },
+    47→  away: { label: "Away", color: "#c57926" },
+    48→  offline: { label: "Offline", color: "#8595ab" },
+    49→};
+    50→
+    51→function PresenceDot({ presence, className }: { presence: Presence; className?: string }) {
+    52→  const meta = PRESENCE_META[presence];
+    53→  return (
+    54→    <span className={`relative inline-flex h-2 w-2 shrink-0 ${className ?? ""}`} aria-label={meta.label}>
+    55→      {presence === "online" && <span className="absolute h-full w-full animate-ping rounded-full opacity-60" style={{ background: meta.color }} />}
+    56→      <span className="relative h-2 w-2 rounded-full" style={{ background: meta.color }} />
+    57→    </span>
+    58→  );
+    59→}
+    60→
+    61→/* presence stat card — same pattern as the dashboard status cards */
+    62→function PresenceCard({
+    63→  icon: Icon, hue, label, hint, value, active, onClick,
+    64→}: {
+    65→  icon: React.ComponentType<{ className?: string; hue?: string }>;
+    66→  hue: string; label: string; hint: string; value: number; active: boolean; onClick: () => void;
+    67→}) {
+    68→  return (
+    69→    <button
+    70→      onClick={onClick}
+    71→      aria-label={`${label}: ${value}${active ? " (filtered)" : ""}`}
+    72→      aria-pressed={active}
+    73→      className={`glass glass-sheen group relative flex flex-col gap-3 overflow-hidden rounded-[24px] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_14px_34px_rgba(56,113,153,0.14)] ${active ? "ring-2 ring-[#20a779]/60" : ""}`}
+    74→    >
+    75→      <span className="absolute inset-x-0 top-0 h-[3px] opacity-80" style={{ background: `linear-gradient(90deg, ${hue}, ${hue}22)` }} />
+    76→      <div className="flex items-center justify-between">
+    77→        <span
+    78→          className="flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-md"
+    79→          style={{ background: `linear-gradient(135deg, ${hue}, color-mix(in srgb, ${hue} 62%, #17263d))`, boxShadow: `0 6px 16px color-mix(in srgb, ${hue} 38%, transparent), inset 0 1px 0 rgba(255,255,255,0.4)` }}
+    80→        >
+    81→          <Icon className="h-[18px] w-[18px] text-white" />
+    82→        </span>
+    83→        <span className="text-[26px] font-bold tabular leading-none text-[color:var(--ink)]">{value}</span>
+    84→      </div>
+    85→      <div className="min-w-0">
+    86→        <div className="truncate text-[13px] font-semibold" style={{ color: hue }}>{label}</div>
+    87→        <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{hint}</div>
+    88→      </div>
+    89→    </button>
+    90→  );
+    91→}
+    92→
+    93→/* ────────────────────────────── invite / edit form ────────────────────────────── */
+    94→
+    95→interface UserFormValues {
+    96→  name: string;
+    97→  email: string;
+    98→  role: string;
+    99→  title: string;
+   100→  phone: string;
+   101→  buId: string;
+   102→  projectId: string;
+   103→}
+   104→
+   105→const EMPTY_USER_FORM: UserFormValues = { name: "", email: "", role: "", title: "", phone: "", buId: "", projectId: "" };
+   106→const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+   107→
+   108→function UserFormFields({
+   109→  mode,
+   110→  user,
+   111→  assignableRoles,
+   112→  buOptions,
+   113→  projectOptions,
+   114→  pending,
+   115→  onSubmit,
+   116→  onCancel,
+   117→}: {
+   118→  mode: "create" | "edit";
+   119→  user: UserRow | null;
+   120→  assignableRoles: string[];
+   121→  buOptions: { id: string; name: string }[];
+   122→  projectOptions: { id: string; name: string }[];
+   123→  pending: boolean;
+   124→  onSubmit: (values: UserFormValues) => void;
+   125→  onCancel: () => void;
+   126→}) {
+   127→  const [form, setForm] = useState<UserFormValues>(() =>
+   128→    mode === "edit" && user
+   129→      ? {
+   130→          name: user.name, email: user.email, role: user.role,
+   131→          title: user.title ?? "", phone: user.phone ?? "",
+   132→          buId: user.buId ?? "", projectId: user.projectId ?? "",
+   133→        }
+   134→      : EMPTY_USER_FORM
+   135→  );
+   136→  const [errors, setErrors] = useState<{ name?: string; email?: string; role?: string }>({});
+   137→  const set = (k: keyof UserFormValues) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
+   138→
+   139→  const submit = () => {
+   140→    const errs: { name?: string; email?: string; role?: string } = {};
+   141→    if (mode === "create") {
+   142→      if (form.name.trim().length < 2) errs.name = "User name is required (min 2 characters).";
+   143→      if (!EMAIL_RE.test(form.email.trim())) errs.email = "A valid email address is required.";
+   144→      if (!form.role) errs.role = "Select the role to assign.";
+   145→    } else if (user && form.role && form.role !== user.role && !assignableRoles.includes(form.role)) {
+   146→      errs.role = "This role cannot be granted from a subsidiary workspace.";
+   147→    }
+   148→    setErrors(errs);
+   149→    if (Object.keys(errs).length > 0) return;
+   150→    onSubmit({ ...form, name: form.name.trim(), email: form.email.trim() });
+   151→  };
+   152→
+   153→  return (
+   154→    <>
+   155→      {mode === "edit" && user && (
+   156→        <div className="glass-subtle mb-4 flex items-center gap-3 rounded-2xl p-3">
+   157→          <Avatar name={user.name} size={40} />
+   158→          <div className="min-w-0">
+   159→            <div className="truncate text-[13.5px] font-semibold text-[color:var(--ink)]">{user.name}</div>
+   160→            <div className="truncate text-[11.5px] text-[color:var(--ink-faint)]">{user.email} · {user.employeeId ?? "no employee ID"}</div>
+   161→          </div>
+   162→          <StatusBadge status={user.status} />
+   163→        </div>
+   164→      )}
+   165→      <div className="grid gap-4 sm:grid-cols-2">
+   166→        {mode === "create" && (
+   167→          <>
+   168→            <Field label="Full name" required error={errors.name} htmlFor="sa-usr-name">
+   169→              <Input id="sa-usr-name" value={form.name} onChange={(e) => set("name")(e.target.value)} placeholder="e.g. Ravi Teja" className={inputCls} autoComplete="off" />
+   170→            </Field>
+   171→            <Field label="Email" required error={errors.email} htmlFor="sa-usr-email" hint="An invite will be pending until first sign-in">
+   172→              <Input id="sa-usr-email" type="email" value={form.email} onChange={(e) => set("email")(e.target.value)} placeholder="e.g. ravi.teja@meil.in" className={inputCls} autoComplete="off" />
+   173→            </Field>
+   174→          </>
+   175→        )}
+   176→        <Field
+   177→          label="Role"
+   178→          required={mode === "create"}
+   179→          error={errors.role}
+   180→          hint="Group Admin / Organization Manager / Subsidiary Admin roles are reserved to the Group office"
+   181→        >
+   182→          <Select value={form.role || undefined} onValueChange={set("role")}>
+   183→            <SelectTrigger className={`${inputCls} w-full`} aria-label="Role">
+   184→              <SelectValue placeholder="Select role" />
+   185→            </SelectTrigger>
+   186→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+   187→              {assignableRoles.map((r) => (
+   188→                <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r.replaceAll("_", " ")}</SelectItem>
+   189→              ))}
+   190→            </SelectContent>
+   191→          </Select>
+   192→        </Field>
+   193→        <Field label="Title" htmlFor="sa-usr-title">
+   194→          <Input id="sa-usr-title" value={form.title} onChange={(e) => set("title")(e.target.value)} placeholder="e.g. Senior Environment Engineer" className={inputCls} />
+   195→        </Field>
+   196→        <Field label="Phone" htmlFor="sa-usr-phone">
+   197→          <Input id="sa-usr-phone" value={form.phone} onChange={(e) => set("phone")(e.target.value)} placeholder="e.g. +91 98480 12345" className={inputCls} />
+   198→        </Field>
+   199→        <Field label="Business unit" hint="Optional scope assignment">
+   200→          <Select value={form.buId || "NONE"} onValueChange={(v) => set("buId")(v === "NONE" ? "" : v)}>
+   201→            <SelectTrigger className={`${inputCls} w-full`} aria-label="Business unit">
+   202→              <SelectValue placeholder={buOptions.length === 0 ? "No business units" : "Unassigned"} />
+   203→            </SelectTrigger>
+   204→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+   205→              <SelectItem value="NONE">Unassigned</SelectItem>
+   206→              {buOptions.map((b) => (
+   207→                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+   208→              ))}
+   209→            </SelectContent>
+   210→          </Select>
+   211→        </Field>
+   212→        <Field label="Project" hint="Optional scope assignment">
+   213→          <Select value={form.projectId || "NONE"} onValueChange={(v) => set("projectId")(v === "NONE" ? "" : v)}>
+   214→            <SelectTrigger className={`${inputCls} w-full`} aria-label="Project">
+   215→              <SelectValue placeholder={projectOptions.length === 0 ? "No projects" : "Unassigned"} />
+   216→            </SelectTrigger>
+   217→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+   218→              <SelectItem value="NONE">Unassigned</SelectItem>
+   219→              {projectOptions.map((p) => (
+   220→                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+   221→              ))}
+   222→            </SelectContent>
+   223→          </Select>
+   224→        </Field>
+   225→      </div>
+   226→      <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+   227→        <Button variant="outline" className="glass-subtle rounded-2xl" onClick={onCancel} disabled={pending}>
+   228→          Cancel
+   229→        </Button>
+   230→        <ActionButton pending={pending} onClick={submit} className="btn-action">
+   231→          {mode === "create" ? "Send invite" : "Save changes"}
+   232→        </ActionButton>
+   233→      </div>
+   234→    </>
+   235→  );
+   236→}
+   237→
+   238→/* ────────────────────────────── one-time credential dialog ────────────────────────────── */
+   239→
+   240→function TempPasswordDialog({
+   241→  data,
+   242→  onClose,
+   243→}: {
+   244→  data: { userName: string; password: string; note: string } | null;
+   245→  onClose: () => void;
+   246→}) {
+   247→  const { toast } = useToast();
+   248→  const [copied, setCopied] = useState(false);
+   249→  const [prevData, setPrevData] = useState(data);
+   250→  if (data !== prevData) {
+   251→    setPrevData(data);
+   252→    setCopied(false);
+   253→  }
+   254→  const copy = async () => {
+   255→    if (!data) return;
+   256→    try {
+   257→      await navigator.clipboard.writeText(data.password);
+   258→      setCopied(true);
+   259→      toast({ title: "Copied", description: "Temporary password copied to the clipboard." });
+   260→    } catch {
+   261→      toast({ title: "Copy failed", description: "Select the password and copy it manually.", variant: "destructive" });
+   262→    }
+   263→  };
+   264→  return (
+   265→    <GlassDialog
+   266→      open={!!data}
+   267→      onOpenChange={(o) => !o && onClose()}
+   268→      title="Temporary credential generated"
+   269→      description={data ? `For ${data.userName}. Share it through your secure channel.` : undefined}
+   270→    >
+   271→      {data && (
+   272→        <div className="space-y-3">
+   273→          <div className="flex items-center gap-2 rounded-2xl border border-[rgba(197,121,38,0.4)] bg-[rgba(197,121,38,0.08)] p-3 text-[12.5px] font-medium text-[#9c5d1b]">
+   274→            <ShieldCheck className="h-4 w-4 shrink-0" />
+   275→            This password is shown only once. Store it now — it cannot be retrieved again.
+   276→          </div>
+   277→          <div className="glass-subtle flex items-center justify-between gap-3 rounded-2xl p-3">
+   278→            <code className="select-all font-mono text-[15px] font-bold tracking-wider text-[color:var(--ink)]">{data.password}</code>
+   279→            <Button variant="outline" size="sm" className="glass-subtle shrink-0 rounded-2xl border-white/60" onClick={() => void copy()}>
+   280→              <Copy className="mr-1.5 h-3.5 w-3.5" /> {copied ? "Copied" : "Copy"}
+   281→            </Button>
+   282→          </div>
+   283→          <p className="text-xs text-[color:var(--ink-faint)]">{data.note}</p>
+   284→        </div>
+   285→      )}
+   286→    </GlassDialog>
+   287→  );
+   288→}
+   289→
+   290→/* ────────────────────────────── detail dialog ────────────────────────────── */
+   291→
+   292→interface UserDetailData {
+   293→  user: UserRow;
+   294→  tasks: { id: string; ref: string; title: string; category: string; priority: string; status: string; dueDate: string }[];
+   295→  submissions: SubmissionRow[];
+   296→  activity: ActivityRow[];
+   297→  sessions: { id: string; userAgent: string; ip: string; createdAt: string; expiresAt: string }[];
+   298→  lastLogins: { eventType: string; result: string; createdAt: string; ip: string }[];
+   299→}
+   300→
+   301→type UserTab = "overview" | "tasks" | "submissions" | "activity" | "security";
+   302→
+   303→function UserDetailDialog({
+   304→  userId,
+   305→  onClose,
+   306→  onEdit,
+   307→}: {
+   308→  userId: string | null;
+   309→  onClose: () => void;
+   310→  onEdit: (u: UserRow) => void;
+   311→}) {
+   312→  const [tab, setTab] = useState<UserTab>("overview");
+   313→  const { data, loading, error, refetch } = useSaApi<UserDetailData>(
+   314→    userId ? `/api/sa/users/${userId}` : null,
+   315→    { pollMs: 0 }
+   316→  );
+   317→  /* reset to the overview tab whenever the dialog targets a different user */
+   318→  const [prevUserId, setPrevUserId] = useState(userId);
+   319→  if (userId !== prevUserId) {
+   320→    setPrevUserId(userId);
+   321→    if (userId) setTab("overview");
+   322→  }
+   323→
+   324→  const u = data?.user;
+   325→  const tabs: { value: UserTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }[] = [
+   326→    { value: "overview", label: "Overview", icon: ClipboardList },
+   327→    { value: "tasks", label: "Assigned tasks", icon: CheckCircle2, count: data?.tasks.length },
+   328→    { value: "submissions", label: "Submissions", icon: ClipboardList, count: data?.submissions.length },
+   329→    { value: "activity", label: "Activity", icon: ActivityIcon },
+   330→    { value: "security", label: "Security", icon: ShieldCheck },
+   331→  ];
+   332→
+   333→  return (
+   334→    <GlassDialog
+   335→      open={!!userId}
+   336→      onOpenChange={(o) => !o && onClose()}
+   337→      wide
+   338→      title={u ? u.name : "User details"}
+   339→      description={u ? `${u.roleLabel} · ${u.email}` : "Loading detail…"}
+   340→    >
+   341→      {error && <ErrorState message={error} onRetry={refetch} />}
+   342→      {!error && loading && !data && <LoadingBlock rows={5} label="Loading user…" />}
+   343→      {data && u && (
+   344→        <div className="space-y-4">
+   345→          <div className="flex flex-wrap items-center gap-3">
+   346→            <Avatar name={u.name} size={42} />
+   347→            <div className="min-w-0 flex-1">
+   348→              <div className="truncate text-[14px] font-bold text-[color:var(--ink)]">{u.name}</div>
+   349→              <div className="flex items-center gap-1.5 text-[11.5px] text-[color:var(--ink-faint)]">
+   350→                <PresenceDot presence={u.presence} />
+   351→                {PRESENCE_META[u.presence].label}{u.lastActiveAt ? ` · ${timeAgo(u.lastActiveAt)}` : ""}
+   352→              </div>
+   353→            </div>
+   354→            <StatusBadge status={u.status} />
+   355→            <Button variant="ghost" size="sm" className="h-8 rounded-xl text-xs" onClick={() => onEdit(u)}>
+   356→              <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+   357→            </Button>
+   358→          </div>
+   359→
+   360→          <GlassTabBar tabs={tabs} value={tab} onChange={(v) => setTab(v as UserTab)} />
+   361→
+   362→          {tab === "overview" && (
+   363→            <div className="grid gap-4 xl:grid-cols-2">
+   364→              <SectionCard title="Profile" description="Account and scope" icon={PeopleIcon}>
+   365→                <div className="divide-y divide-[rgba(125,177,216,0.16)]">
+   366→                  <InfoRow label="Employee ID"><Chip tone="blue">{u.employeeId ?? "—"}</Chip></InfoRow>
+   367→                  <InfoRow label="Email"><span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5 text-[color:var(--ink-faint)]" />{u.email}</span></InfoRow>
+   368→                  <InfoRow label="Role">{u.roleLabel}</InfoRow>
+   369→                  <InfoRow label="Title">{u.title || "—"}</InfoRow>
+   370→                  <InfoRow label="Phone">{u.phone ? <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5 text-[color:var(--ink-faint)]" />{u.phone}</span> : "—"}</InfoRow>
+   371→                  <InfoRow label="Business unit">{u.buName || "—"}</InfoRow>
+   372→                  <InfoRow label="Project">{u.projectName || "—"}</InfoRow>
+   373→                  <InfoRow label="Status"><StatusBadge status={u.status} /></InfoRow>
+   374→                </div>
+   375→              </SectionCard>
+   376→              <SectionCard title="Presence & workload" description="Live status and reporting load" icon={PulseIcon}>
+   377→                <div className="space-y-3">
+   378→                  <div className="glass-subtle flex items-center justify-between rounded-2xl p-3">
+   379→                    <span className="flex items-center gap-2 text-[13px] font-medium text-[color:var(--ink-soft)]">
+   380→                      <PresenceDot presence={u.presence} /> {PRESENCE_META[u.presence].label}
+   381→                    </span>
+   382→                    <span className="text-[11.5px] text-[color:var(--ink-faint)]">Last active {timeAgo(u.lastActiveAt)}</span>
+   383→                  </div>
+   384→                  <div className="divide-y divide-[rgba(125,177,216,0.16)]">
+   385→                    <InfoRow label="Assigned tasks">{u.taskCount}</InfoRow>
+   386→                    <InfoRow label="Submissions submitted">{u.submissionCount}</InfoRow>
+   387→                    <InfoRow label="Last sign-in">{u.lastLoginAt ? fmtDateTime(u.lastLoginAt) : "never"}</InfoRow>
+   388→                  </div>
+   389→                </div>
+   390→              </SectionCard>
+   391→            </div>
+   392→          )}
+   393→
+   394→          {tab === "tasks" && (
+   395→            <div className="nice-scroll max-h-[360px] space-y-2 overflow-y-auto pr-1">
+   396→              {data.tasks.length === 0 && <EmptyState title="No assigned tasks" message="Tasks assigned to this user will appear here." />}
+   397→              {data.tasks.map((t) => (
+   398→                <div key={t.id} className="glass-subtle flex items-center justify-between gap-3 rounded-2xl p-3">
+   399→                  <span className="min-w-0">
+   400→                    <span className="block truncate text-[13px] font-semibold text-[color:var(--ink)]">{t.title}</span>
+   401→                    <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">{t.ref} · {t.category} · due {fmtDateTime(t.dueDate)}</span>
+   402→                  </span>
+   403→                  <span className="flex shrink-0 items-center gap-2">
+   404→                    <Chip tone={t.priority === "HIGH" || t.priority === "CRITICAL" ? "red" : t.priority === "MEDIUM" ? "amber" : "gray"}>{t.priority}</Chip>
+   405→                    <StatusBadge status={t.status} />
+   406→                  </span>
+   407→                </div>
+   408→              ))}
+   409→            </div>
+   410→          )}
+   411→
+   412→          {tab === "submissions" && (
+   413→            <div className="nice-scroll max-h-[360px] space-y-2 overflow-y-auto pr-1">
+   414→              {data.submissions.length === 0 && <EmptyState title="No submissions" message="Records submitted by this user will appear here." />}
+   415→              {data.submissions.map((s) => (
+   416→                <button key={s.id} onClick={() => useSaWorkspace.getState().navigate("submissions", { ref: s.ref })} className="glass-subtle flex w-full items-center justify-between gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-white/80">
+   417→                  <span className="min-w-0">
+   418→                    <span className="block truncate text-[13px] font-semibold text-[color:var(--ink)]">{s.title}</span>
+   419→                    <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">{s.ref} · {s.period} · {s.level === "PROJECT" ? s.projectName : s.buName}</span>
+   420→                  </span>
+   421→                  <StatusBadge status={s.status} />
+   422→                </button>
+   423→              ))}
+   424→            </div>
+   425→          )}
+   426→
+   427→          {tab === "activity" && (
+   428→            <SectionCard title="Recent activity" description="Actions performed by this user" icon={ActivityIcon}>
+   429→              {data.activity.length === 0 ? (
+   430→                <EmptyState title="No activity yet" message="Actions performed by this user will appear here." />
+   431→              ) : (
+   432→                <div className="space-y-2">
+   433→                  {data.activity.map((a) => (
+   434→                    <div key={a.id} className="flex items-start gap-2.5 rounded-2xl px-2 py-2">
+   435→                      <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: a.severity === "WARNING" ? "#c57926" : a.severity === "CRITICAL" ? "#c34a4a" : "#3a7bff" }} />
+   436→                      <div className="min-w-0">
+   437→                        <div className="truncate text-[12px] text-[color:var(--ink)]">
+   438→                          {a.action.replace(/_/g, " ").toLowerCase()} {a.targetLabel && <span className="text-[color:var(--ink-soft)]">— {a.targetLabel}</span>}
+   439→                        </div>
+   440→                        <div className="text-[10.5px] text-[color:var(--ink-faint)]">{timeAgo(a.createdAt)}</div>
+   441→                      </div>
+   442→                    </div>
+   443→                  ))}
+   444→                </div>
+   445→              )}
+   446→            </SectionCard>
+   447→          )}
+   448→
+   449→          {tab === "security" && (
+   450→            <div className="grid gap-4 xl:grid-cols-2">
+   451→              <SectionCard title="Active sessions" description="Signed-in devices (revoked on suspend / reset)" icon={ShieldCheck}>
+   452→                {data.sessions.length === 0 ? (
+   453→                  <EmptyState title="No active sessions" message="This user has no live sessions right now." />
+   454→                ) : (
+   455→                  <div className="nice-scroll max-h-[260px] space-y-2 overflow-y-auto pr-1">
+   456→                    {data.sessions.map((s) => (
+   457→                      <div key={s.id} className="glass-subtle rounded-2xl p-3">
+   458→                        <div className="truncate text-[12.5px] font-semibold text-[color:var(--ink)]">{s.userAgent || "Unknown device"}</div>
+   459→                        <div className="mt-0.5 text-[11px] text-[color:var(--ink-faint)]">
+   460→                          {s.ip || "ip hidden"} · started {timeAgo(s.createdAt)} · expires {fmtDateTime(s.expiresAt)}
+   461→                        </div>
+   462→                      </div>
+   463→                    ))}
+   464→                  </div>
+   465→                )}
+   466→              </SectionCard>
+   467→              <SectionCard title="Last logins" description="Authentication audit trail" icon={KeyRound}>
+   468→                {data.lastLogins.length === 0 ? (
+   469→                  <EmptyState title="No auth records" message="Sign-in attempts will appear here." />
+   470→                ) : (
+   471→                  <div className="nice-scroll max-h-[260px] space-y-2 overflow-y-auto pr-1">
+   472→                    {data.lastLogins.map((l, i) => (
+   473→                      <div key={`${l.createdAt}-${i}`} className="flex items-center justify-between gap-3 rounded-2xl px-2 py-2">
+   474→                        <span className="min-w-0">
+   475→                          <span className="block truncate text-[12.5px] font-medium text-[color:var(--ink)]">{l.eventType.replaceAll("_", " ").toLowerCase()}</span>
+   476→                          <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">{l.ip || "ip hidden"} · {fmtDateTime(l.createdAt)}</span>
+   477→                        </span>
+   478→                        <Chip tone={l.result === "SUCCESS" ? "green" : "red"}>{l.result}</Chip>
+   479→                      </div>
+   480→                    ))}
+   481→                  </div>
+   482→                )}
+   483→              </SectionCard>
+   484→            </div>
+   485→          )}
+   486→        </div>
+   487→      )}
+   488→    </GlassDialog>
+   489→  );
+   490→}
+   491→
+   492→/* ────────────────────────────── mobile card ────────────────────────────── */
+   493→
+   494→function UserMobileCard({ r, onOpen }: { r: UserRow; onOpen: () => void }) {
+   495→  const assigned = r.buName || r.projectName;
+   496→  return (
+   497→    <button onClick={onOpen} className="glass glass-sheen glass-lift block w-full rounded-3xl p-3.5 text-left">
+   498→      <div className="flex items-start gap-3">
+   499→        <Avatar name={r.name} size={40} />
+   500→        <div className="min-w-0 flex-1">
+   501→          <div className="truncate text-[13.5px] font-semibold text-[color:var(--ink)]">{r.name}</div>
+   502→          <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{r.email}</div>
+   503→        </div>
+   504→        <StatusBadge status={r.status} />
+   505→      </div>
+   506→      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+   507→        <Chip tone="blue">{r.roleLabel}</Chip>
+   508→        {assigned ? (
+   509→          <Chip tone="gray">{r.buName ?? "—"} · {r.projectName ?? "—"}</Chip>
+   510→        ) : (
+   511→          <Chip tone="amber">Unassigned</Chip>
+   512→        )}
+   513→        <Chip tone="gray"><PresenceDot presence={r.presence} />{PRESENCE_META[r.presence].label}</Chip>
+   514→      </div>
+   515→    </button>
+   516→  );
+   517→}
+   518→
+   519→/* ────────────────────────────── main view ────────────────────────────── */
+   520→
+   521→export default function UsersView() {
+   522→  const { params, navigate } = useSaWorkspace();
+   523→  const { toast } = useToast();
+   524→  const { data, loading, error, refetch } = useSaApi<{ users: UserRow[]; total: number; roles: string[]; assignableRoles: string[] }>(
+   525→    "/api/sa/users?pageSize=50"
+   526→  );
+   527→  const { data: unitsRes } = useSaApi<{ units: { id: string; name: string }[] }>("/api/sa/units?pageSize=50", { pollMs: 0 });
+   528→  const { data: projectsRes } = useSaApi<{ projects: { id: string; name: string }[] }>("/api/sa/projects?pageSize=50", { pollMs: 0 });
+   529→
+   530→  const [search, setSearch] = useState("");
+   531→  const [roleFilter, setRoleFilter] = useState(() => (typeof params.role === "string" ? params.role : "ALL"));
+   532→  const [statusFilter, setStatusFilter] = useState(() => (typeof params.statusFilter === "string" ? params.statusFilter : "ALL"));
+   533→  const [presenceFilter, setPresenceFilter] = useState<"ALL" | Presence>("ALL");
+   534→  const [formOpen, setFormOpen] = useState(() => !!params.create);
+   535→  const [formMode, setFormMode] = useState<"create" | "edit">("create");
+   536→  const [editing, setEditing] = useState<UserRow | null>(null);
+   537→  const [detailId, setDetailId] = useState<string | null>(() => (typeof params.detailId === "string" && params.detailId ? params.detailId : null));
+   538→  const [confirmTarget, setConfirmTarget] = useState<{ user: UserRow; action: "suspend" | "activate" | "deactivate" | "reset-credential" } | null>(null);
+   539→  const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
+   540→
+   541→  const saveMut = useMutation();
+   542→  const actionMut = useMutation<{ ok?: boolean; tempPassword?: string; note?: string }>();
+   543→
+   544→  /* deep-link params: create / detailId / role / statusFilter — seeded on mount
+   545→     via the lazy initializers above, re-applied here when params change while
+   546→     the view is already mounted (React derived-state adjustment), then cleared. */
+   547→  const [prevParams, setPrevParams] = useState(params);
+   548→  if (params !== prevParams) {
+   549→    setPrevParams(params);
+   550→    if (params.create) setFormOpen(true);
+   551→    if (typeof params.detailId === "string" && params.detailId) setDetailId(params.detailId);
+   552→    if (typeof params.role === "string" && params.role) setRoleFilter(params.role);
+   553→    if (typeof params.statusFilter === "string" && params.statusFilter) setStatusFilter(params.statusFilter);
+   554→  }
+   555→  useEffect(() => {
+   556→    if (params.create || (typeof params.detailId === "string" && params.detailId) || (typeof params.role === "string" && params.role) || (typeof params.statusFilter === "string" && params.statusFilter)) navigate("users");
+   557→  }, [params, navigate]);
+   558→
+   559→  useEffect(() => {
+   560→    if (saveMut.error) toast({ title: formMode === "create" ? "Invite failed" : "Update failed", description: saveMut.error, variant: "destructive" });
+   561→  }, [saveMut.error, formMode, toast]);
+   562→  useEffect(() => {
+   563→    if (actionMut.error) toast({ title: "Action refused", description: actionMut.error, variant: "destructive" });
+   564→  }, [actionMut.error, toast]);
+   565→
+   566→  const users = useMemo(() => data?.users ?? [], [data]);
+   567→  const assignableRoles = useMemo(() => data?.assignableRoles ?? [], [data]);
+   568→  const buOptions = useMemo(() => (unitsRes?.units ?? []).map((u) => ({ id: u.id, name: u.name })), [unitsRes]);
+   569→  const projectOptions = useMemo(() => (projectsRes?.projects ?? []).map((p) => ({ id: p.id, name: p.name })), [projectsRes]);
+   570→  const roleOptions = useMemo(() => Array.from(new Set(users.map((u) => u.role))).sort(), [users]);
+   571→
+   572→  const rows = useMemo(() => {
+   573→    const q = search.trim().toLowerCase();
+   574→    return users.filter((r) => {
+   575→      if (roleFilter !== "ALL" && r.role !== roleFilter) return false;
+   576→      if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+   577→      if (presenceFilter !== "ALL" && r.presence !== presenceFilter) return false;
+   578→      if (q && !`${r.name} ${r.email} ${r.employeeId ?? ""}`.toLowerCase().includes(q)) return false;
+   579→      return true;
+   580→    });
+   581→  }, [users, search, roleFilter, statusFilter, presenceFilter]);
+   582→
+   583→  const kpis = useMemo(
+   584→    () => ({
+   585→      total: data?.total ?? users.length,
+   586→      active: users.filter((u) => u.status === "ACTIVE").length,
+   587→      online: users.filter((u) => u.presence === "online").length,
+   588→      invited: users.filter((u) => u.status === "INVITED").length,
+   589→    }),
+   590→    [data, users]
+   591→  );
+   592→
+   593→  const presenceCounts = useMemo(
+   594→    () => ({
+   595→      online: users.filter((u) => u.presence === "online").length,
+   596→      today: users.filter((u) => u.presence === "today").length,
+   597→      away: users.filter((u) => u.presence === "away").length,
+   598→      offline: users.filter((u) => u.presence === "offline").length,
+   599→    }),
+   600→    [users]
+   601→  );
+   602→
+   603→  const clearFilters = () => {
+   604→    setSearch("");
+   605→    setRoleFilter("ALL");
+   606→    setStatusFilter("ALL");
+   607→    setPresenceFilter("ALL");
+   608→  };
+   609→
+   610→  const openCreate = () => {
+   611→    setFormMode("create");
+   612→    setEditing(null);
+   613→    setFormOpen(true);
+   614→  };
+   615→  const openEdit = (u: UserRow) => {
+   616→    setFormMode("edit");
+   617→    setEditing(u);
+   618→    setFormOpen(true);
+   619→  };
+   620→
+   621→  const submitForm = async (values: UserFormValues) => {
+   622→    if (formMode === "create") {
+   623→      const res = await saveMut.run(() =>
+   624→        apiPost("/api/sa/users", {
+   625→          name: values.name,
+   626→          email: values.email,
+   627→          role: values.role,
+   628→          title: values.title.trim(),
+   629→          phone: values.phone.trim(),
+   630→          buId: values.buId || undefined,
+   631→          projectId: values.projectId || undefined,
+   632→        })
+   633→      );
+   634→      if (res) {
+   635→        toast({ title: "Invite sent", description: `${values.name} was created as INVITED — activation pending first sign-in.` });
+   636→        setFormOpen(false);
+   637→        refetch();
+   638→      }
+   639→    } else if (editing) {
+   640→      const res = await saveMut.run(() =>
+   641→        apiPatch(`/api/sa/users/${editing.id}`, {
+   642→          title: values.title.trim(),
+   643→          phone: values.phone.trim(),
+   644→          role: values.role,
+   645→          buId: values.buId || null,
+   646→          projectId: values.projectId || null,
+   647→        })
+   648→      );
+   649→      if (res) {
+   650→        toast({ title: "User updated", description: `${editing.name}'s profile was saved.` });
+   651→        setFormOpen(false);
+   652→        setEditing(null);
+   653→        refetch();
+   654→      }
+   655→    }
+   656→  };
+   657→
+   658→  const runUserAction = async () => {
+   659→    if (!confirmTarget) return;
+   660→    const { user, action } = confirmTarget;
+   661→    const res = await actionMut.run(() =>
+   662→      apiPost(`/api/sa/users/${user.id}/actions`, { action })
+   663→    );
+   664→    if (res) {
+   665→      if (action === "reset-credential" && res.tempPassword) {
+   666→        setTempPwd({ userName: user.name, password: res.tempPassword, note: res.note ?? "The user must change this password after signing in." });
+   667→        toast({ title: "Credential reset", description: `A temporary password was generated for ${user.name}.` });
+   668→      } else {
+   669→        const labels: Record<string, string> = { suspend: "suspended", activate: "reactivated", deactivate: "deactivated" };
+   670→        toast({ title: `User ${labels[action] ?? action}`, description: `${user.name}'s account was updated.` });
+   671→      }
+   672→      setConfirmTarget(null);
+   673→      refetch();
+   674→    }
+   675→  };
+   676→
+   677→  const columns: Column<UserRow>[] = [
+   678→    {
+   679→      key: "name",
+   680→      header: "User",
+   681→      sortable: true,
+   682→      sortValue: (r) => r.name,
+   683→      render: (r) => (
+   684→        <div className="flex min-w-0 items-center gap-2.5">
+   685→          <Avatar name={r.name} size={34} />
+   686→          <div className="min-w-0">
+   687→            <div className="truncate font-semibold text-[color:var(--ink)]">{r.name}</div>
+   688→            <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{r.email}</div>
+   689→          </div>
+   690→        </div>
+   691→      ),
+   692→    },
+   693→    { key: "employeeId", header: "Employee ID", sortable: true, sortValue: (r) => r.employeeId ?? "", render: (r) => <span className="tabular">{r.employeeId ?? "—"}</span> },
+   694→    { key: "role", header: "Role", sortable: true, sortValue: (r) => r.roleLabel, render: (r) => r.roleLabel },
+   695→    {
+   696→      key: "assignment",
+   697→      header: "Assignment",
+   698→      render: (r) =>
+   699→        r.buName || r.projectName ? (
+   700→          <span className="text-[12.5px]">{r.buName ?? "—"}{r.projectName ? <span className="text-[color:var(--ink-faint)]"> · {r.projectName}</span> : null}</span>
+   701→        ) : (
+   702→          <Chip tone="amber">Unassigned</Chip>
+   703→        ),
+   704→    },
+   705→    { key: "status", header: "Status", sortable: true, sortValue: (r) => r.status, render: (r) => <StatusBadge status={r.status} /> },
+   706→    {
+   707→      key: "presence",
+   708→      header: "Presence",
+   709→      render: (r) => (
+   710→        <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+   711→          <PresenceDot presence={r.presence} />
+   712→          <span className="text-[12px]">{PRESENCE_META[r.presence].label}</span>
+   713→        </span>
+   714→      ),
+   715→    },
+   716→    { key: "lastActive", header: "Last active", sortable: true, sortValue: (r) => r.lastActiveAt ?? "", render: (r) => <span className="whitespace-nowrap text-[12px]">{timeAgo(r.lastActiveAt)}</span> },
+   717→  ];
+   718→
+   719→  const exportRows = rows.map((r) => ({
+   720→    employee_id: r.employeeId ?? "",
+   721→    name: r.name,
+   722→    email: r.email,
+   723→    role: r.roleLabel,
+   724→    title: r.title,
+   725→    phone: r.phone,
+   726→    business_unit: r.buName ?? "",
+   727→    project: r.projectName ?? "",
+   728→    status: r.status,
+   729→    presence: PRESENCE_META[r.presence].label,
+   730→    last_active: r.lastActiveAt ?? "",
+   731→    tasks: r.taskCount,
+   732→    submissions: r.submissionCount,
+   733→  }));
+   734→
+   735→  const formDialog = (
+   736→    <GlassDialog
+   737→      open={formOpen}
+   738→      onOpenChange={(o) => {
+   739→        setFormOpen(o);
+   740→        if (!o) setEditing(null);
+   741→      }}
+   742→      wide
+   743→      title={formMode === "create" ? "Invite user" : `Edit ${editing?.name ?? "user"}`}
+   744→      description={
+   745→        formMode === "create"
+   746→          ? "Creates an INVITED account — the user activates it on first sign-in. Roles are limited to what a subsidiary workspace may grant."
+   747→          : "Update profile, role and scope assignment. Role changes on your own account are rejected by the server."
+   748→      }
+   749→    >
+   750→      {formOpen && (
+   751→        <UserFormFields
+   752→          key={formMode === "edit" ? editing?.id ?? "edit" : "create"}
+   753→          mode={formMode}
+   754→          user={editing}
+   755→          assignableRoles={assignableRoles}
+   756→          buOptions={buOptions}
+   757→          projectOptions={projectOptions}
+   758→          pending={saveMut.pending}
+   759→          onSubmit={submitForm}
+   760→          onCancel={() => {
+   761→            setFormOpen(false);
+   762→            setEditing(null);
+   763→          }}
+   764→        />
+   765→      )}
+   766→    </GlassDialog>
+   767→  );
+   768→
+   769→  const detailTarget = confirmTarget;
+   770→  const confirmDialog = (
+   771→    <ConfirmDialog
+   772→      open={!!confirmTarget}
+   773→      onOpenChange={(o) => !o && setConfirmTarget(null)}
+   774→      title={
+   775→        detailTarget?.action === "reset-credential"
+   776→          ? "Reset credential"
+   777→          : detailTarget?.action === "suspend"
+   778→            ? "Suspend account"
+   779→            : detailTarget?.action === "activate"
+   780→              ? "Reactivate account"
+   781→              : "Deactivate account"
+   782→      }
+   783→      message={
+   784→        !detailTarget
+   785→          ? ""
+   786→          : detailTarget.action === "reset-credential"
+   787→            ? `Generate a one-time temporary password for ${detailTarget.user.name}? All active sessions will be revoked and the current password invalidated.`
+   788→            : detailTarget.action === "suspend"
+   789→              ? `Suspend ${detailTarget.user.name}'s account? Sign-in is blocked and active sessions are revoked. You can reactivate the account later.`
+   790→              : detailTarget.action === "activate"
+   791→                ? `Reactivate ${detailTarget.user.name}'s account? Sign-in is allowed again with existing credentials.`
+   792→                : `Deactivate ${detailTarget.user.name}'s account? The user is disabled for reporting but history is preserved.`
+   793→      }
+   794→      confirmLabel={confirmTarget?.action === "reset-credential" ? "Reset credential" : confirmTarget?.action === "suspend" ? "Suspend" : confirmTarget?.action === "activate" ? "Reactivate" : "Deactivate"}
+   795→      destructive={confirmTarget?.action === "suspend" || confirmTarget?.action === "reset-credential" || confirmTarget?.action === "deactivate"}
+   796→      pending={actionMut.pending}
+   797→      onConfirm={() => void runUserAction()}
+   798→    />
+   799→  );
+   800→
+   801→  const detailDialog = (
+   802→    <UserDetailDialog
+   803→      userId={detailId}
+   804→      onClose={() => setDetailId(null)}
+   805→      onEdit={(u) => {
+   806→        setDetailId(null);
+   807→        openEdit(u);
+   808→      }}
+   809→    />
+   810→  );
+   811→
+   812→  return (
+   813→    <div className="view-in space-y-4 pb-6">
+   814→      <PageHeader
+   815→        title="User Management"
+   816→        description="Directory of your subsidiary's users with roles, scope, live presence and account controls. Approvals and Group-office roles stay out of reach."
+   817→        icon={PeopleIcon}
+   818→      />
+   819→
+   820→      {/* KPI strip */}
+   821→      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+   822→        <KpiCard label="Total users" value={kpis.total} icon={PeopleIcon} tone="blue" hint="In your subsidiary" onClick={clearFilters} />
+   823→        <KpiCard label="Active" value={kpis.active} icon={CheckSealIcon} tone="green" hint="Activated accounts" />
+   824→        <KpiCard label="Online now" value={kpis.online} icon={PulseIcon} tone="teal" hint="Active in the last 30 min" onClick={() => setPresenceFilter("online")} />
+   825→        <KpiCard label="Invited" value={kpis.invited} icon={UserPlusIcon} tone="purple" hint="Awaiting first sign-in" onClick={() => setStatusFilter("INVITED")} />
+   826→      </div>
+   827→
+   828→      {/* presence strip */}
+   829→      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+   830→        <PresenceCard icon={PulseIcon} hue="#20a779" label="Active now" hint="Last 30 minutes" value={presenceCounts.online} active={presenceFilter === "online"} onClick={() => setPresenceFilter(presenceFilter === "online" ? "ALL" : "online")} />
+   831→        <PresenceCard icon={CheckSealIcon} hue="#3a7bff" label="Active today" hint="Last 12 hours" value={presenceCounts.today} active={presenceFilter === "today"} onClick={() => setPresenceFilter(presenceFilter === "today" ? "ALL" : "today")} />
+   832→        <PresenceCard icon={CalendarClock} hue="#c57926" label="Away" hint="12–36 hours" value={presenceCounts.away} active={presenceFilter === "away"} onClick={() => setPresenceFilter(presenceFilter === "away" ? "ALL" : "away")} />
+   833→        <PresenceCard icon={Moon} hue="#8595ab" label="Offline" hint="Over 36 hours" value={presenceCounts.offline} active={presenceFilter === "offline"} onClick={() => setPresenceFilter(presenceFilter === "offline" ? "ALL" : "offline")} />
+   834→      </div>
+   835→
+   836→      <DataTable<UserRow>
+   837→        columns={columns}
+   838→        rows={rows}
+   839→        loading={loading}
+   840→        error={error}
+   841→        onRetry={refetch}
+   842→        pageSize={8}
+   843→        onRowClick={(r) => setDetailId(r.id)}
+   844→        emptyTitle={users.length === 0 ? "No users yet" : "No users match your filters"}
+   845→        emptyMessage={users.length === 0 ? "Invite your first subsidiary user to get started." : "Try adjusting the search, role, status or presence filter."}
+   846→        emptyAction={
+   847→          users.length === 0 ? (
+   848→            <Button className="btn-action rounded-2xl" onClick={openCreate}>
+   849→              <Plus className="mr-1.5 h-4 w-4" /> Invite User
+   850→            </Button>
+   851→          ) : undefined
+   852→        }
+   853→        toolbar={
+   854→          <Toolbar
+   855→            search={search}
+   856→            onSearch={setSearch}
+   857→            searchPlaceholder="Search name, email, employee ID…"
+   858→            filters={[
+   859→              {
+   860→                key: "role",
+   861→                label: "Role",
+   862→                value: roleFilter,
+   863→                onChange: setRoleFilter,
+   864→                options: [{ value: "ALL", label: "All roles" }, ...roleOptions.map((r) => ({ value: r, label: ROLE_LABELS[r] ?? r.replaceAll("_", " ") }))],
+   865→              },
+   866→              {
+   867→                key: "status",
+   868→                label: "Status",
+   869→                value: statusFilter,
+   870→                onChange: setStatusFilter,
+   871→                options: [
+   872→                  { value: "ALL", label: "All statuses" },
+   873→                  { value: "ACTIVE", label: "Active" },
+   874→                  { value: "INVITED", label: "Invited" },
+   875→                  { value: "SUSPENDED", label: "Suspended" },
+   876→                  { value: "INACTIVE", label: "Inactive" },
+   877→                ],
+   878→              },
+   879→            ]}
+   880→            onReset={clearFilters}
+   881→            resultCount={rows.length}
+   882→            right={
+   883→              <div className="flex items-center gap-2">
+   884→                <ExportButton filename="subsidiary-users" rows={exportRows} />
+   885→                <Button className="btn-action rounded-2xl" onClick={openCreate}>
+   886→                  <Plus className="mr-1.5 h-4 w-4" /> Invite User
+   887→                </Button>
+   888→              </div>
+   889→            }
+   890→          />
+   891→        }
+   892→        mobileCard={(r) => <UserMobileCard r={r} onOpen={() => setDetailId(r.id)} />}
+   893→        rowActions={(row) => (
+   894→          <DropdownMenu>
+   895→            <DropdownMenuTrigger asChild>
+   896→              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl" aria-label={`Actions for ${row.name}`}>
+   897→                <MoreHorizontal className="h-4 w-4" />
+   898→              </Button>
+   899→            </DropdownMenuTrigger>
+   900→            <DropdownMenuContent align="end" className="glass-strong rounded-2xl border-white/70">
+   901→              <DropdownMenuItem onClick={() => setDetailId(row.id)}>
+   902→                <ClipboardList className="mr-2 h-3.5 w-3.5" /> View details
+   903→              </DropdownMenuItem>
+   904→              <DropdownMenuItem onClick={() => openEdit(row)}>
+   905→                <Pencil className="mr-2 h-3.5 w-3.5" /> Edit
+   906→              </DropdownMenuItem>
+   907→              <DropdownMenuSeparator />
+   908→              {row.status === "ACTIVE" && (
+   909→                <DropdownMenuItem onClick={() => setConfirmTarget({ user: row, action: "suspend" })} className="text-[#c57926] focus:text-[#c57926]">
+   910→                  <UserX className="mr-2 h-3.5 w-3.5" /> Suspend
+   911→                </DropdownMenuItem>
+   912→              )}
+   913→              {(row.status === "SUSPENDED" || row.status === "INACTIVE" || row.status === "INVITED") && (
+   914→                <DropdownMenuItem onClick={() => setConfirmTarget({ user: row, action: "activate" })}>
+   915→                  <UserCheck className="mr-2 h-3.5 w-3.5" /> {row.status === "SUSPENDED" ? "Reactivate" : "Activate"}
+   916→                </DropdownMenuItem>
+   917→              )}
+   918→              {(row.status === "ACTIVE" || row.status === "INVITED") && (
+   919→                <DropdownMenuItem onClick={() => setConfirmTarget({ user: row, action: "deactivate" })} className="text-[#c57926] focus:text-[#c57926]">
+   920→                  <Moon className="mr-2 h-3.5 w-3.5" /> Deactivate
+   921→                </DropdownMenuItem>
+   922→              )}
+   923→              <DropdownMenuSeparator />
+   924→              <DropdownMenuItem onClick={() => setConfirmTarget({ user: row, action: "reset-credential" })} className="text-[#c34a4a] focus:text-[#c34a4a]">
+   925→                <KeyRound className="mr-2 h-3.5 w-3.5" /> Reset credential
+   926→              </DropdownMenuItem>
+   927→            </DropdownMenuContent>
+   928→          </DropdownMenu>
+   929→        )}
+   930→      />
+   931→
+   932→      {formDialog}
+   933→      {confirmDialog}
+   934→      {detailDialog}
+   935→      <TempPasswordDialog data={tempPwd} onClose={() => setTempPwd(null)} />
+   936→    </div>
+   937→  );
+   938→}
+   939→

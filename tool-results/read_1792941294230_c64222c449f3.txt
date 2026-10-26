@@ -1,0 +1,1081 @@
+     1→import { NextRequest, NextResponse } from 'next/server'
+     2→import { getCurrentUser } from '@/lib/pu/session'
+     3→import { db } from '@/lib/pu/db'
+     4→import {
+     5→  getLevelRecords,
+     6→  saveLevelRecord,
+     7→  deleteLevelRecord,
+     8→  type LevelRecord,
+     9→  type ValidationIssue,
+    10→  type CalculationPayload,
+    11→} from '@/lib/pu/level-records'
+    12→import {
+    13→  appendActivity,
+    14→  appendAudit,
+    15→  appendHistory,
+    16→  parseRecordIds,
+    17→  primaryRoleLabel,
+    18→} from '@/lib/pu/workflow'
+    19→
+    20→export const runtime = 'nodejs'
+    21→
+    22→// GET /api/data-entry?projectId=&periodId=&level=
+    23→export async function GET(req: NextRequest) {
+    24→  try {
+    25→    const user = await getCurrentUser()
+    26→    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    27→
+    28→    const { searchParams } = new URL(req.url)
+    29→    const projectId = searchParams.get('projectId') || undefined
+    30→    const periodId = searchParams.get('periodId') || undefined
+    31→    const levelStr = searchParams.get('level')
+    32→    const level = levelStr ? Number(levelStr) : undefined
+    33→
+    34→    const records = getLevelRecords(projectId, periodId, level)
+    35→    return NextResponse.json({ records, count: records.length })
+    36→  } catch (e: any) {
+    37→    console.error('GET /api/data-entry error', e)
+    38→    return NextResponse.json({ error: e?.message || 'Failed to fetch records' }, { status: 500 })
+    39→  }
+    40→}
+    41→
+    42→// POST /api/data-entry
+    43→export async function POST(req: NextRequest) {
+    44→  try {
+    45→    const user = await getCurrentUser()
+    46→    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+    47→
+    48→    const body = await req.json()
+    49→    const {
+    50→      id: recordId,
+    51→      level,
+    52→      levelKey,
+    53→      levelName,
+    54→      module,
+    55→      projectId,
+    56→      reportingPeriodId,
+    57→      data = {},
+    58→      evidenceId,
+    59→    } = body
+    60→
+    61→    if (!level || !projectId || !reportingPeriodId) {
+    62→      return NextResponse.json(
+    63→        { error: 'level, projectId, and reportingPeriodId are required' },
+    64→        { status: 400 },
+    65→      )
+    66→    }
+    67→
+    68→    const issues: ValidationIssue[] = []
+    69→    let calculation: CalculationPayload | null = null
+    70→
+    71→    // Run rules based on level
+    72→    switch (Number(level)) {
+    73→      case 1: {
+    74→        // Energy Consumption
+    75→        const qty = Number(data.consumptionQuantity)
+    76→        if (!qty || qty <= 0) {
+    77→          issues.push({
+    78→            ruleCode: 'ENG-QTY-REQUIRED',
+    79→            severity: 'ERROR',
+    80→            message: 'Consumption quantity must be greater than 0',
+    81→            field: 'consumptionQuantity',
+    82→            suggestedAction: 'Enter the actual metered or billed energy consumption.',
+    83→          })
+    84→        }
+    85→        if (data.openingMeterReading !== undefined && data.closingMeterReading !== undefined) {
+    86→          const open = Number(data.openingMeterReading)
+    87→          const close = Number(data.closingMeterReading)
+    88→          if (!isNaN(open) && !isNaN(close) && close < open) {
+    89→            issues.push({
+    90→              ruleCode: 'ENG-MTR-SEQUENCE',
+    91→              severity: 'ERROR',
+    92→              message: `Closing meter reading (${close}) cannot be lower than opening reading (${open})`,
+    93→              field: 'closingMeterReading',
+    94→              suggestedAction: 'Verify meter rollover or check logbook reading entries.',
+    95→            })
+    96→          }
+    97→        }
+    98→        if (data.energyPurchased && qty && Number(data.energyPurchased) < qty && !data.remarks) {
+    99→          issues.push({
+   100→            ruleCode: 'ENG-STOCK-RECON',
+   101→            severity: 'WARNING',
+   102→            message: 'Consumption exceeds energy purchased this period; drawing from stock inventory.',
+   103→            field: 'remarks',
+   104→            suggestedAction: 'Add a remark confirming opening stock deduction to avoid double counting.',
+   105→          })
+   106→        }
+   107→
+   108→        // Calculation
+   109→        if (Array.isArray(data.items) && data.items.length > 0) {
+   110→          let totalTco2e = 0
+   111→          let totalGj = 0
+   112→          const sourceSummaries: string[] = []
+   113→
+   114→          for (const it of data.items) {
+   115→            const iQty = Number(it.consumptionQuantity) || 0
+   116→            const iSrc = String(it.energySource || '').toLowerCase()
+   117→            let iFactor = 0.716
+   118→            let iGjRate = 0.0036
+   119→            if (iSrc.includes('diesel')) {
+   120→              iFactor = 2.637; iGjRate = 0.0383
+   121→            } else if (iSrc.includes('petrol')) {
+   122→              iFactor = 2.296; iGjRate = 0.0348
+   123→            } else if (iSrc.includes('lpg')) {
+   124→              iFactor = 2.98; iGjRate = 0.046
+   125→            } else if (iSrc.includes('coal')) {
+   126→              iFactor = 1.9; iGjRate = 0.0227
+   127→            } else if (iSrc.includes('gas')) {
+   128→              iFactor = 2.02; iGjRate = 0.038
+   129→            } else if (iSrc.includes('renewable')) {
+   130→              iFactor = 0.04; iGjRate = 0.0036
+   131→            }
+   132→            totalTco2e += (iQty * iFactor) / 1000
+   133→            totalGj += iQty * iGjRate
+   134→            sourceSummaries.push(`${it.energySource} (${iQty} ${it.unit || ''})`)
+   135→          }
+   136→
+   137→          const hasS1 = data.items.some((i: any) => String(i.emissionDataType || '').includes('1'))
+   138→          const hasS2 = data.items.some((i: any) => String(i.emissionDataType || '').includes('2'))
+   139→          const calcScope = hasS1 && hasS2 ? 'SCOPE_1_2' : hasS1 ? 'SCOPE_1' : 'SCOPE_2'
+   140→
+   141→          calculation = {
+   142→            calculatedValue: Number(totalTco2e.toFixed(3)),
+   143→            resultUnit: 'tCO2e',
+   144→            scope: calcScope,
+   145→            factorId: `MULTI-SOURCE-${data.items.length}-ITEMS`,
+   146→            factorVersion: 1,
+   147→            methodologyNote: `Consolidated multi-source energy calculation (${data.items.length} sources: ${sourceSummaries.slice(0, 3).join(', ')}${sourceSummaries.length > 3 ? '...' : ''})`,
+   148→            normalizedValue: Number(totalGj.toFixed(2)),
+   149→            normalizedUnit: 'GJ',
+   150→            sourceValue: qty,
+   151→            sourceUnit: data.unit || 'kWh',
+   152→          }
+   153→        } else {
+   154→          const src = String(data.energySource || '').toLowerCase()
+   155→          let factor = 0.716 // default grid
+   156→          let scope = 'SCOPE_2'
+   157→          let meth = 'CEA v19'
+   158→          let gjRate = 0.0036
+   159→          if (src.includes('diesel')) {
+   160→            factor = 2.637; scope = 'SCOPE_1'; meth = 'IPCC 2006'; gjRate = 0.0383
+   161→          } else if (src.includes('petrol')) {
+   162→            factor = 2.296; scope = 'SCOPE_1'; meth = 'IPCC 2006'; gjRate = 0.0348
+   163→          } else if (src.includes('lpg')) {
+   164→            factor = 2.98; scope = 'SCOPE_1'; meth = 'IPCC 2006'; gjRate = 0.046
+   165→          } else if (src.includes('coal')) {
+   166→            factor = 1.9; scope = 'SCOPE_1'; meth = 'IPCC 2006'; gjRate = 0.0227
+   167→          } else if (src.includes('renewable')) {
+   168→            factor = 0.04; scope = 'SCOPE_2'; meth = 'ISAE 3000'; gjRate = 0.0036
+   169→          }
+   170→          // Explicit user-selected GHG scope (Energy form dropdown) takes precedence
+   171→          const declaredScope = String(data.emissionDataType || '').toUpperCase().replace(/[\s-]/g, '_')
+   172→          if (declaredScope.startsWith('SCOPE_1')) scope = 'SCOPE_1'
+   173→          else if (declaredScope.startsWith('SCOPE_2')) scope = 'SCOPE_2'
+   174→          else if (declaredScope.startsWith('SCOPE_3')) scope = 'SCOPE_3'
+   175→          const tco2e = (qty * factor) / 1000
+   176→          const gj = qty * gjRate
+   177→
+   178→          calculation = {
+   179→            calculatedValue: Number(tco2e.toFixed(3)),
+   180→            resultUnit: 'tCO2e',
+   181→            scope,
+   182→            factorId: `${meth.replace(/\s+/g, '-').toUpperCase()}-${scope}`,
+   183→            factorVersion: 1,
+   184→            methodologyNote: `${meth} (${factor} kgCO2e/unit) deterministic calculation`,
+   185→            normalizedValue: Number(gj.toFixed(2)),
+   186→            normalizedUnit: 'GJ',
+   187→            sourceValue: qty,
+   188→            sourceUnit: data.unit || 'kWh',
+   189→          }
+   190→        }
+   191→        break
+   192→      }
+   193→
+   194→      case 2: {
+   195→        // Water Management
+   196→        if (Array.isArray(data.items) && data.items.length > 0) {
+   197→          let totalWithdrawal = 0
+   198→          let totalReused = 0
+   199→          const sourceList: string[] = []
+   200→          for (const it of data.items) {
+   201→            const wQty = Number(it.waterQuantity) || 0
+   202→            const wReused = Number(it.waterReusedRecycled) || 0
+   203→            totalWithdrawal += wQty
+   204→            totalReused += wReused
+   205→            sourceList.push(`${it.waterSource} (${wQty} ${it.unit || 'kL'})`)
+   206→          }
+   207→          const net = Math.max(0, totalWithdrawal - totalReused)
+   208→          const circPct = totalWithdrawal > 0 ? ((totalReused / totalWithdrawal) * 100).toFixed(1) : '0'
+   209→
+   210→          calculation = {
+   211→            calculatedValue: Number(net.toFixed(2)),
+   212→            resultUnit: 'kL Net Withdrawal',
+   213→            scope: 'WATER_CIRCULARITY',
+   214→            factorId: `MULTI-WATER-${data.items.length}-SOURCES`,
+   215→            methodologyNote: `Multi-source water circularity: ${totalReused.toLocaleString()} kL recycled (${circPct}% circular recovery) across ${data.items.length} sources (${sourceList.slice(0, 3).join(', ')}${sourceList.length > 3 ? '...' : ''}).`,
+   216→            sourceValue: totalWithdrawal,
+   217→            sourceUnit: data.unit || 'kL',
+   218→            normalizedValue: Number(totalWithdrawal.toFixed(2)),
+   219→            normalizedUnit: 'kL Gross',
+   220→          }
+   221→        } else {
+   222→          const qty = Number(data.waterQuantity)
+   223→          if (!qty || qty <= 0) {
+   224→            issues.push({
+   225→              ruleCode: 'WTR-QTY-POSITIVE',
+   226→              severity: 'ERROR',
+   227→              message: 'Water quantity must be greater than 0',
+   228→              field: 'waterQuantity',
+   229→              suggestedAction: 'Enter the measured water quantity in kL.',
+   230→            })
+   231→          }
+   232→          if (data.openingReading !== undefined && data.closingReading !== undefined) {
+   233→            const open = Number(data.openingReading)
+   234→            const close = Number(data.closingReading)
+   235→            if (!isNaN(open) && !isNaN(close) && close < open) {
+   236→              issues.push({
+   237→                ruleCode: 'WTR-MTR-SEQUENCE',
+   238→                severity: 'ERROR',
+   239→                message: 'Closing water reading cannot be lower than opening reading',
+   240→                field: 'closingReading',
+   241→              })
+   242→            }
+   243→          }
+   244→          const reused = Number(data.waterReusedRecycled) || 0
+   245→          const act = String(data.waterActivity || '').toLowerCase()
+   246→          const net = act.includes('withdrawal') ? Math.max(0, qty - reused) : qty
+   247→          calculation = {
+   248→            calculatedValue: Number(net.toFixed(2)),
+   249→            resultUnit: 'kL Net Impact',
+   250→            scope: 'WATER_CIRCULARITY',
+   251→            methodologyNote: `Water activity: ${data.waterActivity}. Reused quantity: ${reused} kL.`,
+   252→            sourceValue: qty,
+   253→            sourceUnit: data.unit || 'kL',
+   254→          }
+   255→        }
+   256→        break
+   257→      }
+   258→
+   259→      case 3: {
+   260→        // GHG & Air Quality — Enhanced Calculation Engine with DB Factor Master Lineage
+   261→        const activeFactors = await db.emissionFactor.findMany({
+   262→          where: { status: 'ACTIVE' },
+   263→          orderBy: { version: 'desc' },
+   264→        })
+   265→
+   266→        const findDbFactor = (sourceStr: string, fuelStr: string, unitStr: string) => {
+   267→          const s = (sourceStr || '').toLowerCase()
+   268→          const f = (fuelStr || '').toLowerCase()
+   269→          const u = (unitStr || '').toLowerCase()
+   270→
+   271→          // 1. Direct name / fuel match
+   272→          let matched = activeFactors.find(
+   273→            (fac) =>
+   274→              (f && fac.name.toLowerCase().includes(f)) ||
+   275→              (f && (fac.fuelType || '').toLowerCase() === f) ||
+   276→              (s && fac.name.toLowerCase().includes(s))
+   277→          )
+   278→
+   279→          // 2. Keyword heuristic fallback
+   280→          if (!matched) {
+   281→            if (/diesel|hsd/i.test(s) || /diesel|hsd/i.test(f)) {
+   282→              matched = activeFactors.find((fac) => fac.name === 'Diesel (HSD)')
+   283→            } else if (/boiler|furnace oil|furnace/i.test(s) || /furnace oil/i.test(f)) {
+   284→              matched = activeFactors.find((fac) => fac.name.includes('Furnace Oil'))
+   285→            } else if (/grid|purchased electricity/i.test(s) || u === 'kwh') {
+   286→              matched = activeFactors.find((fac) => fac.name.includes('Grid Electricity'))
+   287→            } else if (/freight|logistics|cargo/i.test(s) || u.includes('tonne-km')) {
+   288→              matched = activeFactors.find((fac) => fac.name.includes('Road Freight'))
+   289→            } else if (/flight|air travel/i.test(s) || /air travel/i.test(f)) {
+   290→              matched = activeFactors.find((fac) => fac.name.includes('Air Travel'))
+   291→            } else if (/rail/i.test(s) || /rail/i.test(f)) {
+   292→              matched = activeFactors.find((fac) => fac.name.includes('Rail Travel'))
+   293→            } else if (/commute|travel/i.test(s) || /car/i.test(f)) {
+   294→              matched = activeFactors.find((fac) => fac.name.includes('Road Travel'))
+   295→            } else if (/r-?410a/i.test(s) || /r-?410a/i.test(f)) {
+   296→              matched = activeFactors.find((fac) => fac.name.includes('R-410A'))
+   297→            } else if (/r-?134a/i.test(s) || /r-?134a/i.test(f)) {
+   298→              matched = activeFactors.find((fac) => fac.name.includes('R-134a'))
+   299→            } else if (/r-?22/i.test(s) || /r-?22/i.test(f)) {
+   300→              matched = activeFactors.find((fac) => fac.name.includes('R-22'))
+   301→            } else if (/r-?32/i.test(s) || /r-?32/i.test(f)) {
+   302→              matched = activeFactors.find((fac) => fac.name.includes('R-32'))
+   303→            } else if (/r-?407c/i.test(s) || /r-?407c/i.test(f)) {
+   304→              matched = activeFactors.find((fac) => fac.name.includes('R-407C'))
+   305→            }
+   306→          }
+   307→          return matched || null
+   308→        }
+   309→
+   310→        const isUnitCompatible = (facUnit: string, actUnit: string): boolean => {
+   311→          const fu = facUnit.toLowerCase()
+   312→          const au = actUnit.toLowerCase().trim()
+   313→          if (fu.includes('/l') || fu.includes('/litre')) {
+   314→            return ['l', 'litres', 'litre', 'liters', 'liter', 'kl'].includes(au)
+   315→          }
+   316→          if (fu.includes('/kwh')) {
+   317→            return ['kwh', 'mwh'].includes(au)
+   318→          }
+   319→          if (fu.includes('/kg')) {
+   320→            return ['kg', 'kilogram', 'ton', 'tonne', 'tonnes', 'mt'].includes(au)
+   321→          }
+   322→          if (fu.includes('tonne-km')) {
+   323→            return ['tonne-km', 't-km', 'ton-km'].includes(au)
+   324→          }
+   325→          if (fu.includes('pass-km') || fu.includes('passenger-km')) {
+   326→            return ['pass-km', 'passenger-km', 'p-km'].includes(au)
+   327→          }
+   328→          return false
+   329→        }
+   330→
+   331→        if (Array.isArray(data.items) && data.items.length > 0) {
+   332→          let s1Tco2e = 0
+   333→          let s2Tco2e = 0
+   334→          let s3Tco2e = 0
+   335→          let totalActQty = 0
+   336→          const lineageItems: any[] = []
+   337→          const airQualityItems: any[] = []
+   338→          const duplicateTracker = new Set<string>()
+   339→
+   340→          for (const it of data.items) {
+   341→            const dt = String(it.emissionDataType || '')
+   342→            const isAir = dt.toLowerCase().includes('air') || it.pollutantType === 'PM10 / PM2.5' || it.pollutantType === 'NOx' || it.pollutantType === 'SOx'
+   343→
+   344→            // Duplicate detection across staged items
+   345→            const dupKey = `${(it.emissionSource || '').toLowerCase()}::${(it.equipmentId || it.samplingLocation || '').toLowerCase()}`
+   346→            if (dupKey !== '::') {
+   347→              if (duplicateTracker.has(dupKey)) {
+   348→                issues.push({
+   349→                  ruleCode: 'GHG-DUPLICATE-DETECTED',
+   350→                  severity: 'WARNING',
+   351→                  message: `Potential Duplicate Detected: Record for '${it.emissionSource}' (${it.equipmentId || it.samplingLocation}) already staged in this inventory.`,
+   352→                  suggestedAction: 'Verify that this is a distinct monitoring station or separate meter run.',
+   353→                })
+   354→              } else {
+   355→                duplicateTracker.add(dupKey)
+   356→              }
+   357→            }
+   358→
+   359→            if (isAir) {
+   360→              // AIR POLLUTANT: Strictly separated from GHG emissions total
+   361→              const measuredVal = Number(String(it.testResult || '').replace(/[^0-9.]/g, '')) || 0
+   362→              let compliant = true
+   363→              let benchmark = 'NAAQS / CPCB Norm'
+   364→              if (String(it.pollutantType).includes('PM10') && measuredVal > 100) {
+   365→                compliant = false
+   366→                benchmark = 'NAAQS 24-hr PM10 limit: 100 µg/m³'
+   367→              } else if (String(it.pollutantType).includes('PM2.5') && measuredVal > 60) {
+   368→                compliant = false
+   369→                benchmark = 'NAAQS 24-hr PM2.5 limit: 60 µg/m³'
+   370→              } else if (String(it.pollutantType).includes('NOx') && measuredVal > 750 && it.unit?.includes('mg/Nm³')) {
+   371→                compliant = false
+   372→                benchmark = 'CPCB DG Stack NOx limit: 750 mg/Nm³'
+   373→              }
+   374→
+   375→              if (!compliant) {
+   376→                issues.push({
+   377→                  ruleCode: 'AIR-LIMIT-EXCEEDANCE',
+   378→                  severity: 'WARNING',
+   379→                  message: `Air Quality Exceedance: ${it.emissionSource} reported ${it.testResult} which exceeds ${benchmark}.`,
+   380→                  field: 'testResult',
+   381→                  suggestedAction: 'Notify site environmental engineer and submit corrective action report.',
+   382→                })
+   383→              }
+   384→
+   385→              airQualityItems.push({
+   386→                source: it.emissionSource,
+   387→                pollutant: it.pollutantType,
+   388→                result: it.testResult,
+   389→                location: it.samplingLocation,
+   390→                lab: it.laboratoryTestMethod,
+   391→                compliant,
+   392→              })
+   393→            } else {
+   394→              // GHG STREAM: Verify against DB Factor Master
+   395→              const iQty = Number(it.activityQuantity) || 0
+   396→              totalActQty += iQty
+   397→
+   398→              const factor = findDbFactor(it.emissionSource, it.fuelEnergyType, it.unit)
+   399→              if (!factor) {
+   400→                issues.push({
+   401→                  ruleCode: 'GHG-FACTOR-UNCONFIGURED',
+   402→                  severity: 'WARNING',
+   403→                  message: `Emission Factor Not Configured — ESG Review Required for '${it.emissionSource}'.`,
+   404→                  suggestedAction: 'Configure verified factor in Emission Factor Master.',
+   405→                })
+   406→              } else if (!isUnitCompatible(factor.factorUnit, it.unit || '')) {
+   407→                issues.push({
+   408→                  ruleCode: 'GHG-UNIT-MISMATCH',
+   409→                  severity: 'WARNING',
+   410→                  message: `Activity unit '${it.unit}' for '${it.emissionSource}' does not match Factor Master unit '${factor.factorUnit}'.`,
+   411→                  suggestedAction: `Convert activity data to match ${factor.factorUnit}.`,
+   412→                })
+   413→              }
+   414→
+   415→              const factorVal = factor ? factor.factorValue : (dt.includes('1') ? 2.637 : dt.includes('3') ? 0.114 : 0.716)
+   416→              const factorName = factor ? factor.name : 'Central Default'
+   417→              const factorDoc = factor ? (factor.sourceDocument || factor.methodology || factor.source) : 'IPCC 2006'
+   418→
+   419→              const itTco2e = (iQty * factorVal) / 1000
+   420→              const roundedItTco2e = Math.round(itTco2e * 1000) / 1000
+   421→
+   422→              if (dt.includes('1') || factor?.scope === 'SCOPE_1') {
+   423→                s1Tco2e += roundedItTco2e
+   424→              } else if (dt.includes('2') || factor?.scope === 'SCOPE_2') {
+   425→                s2Tco2e += roundedItTco2e
+   426→              } else if (dt.includes('3') || factor?.scope === 'SCOPE_3') {
+   427→                s3Tco2e += roundedItTco2e
+   428→              } else {
+   429→                s1Tco2e += roundedItTco2e
+   430→              }
+   431→
+   432→              lineageItems.push({
+   433→                source: it.emissionSource,
+   434→                scope: dt,
+   435→                fuel: it.fuelEnergyType,
+   436→                quantity: iQty,
+   437→                unit: it.unit,
+   438→                factorName,
+   439→                factorValue: factorVal,
+   440→                factorUnit: factor ? factor.factorUnit : 'kgCO2e/unit',
+   441→                factorSource: factorDoc,
+   442→                factorVersion: factor ? factor.version : 1,
+   443→                calculatedTco2e: roundedItTco2e,
+   444→                sourceRecordId: it.sourceRecordId || null,
+   445→              })
+   446→            }
+   447→          }
+   448→
+   449→          const totalTco2e = Math.round((s1Tco2e + s2Tco2e + s3Tco2e) * 1000) / 1000
+   450→          const scopes = [
+   451→            s1Tco2e > 0 && 'Scope 1',
+   452→            s2Tco2e > 0 && 'Scope 2',
+   453→            s3Tco2e > 0 && 'Scope 3',
+   454→          ].filter(Boolean).join(' + ') || 'Scope 1 & 2'
+   455→
+   456→          calculation = {
+   457→            calculatedValue: totalTco2e,
+   458→            resultUnit: 'tCO2e GHG Total',
+   459→            scope: scopes.toUpperCase().replace(/\s+/g, '_'),
+   460→            factorId: `EMISSION-MASTER-V${lineageItems[0]?.factorVersion || 1}`,
+   461→            factorVersion: lineageItems[0]?.factorVersion || 1,
+   462→            methodologyNote: `Consolidated GHG Protocol Inventory: Scope 1: ${s1Tco2e.toFixed(2)} tCO2e, Scope 2: ${s2Tco2e.toFixed(2)} tCO2e, Scope 3: ${s3Tco2e.toFixed(2)} tCO2e. Air pollutants (${airQualityItems.length} streams) tracked separately per CPCB norms.`,
+   463→            formula: `Sum(Activity Qty × Approved Factor ÷ 1,000) across ${lineageItems.length} GHG sources`,
+   464→            calculatedAt: new Date().toISOString(),
+   465→            sourceValue: totalActQty,
+   466→            sourceUnit: data.unit || 'units',
+   467→            normalizedValue: totalTco2e,
+   468→            normalizedUnit: 'tCO2e',
+   469→            lineage: {
+   470→              ghgItems: lineageItems,
+   471→              airPollutants: airQualityItems,
+   472→              scopeBreakdown: {
+   473→                scope1Tco2e: s1Tco2e,
+   474→                scope2Tco2e: s2Tco2e,
+   475→                scope3Tco2e: s3Tco2e,
+   476→              },
+   477→            },
+   478→          }
+   479→        } else {
+   480→          const actQty = Number(data.activityQuantity) || 0
+   481→          if (!actQty && !data.testResult) {
+   482→            issues.push({
+   483→              ruleCode: 'GHG-MEASURE-REQUIRED',
+   484→              severity: 'ERROR',
+   485→              message: 'Either activity quantity or measured test result must be provided',
+   486→              field: 'activityQuantity',
+   487→            })
+   488→          }
+   489→          const dt = String(data.emissionDataType || '')
+   490→          const isAir = dt.toLowerCase().includes('air')
+   491→          const factor = findDbFactor(data.emissionSource, data.fuelEnergyType, data.unit)
+   492→          const factorVal = factor ? factor.factorValue : (dt.includes('1') ? 2.637 : dt.includes('3') ? 0.114 : 0.716)
+   493→          const tco2e = !isAir && actQty > 0 ? (actQty * factorVal) / 1000 : 0
+   494→          const targetScope = dt.includes('1') ? 'SCOPE_1' : dt.includes('3') ? 'SCOPE_3' : 'SCOPE_2'
+   495→
+   496→          calculation = {
+   497→            calculatedValue: Number(tco2e.toFixed(3)),
+   498→            resultUnit: isAir ? 'Concentration Logged' : 'tCO2e',
+   499→            scope: targetScope,
+   500→            factorId: factor ? factor.id : 'DEFAULT-FACTOR',
+   501→            factorVersion: factor ? factor.version : 1,
+   502→            methodologyNote: factor
+   503→              ? `${factor.name} v${factor.version} (${factor.factorValue} ${factor.factorUnit}) via ${factor.sourceDocument || factor.methodology}`
+   504→              : `Default factor (${factorVal} kgCO2e/unit)`,
+   505→            formula: `${actQty} ${data.unit} × ${factorVal} ÷ 1,000`,
+   506→            calculatedAt: new Date().toISOString(),
+   507→            sourceValue: actQty,
+   508→            sourceUnit: data.unit || 'litres',
+   509→          }
+   510→        }
+   511→        break
+   512→      }
+   513→
+   514→      case 4: {
+   515→        // Waste Management
+   516→        if (Array.isArray(data.items) && data.items.length > 0) {
+   517→          let totalGen = 0
+   518→          let totalReused = 0
+   519→          let totalRecycled = 0
+   520→          let totalRecovered = 0
+   521→          let totalDisposed = 0
+   522→
+   523→          for (const it of data.items) {
+   524→            totalGen += Number(it.quantityGenerated) || 0
+   525→            totalReused += Number(it.quantityReused) || 0
+   526→            totalRecycled += Number(it.quantityRecycled) || 0
+   527→            totalRecovered += Number(it.quantityRecovered) || 0
+   528→            totalDisposed += Number(it.quantityDisposed) || 0
+   529→          }
+   530→
+   531→          const totalDiverted = totalReused + totalRecycled + totalRecovered
+   532→          const divRate = totalGen > 0 ? Math.min(100, (totalDiverted / totalGen) * 100) : 0
+   533→
+   534→          calculation = {
+   535→            calculatedValue: Number(divRate.toFixed(2)),
+   536→            resultUnit: '% Circular Diversion',
+   537→            scope: 'WASTE_CIRCULARITY',
+   538→            factorId: `MULTI-WASTE-${data.items.length}-CATEGORIES`,
+   539→            methodologyNote: `Multi-category waste: ${totalGen.toFixed(2)} MT generated, ${totalDiverted.toFixed(2)} MT circular diverted (${divRate.toFixed(1)}% recovery), ${totalDisposed.toFixed(2)} MT disposed across ${data.items.length} streams.`,
+   540→            sourceValue: Number(totalGen.toFixed(2)),
+   541→            sourceUnit: 'MT',
+   542→            normalizedValue: Number(totalDiverted.toFixed(2)),
+   543→            normalizedUnit: 'MT Diverted',
+   544→          }
+   545→        } else {
+   546→          const gen = Number(data.quantityGenerated)
+   547→          if (gen === undefined || isNaN(gen) || gen < 0) {
+   548→            issues.push({
+   549→              ruleCode: 'WST-GEN-NONNEGATIVE',
+   550→              severity: 'ERROR',
+   551→              message: 'Quantity generated must be ≥ 0',
+   552→              field: 'quantityGenerated',
+   553→            })
+   554→          }
+   555→          const isHazardous = String(data.wasteCategory || '').toLowerCase().includes('hazard')
+   556→          if (isHazardous && !data.transferManifestNumber) {
+   557→            issues.push({
+   558→              ruleCode: 'WST-HAZ-MANIFEST',
+   559→              severity: 'ERROR',
+   560→              message: 'Hazardous waste manifests (Form 10 / Manifest #) are mandatory under SPCB regulations',
+   561→              field: 'transferManifestNumber',
+   562→              suggestedAction: 'Enter the Form 10 manifest or transport authorization reference.',
+   563→            })
+   564→          }
+   565→          const reused = Number(data.quantityReused) || 0
+   566→          const recycled = Number(data.quantityRecycled) || 0
+   567→          const recovered = Number(data.quantityRecovered) || 0
+   568→          const disposed = Number(data.quantityDisposed) || 0
+   569→          const sumOut = reused + recycled + recovered + disposed
+   570→          if (gen > 0 && Math.abs(sumOut - gen) > 0.05 * gen && !data.remarks) {
+   571→            issues.push({
+   572→              ruleCode: 'WST-RECON-DIFF',
+   573→              severity: 'WARNING',
+   574→              message: `Disposed/diverted total (${sumOut.toFixed(2)}) differs from generated (${gen.toFixed(2)}) by >5%`,
+   575→              field: 'remarks',
+   576→              suggestedAction: 'Explain stock accumulation or interim yard storage in Remarks.',
+   577→            })
+   578→          }
+   579→          const divRate = gen > 0 ? Math.min(100, ((reused + recycled + recovered) / gen) * 100) : 0
+   580→          calculation = {
+   581→            calculatedValue: Number(divRate.toFixed(2)),
+   582→            resultUnit: '% Diversion from Disposal',
+   583→            scope: 'WASTE_CIRCULARITY',
+   584→            methodologyNote: `Diversion: (Reused ${reused} + Recycled ${recycled} + Recovered ${recovered}) / Gen ${gen}`,
+   585→            sourceValue: gen,
+   586→            sourceUnit: data.unit || 'MT',
+   587→          }
+   588→        }
+   589→        break
+   590→      }
+   591→
+   592→      case 5:
+   593→      case 7: {
+   594→        // If it's Environmental Compliance & Permits (or level 7)
+   595→        if (data.permitNumber !== undefined || data.permitConsentType || data.issuingAuthority || Number(level) === 7 || data.levelName?.includes('Permit') || data.levelName?.includes('Compliance')) {
+   596→          if (Array.isArray(data.items) && data.items.length > 0) {
+   597→            let validCount = 0
+   598→            let expiringCount = 0
+   599→            let nonCompliantCount = 0
+   600→            const now = Date.now()
+   601→
+   602→            for (const it of data.items) {
+   603→              if (it.nonComplianceIdentified === 'Yes') {
+   604→                nonCompliantCount++
+   605→              }
+   606→              if (it.expiryDate) {
+   607→                const exp = new Date(it.expiryDate).getTime()
+   608→                const daysLeft = Math.round((exp - now) / 86400000)
+   609→                if (daysLeft <= 90 && daysLeft >= 0) expiringCount++
+   610→                if (daysLeft > 0) validCount++
+   611→              } else {
+   612→                if (it.permitStatus === 'Valid') validCount++
+   613→              }
+   614→            }
+   615→
+   616→            const compliancePct = Math.round(((data.items.length - nonCompliantCount) / data.items.length) * 100)
+   617→            calculation = {
+   618→              calculatedValue: compliancePct,
+   619→              resultUnit: '% Regulatory Compliance',
+   620→              scope: 'STATUTORY_COMPLIANCE',
+   621→              factorId: `MULTI-PERMIT-${data.items.length}-AUTHORIZATIONS`,
+   622→              methodologyNote: `Portfolio of ${data.items.length} environmental authorizations: ${validCount} active/valid, ${expiringCount} renewal windows (<90d), ${nonCompliantCount} non-compliances flagged.`,
+   623→              sourceValue: data.items.length,
+   624→              sourceUnit: 'Permits',
+   625→              normalizedValue: validCount,
+   626→              normalizedUnit: 'Valid Authorizations',
+   627→            }
+   628→            break
+   629→          }
+   630→
+   631→          // Environmental Compliance & Permits (Single)
+   632→          if (!data.permitNumber) {
+   633→            issues.push({
+   634→              ruleCode: 'ENV-PERMIT-NUM',
+   635→              severity: 'ERROR',
+   636→              message: 'Official permit / consent number is required',
+   637→              field: 'permitNumber',
+   638→            })
+   639→          }
+   640→          if (!data.expiryDate) {
+   641→            issues.push({
+   642→              ruleCode: 'ENV-EXPIRY-DATE',
+   643→              severity: 'WARNING',
+   644→              message: 'Expiry date is recommended for compliance monitoring and renewal alerts',
+   645→              field: 'expiryDate',
+   646→            })
+   647→          }
+   648→          if (data.nonComplianceIdentified && String(data.nonComplianceIdentified).includes('Yes') && !data.correctiveAction) {
+   649→            issues.push({
+   650→              ruleCode: 'ENV-REMEDY-PLAN',
+   651→              severity: 'ERROR',
+   652→              message: 'Corrective action plan and target due date are required for recorded non-compliances',
+   653→              field: 'correctiveAction',
+   654→            })
+   655→          }
+   656→          let daysLeft = 365
+   657→          if (data.expiryDate) {
+   658→            const exp = new Date(data.expiryDate).getTime()
+   659→            const now = Date.now()
+   660→            daysLeft = Math.round((exp - now) / 86400000)
+   661→          }
+   662→          calculation = {
+   663→            calculatedValue: daysLeft,
+   664→            resultUnit: 'Days until Expiration',
+   665→            scope: 'STATUTORY_COMPLIANCE',
+   666→            methodologyNote: daysLeft > 90 ? 'Consent valid & active' : daysLeft > 0 ? 'Renewal in progress window' : 'Expired — immediate action needed',
+   667→            sourceValue: daysLeft,
+   668→            sourceUnit: 'Days',
+   669→          }
+   670→          break
+   671→        }
+   672→        // Legacy Health & Safety
+   673→        const mhw = Number(data.totalPersonHoursWorked) || 0
+   674→        if (mhw <= 0) {
+   675→          issues.push({
+   676→            ruleCode: 'SAF-HOURS-REQUIRED',
+   677→            severity: 'ERROR',
+   678→            message: 'Total person-hours worked must be > 0 for safety rate derivation',
+   679→            field: 'totalPersonHoursWorked',
+   680→          })
+   681→        }
+   682→        const isLti = String(data.incidentType || '').toLowerCase().includes('lost-time') || String(data.incidentType || '').toLowerCase().includes('lti')
+   683→        const ltiCount = isLti ? 1 : 0
+   684→        const ltifr = mhw > 0 ? Number(((ltiCount * 1000000) / mhw).toFixed(3)) : 0
+   685→        calculation = {
+   686→          calculatedValue: ltifr,
+   687→          resultUnit: 'LTIFR (/1M person-hrs)',
+   688→          scope: 'BRSR_SAFETY',
+   689→          derivedLtifr: ltifr,
+   690→          methodologyNote: `Formula: (${ltiCount} LTI × 1,000,000) / ${mhw} person-hours`,
+   691→          sourceValue: mhw,
+   692→          sourceUnit: 'Hours',
+   693→        }
+   694→        break
+   695→      }
+   696→
+   697→      case 6:
+   698→      case 9: {
+   699→        if (data.activityInitiativeName !== undefined || data.initiativeCategory || data.baselineValue || Number(level) === 9 || data.levelName?.includes('Initiative')) {
+   700→          if (Array.isArray(data.items) && data.items.length > 0) {
+   701→            let totalBase = 0
+   702→            let totalRep = 0
+   703→            let totalSavings = 0
+   704→
+   705→            for (const it of data.items) {
+   706→              const b = Number(it.baselineValue) || 0
+   707→              const r = Number(it.reportingPeriodValue) || 0
+   708→              const s = Math.max(0, b - r)
+   709→              totalBase += b
+   710→              totalRep += r
+   711→              totalSavings += s
+   712→            }
+   713→
+   714→            const avgPct = totalBase > 0 ? ((totalSavings / totalBase) * 100).toFixed(1) : '0'
+   715→            calculation = {
+   716→              calculatedValue: Number(totalSavings.toFixed(2)),
+   717→              resultUnit: `Net Resources Conserved (${avgPct}%)`,
+   718→              scope: 'RESOURCE_EFFICIENCY',
+   719→              factorId: `MULTI-INITIATIVE-${data.items.length}-PROJECTS`,
+   720→              methodologyNote: `Portfolio of ${data.items.length} ESG initiatives: Cumulative baseline ${totalBase.toLocaleString()} vs reporting ${totalRep.toLocaleString()}. Total conservation: ${totalSavings.toLocaleString()} (${avgPct}% reduction).`,
+   721→              sourceValue: totalRep,
+   722→              sourceUnit: 'Aggregated Units',
+   723→              normalizedValue: Number(totalSavings.toFixed(2)),
+   724→              normalizedUnit: 'Conserved Units',
+   725→            }
+   726→            break
+   727→          }
+   728→
+   729→          // Resource-efficiency Initiatives (Single)
+   730→          if (!data.activityInitiativeName) {
+   731→            issues.push({
+   732→              ruleCode: 'OPS-INITIATIVE-NAME',
+   733→              severity: 'ERROR',
+   734→              message: 'Initiative or project name is required',
+   735→              field: 'activityInitiativeName',
+   736→            })
+   737→          }
+   738→          const base = Number(data.baselineValue) || 0
+   739→          const rep = Number(data.reportingPeriodValue) || 0
+   740→          const diff = Math.max(0, base - rep)
+   741→          const pct = base > 0 ? ((diff / base) * 100).toFixed(1) : '0'
+   742→          calculation = {
+   743→            calculatedValue: Number(diff.toFixed(2)),
+   744→            resultUnit: `Achieved Reduction (${pct}%)`,
+   745→            scope: 'RESOURCE_EFFICIENCY',
+   746→            methodologyNote: `Baseline: ${base} vs Reporting: ${rep}. Achieved reduction: ${diff}.`,
+   747→            sourceValue: rep,
+   748→            sourceUnit: data.outputUnit || 'Units',
+   749→          }
+   750→          break
+   751→        }
+   752→        // Legacy Training & Workforce Well-being
+   753→        if (!data.trainingProgramme) {
+   754→          issues.push({
+   755→            ruleCode: 'TRN-PROG-NAME',
+   756→            severity: 'ERROR',
+   757→            message: 'Training programme name is required',
+   758→            field: 'trainingProgramme',
+   759→          })
+   760→        }
+   761→        const pCount = Number(data.participants) || 0
+   762→        const dur = Number(data.duration) || 0
+   763→        const durHours = String(data.durationUnit || '').toLowerCase().includes('min') ? dur / 60 : dur
+   764→        const personHours = pCount * durHours
+   765→        calculation = {
+   766→          calculatedValue: Number(personHours.toFixed(1)),
+   767→          resultUnit: 'Person-Training-Hours',
+   768→          scope: 'BRSR_PEOPLE',
+   769→          methodologyNote: `${pCount} participants × ${durHours.toFixed(1)} hours`,
+   770→          sourceValue: pCount,
+   771→          sourceUnit: 'Participants',
+   772→        }
+   773→        break
+   774→      }
+   775→
+   776→      case 8: {
+   777→        // Incidents & Grievances
+   778→        if (!data.dateReported) {
+   779→          issues.push({
+   780→            ruleCode: 'GRV-DATE-REQUIRED',
+   781→            severity: 'ERROR',
+   782→            message: 'Date reported must be recorded',
+   783→            field: 'dateReported',
+   784→          })
+   785→        }
+   786→        if (!data.description) {
+   787→          issues.push({
+   788→            ruleCode: 'GRV-DESC-REQUIRED',
+   789→            severity: 'ERROR',
+   790→            message: 'Factual incident or grievance description is required',
+   791→            field: 'description',
+   792→          })
+   793→        }
+   794→        calculation = {
+   795→          calculatedValue: 1,
+   796→          resultUnit: 'Logged Incident / Grievance',
+   797→          scope: 'STAKEHOLDER_GOVERNANCE',
+   798→          methodologyNote: `Status: ${data.currentStatus || 'Open'}. Severity: ${data.impactSeverity || 'Standard'}.`,
+   799→        }
+   800→        break
+   801→      }
+   802→    }
+   803→
+   804→    const hasErrors = issues.some((i) => i.severity === 'ERROR' || i.severity === 'BLOCKING')
+   805→    const hasWarnings = issues.some((i) => i.severity === 'WARNING')
+   806→    const validationStatus = hasErrors ? 'FAILED' : hasWarnings ? 'WARNING' : 'PASSED'
+   807→
+   808→    const recId = recordId || `rec-l${level}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+   809→    const record: LevelRecord = {
+   810→      id: recId,
+   811→      level: Number(level),
+   812→      levelKey: levelKey || `level${level}`,
+   813→      levelName: levelName || `Level ${level}`,
+   814→      module: module || 'ESG',
+   815→      projectId,
+   816→      reportingPeriodId,
+   817→      data,
+   818→      evidenceId: evidenceId || null,
+   819→      validationStatus,
+   820→      calculationStatus: calculation ? 'COMPUTED' : 'NOT_APPLICABLE',
+   821→      calculation,
+   822→      issues,
+   823→      status: 'DRAFT',
+   824→      revisionNumber: 1,
+   825→      enteredBy: user.name || 'Environment Data User',
+   826→      enteredAt: new Date().toISOString(),
+   827→      updatedAt: new Date().toISOString(),
+   828→    }
+   829→
+   830→    saveLevelRecord(record)
+   831→
+   832→    // Sync to Prisma tables if Level 1, 2, 4, 5, 6
+   833→    try {
+   834→      if (Number(level) === 1 && !hasErrors) {
+   835→        await db.energyRecord.upsert({
+   836→          where: { id: recId },
+   837→          update: {
+   838→            source: data.energySource || 'Grid Electricity',
+   839→            quantity: Number(data.consumptionQuantity) || 1,
+   840→            sourceUnit: data.unit || 'KWH',
+   841→            vendor: data.sourceDocument || 'Meter Log',
+   842→            meterRef: data.meterEquipmentId || 'SITE-MTR',
+   843→            evidenceId: evidenceId || null,
+   844→            validationStatus,
+   845→            status: 'DRAFT',
+   846→          },
+   847→          create: {
+   848→            id: recId,
+   849→            projectId,
+   850→            reportingPeriodId,
+   851→            source: data.energySource || 'Grid Electricity',
+   852→            sourceCategory: String(data.energySource || '').toLowerCase().includes('renew') ? 'RENEWABLE' : 'NON_RENEWABLE',
+   853→            quantity: Number(data.consumptionQuantity) || 1,
+   854→            sourceUnit: data.unit || 'KWH',
+   855→            vendor: data.sourceDocument || 'Meter Log',
+   856→            meterRef: data.meterEquipmentId || 'SITE-MTR',
+   857→            evidenceId: evidenceId || null,
+   858→            validationStatus,
+   859→            status: 'DRAFT',
+   860→            enteredBy: user.name,
+   861→          },
+   862→        }).catch(() => {})
+   863→      } else if (Number(level) === 2 && !hasErrors) {
+   864→        await db.waterRecord.upsert({
+   865→          where: { id: recId },
+   866→          update: {
+   867→            source: data.waterSource || 'Groundwater',
+   868→            withdrawal: Number(data.waterQuantity) || 1,
+   869→            consumption: calculation?.calculatedValue || 0,
+   870→            recycledReused: Number(data.waterReusedRecycled) || 0,
+   871→            treatment: data.treatmentLevel || 'STP',
+   872→            destination: data.dischargeDestination || 'Landscaping',
+   873→            sourceUnit: data.unit || 'KL',
+   874→            evidenceId: evidenceId || null,
+   875→            validationStatus,
+   876→            status: 'DRAFT',
+   877→          },
+   878→          create: {
+   879→            id: recId,
+   880→            projectId,
+   881→            reportingPeriodId,
+   882→            source: data.waterSource || 'Groundwater',
+   883→            withdrawal: Number(data.waterQuantity) || 1,
+   884→            consumption: calculation?.calculatedValue || 0,
+   885→            recycledReused: Number(data.waterReusedRecycled) || 0,
+   886→            treatment: data.treatmentLevel || 'STP',
+   887→            destination: data.dischargeDestination || 'Landscaping',
+   888→            sourceUnit: data.unit || 'KL',
+   889→            evidenceId: evidenceId || null,
+   890→            validationStatus,
+   891→            status: 'DRAFT',
+   892→            enteredBy: user.name,
+   893→          },
+   894→        }).catch(() => {})
+   895→      } else if (Number(level) === 4 && !hasErrors) {
+   896→        await db.wasteRecord.upsert({
+   897→          where: { id: recId },
+   898→          update: {
+   899→            wasteType: data.wasteCategory || 'C&D Waste',
+   900→            generatedQty: Number(data.quantityGenerated) || 0,
+   901→            reusedQty: Number(data.quantityReused) || 0,
+   902→            recycledQty: Number(data.quantityRecycled) || 0,
+   903→            recoveredQty: Number(data.quantityRecovered) || 0,
+   904→            disposedQty: Number(data.quantityDisposed) || 0,
+   905→            manifestRef: data.transferManifestNumber || null,
+   906→            sourceUnit: data.unit || 'TON',
+   907→            evidenceId: evidenceId || null,
+   908→            validationStatus,
+   909→            status: 'DRAFT',
+   910→          },
+   911→          create: {
+   912→            id: recId,
+   913→            projectId,
+   914→            reportingPeriodId,
+   915→            wasteType: data.wasteCategory || 'C&D Waste',
+   916→            generatedQty: Number(data.quantityGenerated) || 0,
+   917→            reusedQty: Number(data.quantityReused) || 0,
+   918→            recycledQty: Number(data.quantityRecycled) || 0,
+   919→            recoveredQty: Number(data.quantityRecovered) || 0,
+   920→            disposedQty: Number(data.quantityDisposed) || 0,
+   921→            manifestRef: data.transferManifestNumber || null,
+   922→            sourceUnit: data.unit || 'TON',
+   923→            evidenceId: evidenceId || null,
+   924→            validationStatus,
+   925→            status: 'DRAFT',
+   926→            enteredBy: user.name,
+   927→          },
+   928→        }).catch(() => {})
+   929→      }
+   930→    } catch (dbErr) {
+   931→      console.warn('Prisma sync optional warning:', dbErr)
+   932→    }
+   933→
+   934→    const isSubmittingForReview = Boolean(body.submitForReview)
+   935→    if (isSubmittingForReview) {
+   936→      record.status = 'SUBMITTED'
+   937→      saveLevelRecord(record)
+   938→    }
+   939→
+   940→    // Auto-sync into db.submission so it immediately appears in Submissions module
+   941→    let synchedSubmission: any = null
+   942→    try {
+   943→      const proj = await db.project.findUnique({
+   944→        where: { id: projectId },
+   945→        select: { id: true, projectName: true, projectCode: true },
+   946→      })
+   947→      const per = await db.reportingPeriod.findUnique({
+   948→        where: { id: reportingPeriodId },
+   949→        select: { id: true, periodLabel: true, year: true },
+   950→      })
+   951→
+   952→      const submissionTitle = `${proj?.projectName || 'Project'} — ${record.levelName} (${per?.periodLabel || 'FY 2026-27'})`
+   953→
+   954→      // Look for an existing DRAFT submission for the same project + period + module
+   955→      const existingDraft = await db.submission.findFirst({
+   956→        where: {
+   957→          projectId,
+   958→          reportingPeriodId,
+   959→          module: record.module,
+   960→          status: 'DRAFT',
+   961→        },
+   962→        orderBy: { updatedAt: 'desc' },
+   963→      })
+   964→
+   965→      if (existingDraft) {
+   966→        const existingRecordIds = parseRecordIds(existingDraft.recordIds)
+   967→        if (!existingRecordIds.includes(recId)) existingRecordIds.push(recId)
+   968→        synchedSubmission = await db.submission.update({
+   969→          where: { id: existingDraft.id },
+   970→          data: {
+   971→            title: submissionTitle,
+   972→            recordIds: JSON.stringify(existingRecordIds),
+   973→            status: isSubmittingForReview ? 'SUBMITTED' : 'DRAFT',
+   974→            submittedAt: isSubmittingForReview ? new Date() : null,
+   975→            submittedBy: user.id,
+   976→            completionPct: hasErrors ? 50 : 100,
+   977→            evidenceCount: evidenceId ? Math.max(1, existingDraft.evidenceCount) : existingDraft.evidenceCount,
+   978→            validationPassed: hasErrors ? 0 : Math.max(1, existingDraft.validationPassed),
+   979→            validationErrors: hasErrors ? issues.length : 0,
+   980→          },
+   981→          include: {
+   982→            project: { select: { id: true, projectCode: true, projectName: true } },
+   983→            reportingPeriod: { select: { id: true, periodLabel: true, year: true } },
+   984→          },
+   985→        })
+   986→      } else {
+   987→        synchedSubmission = await db.submission.create({
+   988→          data: {
+   989→            projectId,
+   990→            reportingPeriodId,
+   991→            module: record.module,
+   992→            title: submissionTitle,
+   993→            status: isSubmittingForReview ? 'SUBMITTED' : 'DRAFT',
+   994→            recordIds: JSON.stringify([recId]),
+   995→            submittedAt: isSubmittingForReview ? new Date() : null,
+   996→            submittedBy: user.id,
+   997→            completionPct: hasErrors ? 50 : 100,
+   998→            evidenceCount: evidenceId ? 1 : 0,
+   999→            validationPassed: hasErrors ? 0 : 1,
+  1000→            validationErrors: hasErrors ? issues.length : 0,
+  1001→          },
+  1002→          include: {
+  1003→            project: { select: { id: true, projectCode: true, projectName: true } },
+  1004→            reportingPeriod: { select: { id: true, periodLabel: true, year: true } },
+  1005→          },
+  1006→        })
+  1007→      }
+  1008→
+  1009→      if (isSubmittingForReview && synchedSubmission) {
+  1010→        await appendHistory({
+  1011→          submissionId: synchedSubmission.id,
+  1012→          fromStatus: 'DRAFT',
+  1013→          toStatus: 'SUBMITTED',
+  1014→          actorId: user.id,
+  1015→          actorName: user.name,
+  1016→          actorRole: primaryRoleLabel(user),
+  1017→          action: 'SUBMIT',
+  1018→          comment: `Submitted via Data Entry Workspace — ${record.levelName}`,
+  1019→        }).catch(() => {})
+  1020→      }
+  1021→    } catch (syncErr) {
+  1022→      console.warn('Submission synchronization notice:', syncErr)
+  1023→    }
+  1024→
+  1025→    // Append activity and audit log for cross-screen integration
+  1026→    try {
+  1027→      await appendActivity({
+  1028→        projectId,
+  1029→        actorId: user.id,
+  1030→        actorName: user.name,
+  1031→        actorRole: primaryRoleLabel(user),
+  1032→        action: isSubmittingForReview ? 'SUBMIT' : 'DATA_ENTRY',
+  1033→        title: `${record.levelName} ${isSubmittingForReview ? 'submitted for BU review' : 'saved as Draft'}`,
+  1034→        description: `Source record ${recId.slice(-8)} captured with ${issues.length} issue(s).`,
+  1035→        module: record.module,
+  1036→        status: isSubmittingForReview ? 'SUBMITTED' : validationStatus,
+  1037→      }).catch(() => {})
+  1038→
+  1039→      await appendAudit({
+  1040→        actorId: user.id,
+  1041→        actorName: user.name,
+  1042→        actorRole: primaryRoleLabel(user),
+  1043→        action: isSubmittingForReview ? 'SUBMIT' : 'CREATE',
+  1044→        entityType: 'DataEntryRecord',
+  1045→        entityId: recId,
+  1046→        newState: { level, levelName, validationStatus, calculation, status: record.status },
+  1047→        reason: isSubmittingForReview ? 'Source record submitted for review' : 'Source record captured via Data Entry Module',
+  1048→      }).catch(() => {})
+  1049→    } catch {}
+  1050→
+  1051→    return NextResponse.json({
+  1052→      record,
+  1053→      issues,
+  1054→      calculation,
+  1055→      derivedLtifr: calculation?.derivedLtifr,
+  1056→      submission: synchedSubmission,
+  1057→      submissionId: synchedSubmission?.id,
+  1058→    })
+  1059→  } catch (e: any) {
+  1060→    console.error('POST /api/data-entry error', e)
+  1061→    return NextResponse.json({ error: e?.message || 'Failed to save record' }, { status: 500 })
+  1062→  }
+  1063→}
+  1064→
+  1065→// DELETE /api/data-entry?id=
+  1066→export async function DELETE(req: NextRequest) {
+  1067→  try {
+  1068→    const user = await getCurrentUser()
+  1069→    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+  1070→
+  1071→    const { searchParams } = new URL(req.url)
+  1072→    const id = searchParams.get('id')
+  1073→    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+  1074→
+  1075→    const ok = deleteLevelRecord(id)
+  1076→    return NextResponse.json({ success: ok })
+  1077→  } catch (e: any) {
+  1078→    return NextResponse.json({ error: e?.message || 'Failed to delete' }, { status: 500 })
+  1079→  }
+  1080→}
+  1081→

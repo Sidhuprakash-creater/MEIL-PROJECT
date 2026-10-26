@@ -1,0 +1,1476 @@
+     1→# MASTER PROMPT — MEIL ESG/BRSR Platform
+     2→## Business Unit Admin & Business Unit Manager Workspaces
+     3→
+     4→**Role:** Act as a senior enterprise product designer, UI/UX architect, full-stack engineer, animation specialist, and QA engineer.
+     5→
+     6→**Objective:** Inspect the existing MEIL ESG/BRSR Reporting Platform repository and build two complete, production-quality, responsive, database-connected workspaces: **Business Unit Admin** and **Business Unit Manager**. Implement every screen, tab, navigation item, button, card, dropdown, filter, modal, chart, form, action, permission, and reporting workflow described below.
+     7→
+     8→This is not a static dashboard, UI mockup, or frontend-only prototype. Build a coherent, fully working application using the existing architecture and real persisted data.
+     9→
+    10→---
+    11→
+    12→# 1. Non-Negotiable Design Direction
+    13→
+    14→Create a distinctive, premium enterprise interface called:
+    15→
+    16→**“Liquid Intelligence — Business Operations & ESG Review”**
+    17→
+    18→The visual language must be noticeably different from the existing Group Admin and Subsidiary workspaces while still feeling like part of the same MEIL platform.
+    19→
+    20→Do not copy their screen layouts, dashboard compositions, card arrangements, navigation patterns, or component styling. Create a fresh visual identity for these two workspaces without changing or breaking other workspaces.
+    21→
+    22→### Core design characteristics
+    23→
+    24→- Premium sky-blue atmosphere with liquid-purple accents.
+    25→- iOS-inspired Liquid Glass and refined glassmorphism.
+    26→- Translucent, frosted panels with layered depth.
+    27→- Soft directional shadows and subtle ambient lighting.
+    28→- Floating analytics cards with carefully controlled elevation.
+    29→- Smooth animated charts, progress bars, counters, and status transitions.
+    30→- Refined typography and generous spacing.
+    31→- High-quality Lucide icons instead of emojis.
+    32→- Clear information hierarchy suitable for enterprise ESG reporting.
+    33→- A clean, bright interface with restrained color and professional contrast.
+    34→- Desktop-first productivity, with excellent tablet and mobile responsiveness.
+    35→
+    36→The application should feel sophisticated, precise, responsive, and alive—not like a generic admin template or an overly futuristic sci-fi dashboard.
+    37→
+    38→## 2. Design System and Colors
+    39→
+    40→Use the following design tokens consistently across both workspaces.
+    41→
+    42→| Design token | Value | Purpose |
+    43→|---|---|---|
+    44→| Primary sky blue | `#62B8FF` | Primary navigation highlights, selected states, charts |
+    45→| Deep sky blue | `#348BE8` | Active navigation, important data visualization |
+    46→| Liquid purple | `#8B5CF6` | Primary action buttons, key interactions, focus accents |
+    47→| Deep purple | `#7045D6` | Hover states, active purple controls |
+    48→| Pale blue background | `#F3F8FF` | Main page background |
+    49→| White glass | `rgba(255,255,255,0.70)` | Frosted panels |
+    50→| Soft blue glass | `rgba(225,240,255,0.58)` | Secondary panels |
+    51→| Pale purple tint | `#F1EAFF` | Secondary highlights |
+    52→| Graphite | `#202938` | Headings and primary text |
+    53→| Slate | `#64748B` | Secondary text |
+    54→| Border | `rgba(123,161,210,0.22)` | Subtle glass borders |
+    55→| Positive | `#16A67A` | Approved and successful states |
+    56→| Warning | `#E9A23B` | Upcoming deadlines and warnings |
+    57→| Danger | `#E35D6A` | Rejections and critical errors |
+    58→
+    59→### Liquid Glass surface specification
+    60→
+    61→Every major card and panel should use a carefully tuned combination of:
+    62→
+    63→- Semi-transparent white or pale-blue background.
+    64→- `backdrop-filter: blur(16px–24px)` where supported.
+    65→- Fine, low-contrast borders.
+    66→- Soft outer shadows with a subtle blue or purple tint.
+    67→- Optional subtle inner highlight.
+    68→- Rounded corners generally between 16px and 24px.
+    69→- Consistent internal padding and alignment.
+    70→
+    71→Example shadow direction:
+    72→
+    73→`0 12px 34px rgba(65, 110, 190, 0.09)`
+    74→
+    75→Use stronger shadows on floating action surfaces and elevated cards, but do not make every component equally elevated. Establish a consistent depth hierarchy.
+    76→
+    77→Maintain readability and sufficient contrast. Provide solid-background fallbacks where backdrop filtering is unavailable.
+    78→
+    79→### Button styling
+    80→
+    81→**Primary buttons:** liquid-purple gradient, white text, subtle purple shadow, 12–14px radius, clear icon and label.
+    82→
+    83→**Secondary buttons:** translucent white glass, sky-blue border, graphite or blue text.
+    84→
+    85→**Positive actions:** restrained green accent, particularly for valid submissions and completed actions.
+    86→
+    87→**Destructive actions:** muted red styling with a confirmation step.
+    88→
+    89→**Icon buttons:** compact glass surfaces with tooltips, clear hover/focus states, and accessible labels.
+    90→
+    91→Every interactive control must have default, hover, focus, pressed, disabled, loading, and success/error states where applicable.
+    92→
+    93→Do not use excessive gradients, neon glows, huge rounded pills everywhere, or decorative effects that reduce usability.
+    94→
+    95→---
+    96→
+    97→# 3. Workspace Architecture
+    98→
+    99→Build two separate role-specific workspaces within the existing application.
+   100→
+   101→1. **Business Unit Admin Workspace**
+   102→2. **Business Unit Manager Workspace**
+   103→
+   104→Both workspaces must share the existing authentication, organization hierarchy, reporting records, evidence storage, notification infrastructure, audit system, and underlying APIs.
+   105→
+   106→They must not duplicate existing roles, reporting modules, or database entities.
+   107→
+   108→### Organization hierarchy
+   109→
+   110→Group Admin → Subsidiary → Business Unit → Projects/Sites → Data Entry Users.
+   111→
+   112→Every account must be scoped to its authorized business unit, subsidiary, projects, and reporting periods.
+   113→
+   114→Display contextual breadcrumbs, for example:
+   115→
+   116→`MEIL Group / Subsidiary / Business Unit / Workspace`
+   117→
+   118→Show the assigned BU name, reporting period, and current user role in the workspace header.
+   119→
+   120→### Distinct workspace identities
+   121→
+   122→**BU Admin:** operational command center. Emphasize project distribution, submission progress, reporting timelines, assignments, overdue work, and coordination.
+   123→
+   124→**BU Manager:** ESG review studio. Emphasize review queues, report comparison, validation, evidence inspection, correction requests, decision history, and review quality.
+   125→
+   126→Give the two workspaces different dashboard compositions, accent treatments, navigation emphasis, and screen layouts while keeping the underlying design tokens consistent.
+   127→
+   128→---
+   129→
+   130→# 4. Global Application Shell
+   131→
+   132→Implement a shared shell with role-specific navigation.
+   133→
+   134→### Desktop layout
+   135→
+   136→- Collapsible left sidebar with icon-and-label navigation.
+   137→- Workspace-specific logo/title area.
+   138→- Top header with breadcrumb and current BU context.
+   139→- Reporting-period selector.
+   140→- Global search for authorized projects, reports, and users.
+   141→- Notification center with unread count.
+   142→- Help and contextual guidance.
+   143→- User profile menu.
+   144→- Main content area with a responsive grid.
+   145→- Optional right-side contextual panel on selected detail screens.
+   146→
+   147→### Sidebar behavior
+   148→
+   149→- Expand/collapse with smooth animation.
+   150→- Clearly distinguish the active screen.
+   151→- Display badges for pending tasks, unread notifications, or review counts when backed by real data.
+   152→- Support keyboard navigation and tooltips in collapsed mode.
+   153→- Preserve the current route and authorized context during navigation.
+   154→- Highlight parent sections when a nested page is active.
+   155→
+   156→### Profile menu
+   157→
+   158→Include:
+   159→
+   160→- My Profile.
+   161→- Account Preferences.
+   162→- Notification Preferences.
+   163→- Security and Sessions, if supported.
+   164→- Help and Documentation.
+   165→- Sign Out.
+   166→
+   167→Use existing authentication and account management. Do not invent unsupported account-security functionality.
+   168→
+   169→### Shared interaction rules
+   170→
+   171→Every navigation item must open a real route or working screen. Search must return actual authorized results. Filters must update the displayed records. Tabs must change the active content. Cards must open relevant filtered views or details.
+   172→
+   173→Never create a control that looks interactive but does nothing.
+   174→
+   175→---
+   176→
+   177→# 5. Business Unit Admin Workspace
+   178→
+   179→## Role definition
+   180→
+   181→The BU Admin is responsible for business-unit operations and reporting coordination.
+   182→
+   183→The BU Admin can manage authorized BU users, monitor projects, assign or adjust project reporting timelines within permitted policy, coordinate submissions, send reminders, monitor review progress, and prepare a BU-level reporting package.
+   184→
+   185→**The BU Admin cannot approve, reject, or return reports for correction.**
+   186→
+   187→The BU Admin cannot create business units or projects. Projects are created by the Subsidiary Admin and displayed in the BU Admin workspace as authorized, read-only project records.
+   188→
+   189→## A. BU Admin Dashboard
+   190→
+   191→Create a distinctive operational command center, not a copy of the other dashboards.
+   192→
+   193→### Header
+   194→
+   195→- Welcome message.
+   196→- Assigned BU identity.
+   197→- Reporting period selector.
+   198→- Last-updated timestamp.
+   199→- Quick action button.
+   200→- Notification indicator.
+   201→
+   202→### KPI cards
+   203→
+   204→1. Total Projects.
+   205→2. Submitted Reports.
+   206→3. Pending Reports.
+   207→4. Overdue Reports.
+   208→5. Pending Review.
+   209→6. Reporting Completion.
+   210→
+   211→Use six responsive cards with different but consistent visual treatments.
+   212→
+   213→Each card must include:
+   214→
+   215→- Premium glass surface.
+   216→- Lucide icon.
+   217→- Metric value.
+   218→- Relevant comparison or context where supported.
+   219→- Small trend indicator when meaningful historical data exists.
+   220→- Animated counter on initial load.
+   221→- Hover elevation.
+   222→- Clickable action to open the relevant filtered record list.
+   223→
+   224→Do not invent trend percentages or production data.
+   225→
+   226→### Dashboard layout
+   227→
+   228→**Row 1 — KPI overview**
+   229→
+   230→Six cards with subtle sky-blue and liquid-purple accents.
+   231→
+   232→**Row 2 — Reporting progress**
+   233→
+   234→- Large animated reporting-completion chart.
+   235→- Project submission distribution.
+   236→- Reporting deadline overview.
+   237→
+   238→**Row 3 — Project operations**
+   239→
+   240→- Project-wise reporting progress table.
+   241→- Overdue project list.
+   242→- Pending submission list.
+   243→
+   244→**Row 4 — Coordination**
+   245→
+   246→- Recent activity feed.
+   247→- Upcoming deadlines.
+   248→- Latest notifications.
+   249→- Pending review monitoring.
+   250→
+   251→Provide a clear empty state if there are no records.
+   252→
+   253→### Charts
+   254→
+   255→Use the existing charting library if available; otherwise use Recharts if appropriate.
+   256→
+   257→Implement:
+   258→
+   259→- Animated donut chart for reporting status.
+   260→- Bar chart for project-wise completion.
+   261→- Line chart for submissions over time.
+   262→- Deadline distribution chart.
+   263→- Compact progress bars for individual projects.
+   264→
+   265→Chart tooltips must show real underlying values. Legends, time filters, chart selection, and data-point clicks must work. Clicking a segment or bar must navigate to a correctly filtered list.
+   266→
+   267→Respect reduced-motion preferences and do not animate continuously without purpose.
+   268→
+   269→## B. BU Admin Navigation — 16 Screens
+   270→
+   271→Implement all 16 screens below, with proper routing and functional content.
+   272→
+   273→### 1. Dashboard
+   274→
+   275→The operational command center described above.
+   276→
+   277→### 2. Notifications & Alerts
+   278→
+   279→Include:
+   280→
+   281→- All notifications.
+   282→- Unread.
+   283→- Deadlines.
+   284→- Submission events.
+   285→- Review-status updates.
+   286→- User and assignment notifications.
+   287→
+   288→Actions:
+   289→
+   290→- Mark as read.
+   291→- Mark all as read.
+   292→- Open the related project/report.
+   293→- Filter by category and date.
+   294→- Navigate to notification preferences.
+   295→
+   296→Notifications must be generated by actual application events. Do not fabricate notifications.
+   297→
+   298→### 3. User Management
+   299→
+   300→Manage authorized users within the assigned BU.
+   301→
+   302→Include:
+   303→
+   304→- User directory.
+   305→- Search and filters.
+   306→- Active/inactive state.
+   307→- Name, email, role, assigned projects, and account status where available.
+   308→- Invite user.
+   309→- Create user, if supported by the existing authentication flow.
+   310→- Edit permitted profile and assignment information.
+   311→- Resend invitation.
+   312→- Deactivate or reactivate, subject to permissions.
+   313→
+   314→Validate all forms. Prevent duplicate invitations and unauthorized role assignments.
+   315→
+   316→Never grant access outside the BU scope. Do not allow the BU Admin to create Group Admins, Subsidiary Admins, or other privileged users.
+   317→
+   318→### 4. Roles & Assignments
+   319→
+   320→Manage permitted data-entry user roles and project assignments.
+   321→
+   322→Include:
+   323→
+   324→- Role assignment panel.
+   325→- Project assignment matrix.
+   326→- Assignment detail drawer.
+   327→- Bulk assignment.
+   328→- Assignment history.
+   329→- Validation of role and project compatibility.
+   330→
+   331→Use the existing role definitions. Do not introduce duplicate role names.
+   332→
+   333→### 5. Project Directory
+   334→
+   335→A searchable, filterable directory of projects created by the Subsidiary Admin.
+   336→
+   337→Include:
+   338→
+   339→- Project name and identifier.
+   340→- Assigned business unit.
+   341→- Project/site information.
+   342→- Reporting period.
+   343→- Assigned data-entry users.
+   344→- Submission status.
+   345→- Reporting deadline.
+   346→- Review status.
+   347→- Progress indicator.
+   348→
+   349→Opening a project displays a detailed side panel or project detail route.
+   350→
+   351→**Project creation and deletion are not available in this workspace.** Clearly identify this as an administrative boundary rather than showing a fake create-project button.
+   352→
+   353→### 6. Reporting Timelines
+   354→
+   355→A complete deadline management screen.
+   356→
+   357→Include:
+   358→
+   359→- Reporting calendar.
+   360→- Table/list view.
+   361→- Upcoming, due soon, overdue, and completed filters.
+   362→- Project selection.
+   363→- Bulk deadline assignment.
+   364→- Individual deadline assignment.
+   365→- Reporting-period selection.
+   366→- Deadline history.
+   367→- Effective deadline source.
+   368→- Inherited deadline indicators.
+   369→- Authorized override reason.
+   370→- Confirmation before saving.
+   371→
+   372→Deadline rules:
+   373→
+   374→- Subsidiary-level deadlines are inherited by default.
+   375→- BU Admin may set or adjust project-level deadlines only within authorized policies.
+   376→- Higher-level policies and mandatory deadlines cannot be overridden.
+   377→- Every authorized override must preserve its reason, actor, previous value, new value, and timestamp.
+   378→- Do not silently replace inherited deadlines.
+   379→
+   380→Use a visual calendar with clear status markers and a compact upcoming-deadlines list.
+   381→
+   382→### 7. Submission Center
+   383→
+   384→A centralized view of expected, drafted, and submitted reporting records.
+   385→
+   386→Include:
+   387→
+   388→- Draft.
+   389→- Not Started.
+   390→- Submitted.
+   391→- Pending Review.
+   392→- Returned for Correction.
+   393→- Approved.
+   394→- Rejected.
+   395→- Overdue indicator.
+   396→
+   397→Show reporting entity, reporting period, responsible user, submission date, deadline, and latest activity.
+   398→
+   399→The workflow status and deadline status must be separate dimensions. A report can be pending review and simultaneously overdue.
+   400→
+   401→The BU Admin may monitor records and coordinate corrections but cannot make review decisions.
+   402→
+   403→### 8. Report Monitoring
+   404→
+   405→Create a dedicated report-monitoring workspace with functional tabs:
+   406→
+   407→- All Reports.
+   408→- Submitted.
+   409→- Pending Review.
+   410→- Approved.
+   411→- Rejected.
+   412→- Returned for Correction.
+   413→- Overdue.
+   414→
+   415→Provide:
+   416→
+   417→- Search.
+   418→- Project filter.
+   419→- Reporting-period filter.
+   420→- Assigned-user filter.
+   421→- Workflow-stage filter.
+   422→- Deadline filter.
+   423→- Sorting.
+   424→- Pagination.
+   425→- Export, if authorized and supported.
+   426→
+   427→Selecting a report opens a report detail view with read-only review status, evidence, activity history, and responsible user.
+   428→
+   429→Do not display approve, reject, or return-for-correction actions.
+   430→
+   431→### 9. Evidence & Documents
+   432→
+   433→Manage access to reporting evidence and supporting documents.
+   434→
+   435→Include:
+   436→
+   437→- Evidence directory.
+   438→- Document search.
+   439→- Type and reporting-period filters.
+   440→- Project and report association.
+   441→- Upload, if permitted.
+   442→- Version history.
+   443→- File metadata.
+   444→- Access status.
+   445→- Missing-evidence indicators.
+   446→
+   447→Open files in a side drawer or modal when practical, without unnecessarily leaving the report.
+   448→
+   449→Use private object storage and signed access URLs where appropriate. Verify access permissions for every file request.
+   450→
+   451→### 10. Tasks & Deadlines
+   452→
+   453→A coordination workspace with:
+   454→
+   455→- My Tasks.
+   456→- Project Tasks.
+   457→- Upcoming.
+   458→- Due Soon.
+   459→- Overdue.
+   460→- Completed.
+   461→
+   462→Allow authorized users to assign operational follow-up tasks, set due dates, add descriptions, update task status, and link tasks to projects or reports.
+   463→
+   464→Sending a reminder must create a real notification or supported delivery event.
+   465→
+   466→Avoid duplicate reminders and maintain task history.
+   467→
+   468→### 11. Communication Center
+   469→
+   470→Provide a structured operational communication area.
+   471→
+   472→Include:
+   473→
+   474→- Project-specific discussions, if supported.
+   475→- Report-related comments.
+   476→- Announcements.
+   477→- Reminder composer.
+   478→- Recipient selection restricted to authorized users.
+   479→- Notification delivery status where available.
+   480→- Message history.
+   481→
+   482→Do not implement a fake chat interface that only stores messages locally. Use persistent storage and existing communication services.
+   483→
+   484→### 12. Data Validation
+   485→
+   486→A monitoring and diagnostic workspace.
+   487→
+   488→Include:
+   489→
+   490→- Missing required fields.
+   491→- Missing evidence.
+   492→- Invalid formats.
+   493→- Inconsistent reporting periods.
+   494→- Potential duplicate records.
+   495→- Calculation warnings.
+   496→- Unresolved validation issues.
+   497→
+   498→Each issue must identify its source report, affected field, severity, and available next step.
+   499→
+   500→The BU Admin may monitor issues and notify responsible users but cannot alter protected submitted values or make approval decisions on behalf of the BU Manager.
+   501→
+   502→### 13. ESG Reporting
+   503→
+   504→Prepare a BU-level reporting package for upward submission.
+   505→
+   506→Include:
+   507→
+   508→- Reporting overview.
+   509→- Project-level report coverage.
+   510→- Environmental metrics.
+   511→- Energy and resource information.
+   512→- GHG/emissions summaries where applicable.
+   513→- Evidence coverage.
+   514→- Data completeness.
+   515→- Missing information.
+   516→- Submission readiness.
+   517→- Export or package preparation where supported.
+   518→- Package history and submission status.
+   519→
+   520→Clearly distinguish the BU reporting package from the consolidated Group BRSR.
+   521→
+   522→The BU Admin must not create or finalize the Group BRSR. Group-level consolidation and finalization remain owned by the Group Admin.
+   523→
+   524→Never aggregate incompatible reporting periods, units, or scopes without explicit, validated rules.
+   525→
+   526→### 14. ESG Analytics
+   527→
+   528→Create a more detailed analytics screen containing:
+   529→
+   530→- Project completion comparison.
+   531→- Submission timeliness.
+   532→- Missing-data distribution.
+   533→- Evidence completeness.
+   534→- Environmental metric summaries where available.
+   535→- Reporting trends across supported periods.
+   536→- Validation issue distribution.
+   537→
+   538→Provide functional filters, chart tooltips, drilldowns, and export where authorized.
+   539→
+   540→Every chart must derive from real records and use consistent query logic.
+   541→
+   542→### 15. Activity & Audit
+   543→
+   544→Display authorized operational activity.
+   545→
+   546→Include:
+   547→
+   548→- User and role changes.
+   549→- Assignment updates.
+   550→- Deadline changes.
+   551→- Reminder events.
+   552→- Report submissions and resubmissions.
+   553→- Evidence updates.
+   554→- Package preparation.
+   555→- Relevant system events.
+   556→
+   557→Provide date, actor, action type, and entity filters.
+   558→
+   559→Audit records must be persisted, timestamped, and protected against unauthorized modification.
+   560→
+   561→### 16. Settings
+   562→
+   563→Include:
+   564→
+   565→- Workspace preferences.
+   566→- Default reporting-period preference.
+   567→- Table density.
+   568→- Notification preferences.
+   569→- Theme or appearance settings if supported.
+   570→- Accessibility options.
+   571→- Time-zone and date-format preferences where supported.
+   572→
+   573→Account-wide security settings must use the existing account system.
+   574→
+   575→---
+   576→
+   577→# 6. Business Unit Manager Workspace
+   578→
+   579→## Role definition
+   580→
+   581→The BU Manager is responsible for reviewing submitted project and data-entry reports, checking evidence and data quality, recording review decisions, and ensuring corrections are completed before reports advance.
+   582→
+   583→The BU Manager can review, approve, reject when the configured workflow permits it, and return reports for correction with mandatory reasons or comments.
+   584→
+   585→The BU Manager cannot create business units or projects, manage users by default, change inherited deadlines, or create/finalize the consolidated Group BRSR.
+   586→
+   587→## A. BU Manager Dashboard
+   588→
+   589→Design a different composition from the BU Admin dashboard.
+   590→
+   591→The visual focus should be a **Review Studio**: a professional review environment that prioritizes the work requiring attention.
+   592→
+   593→### Header
+   594→
+   595→- Workspace name: ESG Review Studio.
+   596→- Assigned BU.
+   597→- Reporting period selector.
+   598→- Current review workload.
+   599→- Notification center.
+   600→- Quick access to the review queue.
+   601→
+   602→### KPI cards
+   603→
+   604→1. Reports Awaiting Review.
+   605→2. Reports Under Review.
+   606→3. Reports Returned for Correction.
+   607→4. Reports Approved.
+   608→5. Overdue Reviews.
+   609→6. Average Review Time, only when supported by reliable timestamps.
+   610→
+   611→Each card must open the relevant filtered view.
+   612→
+   613→### Dashboard composition
+   614→
+   615→**Section 1 — Review workload**
+   616→
+   617→A prominent review-queue panel with priority, project name, reporting period, submitted date, review deadline, and current stage.
+   618→
+   619→**Section 2 — Review analytics**
+   620→
+   621→- Animated stacked bar chart for review statuses.
+   622→- Review workload by project.
+   623→- Review turnaround trend.
+   624→- Correction/resubmission trend.
+   625→
+   626→**Section 3 — Quality monitoring**
+   627→
+   628→- Missing-evidence reports.
+   629→- Data-validation warnings.
+   630→- Reports requiring additional attention.
+   631→- Review deadline calendar.
+   632→
+   633→**Section 4 — Recent decisions**
+   634→
+   635→- Recently approved.
+   636→- Recently returned for correction.
+   637→- Recently rejected where permitted.
+   638→- Recent resubmissions.
+   639→- Review activity history.
+   640→
+   641→Use subtle purple accents for review actions, sky blue for information and selection, green for approved outcomes, amber for warnings, and red for critical errors.
+   642→
+   643→## B. BU Manager Navigation — 11 Screens
+   644→
+   645→### 1. Dashboard
+   646→
+   647→Implement the Review Studio dashboard described above.
+   648→
+   649→### 2. Notifications & Alerts
+   650→
+   651→Include:
+   652→
+   653→- New submissions.
+   654→- Reports awaiting review.
+   655→- Resubmissions after correction.
+   656→- Review deadlines.
+   657→- Evidence updates.
+   658→- Decisions and workflow changes.
+   659→
+   660→Support filtering, mark-as-read, and navigation to the associated report.
+   661→
+   662→### 3. Review Queue
+   663→
+   664→This is the primary work area.
+   665→
+   666→Provide functional tabs:
+   667→
+   668→- Awaiting Review.
+   669→- In Progress.
+   670→- Returned for Correction.
+   671→- Resubmitted.
+   672→- Approved.
+   673→- Rejected.
+   674→- Overdue Reviews.
+   675→
+   676→Each report row/card must display:
+   677→
+   678→- Project and report name.
+   679→- Reporting period.
+   680→- Responsible user.
+   681→- Submission timestamp.
+   682→- Review due date.
+   683→- Current version.
+   684→- Evidence completeness.
+   685→- Validation issue count.
+   686→- Priority/severity, only when based on real rules.
+   687→- Current review status.
+   688→
+   689→Include search, sorting, pagination, project filters, reporting-period filters, and review-status filters.
+   690→
+   691→Opening a record launches the full report review workspace.
+   692→
+   693→Prevent two reviewers from unknowingly overwriting the same review decision. Use appropriate locking, version checks, or concurrency control.
+   694→
+   695→### 4. Data Entry Submissions
+   696→
+   697→A detailed view of incoming project submissions.
+   698→
+   699→Include:
+   700→
+   701→- Submission list.
+   702→- Submission version.
+   703→- Reporting-period information.
+   704→- Submitted-by details.
+   705→- Required-field completeness.
+   706→- Evidence status.
+   707→- Validation status.
+   708→- Submission timeline.
+   709→
+   710→Allow the manager to open a submission and inspect its data, evidence, and previous versions.
+   711→
+   712→Submitted records must not be silently modified in place. Corrections must follow the configured workflow and preserve revision history.
+   713→
+   714→### 5. Project Reports
+   715→
+   716→A searchable directory of reports within the assigned BU.
+   717→
+   718→Include:
+   719→
+   720→- Project.
+   721→- Reporting period.
+   722→- Report version.
+   723→- Workflow state.
+   724→- Deadline state.
+   725→- Submission date.
+   726→- Latest review decision.
+   727→- Evidence completeness.
+   728→
+   729→Use a report detail view with tabs such as:
+   730→
+   731→- Overview.
+   732→- Environmental Data.
+   733→- Energy & Resources.
+   734→- GHG & Emissions.
+   735→- Supporting Evidence.
+   736→- Validation.
+   737→- Review History.
+   738→
+   739→Only display sections that are applicable to the report schema and existing data model.
+   740→
+   741→### 6. Evidence Review
+   742→
+   743→Create a dedicated evidence inspection interface.
+   744→
+   745→Include:
+   746→
+   747→- Evidence list.
+   748→- Document preview where supported.
+   749→- Associated reporting field.
+   750→- File name and type.
+   751→- Upload/version information.
+   752→- Reporting period.
+   753→- Evidence completeness.
+   754→- Related validation issues.
+   755→
+   756→Allow the manager to open evidence in a side drawer or modal while keeping the report context visible.
+   757→
+   758→Where the file format supports it, provide preview, zoom, page navigation, and download subject to access permissions.
+   759→
+   760→Do not expose private file URLs or bypass storage permissions.
+   761→
+   762→### 7. Corrections & Rejections
+   763→
+   764→A dedicated workspace for handling report quality issues.
+   765→
+   766→Include:
+   767→
+   768→- Reports returned for correction.
+   769→- Resubmissions awaiting review.
+   770→- Rejection history.
+   771→- Missing-data issues.
+   772→- Evidence issues.
+   773→- Inconsistent values.
+   774→- Previous review comments.
+   775→- Correction deadlines, where supported.
+   776→
+   777→The manager must be able to:
+   778→
+   779→- Return a report for correction.
+   780→- Specify the issue and required corrective action.
+   781→- Add field-level or general comments where supported.
+   782→- Record a mandatory reason.
+   783→- Reject a report when permitted by the configured workflow.
+   784→- Review the corrected version after resubmission.
+   785→- Compare the new version with the previous version.
+   786→
+   787→Preserve all prior versions, comments, reasons, decisions, reviewer identities, and timestamps.
+   788→
+   789→### 8. Tasks & Deadlines
+   790→
+   791→Show:
+   792→
+   793→- Pending reviews.
+   794→- Upcoming review deadlines.
+   795→- Overdue reviews.
+   796→- Correction follow-ups.
+   797→- Completed review tasks.
+   798→
+   799→Allow the manager to update authorized review task states and send permitted follow-up reminders.
+   800→
+   801→The BU Manager cannot change higher-level or inherited reporting deadlines by default. Distinguish review due dates from project submission deadlines.
+   802→
+   803→### 9. Data Validation
+   804→
+   805→Build an actionable validation interface for ESG data.
+   806→
+   807→Check, where applicable:
+   808→
+   809→- Required-field completeness.
+   810→- Valid units and formats.
+   811→- Reporting-period consistency.
+   812→- Electricity consumption values.
+   813→- Energy and resource data.
+   814→- GHG/emissions calculations.
+   815→- Emission factors and source references.
+   816→- Calculation consistency.
+   817→- Missing supporting evidence.
+   818→- Potential duplicate or conflicting values.
+   819→- Implausible values based on explicit configured validation rules.
+   820→
+   821→For each issue, show:
+   822→
+   823→- Severity.
+   824→- Affected field.
+   825→- Current value.
+   826→- Expected format or rule.
+   827→- Evidence link.
+   828→- Explanation.
+   829→- Recommended correction.
+   830→- Validation status.
+   831→
+   832→Distinguish hard errors from warnings. Do not automatically alter submitted values or invent emission factors.
+   833→
+   834→Any calculations must use documented formulas, appropriate units, versioned factor sources, and the configured organizational reporting rules.
+   835→
+   836→### 10. ESG Analytics
+   837→
+   838→Include:
+   839→
+   840→- Review turnaround time.
+   841→- Pending review workload.
+   842→- Review outcomes.
+   843→- Resubmission rate.
+   844→- Correction trends.
+   845→- Evidence completeness.
+   846→- Validation issue distribution.
+   847→- Project-level report quality.
+   848→
+   849→All charts must support actual data filters and meaningful drilldowns.
+   850→
+   851→Do not show fabricated performance metrics when records are missing.
+   852→
+   853→### 11. Activity & History
+   854→
+   855→Include:
+   856→
+   857→- Report submission history.
+   858→- Review started.
+   859→- Comments added.
+   860→- Report returned.
+   861→- Report resubmitted.
+   862→- Approval decisions.
+   863→- Rejection decisions.
+   864→- Evidence changes.
+   865→- Validation events.
+   866→
+   867→Show the actor, action, version, timestamp, and reason where available.
+   868→
+   869→The manager must be able to inspect earlier versions and decisions without overwriting the audit history.
+   870→
+   871→### Profile and preferences
+   872→
+   873→Provide profile, account preferences, notification settings, help, and sign-out through the shared account menu rather than duplicating them as primary sidebar screens.
+   874→
+   875→---
+   876→
+   877→# 7. Report Review Workspace — Essential Interaction
+   878→
+   879→Build a premium report-review screen that is more detailed and task-focused than ordinary report detail pages.
+   880→
+   881→### Layout
+   882→
+   883→Use a three-zone desktop composition:
+   884→
+   885→**Left zone — Report navigation**
+   886→
+   887→- Report sections.
+   888→- Project and reporting-period context.
+   889→- Validation issue list.
+   890→- Evidence indicators.
+   891→
+   892→**Center zone — Report content**
+   893→
+   894→- ESG reporting sections.
+   895→- Data tables.
+   896→- Values and units.
+   897→- Supporting calculations.
+   898→- Reporting completeness.
+   899→- Field-level validation indicators.
+   900→
+   901→**Right zone — Review panel**
+   902→
+   903→- Review status.
+   904→- Reviewer comments.
+   905→- Evidence preview.
+   906→- Issues requiring correction.
+   907→- Review activity.
+   908→- Available review actions.
+   909→
+   910→Make the layout responsive. On narrower screens, collapse secondary zones into accessible drawers or tabs.
+   911→
+   912→### Review workflow
+   913→
+   914→Implement the following process:
+   915→
+   916→1. A Project User or Data Entry User submits a report.
+   917→2. The report enters the configured BU-level review workflow.
+   918→3. The BU Manager opens the submission.
+   919→4. The manager checks completeness, data quality, calculations, and supporting evidence.
+   920→5. The manager records comments and identifies issues.
+   921→6. If correction is required, the manager returns the report with a mandatory reason and actionable comments.
+   922→7. The responsible user corrects the report and resubmits a new version.
+   923→8. The manager reviews the new version and can compare it against the previous version.
+   924→9. When the report satisfies the configured requirements, the manager approves it.
+   925→10. The approved report advances to the next configured stage, such as Subsidiary Manager review, if applicable.
+   926→11. Eligible approved data becomes available to the authorized upward reporting and Group BRSR consolidation process.
+   927→
+   928→Both project reports and data-entry reports must follow the configured BU-level review workflow. No unauthorized bypass is allowed.
+   929→
+   930→### Review actions
+   931→
+   932→**Approve**
+   933→
+   934→- Show a confirmation dialog.
+   935→- Summarize the report and version being approved.
+   936→- Allow an optional decision comment.
+   937→- Persist the decision and audit event.
+   938→- Update workflow status.
+   939→- Advance to the next configured stage.
+   940→
+   941→**Return for Correction**
+   942→
+   943→- Require a reason.
+   944→- Require actionable correction details according to the configured policy.
+   945→- Allow comments associated with specific fields where supported.
+   946→- Confirm the action before submission.
+   947→- Persist the decision and revision relationship.
+   948→- Notify the responsible user.
+   949→- Return the report to the authorized correction stage.
+   950→
+   951→**Reject**
+   952→
+   953→- Display only if permitted by the configured workflow.
+   954→- Require a mandatory rejection reason.
+   955→- Confirm the action.
+   956→- Persist the decision, actor, timestamp, version, and reason.
+   957→- Trigger the appropriate workflow and notification events.
+   958→
+   959→All review actions must be implemented in the backend, not merely displayed or hidden in the frontend.
+   960→
+   961→---
+   962→
+   963→# 8. Workflow Status and Deadline Model
+   964→
+   965→Keep workflow state separate from deadline state.
+   966→
+   967→### Workflow states
+   968→
+   969→- Draft.
+   970→- Submitted.
+   971→- Pending Review.
+   972→- Under Review.
+   973→- Returned for Correction.
+   974→- Approved.
+   975→- Rejected.
+   976→
+   977→Use only the states supported by the existing workflow model and map existing equivalent states instead of creating duplicate status systems.
+   978→
+   979→### Deadline states
+   980→
+   981→- Not Started.
+   982→- Upcoming.
+   983→- Due Soon.
+   984→- Submitted On Time.
+   985→- Submitted Late.
+   986→- Overdue.
+   987→- Closed.
+   988→
+   989→Overdue is a computed deadline condition, not an exclusive workflow state.
+   990→
+   991→Examples:
+   992→
+   993→- A report can be Pending Review and overdue for review.
+   994→- A report can be Approved after its submission deadline.
+   995→- A report can be Returned for Correction while the correction deadline is approaching.
+   996→
+   997→Track separate timestamps for submission, review start, decision, resubmission, and closure where applicable.
+   998→
+   999→Define the deadline calculation and time-zone rules centrally so every screen produces consistent results.
+  1000→
+  1001→### Dashboard and table consistency
+  1002→
+  1003→The KPI count and corresponding list must use the same filters and counting rules.
+  1004→
+  1005→Define whether metrics count report records, projects, reporting periods, or unique reporting entities. Label them accordingly.
+  1006→
+  1007→Prevent duplicate counting when one project has multiple reports or reporting periods.
+  1008→
+  1009→---
+  1010→
+  1011→# 9. Motion Design and Animation System
+  1012→
+  1013→Implement a refined motion system with purposeful animations, not constant movement.
+  1014→
+  1015→### Page transitions
+  1016→
+  1017→- Fade and subtle vertical entrance.
+  1018→- Duration approximately 180–300ms.
+  1019→- Smooth navigation between workspace screens.
+  1020→- No distracting full-screen animations.
+  1021→
+  1022→### Glass cards
+  1023→
+  1024→- Gentle elevation on hover.
+  1025→- Slight border tint transition.
+  1026→- Subtle shadow changes.
+  1027→- No exaggerated rotation or perspective distortion.
+  1028→
+  1029→### KPI cards
+  1030→
+  1031→- Animated number transitions on initial load or genuine data refresh.
+  1032→- Small trend-indicator transitions.
+  1033→- No repeated count-up animation on every minor state change.
+  1034→
+  1035→### Charts
+  1036→
+  1037→- Animated bar growth.
+  1038→- Smooth line-chart reveal.
+  1039→- Donut-chart progression.
+  1040→- Animated progress indicators.
+  1041→- Smooth tooltip and legend transitions.
+  1042→- Stable chart dimensions to prevent layout shifts.
+  1043→
+  1044→### Interactive feedback
+  1045→
+  1046→- Button press feedback.
+  1047→- Dropdown fade/scale.
+  1048→- Modal and drawer transitions.
+  1049→- Smooth tab indicator.
+  1050→- Skeleton loading shimmer.
+  1051→- Progress feedback for uploads and long-running actions.
+  1052→- Clear success/error notifications.
+  1053→
+  1054→Use CSS transitions and the existing animation library, or Framer Motion if appropriate.
+  1055→
+  1056→Respect `prefers-reduced-motion`. Never use animation as the only indicator of state.
+  1057→
+  1058→---
+  1059→
+  1060→# 10. Functional Requirements — Nothing Is Decorative
+  1061→
+  1062→This requirement is mandatory.
+  1063→
+  1064→**Every visible interactive element must perform its advertised action.**
+  1065→
+  1066→This includes:
+  1067→
+  1068→- Every button.
+  1069→- Every menu and submenu.
+  1070→- Every navigation item.
+  1071→- Every dropdown and select.
+  1072→- Every tab.
+  1073→- Every KPI card.
+  1074→- Every table row where clickable.
+  1075→- Every chart and chart drilldown.
+  1076→- Every filter and search field.
+  1077→- Every pagination control.
+  1078→- Every modal and drawer.
+  1079→- Every form submission.
+  1080→- Every notification.
+  1081→- Every action menu.
+  1082→- Every checkbox and toggle.
+  1083→- Every date picker.
+  1084→- Every upload and download control.
+  1085→- Every profile menu item.
+  1086→- Every save, cancel, approve, reject, and return action.
+  1087→- Every deadline control.
+  1088→- Every assignment action.
+  1089→- Every task action.
+  1090→
+  1091→### Implementation rules
+  1092→
+  1093→1. Connect every action to a real route, state transition, API call, or explicitly supported external operation.
+  1094→2. Persist changes to the real database.
+  1095→3. Use server-side validation and authorization.
+  1096→4. Show loading states during asynchronous operations.
+  1097→5. Prevent accidental duplicate submissions.
+  1098→6. Display success feedback only after the server confirms success.
+  1099→7. Display actionable errors when requests fail.
+  1100→8. Keep the user informed when a destructive action needs confirmation.
+  1101→9. Use optimistic updates only when safe and implement rollback on failure.
+  1102→10. Preserve filters and navigation context when users return from a detail page.
+  1103→11. Use accessible labels, keyboard support, and visible focus states.
+  1104→12. Remove placeholder buttons, fake charts, dead-end screens, and hard-coded success messages.
+  1105→
+  1106→If a feature depends on an external integration that is not configured, provide a clear setup or unavailable state rather than pretending it works.
+  1107→
+  1108→---
+  1109→
+  1110→# 11. Data, APIs, Permissions, and Security
+  1111→
+  1112→Before writing code, inspect the existing repository.
+  1113→
+  1114→Determine:
+  1115→
+  1116→- Framework and version.
+  1117→- Routing system.
+  1118→- Existing role and permission model.
+  1119→- Authentication provider.
+  1120→- Database schema.
+  1121→- Existing report and evidence models.
+  1122→- Current API endpoints.
+  1123→- Notification and background-job systems.
+  1124→- Shared UI components.
+  1125→- Existing charting and animation libraries.
+  1126→- Current design tokens and workspace layouts.
+  1127→- Existing test infrastructure.
+  1128→
+  1129→Then implement the new workspaces within the existing architecture.
+  1130→
+  1131→### Data architecture
+  1132→
+  1133→Reuse the existing database and APIs wherever possible.
+  1134→
+  1135→If the current system uses Supabase/PostgreSQL:
+  1136→
+  1137→- Keep PostgreSQL as the source of truth.
+  1138→- Reuse existing tables and relations.
+  1139→- Use migrations for necessary schema changes.
+  1140→- Apply Row Level Security where appropriate.
+  1141→- Use Redis only for appropriate caching, queues, or transient coordination—not as the authoritative report database.
+  1142→- Use private object storage for evidence files.
+  1143→
+  1144→Do not introduce a second authentication system or duplicate reporting tables simply to build these workspaces.
+  1145→
+  1146→### Backend permission enforcement
+  1147→
+  1148→Enforce permissions in the backend for every protected action.
+  1149→
+  1150→**BU Admin permissions**
+  1151→
+  1152→- View assigned BU projects.
+  1153→- Manage authorized BU data-entry users.
+  1154→- Manage permitted assignments.
+  1155→- Monitor reports and evidence.
+  1156→- Assign project deadlines within policy.
+  1157→- Send permitted reminders.
+  1158→- Monitor validation and review progress.
+  1159→- Prepare the BU reporting package.
+  1160→
+  1161→**BU Admin restrictions**
+  1162→
+  1163→- No creation or deletion of projects.
+  1164→- No creation of business units.
+  1165→- No approval, rejection, or return-for-correction actions.
+  1166→- No Group BRSR finalization.
+  1167→- No access outside the assigned scope.
+  1168→
+  1169→**BU Manager permissions**
+  1170→
+  1171→- View authorized project reports.
+  1172→- Inspect evidence.
+  1173→- Run or view permitted validation.
+  1174→- Add review comments.
+  1175→- Approve reports at the configured BU review stage.
+  1176→- Return reports for correction.
+  1177→- Reject reports only when permitted.
+  1178→- Inspect prior versions and audit history.
+  1179→
+  1180→**BU Manager restrictions**
+  1181→
+  1182→- No project or BU creation.
+  1183→- No user administration by default.
+  1184→- No unauthorized deadline changes.
+  1185→- No Group BRSR finalization.
+  1186→- No access outside the assigned scope.
+  1187→
+  1188→Use server-side role checks and entity-level authorization. Do not rely on hiding frontend controls.
+  1189→
+  1190→Block direct URL manipulation, unauthorized API IDs, cross-BU access, cross-subsidiary access, and unauthorized evidence retrieval.
+  1191→
+  1192→### Audit and report versioning
+  1193→
+  1194→Preserve:
+  1195→
+  1196→- Report versions.
+  1197→- Previous rejected or returned versions.
+  1198→- Comments and correction reasons.
+  1199→- Decision history.
+  1200→- Reviewer identity.
+  1201→- Timestamps.
+  1202→- Deadline changes.
+  1203→- Assignment history.
+  1204→- Evidence versions.
+  1205→- Relevant notifications and workflow events.
+  1206→
+  1207→Do not silently overwrite historical reporting records.
+  1208→
+  1209→---
+  1210→
+  1211→# 12. Responsive and Accessible UI
+  1212→
+  1213→Support:
+  1214→
+  1215→- Large desktop.
+  1216→- Standard laptop.
+  1217→- Tablet.
+  1218→- Mobile.
+  1219→
+  1220→On desktop, prioritize dense operational tables, analytics, and multi-panel review layouts.
+  1221→
+  1222→On tablet, collapse navigation and reorganize multi-column dashboards.
+  1223→
+  1224→On mobile, use compact cards, horizontally scrollable tables where necessary, stacked report sections, and full-width action controls.
+  1225→
+  1226→Additional requirements:
+  1227→
+  1228→- Consistent typography scale.
+  1229→- Semantic HTML.
+  1230→- Keyboard-accessible menus and dialogs.
+  1231→- Accessible form labels.
+  1232→- Sufficient contrast.
+  1233→- Visible focus indicators.
+  1234→- Screen-reader-friendly status labels.
+  1235→- Reduced-motion support.
+  1236→- Proper loading, empty, error, and permission-denied states.
+  1237→
+  1238→Do not shrink a desktop dashboard until it becomes unreadable on mobile. Recompose it for the available screen size.
+  1239→
+  1240→---
+  1241→
+  1242→# 13. Suggested Component Architecture
+  1243→
+  1244→Follow the repository's current conventions. Do not force a new architecture if equivalent components already exist.
+  1245→
+  1246→Possible structure:
+  1247→
+  1248→```text
+  1249→src/
+  1250→  workspaces/
+  1251→    bu-admin/
+  1252→      pages/
+  1253→        Dashboard
+  1254→        Notifications
+  1255→        UserManagement
+  1256→        RolesAssignments
+  1257→        ProjectDirectory
+  1258→        ReportingTimelines
+  1259→        SubmissionCenter
+  1260→        ReportMonitoring
+  1261→        EvidenceDocuments
+  1262→        TasksDeadlines
+  1263→        CommunicationCenter
+  1264→        DataValidation
+  1265→        ESGReporting
+  1266→        ESGAnalytics
+  1267→        ActivityAudit
+  1268→        Settings
+  1269→      components/
+  1270→      hooks/
+  1271→      services/
+  1272→      types/
+  1273→
+  1274→    bu-manager/
+  1275→      pages/
+  1276→        Dashboard
+  1277→        Notifications
+  1278→        ReviewQueue
+  1279→        DataEntrySubmissions
+  1280→        ProjectReports
+  1281→        EvidenceReview
+  1282→        CorrectionsRejections
+  1283→        TasksDeadlines
+  1284→        DataValidation
+  1285→        ESGAnalytics
+  1286→        ActivityHistory
+  1287→      components/
+  1288→      hooks/
+  1289→      services/
+  1290→      types/
+  1291→
+  1292→  shared/
+  1293→    layout/
+  1294→    navigation/
+  1295→    glass-ui/
+  1296→    charts/
+  1297→    tables/
+  1298→    forms/
+  1299→    dialogs/
+  1300→    evidence/
+  1301→    reporting/
+  1302→    notifications/
+  1303→    permissions/
+  1304→    validation/
+  1305→    audit/
+  1306→```
+  1307→
+  1308→Create reusable components for glass cards, KPI cards, status badges, filter bars, report tables, analytics charts, drawers, confirmations, empty states, and skeletons.
+  1309→
+  1310→Share components where behavior is the same, but allow distinct layouts and compositions for the two roles.
+  1311→
+  1312→Avoid unnecessary abstraction and duplicate business logic.
+  1313→
+  1314→---
+  1315→
+  1316→# 14. Performance and Reliability
+  1317→
+  1318→- Use server-side pagination or efficient cursor pagination for large datasets.
+  1319→- Debounce search requests.
+  1320→- Avoid repeated API calls caused by unnecessary component renders.
+  1321→- Cache data appropriately without exposing another user's records.
+  1322→- Handle stale data and concurrent updates.
+  1323→- Use stable chart containers.
+  1324→- Lazy-load large report detail sections where appropriate.
+  1325→- Use background jobs for supported asynchronous notification or report-processing tasks.
+  1326→- Avoid loading every project and report into the browser at once.
+  1327→- Handle API timeouts and recoverable failures.
+  1328→- Never lose unsaved review comments without warning.
+  1329→- Make file uploads resilient to failure.
+  1330→- Prevent duplicate workflow transitions through idempotency and server-side checks where appropriate.
+  1331→
+  1332→Do not sacrifice correctness or security for animations or visual effects.
+  1333→
+  1334→---
+  1335→
+  1336→# 15. Testing and Acceptance Criteria
+  1337→
+  1338→After implementation, test both workspaces thoroughly.
+  1339→
+  1340→### Navigation and UI
+  1341→
+  1342→- All 16 BU Admin screens load.
+  1343→- All 11 BU Manager screens load.
+  1344→- Every navigation item routes correctly.
+  1345→- All tabs, filters, menus, cards, and forms work.
+  1346→- No dead buttons or placeholder actions.
+  1347→- Responsive layouts work at desktop, tablet, and mobile sizes.
+  1348→
+  1349→### BU Admin workflow
+  1350→
+  1351→- Can view authorized projects.
+  1352→- Cannot create projects.
+  1353→- Can manage permitted BU users and assignments.
+  1354→- Can assign project deadlines within authorized policies.
+  1355→- Cannot override protected higher-level deadlines.
+  1356→- Can monitor reports and review status.
+  1357→- Can send permitted reminders.
+  1358→- Can prepare a BU reporting package.
+  1359→- Cannot approve, reject, or return reports for correction.
+  1360→- Cannot create or finalize the Group BRSR.
+  1361→
+  1362→### BU Manager workflow
+  1363→
+  1364→- Can access the correct review queue.
+  1365→- Can inspect report data and evidence.
+  1366→- Can identify validation issues.
+  1367→- Can return a report with a mandatory reason.
+  1368→- Can review a corrected resubmission.
+  1369→- Can compare report versions.
+  1370→- Can approve a valid report.
+  1371→- Can reject only when the workflow permits it.
+  1372→- Decisions persist after reload.
+  1373→- Review history and audit events are preserved.
+  1374→- Approved reports advance to the correct configured next stage.
+  1375→
+  1376→### Security
+  1377→
+  1378→- BU Admin cannot access unauthorized BUs or subsidiaries.
+  1379→- BU Manager cannot access unauthorized projects or reports.
+  1380→- Direct API calls cannot bypass role restrictions.
+  1381→- Evidence access is permission-checked.
+  1382→- User assignment restrictions are enforced.
+  1383→- Unauthorized approval/rejection attempts fail server-side.
+  1384→- Historical versions cannot be modified through unauthorized operations.
+  1385→
+  1386→### Data correctness
+  1387→
+  1388→- KPI counts match their corresponding filtered lists.
+  1389→- Charts use the same reporting-period and authorization rules as the underlying data.
+  1390→- Report versions are counted correctly.
+  1391→- Workflow status and deadline status remain separate.
+  1392→- Overdue reports are calculated consistently.
+  1393→- Empty datasets do not display fabricated metrics.
+  1394→- Historical reports and decisions remain available.
+  1395→
+  1396→### Technical quality
+  1397→
+  1398→- No broken routes.
+  1399→- No console errors caused by the implementation.
+  1400→- No unresolved API errors silently ignored.
+  1401→- No fake success notifications.
+  1402→- No unauthorized data exposure.
+  1403→- No duplicate roles or duplicate report modules.
+  1404→- No regressions in Group Admin or Subsidiary workspaces.
+  1405→- Automated tests cover permissions and critical workflow transitions.
+  1406→
+  1407→---
+  1408→
+  1409→# 16. Implementation Sequence
+  1410→
+  1411→Execute the work in the following order.
+  1412→
+  1413→**Phase 1 — Repository audit**
+  1414→
+  1415→Inspect the existing codebase, authentication, role model, APIs, database, design system, and reporting workflow. Identify reusable components and missing functionality.
+  1416→
+  1417→**Phase 2 — Foundation**
+  1418→
+  1419→Implement role-specific routes, permissions, shared application shell, theme tokens, glass UI primitives, responsive layout, and loading/error states.
+  1420→
+  1421→**Phase 3 — BU Admin workspace**
+  1422→
+  1423→Build the dashboard and all 16 screens. Connect them to real data and enforce BU Admin permissions.
+  1424→
+  1425→**Phase 4 — BU Manager workspace**
+  1426→
+  1427→Build the Review Studio and all 11 screens. Implement the report review interface and connect real workflow actions.
+  1428→
+  1429→**Phase 5 — Reporting workflow integration**
+  1430→
+  1431→Connect submissions, evidence, validation, comments, corrections, resubmissions, approvals, deadlines, notifications, audit history, and upward reporting.
+  1432→
+  1433→**Phase 6 — Motion and visual refinement**
+  1434→
+  1435→Add chart animations, micro-interactions, glass effects, smooth transitions, and responsive refinements without compromising usability.
+  1436→
+  1437→**Phase 7 — Testing and stabilization**
+  1438→
+  1439→Run unit, integration, workflow, authorization, responsive, and regression tests. Fix all critical defects before declaring the work complete.
+  1440→
+  1441→---
+  1442→
+  1443→# 17. Final Design and Engineering Rules
+  1444→
+  1445→1. Build on the existing repository, not a separate demo application.
+  1446→2. Do not duplicate existing roles, APIs, or reporting entities.
+  1447→3. Keep Group Admin, Subsidiary Admin, Subsidiary Manager, and other workspaces unchanged unless an integration change is necessary and explicitly validated.
+  1448→4. Create a unique visual experience for BU Admin and BU Manager.
+  1449→5. Use sky blue as the primary visual identity and liquid purple as the primary interactive/action accent.
+  1450→6. Use premium Liquid Glass panels, realistic shadow depth, subtle lighting, and smooth motion.
+  1451→7. Make every visible control functional.
+  1452→8. Connect the interface to real APIs and persisted data.
+  1453→9. Enforce permissions on the backend.
+  1454→10. Preserve reporting history, evidence, and audit records.
+  1455→11. Never fabricate data or claim an action succeeded when it did not.
+  1456→12. Do not grant BU Admin approval/rejection permissions.
+  1457→13. Do not permit BU Admin or BU Manager to create projects.
+  1458→14. Do not allow either BU role to create or finalize the consolidated Group BRSR.
+  1459→15. Do not stop after building the dashboard; implement every listed screen.
+  1460→16. Do not declare completion while critical routes, actions, or workflows remain nonfunctional.
+  1461→
+  1462→## Definition of Done
+  1463→
+  1464→The work is complete only when both workspaces are visually polished, meaningfully different, responsive, fully navigable, connected to the real data model, secure by role and entity scope, and capable of completing the required reporting workflows end to end.
+  1465→
+  1466→At completion, provide a concise implementation report covering:
+  1467→
+  1468→- Screens implemented.
+  1469→- Components and design system created.
+  1470→- APIs and database changes made.
+  1471→- Permissions enforced.
+  1472→- Workflows implemented.
+  1473→- Tests executed and their results.
+  1474→- Any genuinely blocked integrations or remaining limitations.
+  1475→
+  1476→**Start by auditing the existing repository, then implement the complete system. Do not stop at a design proposal, static prototype, or list of recommendations.**

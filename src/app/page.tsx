@@ -113,7 +113,26 @@ const SiteOpsShell = dynamic(
   }
 );
 
-type Gate = "landing" | "enter" | "workspace";
+/* Project User Portal — the portal's own native experience (org → project →
+   role → sign-in → workspace), mounted as its own gated surface. */
+const PuApp = dynamic(() => import("@/components/pu/pu-app"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
+      <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
+        <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
+          <span className="bg-gradient-to-br from-[#f97316] to-[#0ea5e9] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
+        </span>
+        <div>
+          <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
+          <div className="text-xs text-[#66778d]">Opening Project User portal…</div>
+        </div>
+      </div>
+    </div>
+  ),
+});
+
+type Gate = "landing" | "enter" | "workspace" | "project-portal";
 
 /* Group-scope roles that may open the full group console workspace. */
 const GROUP_ROLES = new Set(["GROUP_ADMIN", "ORG_MANAGER"]);
@@ -147,7 +166,7 @@ export default function Page() {
     return "none";
   }, []);
 
-  /* Restore an existing session + honour deep links (/?enter=1, /?dashboard=1) */
+  /* Restore an existing session + honour deep links (/?enter=1, /?dashboard=1, /?portal=project) */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const deepLink =
@@ -155,7 +174,9 @@ export default function Page() {
         ? "enter"
         : params.get("dashboard") === "1"
           ? "workspace"
-          : null;
+          : params.get("portal") === "project"
+            ? "project-portal"
+            : null;
 
     fetch("/api/auth/session")
       .then((r) => r.json())
@@ -163,14 +184,17 @@ export default function Page() {
         setSession(d);
         if (d.authenticated && d.user) {
           const target = consoleForRole(d.user.role);
-          if (target !== "none") {
+          if (deepLink === "project-portal") {
+            /* Portal deep link always opens the native portal experience. */
+            setGate("project-portal");
+          } else if (target !== "none") {
             if (deepLink === "workspace" || deepLink === "enter") setGate("workspace");
           } else if (deepLink) {
             setScopedUser(d.user);
             setGate("enter");
           }
         } else if (deepLink) {
-          setGate("enter");
+          setGate(deepLink === "project-portal" ? "project-portal" : "enter");
         }
       })
       .catch(() => {
@@ -215,6 +239,18 @@ export default function Page() {
     setSigningOut(false);
     setGate("enter");
     window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  /* Gateway → Project User Portal (native welcome flow, no credential wizard) */
+  const handleEnterProjectPortal = useCallback(() => {
+    setGate("project-portal");
+    window.history.replaceState(null, "", "/?portal=project");
+  }, []);
+
+  /* Project User Portal exit → back to the gateway */
+  const handleExitProjectPortal = useCallback(() => {
+    setGate("enter");
+    window.history.replaceState(null, "", "/?enter=1");
   }, []);
 
   /* Gateway → back to public site */
@@ -348,11 +384,27 @@ export default function Page() {
       }
     }
     /* stale workspace link without a live session → gateway */
-    return <EnterPlatform onBack={handleExitToSite} onAuthed={handleAuthed} />;
+    return (
+      <EnterPlatform
+        onBack={handleExitToSite}
+        onAuthed={handleAuthed}
+        onEnterProjectPortal={handleEnterProjectPortal}
+      />
+    );
+  }
+
+  if (gate === "project-portal") {
+    return <PuApp onExit={handleExitProjectPortal} />;
   }
 
   if (gate === "enter") {
-    return <EnterPlatform onBack={handleExitToSite} onAuthed={handleAuthed} />;
+    return (
+      <EnterPlatform
+        onBack={handleExitToSite}
+        onAuthed={handleAuthed}
+        onEnterProjectPortal={handleEnterProjectPortal}
+      />
+    );
   }
 
   return (

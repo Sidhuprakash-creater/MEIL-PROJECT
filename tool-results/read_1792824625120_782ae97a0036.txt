@@ -1,0 +1,534 @@
+     1→"use client";
+     2→
+     3→import * as React from "react";
+     4→import {
+     5→  ChevronDown, ChevronsLeft, ChevronsRight, Command, LogOut, Menu, RefreshCw, Search, ShieldCheck, X,
+     6→} from "lucide-react";
+     7→import {
+     8→  AlarmAlertIcon, BellIcon, CheckSealIcon, FileCheckIcon, GaugeIcon, GearIcon,
+     9→  HourglassIcon, ProjectsIcon, PulseIcon, TrendIcon, UnitsIcon, WorkflowIcon,
+    10→} from "@/components/workspace/premium-icons";
+    11→import { AnimatePresence, motion } from "framer-motion";
+    12→import { cn } from "@/lib/utils";
+    13→import { Button } from "@/components/ui/button";
+    14→import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+    15→import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+    16→import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+    17→import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+    18→import { Avatar, StatusBadge } from "@/components/workspace/ui";
+    19→import { SM_VIEWS, type SmViewComponent } from "@/components/manager/view-registry";
+    20→import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useSmWorkspace } from "@/lib/sm/store";
+    21→import type { SmViewId, SaNotification } from "@/lib/sm/types";
+    22→import { timeAgo, useSmApi } from "@/lib/sm/client";
+    23→
+    24→/* Map view ids to the premium iOS icon set — one visual language across
+    25→   sidebar, command palette and view headers (SF Symbols style). */
+    26→export const SM_VIEW_ICONS: Record<SmViewId, React.ComponentType<{ className?: string }>> = {
+    27→  dashboard: GaugeIcon,
+    28→  notifications: BellIcon,
+    29→  queue: CheckSealIcon,
+    30→  "reports-bu": UnitsIcon,
+    31→  "reports-project": ProjectsIcon,
+    32→  evidence: FileCheckIcon,
+    33→  corrections: WorkflowIcon,
+    34→  deadlines: HourglassIcon,
+    35→  analytics: TrendIcon,
+    36→  activity: PulseIcon,
+    37→  profile: GearIcon,
+    38→};
+    39→
+    40→/* ───────────────────────── Verified session user ────────────────────────
+    41→   The AppGate (/) resolves the signed-in identity from /api/auth/session
+    42→   and provides it here — including the assigned subsidiary context. */
+    43→
+    44→export interface SmSessionUser {
+    45→  id: string;
+    46→  name: string;
+    47→  email: string; // employee ID or email used at sign-in
+    48→  role: string;
+    49→  roleLabel: string;
+    50→  subsidiary: { id: string; code: string; name: string };
+    51→}
+    52→
+    53→const SessionUserContext = React.createContext<SmSessionUser | null>(null);
+    54→const SignOutContext = React.createContext<() => void>(() => undefined);
+    55→
+    56→export function useSmSessionUser(): SmSessionUser {
+    57→  const user = React.useContext(SessionUserContext);
+    58→  if (!user) {
+    59→    // Defensive fallback (should never render without the gate providing one).
+    60→    return { id: "demo", name: "Subsidiary Manager", email: "SUB-1001", role: "SUBSIDIARY_MANAGER", roleLabel: "Subsidiary Manager", subsidiary: { id: "", code: "SUB", name: "Assigned Subsidiary" } };
+    61→  }
+    62→  return user;
+    63→}
+    64→
+    65→/** Sign-out callback provided by the AppGate through the shell. */
+    66→export function useSmSignOut(): () => void {
+    67→  return React.useContext(SignOutContext);
+    68→}
+    69→
+    70→function shortName(name: string): string {
+    71→  const parts = name.trim().split(/\s+/);
+    72→  return parts.length > 1 ? `${parts[0]} ${parts[parts.length - 1][0]}.` : name;
+    73→}
+    74→
+    75→const NAV_LABELS: Record<SmViewId, string> = {
+    76→  dashboard: "Dashboard",
+    77→  notifications: "Notifications",
+    78→  queue: "Review Queue",
+    79→  "reports-bu": "BU Reports",
+    80→  "reports-project": "Project Reports",
+    81→  evidence: "Evidence Review",
+    82→  corrections: "Corrections",
+    83→  deadlines: "Tasks & Deadlines",
+    84→  analytics: "ESG Analytics",
+    85→  activity: "Activity & History",
+    86→  profile: "Profile",
+    87→};
+    88→
+    89→/* ───────────────────────────── Sidebar ───────────────────────────── */
+    90→
+    91→function NavItem({ view, collapsed }: { view: SmViewId; collapsed: boolean }) {
+    92→  const { view: active, navigate, queueCount } = useSmWorkspace();
+    93→  const Icon = SM_VIEW_ICONS[view];
+    94→  const meta = VIEW_META[view];
+    95→  const isActive = active === view;
+    96→  const showBadge = view === "queue" && queueCount > 0;
+    97→  const btn = (
+    98→    <button
+    99→      onClick={() => navigate(view)}
+   100→      aria-current={isActive ? "page" : undefined}
+   101→      className={cn(
+   102→        "group relative flex w-full items-center gap-3 rounded-2xl border border-transparent px-3 py-2.5 text-[13.5px] font-medium transition-all duration-200",
+   103→        isActive ? "nav-active" : "text-[color:var(--ink-soft)] hover:border-white/70 hover:bg-white/60",
+   104→        collapsed && "justify-center px-0"
+   105→      )}
+   106→    >
+   107→      <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive ? "text-[color:var(--esg-blue)]" : "text-[color:var(--ink-faint)] group-hover:text-[color:var(--ink-soft)]")} />
+   108→      {!collapsed && <span className="truncate">{NAV_LABELS[view]}</span>}
+   109→      {!collapsed && showBadge && (
+   110→        <span className="ml-auto rounded-full bg-[rgba(58,123,255,0.14)] px-2 py-0.5 text-[10.5px] font-bold tabular text-[color:var(--esg-blue)]">{queueCount}</span>
+   111→      )}
+   112→      {collapsed && showBadge && (
+   113→        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[color:var(--esg-blue)] ring-2 ring-white/80" />
+   114→      )}
+   115→    </button>
+   116→  );
+   117→  if (collapsed) {
+   118→    return (
+   119→      <Tooltip delayDuration={200}>
+   120→        <TooltipTrigger asChild>{btn}</TooltipTrigger>
+   121→        <TooltipContent side="right" className="rounded-xl border-white/70 bg-white/95 font-medium text-[color:var(--ink)] shadow-lg backdrop-blur">
+   122→          {meta.title}
+   123→        </TooltipContent>
+   124→      </Tooltip>
+   125→    );
+   126→  }
+   127→  return btn;
+   128→}
+   129→
+   130→function SidebarContent({ collapsed }: { collapsed: boolean }) {
+   131→  const { navigate } = useSmWorkspace();
+   132→  const user = useSmSessionUser();
+   133→  return (
+   134→    <div className={cn("flex h-full flex-col", collapsed ? "px-2.5 py-4" : "px-3.5 py-4")}>
+   135→      {/* Brand */}
+   136→      <button onClick={() => navigate("dashboard")} className={cn("mb-4 flex items-center gap-3 rounded-2xl px-1.5 py-1 text-left", collapsed && "justify-center px-0")}>
+   137→        <span className="glass-strong glass-sheen flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl shadow-md">
+   138→          <span className="bg-gradient-to-br from-[#3a7bff] to-[#6a5bff] bg-clip-text text-[15px] font-extrabold tracking-tight text-transparent">ME</span>
+   139→        </span>
+   140→        {!collapsed && (
+   141→          <span className="min-w-0">
+   142→            <span className="block truncate text-[14.5px] font-bold leading-tight tracking-tight text-[color:var(--ink)]">MEIL ESG Platform</span>
+   143→            <span className="block truncate text-[11px] font-medium text-[color:var(--ink-faint)]">Subsidiary Manager Workspace</span>
+   144→          </span>
+   145→        )}
+   146→      </button>
+   147→
+   148→      {/* Manager identity card */}
+   149→      {!collapsed && (
+   150→        <div className="glass-subtle glass-sheen mb-4 rounded-2xl p-2.5">
+   151→          <div className="flex items-center gap-3">
+   152→            <Avatar name={user.name} size={34} />
+   153→            <div className="min-w-0 flex-1">
+   154→              <div className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{user.name}</div>
+   155→              <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{user.roleLabel}</div>
+   156→            </div>
+   157→            <span className="flex h-2 w-2 shrink-0 rounded-full bg-[#238653] pulse-dot" aria-label="Online" />
+   158→          </div>
+   159→          <div className="mt-2 flex items-center gap-1.5 rounded-xl bg-[rgba(58,123,255,0.08)] px-2 py-1.5">
+   160→            <span className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--esg-blue)]">Scope</span>
+   161→            <span className="truncate text-[11px] font-semibold text-[color:var(--ink-soft)]">{user.subsidiary.name}</span>
+   162→          </div>
+   163→        </div>
+   164→      )}
+   165→
+   166→      {/* Navigation */}
+   167→      <nav className="nice-scroll flex-1 space-y-4 overflow-y-auto pb-2" aria-label="Primary">
+   168→        {VIEW_ORDER.map((group) => (
+   169→          <div key={group.group}>
+   170→            {!collapsed && (
+   171→              <div className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-widest text-[color:var(--ink-faint)]">{group.group}</div>
+   172→            )}
+   173→            <div className="space-y-1">
+   174→              {group.views.map((v) => (
+   175→                <NavItem key={v} view={v} collapsed={collapsed} />
+   176→              ))}
+   177→            </div>
+   178→          </div>
+   179→        ))}
+   180→      </nav>
+   181→
+   182→      {/* Footer note */}
+   183→      {!collapsed && (
+   184→        <div className="glass-subtle mt-3 rounded-2xl p-3">
+   185→          <div className="flex items-center gap-2 text-[11.5px] font-semibold text-[color:var(--ink-soft)]">
+   186→            <ShieldCheck className="h-3.5 w-3.5 text-[#1d6b44]" /> Review authority
+   187→          </div>
+   188→          <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--ink-faint)]">
+   189→            You verify and decide on {user.subsidiary.name} reports. Organization, users and timelines stay with the Subsidiary Admin.
+   190→          </p>
+   191→        </div>
+   192→      )}
+   193→    </div>
+   194→  );
+   195→}
+   196→
+   197→/* ───────────────────────────── Live sync indicator ───────────────────────────── */
+   198→
+   199→function LiveSyncBadge() {
+   200→  const { lastSyncedAt, setCommandOpen } = useSmWorkspace();
+   201→  const [, force] = React.useState(0);
+   202→  React.useEffect(() => {
+   203→    const t = window.setInterval(() => force((n) => n + 1), 5000);
+   204→    return () => window.clearInterval(t);
+   205→  }, []);
+   206→  const secs = lastSyncedAt ? Math.max(0, Math.floor((Date.now() - new Date(lastSyncedAt).getTime()) / 1000)) : null;
+   207→  return (
+   208→    <button
+   209→      className="glass-subtle hidden h-10 items-center gap-2 rounded-2xl px-3 transition-colors hover:bg-white/75 xl:flex"
+   210→      onClick={() => setCommandOpen(true)}
+   211→      aria-label={`Live sync active, last synced ${secs ?? "—"} seconds ago`}
+   212→      title="Data syncs automatically every 15 seconds"
+   213→    >
+   214→      <span className="relative flex h-2 w-2">
+   215→        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#238653] opacity-60" />
+   216→        <span className="relative inline-flex h-2 w-2 rounded-full bg-[#238653]" />
+   217→      </span>
+   218→      <span className="text-[11.5px] font-semibold text-[color:var(--ink-soft)]">Live</span>
+   219→      <span className="text-[11px] tabular text-[color:var(--ink-faint)]">{secs === null ? "syncing…" : secs < 60 ? `${secs}s ago` : timeAgo(lastSyncedAt)}</span>
+   220→    </button>
+   221→  );
+   222→}
+   223→
+   224→/* ───────────────────────────── Top bar ───────────────────────────── */
+   225→
+   226→function NotificationBell() {
+   227→  const { data } = useSmApi<{ notifications: SaNotification[]; unread: number }>("/api/sm/notifications?limit=6&filter=all");
+   228→  const { navigate, setUnreadCount, unreadCount } = useSmWorkspace();
+   229→  const unread = data?.unread ?? 0;
+   230→  React.useEffect(() => {
+   231→    setUnreadCount(unread);
+   232→  }, [unread, setUnreadCount]);
+   233→  return (
+   234→    <DropdownMenu>
+   235→      <DropdownMenuTrigger asChild>
+   236→        <button className="glass-subtle relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all hover:bg-white/75" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
+   237→          <BellIcon className="h-[18px] w-[18px] text-[color:var(--ink-soft)]" />
+   238→          {unreadCount > 0 && (
+   239→            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#c34a4a] px-1 text-[10px] font-bold text-white shadow-md ring-2 ring-white/80">
+   240→              {unreadCount}
+   241→            </span>
+   242→          )}
+   243→        </button>
+   244→      </DropdownMenuTrigger>
+   245→      <DropdownMenuContent align="end" className="glass-strong w-[360px] rounded-3xl border-white/80 p-2">
+   246→        <div className="flex items-center justify-between px-2.5 py-1.5">
+   247→          <span className="text-[13px] font-semibold text-[color:var(--ink)]">Notifications</span>
+   248→          <button className="text-xs font-medium text-[color:var(--esg-blue)] hover:underline" onClick={() => navigate("notifications")}>
+   249→            View all
+   250→          </button>
+   251→        </div>
+   252→        <div className="nice-scroll max-h-[320px] space-y-1 overflow-y-auto">
+   253→          {(data?.notifications ?? []).length === 0 && <div className="px-3 py-6 text-center text-sm text-[color:var(--ink-faint)]">No notifications</div>}
+   254→          {(data?.notifications ?? []).map((n) => (
+   255→            <button
+   256→              key={n.id}
+   257→              className={cn("flex w-full items-start gap-2.5 rounded-2xl p-2.5 text-left transition-colors hover:bg-white/70", !n.read && "bg-[rgba(58,123,255,0.06)]")}
+   258→              onClick={() => navigate("notifications", { openId: n.id })}
+   259→            >
+   260→              <span className={cn("mt-1.5 h-2 w-2 shrink-0 rounded-full", n.severity === "CRITICAL" ? "bg-[#c34a4a]" : n.severity === "WARNING" ? "bg-[#c57926]" : n.severity === "SUCCESS" ? "bg-[#238653]" : "bg-[#3a7bff]", !n.read && "pulse-dot")} />
+   261→              <span className="min-w-0">
+   262→                <span className={cn("block truncate text-[13px]", n.read ? "text-[color:var(--ink-soft)]" : "font-semibold text-[color:var(--ink)]")}>{n.title}</span>
+   263→                <span className="block truncate text-[11.5px] text-[color:var(--ink-faint)]">{n.body}</span>
+   264→                <span className="mt-0.5 block text-[10.5px] text-[color:var(--ink-faint)]">{timeAgo(n.createdAt)}{n.origin === "group" && " · from Group Admin"}</span>
+   265→              </span>
+   266→            </button>
+   267→          ))}
+   268→        </div>
+   269→      </DropdownMenuContent>
+   270→    </DropdownMenu>
+   271→  );
+   272→}
+   273→
+   274→function GlobalSearch({ trigger }: { trigger: React.ReactNode }) {
+   275→  const { commandOpen, setCommandOpen, navigate } = useSmWorkspace();
+   276→  const open = React.useCallback(() => setCommandOpen(true), [setCommandOpen]);
+   277→  const triggerWithClick =
+   278→    React.isValidElement<{ onClick?: () => void }>(trigger) ? React.cloneElement(trigger, { onClick: open }) : trigger;
+   279→  return (
+   280→    <>
+   281→      {triggerWithClick}
+   282→      <CommandDialog open={commandOpen} onOpenChange={setCommandOpen}>
+   283→        <CommandInput placeholder="Search modules and actions…" className="text-sm" />
+   284→        <CommandList className="nice-scroll">
+   285→          <CommandEmpty>No results found.</CommandEmpty>
+   286→          <CommandGroup heading="Modules">
+   287→            {VIEW_ORDER.flatMap((g) => g.views).map((v) => {
+   288→              const Icon = SM_VIEW_ICONS[v];
+   289→              return (
+   290→                <CommandItem key={v} value={VIEW_META[v].title} onSelect={() => navigate(v)}>
+   291→                  <Icon className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" />
+   292→                  {VIEW_META[v].title}
+   293→                  <span className="ml-auto text-xs text-[color:var(--ink-faint)]">{VIEW_META[v].group}</span>
+   294→                </CommandItem>
+   295→              );
+   296→            })}
+   297→          </CommandGroup>
+   298→          <CommandGroup heading="Quick actions">
+   299→            <CommandItem onSelect={() => navigate("queue")}>
+   300→              <CheckSealIcon className="mr-2 h-4 w-4 text-[color:var(--esg-blue)]" /> Open the Review Queue
+   301→            </CommandItem>
+   302→            <CommandItem onSelect={() => navigate("queue", { statusFilter: "overdue" })}>
+   303→              <AlarmAlertIcon className="mr-2 h-4 w-4 text-[#c34a4a]" /> Overdue review actions
+   304→            </CommandItem>
+   305→            <CommandItem onSelect={() => navigate("corrections")}>
+   306→              <WorkflowIcon className="mr-2 h-4 w-4 text-[#c57926]" /> Corrections &amp; rejections
+   307→            </CommandItem>
+   308→            <CommandItem onSelect={() => navigate("deadlines")}>
+   309→              <HourglassIcon className="mr-2 h-4 w-4 text-[#c57926]" /> Review deadlines
+   310→            </CommandItem>
+   311→          </CommandGroup>
+   312→        </CommandList>
+   313→      </CommandDialog>
+   314→    </>
+   315→  );
+   316→}
+   317→
+   318→function TopBar() {
+   319→  const { view, params, reportingYear, setReportingYear, toggleSidebar, sidebarCollapsed, setMobileNav } = useSmWorkspace();
+   320→  const user = useSmSessionUser();
+   321→  const onSignOut = React.useContext(SignOutContext);
+   322→  const meta = VIEW_META[view];
+   323→
+   324→  return (
+   325→    <header className="glass-chrome glass-sheen z-30 mx-3 flex shrink-0 items-center gap-2 rounded-3xl px-3 py-2.5 sm:mx-4 sm:gap-3 sm:px-4">
+   326→      <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 rounded-2xl hover:bg-white/70 lg:hidden" onClick={() => setMobileNav(true)} aria-label="Open navigation">
+   327→        <Menu className="h-5 w-5" />
+   328→      </Button>
+   329→      <Button variant="ghost" size="icon" className="hidden h-10 w-10 shrink-0 rounded-2xl hover:bg-white/70 lg:flex" onClick={toggleSidebar} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}>
+   330→        {sidebarCollapsed ? <ChevronsRight className="h-4.5 w-4.5" /> : <ChevronsLeft className="h-4.5 w-4.5" />}
+   331→      </Button>
+   332→
+   333→      {/* Breadcrumbs with subsidiary context */}
+   334→      <div className="hidden min-w-0 flex-col md:flex">
+   335→        <div className="flex max-w-[280px] items-center gap-1.5 overflow-hidden whitespace-nowrap text-[11px] font-medium text-[color:var(--ink-faint)]">
+   336→          <span className="truncate">{user.subsidiary.name}</span>
+   337→          <span className="shrink-0">/</span>
+   338→          <span className="truncate">{meta.group}</span>
+   339→        </div>
+   340→        <div className="truncate text-[14px] font-semibold text-[color:var(--ink)]">{meta.title}</div>
+   341→      </div>
+   342→
+   343→      <div className="ml-auto flex items-center gap-2 sm:gap-2.5">
+   344→        {/* Assigned subsidiary scope chip */}
+   345→        <div className="glass-subtle hidden h-10 items-center gap-2 rounded-2xl px-3 2xl:flex" title="Your session is scoped to this subsidiary">
+   346→          <span className="h-1.5 w-1.5 rounded-full bg-[color:var(--esg-blue)]" aria-hidden="true" />
+   347→          <span className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Scope</span>
+   348→          <span className="max-w-[150px] truncate text-[12.5px] font-semibold text-[color:var(--ink)]">{user.subsidiary.name}</span>
+   349→          <span className="rounded-lg bg-[rgba(58,123,255,0.1)] px-1.5 py-0.5 text-[10px] font-bold text-[color:var(--esg-blue)]">{user.subsidiary.code}</span>
+   350→        </div>
+   351→
+   352→        <LiveSyncBadge />
+   353→
+   354→        {/* Reporting year */}
+   355→        <div className="glass-subtle hidden items-center rounded-2xl border-white/60 sm:flex">
+   356→          <span className="pl-3 pr-1 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">Period</span>
+   357→          <Select value={reportingYear} onValueChange={setReportingYear}>
+   358→            <SelectTrigger className="h-9 w-[126px] rounded-2xl border-0 bg-transparent text-[13px] font-semibold text-[color:var(--ink)] shadow-none focus:ring-0" aria-label="Reporting year">
+   359→              <SelectValue />
+   360→            </SelectTrigger>
+   361→            <SelectContent className="glass-strong rounded-2xl border-white/70">
+   362→              {REPORTING_YEARS.map((y) => (
+   363→                <SelectItem key={y} value={y}>{y}</SelectItem>
+   364→              ))}
+   365→            </SelectContent>
+   366→          </Select>
+   367→        </div>
+   368→
+   369→        <GlobalSearch trigger={
+   370→          <button className="glass-subtle hidden h-10 items-center gap-2 rounded-2xl px-3 text-[13px] text-[color:var(--ink-faint)] transition-colors hover:bg-white/75 md:flex" aria-label="Search (command palette)">
+   371→            <Search className="h-4 w-4" />
+   372→            <span>Search…</span>
+   373→            <kbd className="ml-2 hidden rounded-lg border border-[rgba(125,177,216,0.4)] bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold text-[color:var(--ink-soft)] xl:inline">⌘K</kbd>
+   374→          </button>
+   375→        } />
+   376→
+   377→        <NotificationBell />
+   378→
+   379→        {/* Profile */}
+   380→        <DropdownMenu>
+   381→          <DropdownMenuTrigger asChild>
+   382→            <button className="glass-subtle flex h-10 items-center gap-2 rounded-2xl pl-1.5 pr-2.5 transition-colors hover:bg-white/75" aria-label="Profile menu">
+   383→              <Avatar name={user.name} size={30} />
+   384→              <span className="hidden text-[13px] font-semibold text-[color:var(--ink)] lg:inline">{shortName(user.name)}</span>
+   385→              <ChevronDown className="hidden h-3.5 w-3.5 text-[color:var(--ink-faint)] lg:inline" />
+   386→            </button>
+   387→          </DropdownMenuTrigger>
+   388→          <DropdownMenuContent align="end" className="glass-strong w-64 rounded-3xl border-white/80 p-2">
+   389→            <DropdownMenuLabel className="px-2 py-1 text-[10.5px] font-semibold uppercase tracking-widest text-[color:var(--ink-faint)]">Subsidiary Manager</DropdownMenuLabel>
+   390→            <div className="flex items-center gap-3 px-2 py-2">
+   391→              <Avatar name={user.name} size={40} />
+   392→              <div className="min-w-0">
+   393→                <div className="truncate text-[13.5px] font-semibold text-[color:var(--ink)]">{user.name}</div>
+   394→                <div className="truncate text-[11.5px] text-[color:var(--ink-faint)]">{user.email}</div>
+   395→                <div className="mt-1"><StatusBadge status="ACTIVE" /></div>
+   396→              </div>
+   397→            </div>
+   398→            <div className="mx-2 mb-1 rounded-xl bg-[rgba(58,123,255,0.07)] px-2.5 py-2">
+   399→              <div className="text-[10px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Assigned subsidiary</div>
+   400→              <div className="truncate text-[12px] font-semibold text-[color:var(--ink)]">{user.subsidiary.name} · {user.subsidiary.code}</div>
+   401→            </div>
+   402→            <DropdownMenuSeparator className="bg-[rgba(125,177,216,0.3)]" />
+   403→            <DropdownMenuItem className="rounded-xl text-[13px]" onClick={() => useSmWorkspace.getState().navigate("profile")}>
+   404→              <GearIcon className="mr-2 h-4 w-4" /> Profile &amp; preferences
+   405→            </DropdownMenuItem>
+   406→            <DropdownMenuItem className="rounded-xl text-[13px]" onClick={() => useSmWorkspace.getState().navigate("activity")}>
+   407→              <FileCheckIcon className="mr-2 h-4 w-4" /> My decision trail
+   408→            </DropdownMenuItem>
+   409→            <DropdownMenuSeparator className="bg-[rgba(125,177,216,0.3)]" />
+   410→            <DropdownMenuItem
+   411→              className="rounded-xl text-[13px] text-[#a53b3b] data-[highlighted]:bg-[rgba(195,74,74,0.08)]"
+   412→              onClick={onSignOut}
+   413→            >
+   414→              <LogOut className="mr-2 h-4 w-4" /> Sign out
+   415→            </DropdownMenuItem>
+   416→          </DropdownMenuContent>
+   417→        </DropdownMenu>
+   418→      </div>
+   419→    </header>
+   420→  );
+   421→}
+   422→
+   423→/* ───────────────────────────── Workspace shell ───────────────────────────── */
+   424→
+   425→export function SmWorkspaceShell({
+   426→  sessionUser,
+   427→  onSignOut,
+   428→}: {
+   429→  sessionUser: SmSessionUser;
+   430→  onSignOut?: () => void;
+   431→}) {
+   432→  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen, setQueueCount } = useSmWorkspace();
+   433→
+   434→  /* ⌘K keyboard shortcut */
+   435→  React.useEffect(() => {
+   436→    const down = (e: KeyboardEvent) => {
+   437→      if ((e.key === "k" || e.key === "K") && (e.metaKey || e.ctrlKey)) {
+   438→        e.preventDefault();
+   439→        setCommandOpen(!commandOpen);
+   440→      }
+   441→    };
+   442→    window.addEventListener("keydown", down);
+   443→    return () => window.removeEventListener("keydown", down);
+   444→  }, [commandOpen, setCommandOpen]);
+   445→
+   446→  /* Live queue counter for the sidebar badge (15s poll, visibility-aware). */
+   447→  const { data: pulse } = useSmApi<{ unread: number; queueCount: number }>("/api/sm/pulse", { pollMs: 15000 });
+   448→  React.useEffect(() => {
+   449→    if (pulse && typeof pulse.queueCount === "number") setQueueCount(pulse.queueCount);
+   450→  }, [pulse, setQueueCount]);
+   451→
+   452→  const ViewComponent = SM_VIEWS[view] as SmViewComponent;
+   453→
+   454→  /* App-frame layout: shell chrome never scrolls — ONLY <main> scrolls. */
+   455→  return (
+   456→    <SessionUserContext.Provider value={sessionUser}>
+   457→      <SignOutContext.Provider value={onSignOut ?? (() => undefined)}>
+   458→        <div className="relative h-dvh overflow-hidden">
+   459→          {/* Ambient orbs are intentionally static — animating them would force every
+   460→              backdrop-filter glass surface to re-sample its backdrop every frame. */}
+   461→          <div className="liquid-sky" aria-hidden="true">
+   462→            <div className="orb left-[6%] top-[8%] h-[380px] w-[380px] bg-[rgba(120,180,255,0.34)]" />
+   463→            <div className="orb right-[4%] top-[22%] h-[320px] w-[320px] bg-[rgba(32,167,121,0.16)]" />
+   464→            <div className="orb bottom-[6%] left-[38%] h-[420px] w-[420px] bg-[rgba(86,196,187,0.18)]" />
+   465→          </div>
+   466→          <div className="liquid-grain" aria-hidden="true" />
+   467→
+   468→          <div className="relative z-10 flex h-full">
+   469→            {/* Desktop sidebar */}
+   470→            <aside
+   471→              className={cn(
+   472→                "glass-chrome z-20 my-3 ml-3 hidden shrink-0 flex-col rounded-3xl transition-[width] duration-300 lg:flex",
+   473→                sidebarCollapsed ? "w-[84px]" : "w-[264px]"
+   474→              )}
+   475→              aria-label="Sidebar"
+   476→            >
+   477→              <SidebarContent collapsed={sidebarCollapsed} />
+   478→            </aside>
+   479→
+   480→            {/* Mobile drawer */}
+   481→            <AnimatePresence>
+   482→              {mobileNavOpen && (
+   483→                <>
+   484→                  <motion.div
+   485→                    className="fixed inset-0 z-40 bg-[rgba(23,38,61,0.3)] backdrop-blur-sm lg:hidden"
+   486→                    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+   487→                    onClick={() => setMobileNav(false)}
+   488→                    aria-hidden="true"
+   489→                  />
+   490→                  <motion.aside
+   491→                    className="glass-chrome fixed left-0 top-0 z-50 flex h-full w-[290px] flex-col lg:hidden"
+   492→                    initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
+   493→                    transition={{ type: "spring", damping: 30, stiffness: 300 }}
+   494→                    aria-label="Mobile navigation"
+   495→                  >
+   496→                    <button className="absolute right-3 top-3.5 rounded-xl p-1.5 text-[color:var(--ink-faint)] hover:bg-white/70" onClick={() => setMobileNav(false)} aria-label="Close navigation">
+   497→                      <X className="h-5 w-5" />
+   498→                    </button>
+   499→                    <SidebarContent collapsed={false} />
+   500→                  </motion.aside>
+   501→                </>
+   502→              )}
+   503→            </AnimatePresence>
+   504→
+   505→            {/* Main column — top bar is fixed chrome; only <main> scrolls */}
+   506→            <div className="flex h-full min-w-0 flex-1 flex-col pb-4 pt-3">
+   507→              <TopBar />
+   508→              <main
+   509→                className="nice-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-4 sm:px-4"
+   510→                id="main-content"
+   511→              >
+   512→                <React.Suspense
+   513→                  fallback={
+   514→                    <div className="glass glass-sheen flex h-64 items-center justify-center rounded-3xl">
+   515→                      <span className="flex items-center gap-2 text-sm text-[color:var(--ink-faint)]">
+   516→                        <RefreshCw className="h-4 w-4 animate-spin" /> Loading module…
+   517→                      </span>
+   518→                    </div>
+   519→                  }
+   520→                >
+   521→                  <ViewComponent />
+   522→                </React.Suspense>
+   523→              </main>
+   524→            </div>
+   525→          </div>
+   526→        </div>
+   527→      </SignOutContext.Provider>
+   528→    </SessionUserContext.Provider>
+   529→  );
+   530→}
+   531→
+   532→/* Re-export for the AppGate's dynamic import */
+   533→export { Command as CommandGlyph };
+   534→

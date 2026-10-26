@@ -1,0 +1,443 @@
+     1→     1→"use client";
+     2→     2→
+     3→     3→// ── BU ADMIN · SCREEN 01 — Operational Command Center ──
+     4→     4→// Live overview of the BU's reporting, projects, deadlines + cross-console sync.
+     5→     5→
+     6→     6→import { useEffect, useState } from "react";
+     7→     7→import {
+     8→     8→  ArrowRight, Building2, CalendarClock, FileCheck2, FlaskConical, Radar, ShieldAlert, Sparkles,
+     9→     9→} from "lucide-react";
+    10→    10→import {
+    11→    11→  AlarmAlertIcon, BellIcon, CheckSealIcon, FilesIcon, HourglassIcon, MegaphoneIcon,
+    12→    12→  PeopleIcon, ProjectsIcon, PulseIcon, ReportChartIcon, TaskCheckIcon,
+    13→    13→} from "@/components/workspace/premium-icons";
+    14→    14→import { motion } from "framer-motion";
+    15→    15→import { Button } from "@/components/ui/button";
+    16→    16→import { cn } from "@/lib/utils";
+    17→    17→import { useBaWorkspace } from "@/lib/ba/store";
+    18→    18→import { fmtDate, fmtNumber, timeAgo, useBaApi } from "@/lib/ba/client";
+    19→    19→import type { BaDashboardData } from "@/lib/ba/types";
+    20→    20→import { DEADLINE_STATUS_LABELS } from "@/lib/ba/types";
+    21→    21→import {
+    22→    22→  Chip, CountUp, EmptyState, ErrorState, GlassCard, GlassProgress, LoadingBlock,
+    23→    23→  PageHeader, SectionCard, StatusBadge,
+    24→    24→} from "@/components/workspace/ui";
+    25→    25→import { Eyebrow, MetaLine } from "@/components/ba/shared";
+    26→    26→
+    27→    27→/* status hue map — sky-blue submitted, purple pending review, amber pending, red overdue, green approved */
+    28→    28→const STATUS_HUE: Record<string, string> = {
+    29→    29→  APPROVED: "#16A67A", SUBMITTED: "#348BE8", UNDER_REVIEW: "#8B5CF6",
+    30→    30→  DRAFT: "#8a99ad", ASSIGNED: "#c57926", CHANGES_REQUESTED: "#c57926", REJECTED: "#E35D6A",
+    31→    31→};
+    32→    32→
+    33→    33→function StatusCard({
+    34→    34→  icon: Icon, hue, label, hint, value, onClick,
+    35→    35→}: {
+    36→    36→  icon: React.ComponentType<{ className?: string; hue?: string }>;
+    37→    37→  hue: string; label: string; hint: string; value: number; onClick: () => void;
+    38→    38→}) {
+    39→    39→  return (
+    40→    40→    <button
+    41→    41→      onClick={onClick}
+    42→    42→      aria-label={`${label}: ${value}`}
+    43→    43→      className="glass-ba glass-sheen group relative flex flex-col gap-3 overflow-hidden rounded-[24px] p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_14px_34px_rgba(52,139,232,0.14)]"
+    44→    44→    >
+    45→    45→      <span className="absolute inset-x-0 top-0 h-[3px] opacity-80" style={{ background: `linear-gradient(90deg, ${hue}, ${hue}22)` }} />
+    46→    46→      <div className="flex items-center justify-between">
+    47→    47→        <span
+    48→    48→          className="flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-md"
+    49→    49→          style={{ background: `linear-gradient(135deg, ${hue}, color-mix(in srgb, ${hue} 62%, #17263d))`, boxShadow: `0 6px 16px color-mix(in srgb, ${hue} 38%, transparent), inset 0 1px 0 rgba(255,255,255,0.4)` }}
+    50→    50→        >
+    51→    51→          <Icon className="h-[18px] w-[18px] text-white" />
+    52→    52→        </span>
+    53→    53→        <span className="text-[26px] font-bold tabular leading-none text-[color:var(--ink)]">
+    54→    54→          <CountUp value={value} />
+    55→    55→        </span>
+    56→    56→      </div>
+    57→    57→      <div className="min-w-0">
+    58→    58→        <div className="truncate text-[13px] font-semibold" style={{ color: hue }}>{label}</div>
+    59→    59→        <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{hint}</div>
+    60→    60→      </div>
+    61→    61→    </button>
+    62→    62→  );
+    63→    63→}
+    64→    64→
+    65→    65→const QUICK_ACTIONS = [
+    66→    66→  { id: "monitoring-submitted", icon: CheckSealIcon, tint: "#348BE8", label: "View Submitted Reports", hint: "Sent by BU teams" },
+    67→    67→  { id: "monitoring-pending", icon: HourglassIcon, tint: "#8B5CF6", label: "Pending Review Queue", hint: "With BU Manager" },
+    68→    68→  { id: "submissions-overdue", icon: AlarmAlertIcon, tint: "#E35D6A", label: "Overdue Reports", hint: "Past deadline, unapproved" },
+    69→    69→  { id: "timelines-assign", icon: HourglassIcon, tint: "#c57926", label: "Assign Project Deadline", hint: "Within policy" },
+    70→    70→  { id: "tasks-new", icon: TaskCheckIcon, tint: "#16A67A", label: "Assign Operational Task", hint: "Set due date + reminder" },
+    71→    71→  { id: "comms-send", icon: MegaphoneIcon, tint: "#348BE8", label: "Send a Reminder", hint: "To BU contributors" },
+    72→    72→  { id: "esg-prepare", icon: ReportChartIcon, tint: "#8B5CF6", label: "Prepare BU Package", hint: "Submit to Subsidiary" },
+    73→    73→] as const;
+    74→    74→
+    75→    75→export default function DashboardView() {
+    76→    76→  const { navigate, reportingYear } = useBaWorkspace();
+    77→    77→  const { data, loading, error, refetch } = useBaApi<BaDashboardData>(
+    78→    78→    `/api/ba/dashboard?period=${encodeURIComponent(reportingYear)}`,
+    79→    79→    { deps: [reportingYear] }
+    80→    80→  );
+    81→    81→
+    82→    82→  const [syncPulse, setSyncPulse] = useState(0);
+    83→    83→  useEffect(() => {
+    84→    84→    const t = window.setInterval(() => setSyncPulse((n) => n + 1), 30000);
+    85→    85→    return () => window.clearInterval(t);
+    86→    86→  }, []);
+    87→    87→
+    88→    88→  if (loading && !data) return <LoadingBlock rows={6} label="Loading your BU command center…" />;
+    89→    89→  if (error && !data) return <ErrorState message={error} onRetry={refetch} />;
+    90→    90→  if (!data) return null;
+    91→    91→
+    92→    92→  const k = data.kpis;
+    93→    93→  const bu = data.businessUnit;
+    94→    94→
+    95→    95→  const quickNav = (id: string) => {
+    96→    96→    switch (id) {
+    97→    97→      case "monitoring-submitted": return navigate("monitoring", { statusFilter: "submitted" });
+    98→    98→      case "monitoring-pending": return navigate("monitoring", { statusFilter: "pending" });
+    99→    99→      case "submissions-overdue": return navigate("submissions", { tab: "overdue" });
+   100→   100→      case "timelines-assign": return navigate("timelines", { create: Date.now() });
+   101→   101→      case "tasks-new": return navigate("tasks", { create: Date.now() });
+   102→   102→      case "comms-send": return navigate("comms", { compose: Date.now() });
+   103→   103→      case "esg-prepare": return navigate("esg", { prepare: Date.now() });
+   104→   104→    }
+   105→   105→  };
+   106→   106→
+   107→   107→  return (
+   108→   108→    <div className="view-in space-y-4 pb-6">
+   109→   109→      <PageHeader
+   110→   110→        title={`${bu.name} — BU Operations Command`}
+   111→   111→        description={`${data.period} · Live operational overview of ${bu.name}. Every figure below syncs from the shared platform database — approvals belong to the BU Manager.`}
+   112→   112→        icon={Building2}
+   113→   113→      />
+   114→   114→
+   115→   115→      {/* ── HERO: BU identity + completion ring + sync ── */}
+   116→   116→      <GlassCard className="glass-ba-hero relative overflow-hidden p-5 sm:p-6">
+   117→   117→        <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(52,139,232,0.18),transparent_65%)]" />
+   118→   118→        <div className="pointer-events-none absolute -bottom-24 left-12 h-64 w-64 rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.12),transparent_70%)]" />
+   119→   119→        <div className="flex flex-wrap items-start justify-between gap-5">
+   120→   120→          <div className="flex min-w-0 items-center gap-4">
+   121→   121→            <span className="glass-strong glass-sheen flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl shadow-md">
+   122→   122→              <span className="text-[18px] font-extrabold tracking-tight text-[color:var(--ba-sky-deep)]">{bu.code.replace(/^BU-/, "").slice(0, 3)}</span>
+   123→   123→            </span>
+   124→   124→            <div className="min-w-0">
+   125→   125→              <div className="flex flex-wrap items-center gap-2">
+   126→   126→                <h1 className="truncate text-[19px] font-bold tracking-tight text-[color:var(--ink)]">{bu.name}</h1>
+   127→   127→                <StatusBadge status={bu.status} />
+   128→   128→              </div>
+   129→   129→              <p className="mt-0.5 line-clamp-1 text-[12.5px] text-[color:var(--ink-faint)]">
+   130→   130→                Under {bu.subsidiaryName} · {bu.sector} · BU Manager {bu.managerName} · Admin {bu.adminName}
+   131→   131→              </p>
+   132→   132→              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+   133→   133→                <HeroTile icon={ProjectsIcon} hue="#348BE8" label={`${k.totalProjects} Projects`} note="Within BU scope" />
+   134→   134→                <HeroTile icon={PeopleIcon} hue="#8B5CF6" label="BU Operational Team" note="Contributors + Manager" />
+   135→   135→                <HeroTile icon={PulseIcon} hue="#16A67A" label="Cross-console sync" note="Live to Group + Subsidiary" />
+   136→   136→              </div>
+   137→   137→            </div>
+   138→   138→          </div>
+   139→   139→          <div className="glass-subtle flex items-center gap-4 rounded-3xl p-4">
+   140→   140→            <div className="relative h-20 w-20">
+   141→   141→              <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90">
+   142→   142→                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(52,139,232,0.12)" strokeWidth="9" />
+   143→   143→                <circle
+   144→   144→                  cx="40" cy="40" r="34" fill="none" stroke="#348BE8" strokeWidth="9" strokeLinecap="round"
+   145→   145→                  strokeDasharray={`${(k.reportingCompletionPct / 100) * 213.6} 213.6`}
+   146→   146→                />
+   147→   147→              </svg>
+   148→   148→              <span className="absolute inset-0 flex items-center justify-center text-[16px] font-bold tabular text-[color:var(--ink)]">{k.reportingCompletionPct}%</span>
+   149→   149→            </div>
+   150→   150→            <div>
+   151→   151→              <div className="text-[12px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Reporting completion</div>
+   152→   152→              <div className="mt-1 text-[13px] font-semibold text-[color:var(--ink-soft)]">Approved / total records</div>
+   153→   153→              <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-[color:var(--ink-faint)]">
+   154→   154→                <PulseIcon className="h-3.5 w-3.5 text-[#348BE8]" />
+   155→   155→                Live · synced {syncPulse >= 0 ? timeAgo(useBaWorkspace.getState().lastSyncedAt) : "—"}
+   156→   156→              </div>
+   157→   157→            </div>
+   158→   158→          </div>
+   159→   159→        </div>
+   160→   160→      </GlassCard>
+   161→   161→
+   162→   162→      {/* ── Row 1: 6 KPI cards ── */}
+   163→   163→      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+   164→   164→        <StatusCard icon={ProjectsIcon} hue="#348BE8" label="Total Projects" hint="Within BU" value={k.totalProjects} onClick={() => navigate("projects")} />
+   165→   165→        <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.SUBMITTED} label="Submitted" hint="Sent for review" value={k.submittedReports} onClick={() => navigate("monitoring", { statusFilter: "submitted" })} />
+   166→   166→        <StatusCard icon={HourglassIcon} hue={STATUS_HUE.UNDER_REVIEW} label="Pending Reports" hint="With BU Manager" value={k.pendingReports} onClick={() => navigate("monitoring", { statusFilter: "pending" })} />
+   167→   167→        <StatusCard icon={AlarmAlertIcon} hue={STATUS_HUE.REJECTED} label="Overdue" hint="Past deadline" value={k.overdueReports} onClick={() => navigate("submissions", { tab: "overdue" })} />
+   168→   168→        <StatusCard icon={FlaskConical} hue="#8B5CF6" label="Pending Review" hint="Submitted + under review" value={k.pendingReview} onClick={() => navigate("monitoring", { statusFilter: "pending" })} />
+   169→   169→        <StatusCard icon={ReportChartIcon} hue={STATUS_HUE.APPROVED} label="Completion %" hint="Approved / total" value={k.reportingCompletionPct} onClick={() => navigate("analytics")} />
+   170→   170→      </div>
+   171→   171→
+   172→   172→      {/* ── Row 2: completion donut + status bar + deadline overview ── */}
+   173→   173→      <div className="grid gap-3 xl:grid-cols-3">
+   174→   174→        {/* Reporting-completion donut + status mix */}
+   175→   175→        <GlassCard className="glass-ba p-4">
+   176→   176→          <Eyebrow icon={ReportChartIcon} label="Status mix" hint={data.period} />
+   177→   177→          <div className="mt-4 flex items-center gap-4">
+   178→   178→            <div className="relative h-24 w-24 shrink-0">
+   179→   179→              <svg viewBox="0 0 80 80" className="h-24 w-24 -rotate-90">
+   180→   180→                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(125,177,216,0.18)" strokeWidth="9" />
+   181→   181→                {(() => {
+   182→   182→                  const total = data.statusDist.reduce((s, x) => s + x.count, 0) || 1;
+   183→   183→                  let offset = 0;
+   184→   184→                  const circ = 213.6;
+   185→   185→                  return data.statusDist.map((s) => {
+   186→   186→                    const frac = s.count / total;
+   187→   187→                    const dash = frac * circ;
+   188→   188→                    const el = (
+   189→   189→                      <circle
+   190→   190→                        key={s.status}
+   191→   191→                        cx="40" cy="40" r="34" fill="none"
+   192→   192→                        stroke={STATUS_HUE[s.status] ?? "#348BE8"}
+   193→   193→                        strokeWidth="9" strokeLinecap="round"
+   194→   194→                        strokeDasharray={`${dash} ${circ - dash}`}
+   195→   195→                        strokeDashoffset={-offset}
+   196→   196→                      />
+   197→   197→                    );
+   198→   198→                    offset += dash;
+   199→   199→                    return el;
+   200→   200→                  });
+   201→   201→                })()}
+   202→   202→              </svg>
+   203→   203→              <span className="absolute inset-0 flex flex-col items-center justify-center">
+   204→   204→                <span className="text-[18px] font-bold tabular text-[color:var(--ink)]">{data.statusDist.reduce((s, x) => s + x.count, 0)}</span>
+   205→   205→                <span className="text-[10px] font-medium uppercase tracking-wider text-[color:var(--ink-faint)]">records</span>
+   206→   206→              </span>
+   207→   207→            </div>
+   208→   208→            <div className="flex-1 space-y-1.5">
+   209→   209→              {data.statusDist.length === 0 && <EmptyState title="No submissions" message="No records yet for this period." />}
+   210→   210→              {data.statusDist.map((s) => (
+   211→   211→                <div key={s.status} className="flex items-center gap-2 text-[12px]">
+   212→   212→                  <span className="h-2 w-2 rounded-full" style={{ background: STATUS_HUE[s.status] ?? "#348BE8" }} />
+   213→   213→                  <span className="flex-1 text-[color:var(--ink-soft)]">{s.status.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase())}</span>
+   214→   214→                  <span className="tabular font-semibold text-[color:var(--ink)]">{s.count}</span>
+   215→   215→                </div>
+   216→   216→              ))}
+   217→   217→            </div>
+   218→   218→          </div>
+   219→   219→        </GlassCard>
+   220→   220→
+   221→   221→        {/* Project submission distribution bar */}
+   222→   222→        <GlassCard className="glass-ba p-4">
+   223→   223→          <Eyebrow icon={ProjectsIcon} label="Project distribution" hint="Submissions by project" />
+   224→   224→          <div className="mt-3 space-y-2.5">
+   225→   225→            {data.completionByProject.length === 0 && <EmptyState title="No projects yet" message="Projects are created by your Subsidiary Admin." />}
+   226→   226→            {data.completionByProject.map((p, i) => {
+   227→   227→              const max = Math.max(...data.completionByProject.map((x) => x.total), 1);
+   228→   228→              return (
+   229→   229→                <motion.div key={p.name} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }}>
+   230→   230→                  <div className="mb-1 flex items-center justify-between text-[11.5px]">
+   231→   231→                    <button onClick={() => navigate("projects", { detailId: undefined, q: p.name })} className="truncate font-semibold text-[color:var(--ink)] hover:text-[color:var(--ba-sky-deep)] hover:underline">{p.name}</button>
+   232→   232→                    <span className="tabular text-[color:var(--ink-faint)]">{p.total} · {p.completionPct}%</span>
+   233→   233→                  </div>
+   234→   234→                  <div className="flex h-2 items-center gap-0.5 overflow-hidden rounded-full bg-[rgba(102,119,141,0.14)]">
+   235→   235→                    <motion.div className="h-full rounded-l-full bg-[#348BE8]" initial={{ width: 0 }} animate={{ width: `${(p.approved / max) * 100}%` }} transition={{ duration: 0.5 }} />
+   236→   236→                    <motion.div className="h-full bg-[#8B5CF6]" initial={{ width: 0 }} animate={{ width: `${(p.pending / max) * 100}%` }} transition={{ duration: 0.5, delay: 0.05 }} />
+   237→   237→                    <motion.div className="h-full rounded-r-full bg-[#E35D6A]" initial={{ width: 0 }} animate={{ width: `${(p.overdue / max) * 100}%` }} transition={{ duration: 0.5, delay: 0.1 }} />
+   238→   238→                  </div>
+   239→   239→                </motion.div>
+   240→   240→              );
+   241→   241→            })}
+   242→   242→          </div>
+   243→   243→        </GlassCard>
+   244→   244→
+   245→   245→        {/* Reporting deadline overview */}
+   246→   246→        <GlassCard className="glass-ba p-4">
+   247→   247→          <Eyebrow icon={CalendarClock} label="Deadline overview" hint="Upcoming + overdue" />
+   248→   248→          <div className="mt-3 space-y-2">
+   249→   249→            {data.upcomingDeadlines.length === 0 && <EmptyState title="No upcoming deadlines" message="Project deadlines you set will appear here." />}
+   250→   250→            {data.upcomingDeadlines.slice(0, 5).map((d) => (
+   251→   251→              <button key={`${d.level}-${d.id}`} onClick={() => navigate("timelines")} className="flex w-full items-center justify-between gap-2 rounded-2xl px-2.5 py-2 text-left transition-colors hover:bg-white/70">
+   252→   252→                <span className="min-w-0">
+   253→   253→                  <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)]">{d.name}</span>
+   254→   254→                  <MetaLine>{DEADLINE_STATUS_LABELS[d.status] ?? d.status} · due {fmtDate(d.dueDate)}</MetaLine>
+   255→   255→                </span>
+   256→   256→                <Chip tone={d.daysLeft <= 3 ? "red" : d.daysLeft <= 7 ? "amber" : "blue"}>{d.daysLeft}d</Chip>
+   257→   257→              </button>
+   258→   258→            ))}
+   259→   259→          </div>
+   260→   260→        </GlassCard>
+   261→   261→      </div>
+   262→   262→
+   263→   263→      {/* ── Row 3: project-wise progress + overdue + pending submissions ── */}
+   264→   264→      <div className="grid gap-3 xl:grid-cols-3">
+   265→   265→        <SectionCard title="Project-wise reporting progress" icon={ProjectsIcon} actions={<Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("projects")}>Open projects <ArrowRight className="ml-1 h-3 w-3" /></Button>}>
+   266→   266→          <div className="space-y-3">
+   267→   267→            {data.completionByProject.length === 0 && <EmptyState title="No projects yet" message="Projects are created by your Subsidiary Admin." />}
+   268→   268→            {data.completionByProject.map((p, i) => (
+   269→   269→              <motion.div key={p.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: i * 0.05 }}>
+   270→   270→                <div className="mb-1 flex items-center justify-between text-[12px]">
+   271→   271→                  <button className="font-semibold text-[color:var(--ink)] hover:text-[color:var(--ba-sky-deep)] hover:underline" onClick={() => navigate("projects", { q: p.name })}>{p.name}</button>
+   272→   272→                  <span className="tabular text-[color:var(--ink-faint)]">{p.approved}/{p.total} approved · {p.overdue} overdue</span>
+   273→   273→                </div>
+   274→   274→                <GlassProgress value={p.completionPct} tone={p.completionPct >= 80 ? "green" : p.completionPct >= 40 ? "blue" : "amber"} />
+   275→   275→              </motion.div>
+   276→   276→            ))}
+   277→   277→          </div>
+   278→   278→        </SectionCard>
+   279→   279→
+   280→   280→        <SectionCard title="Overdue items" icon={AlarmAlertIcon} actions={<Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("submissions", { tab: "overdue" })}>All overdue <ArrowRight className="ml-1 h-3 w-3" /></Button>}>
+   281→   281→          <div className="space-y-2">
+   282→   282→            {data.overdueItems.length === 0 && <EmptyState title="Nothing overdue" message="Every record is inside its deadline. Keep it up!" />}
+   283→   283→            {data.overdueItems.map((o) => (
+   284→   284→              <button key={o.ref} onClick={() => navigate("submissions", { tab: "overdue", ref: o.ref })} className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-white/70">
+   285→   285→                <span className="min-w-0">
+   286→   286→                  <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)]">{o.title}</span>
+   287→   287→                  <MetaLine>{o.level} · {o.org} · owner {o.owner}</MetaLine>
+   288→   288→                </span>
+   289→   289→                <Chip tone="red">{o.daysLate}d late</Chip>
+   290→   290→              </button>
+   291→   291→            ))}
+   292→   292→          </div>
+   293→   293→        </SectionCard>
+   294→   294→
+   295→   295→        <SectionCard title="Pending submissions" icon={HourglassIcon} actions={<Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("submissions", { tab: "draft" })}>All drafts <ArrowRight className="ml-1 h-3 w-3" /></Button>}>
+   296→   296→          <div className="space-y-2">
+   297→   297→            {data.pendingSubmissionList.length === 0 && <EmptyState title="No pending drafts" message="Every report has been submitted." />}
+   298→   298→            {data.pendingSubmissionList.map((p) => (
+   299→   299→              <button key={p.id} onClick={() => navigate("submissions", { tab: "draft", ref: p.ref })} className="flex w-full items-center justify-between gap-2 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-white/70">
+   300→   300→                <span className="min-w-0">
+   301→   301→                  <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)]">{p.title}</span>
+   302→   302→                  <MetaLine>{p.ref} · {p.project} · owner {p.owner}</MetaLine>
+   303→   303→                </span>
+   304→   304→                <Chip tone={p.overdue ? "red" : p.daysLeft !== null && p.daysLeft <= 3 ? "amber" : "blue"}>{p.daysLeft === null ? "—" : p.overdue ? `${Math.abs(p.daysLeft)}d late` : `${p.daysLeft}d`}</Chip>
+   305→   305→              </button>
+   306→   306→            ))}
+   307→   307→          </div>
+   308→   308→        </SectionCard>
+   309→   309→      </div>
+   310→   310→
+   311→   311→      {/* ── Row 4: recent activity + upcoming deadlines + latest notifications + pending review monitor ── */}
+   312→   312→      <div className="grid gap-3 xl:grid-cols-4">
+   313→   313→        <SectionCard title="Recent activity" icon={PulseIcon} actions={<Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("activity")}>Feed <ArrowRight className="ml-1 h-3 w-3" /></Button>}>
+   314→   314→          <div className="space-y-2">
+   315→   315→            {data.recentActivity.length === 0 && <EmptyState title="No activity yet" message="BU actions will appear here." />}
+   316→   316→            {data.recentActivity.slice(0, 6).map((a) => (
+   317→   317→              <div key={a.id} className="flex items-start gap-2.5 rounded-2xl px-2 py-2">
+   318→   318→                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: a.severity === "WARNING" ? "#c57926" : a.severity === "CRITICAL" ? "#c34a4a" : "#348BE8" }} />
+   319→   319→                <div className="min-w-0">
+   320→   320→                  <div className="truncate text-[12px] text-[color:var(--ink)]"><strong className="font-semibold">{a.actorName}</strong> · {a.action.replace(/_/g, " ").toLowerCase()} {a.targetLabel && <span className="text-[color:var(--ink-soft)]">— {a.targetLabel}</span>}</div>
+   321→   321→                  <div className="text-[10.5px] text-[color:var(--ink-faint)]">{timeAgo(a.createdAt)}</div>
+   322→   322→                </div>
+   323→   323→              </div>
+   324→   324→            ))}
+   325→   325→          </div>
+   326→   326→        </SectionCard>
+   327→   327→
+   328→   328→        <SectionCard title="Upcoming deadlines" icon={CalendarClock}>
+   329→   329→          <div className="space-y-2">
+   330→   330→            {data.upcomingDeadlines.length === 0 && <EmptyState title="No upcoming deadlines" message="Set project timelines to see them here." />}
+   331→   331→            {data.upcomingDeadlines.slice(0, 6).map((d) => (
+   332→   332→              <button key={`${d.level}-${d.id}-2`} onClick={() => navigate("timelines")} className="flex w-full items-center justify-between gap-2 rounded-2xl px-2.5 py-2 text-left transition-colors hover:bg-white/70">
+   333→   333→                <span className="min-w-0">
+   334→   334→                  <span className="block truncate text-[12px] font-semibold text-[color:var(--ink)]">{d.name}</span>
+   335→   335→                  <MetaLine>due {fmtDate(d.dueDate)}</MetaLine>
+   336→   336→                </span>
+   337→   337→                <Chip tone={d.daysLeft <= 3 ? "red" : d.daysLeft <= 7 ? "amber" : "blue"}>{d.daysLeft}d</Chip>
+   338→   338→              </button>
+   339→   339→            ))}
+   340→   340→          </div>
+   341→   341→        </SectionCard>
+   342→   342→
+   343→   343→        <SectionCard title="Latest notifications" icon={BellIcon} actions={<Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("notifications")}>All <ArrowRight className="ml-1 h-3 w-3" /></Button>}>
+   344→   344→          <div className="space-y-2">
+   345→   345→            {data.latestNotifications.length === 0 && <EmptyState title="No notifications" message="Broadcasts from the platform will appear here." />}
+   346→   346→            {data.latestNotifications.slice(0, 6).map((n) => (
+   347→   347→              <button key={n.id} onClick={() => navigate("notifications", { openId: n.id })} className="flex w-full items-start gap-2.5 rounded-2xl px-2 py-2 text-left transition-colors hover:bg-white/70">
+   348→   348→                <span className={cnSeverity(n.severity)} />
+   349→   349→                <span className="min-w-0">
+   350→   350→                  <span className={cn("block truncate text-[12px]", n.read ? "text-[color:var(--ink-soft)]" : "font-semibold text-[color:var(--ink)]")}>{n.title}</span>
+   351→   351→                  <MetaLine>{timeAgo(n.createdAt)}{n.origin === "group" && " · broadcast"}</MetaLine>
+   352→   352→                </span>
+   353→   353→              </button>
+   354→   354→            ))}
+   355→   355→          </div>
+   356→   356→        </SectionCard>
+   357→   357→
+   358→   358→        <SectionCard title="Pending review monitor" icon={Radar} actions={<Button variant="ghost" size="sm" className="h-7 rounded-xl text-xs" onClick={() => navigate("monitoring", { statusFilter: "pending" })}>Open <ArrowRight className="ml-1 h-3 w-3" /></Button>}>
+   359→   359→          <div className="space-y-2.5">
+   360→   360→            <div className="flex items-center justify-between rounded-2xl bg-[rgba(139,92,246,0.06)] px-3 py-2.5">
+   361→   361→              <div>
+   362→   362→                <div className="text-[12px] font-semibold text-[color:var(--ink)]">With the BU Manager</div>
+   363→   363→                <MetaLine>Pending review</MetaLine>
+   364→   364→              </div>
+   365→   365→              <span className="text-[20px] font-bold tabular text-[#8B5CF6]"><CountUp value={k.pendingReports} /></span>
+   366→   366→            </div>
+   367→   367→            <div className="flex items-center justify-between rounded-2xl bg-[rgba(52,139,232,0.06)] px-3 py-2.5">
+   368→   368→              <div>
+   369→   369→                <div className="text-[12px] font-semibold text-[color:var(--ink)]">Submitted + in review</div>
+   370→   370→                <MetaLine>Cross-console visible</MetaLine>
+   371→   371→              </div>
+   372→   372→              <span className="text-[20px] font-bold tabular text-[#348BE8]"><CountUp value={k.pendingReview} /></span>
+   373→   373→            </div>
+   374→   374→            <div className="flex items-center justify-between rounded-2xl bg-[rgba(227,93,106,0.06)] px-3 py-2.5">
+   375→   375→              <div>
+   376→   376→                <div className="text-[12px] font-semibold text-[color:var(--ink)]">Overdue</div>
+   377→   377→                <MetaLine>Past deadline</MetaLine>
+   378→   378→              </div>
+   379→   379→              <span className="text-[20px] font-bold tabular text-[#E35D6A]"><CountUp value={k.overdueReports} /></span>
+   380→   380→            </div>
+   381→   381→          </div>
+   382→   382→        </SectionCard>
+   383→   383→      </div>
+   384→   384→
+   385→   385→      {/* Quick actions */}
+   386→   386→      <GlassCard className="glass-ba p-4">
+   387→   387→        <Eyebrow icon={FileCheck2} label="Quick actions" hint="Operational shortcuts" />
+   388→   388→        <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-7">
+   389→   389→          {QUICK_ACTIONS.map((qa) => (
+   390→   390→            <button
+   391→   391→              key={qa.id}
+   392→   392→              onClick={() => quickNav(qa.id)}
+   393→   393→              className="glass-subtle group flex items-center gap-2.5 rounded-2xl p-2.5 text-left transition-all hover:-translate-y-0.5 hover:bg-white/80"
+   394→   394→            >
+   395→   395→              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white" style={{ background: `linear-gradient(135deg, ${qa.tint}, color-mix(in srgb, ${qa.tint} 60%, #17263d))` }}>
+   396→   396→                <qa.icon className="h-4 w-4 text-white" />
+   397→   397→              </span>
+   398→   398→              <span className="min-w-0">
+   399→   399→                <span className="block truncate text-[12px] font-semibold text-[color:var(--ink)]">{qa.label}</span>
+   400→   400→                <span className="block truncate text-[10.5px] text-[color:var(--ink-faint)]">{qa.hint}</span>
+   401→   401→              </span>
+   402→   402→            </button>
+   403→   403→          ))}
+   404→   404→        </div>
+   405→   405→      </GlassCard>
+   406→   406→
+   407→   407→      {/* footer stat strip */}
+   408→   408→      <GlassCard className="glass-ba flex flex-wrap items-center justify-between gap-3 p-4">
+   409→   409→        <div className="flex flex-wrap items-center gap-5">
+   410→   410→          <span className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--ink-soft)]"><Building2 className="h-4 w-4 text-[color:var(--ba-sky-deep)]" /> {bu.name} · {bu.code}</span>
+   411→   411→          <span className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--ink-soft)]"><ProjectsIcon className="h-4 w-4 text-[color:var(--ba-sky-deep)]" /> {fmtNumber(k.totalProjects)} projects in scope</span>
+   412→   412→          <span className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--ink-soft)]"><ShieldAlert className="h-4 w-4 text-[#c57926]" aria-hidden="true" /> Approval authority: BU Manager</span>
+   413→   413→          <span className="flex items-center gap-2 text-[12px] font-medium text-[color:var(--ink-soft)]"><Sparkles className="h-4 w-4 text-[color:var(--ba-purple)]" /> Scope enforced server-side</span>
+   414→   414→        </div>
+   415→   415→      </GlassCard>
+   416→   416→    </div>
+   417→   417→  );
+   418→   418→}
+   419→   419→
+   420→   420→function HeroTile({ icon: Icon, hue, label, note }: { icon: React.ComponentType<{ className?: string; hue?: string }>; hue: string; label: string; note?: string }) {
+   421→   421→  return (
+   422→   422→    <div className="flex items-center gap-3">
+   423→   423→      <span className="glass-strong flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-sm">
+   424→   424→        <Icon className="h-5 w-5" hue={hue} />
+   425→   425→      </span>
+   426→   426→      <div className="min-w-0">
+   427→   427→        <div className="text-[15px] font-bold leading-tight text-[color:var(--ink)]">{label}</div>
+   428→   428→        {note && (
+   429→   429→          <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#1f6cc4]">
+   430→   430→            <span className="relative flex h-1.5 w-1.5"><span className="absolute h-full w-full animate-ping rounded-full bg-[#348BE8] opacity-60" /><span className="relative h-1.5 w-1.5 rounded-full bg-[#348BE8]" /></span>
+   431→   431→            {note}
+   432→   432→          </div>
+   433→   433→        )}
+   434→   434→      </div>
+   435→   435→    </div>
+   436→   436→  );
+   437→   437→}
+   438→   438→
+   439→   439→function cnSeverity(sev: string) {
+   440→   440→  const cls = sev === "CRITICAL" ? "bg-[#c34a4a]" : sev === "WARNING" ? "bg-[#c57926]" : sev === "SUCCESS" ? "bg-[#238653]" : "bg-[#348BE8]";
+   441→   441→  return "mt-1.5 h-2 w-2 shrink-0 rounded-full " + cls;
+   442→   442→}
+   443→   443→

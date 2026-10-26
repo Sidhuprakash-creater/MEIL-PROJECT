@@ -1,0 +1,764 @@
+     1→@import "tailwindcss";
+     2→@import "tw-animate-css";
+     3→
+     4→@custom-variant dark (&:is(.dark *));
+     5→
+     6→@theme inline {
+     7→  --color-background: var(--background);
+     8→  --color-foreground: var(--foreground);
+     9→  --font-sans: var(--font-geist-sans);
+    10→  --font-mono: var(--font-geist-mono);
+    11→  --color-sidebar-ring: var(--sidebar-ring);
+    12→  --color-sidebar-border: var(--sidebar-border);
+    13→  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    14→  --color-sidebar-accent: var(--sidebar-accent);
+    15→  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    16→  --color-sidebar-primary: var(--sidebar-primary);
+    17→  --color-sidebar-foreground: var(--sidebar-foreground);
+    18→  --color-sidebar: var(--sidebar);
+    19→  --color-chart-5: var(--chart-5);
+    20→  --color-chart-4: var(--chart-4);
+    21→  --color-chart-3: var(--chart-3);
+    22→  --color-chart-2: var(--chart-2);
+    23→  --color-chart-1: var(--chart-1);
+    24→  --color-ring: var(--ring);
+    25→  --color-input: var(--input);
+    26→  --color-border: var(--border);
+    27→  --color-destructive: var(--destructive);
+    28→  --color-accent-foreground: var(--accent-foreground);
+    29→  --color-accent: var(--accent);
+    30→  --color-muted-foreground: var(--muted-foreground);
+    31→  --color-muted: var(--muted);
+    32→  --color-secondary-foreground: var(--secondary-foreground);
+    33→  --color-secondary: var(--secondary);
+    34→  --color-primary-foreground: var(--primary-foreground);
+    35→  --color-primary: var(--primary);
+    36→  --color-popover-foreground: var(--popover-foreground);
+    37→  --color-popover: var(--popover);
+    38→  --color-card-foreground: var(--card-foreground);
+    39→  --color-card: var(--card);
+    40→  --radius-sm: calc(var(--radius) - 4px);
+    41→  --radius-md: calc(var(--radius) - 2px);
+    42→  --radius-lg: var(--radius);
+    43→  --radius-xl: calc(var(--radius) + 4px);
+    44→}
+    45→
+    46→:root {
+    47→  --radius: 1rem;
+    48→  /* MEIL Liquid Glass — premium sky-blue atmosphere (darker text for visibility) */
+    49→  --background: oklch(0.975 0.02 235);
+    50→  --foreground: oklch(0.12 0.04 250);
+    51→  --card: oklch(1 0 0);
+    52→  --card-foreground: oklch(0.12 0.04 250);
+    53→  --popover: oklch(1 0 0);
+    54→  --popover-foreground: oklch(0.12 0.04 250);
+    55→  --primary: oklch(0.55 0.20 240);
+    56→  --primary-foreground: oklch(0.99 0 0);
+    57→  --secondary: oklch(0.94 0.02 230);
+    58→  --secondary-foreground: oklch(0.15 0.04 245);
+    59→  --muted: oklch(0.94 0.015 230);
+    60→  --muted-foreground: oklch(0.35 0.03 245);
+    61→  --accent: oklch(0.93 0.03 230);
+    62→  --accent-foreground: oklch(0.2 0.05 245);
+    63→  --destructive: oklch(0.58 0.22 27);
+    64→  --border: oklch(0.88 0.02 230);
+    65→  --input: oklch(0.9 0.015 230);
+    66→  --ring: oklch(0.62 0.17 235);
+    67→  --chart-1: oklch(0.6 0.19 235);
+    68→  --chart-2: oklch(0.72 0.16 200);
+    69→  --chart-3: oklch(0.62 0.16 145);
+    70→  --chart-4: oklch(0.75 0.16 70);
+    71→  --chart-5: oklch(0.6 0.2 30);
+    72→  --sidebar: oklch(0.975 0.02 235);
+    73→  --sidebar-foreground: oklch(0.16 0.05 245);
+    74→  --sidebar-primary: oklch(0.6 0.19 235);
+    75→  --sidebar-primary-foreground: oklch(0.99 0 0);
+    76→  --sidebar-accent: oklch(0.95 0.02 230);
+    77→  --sidebar-accent-foreground: oklch(0.22 0.05 245);
+    78→  --sidebar-border: oklch(0.9 0.015 230);
+    79→  --sidebar-ring: oklch(0.6 0.16 245);
+    80→}
+    81→
+    82→.dark {
+    83→  --background: oklch(0.16 0.02 245);
+    84→  --foreground: oklch(0.97 0.01 230);
+    85→  --card: oklch(0.22 0.02 245);
+    86→  --card-foreground: oklch(0.97 0.01 230);
+    87→  --popover: oklch(0.22 0.02 245);
+    88→  --popover-foreground: oklch(0.97 0.01 230);
+    89→  --primary: oklch(0.7 0.16 245);
+    90→  --primary-foreground: oklch(0.16 0.02 245);
+    91→  --secondary: oklch(0.28 0.02 245);
+    92→  --secondary-foreground: oklch(0.97 0.01 230);
+    93→  --muted: oklch(0.28 0.02 245);
+    94→  --muted-foreground: oklch(0.7 0.02 230);
+    95→  --accent: oklch(0.32 0.03 245);
+    96→  --accent-foreground: oklch(0.97 0.01 230);
+    97→  --destructive: oklch(0.7 0.19 22);
+    98→  --border: oklch(1 0 0 / 12%);
+    99→  --input: oklch(1 0 0 / 15%);
+   100→  --ring: oklch(0.62 0.16 245);
+   101→  --sidebar: oklch(0.2 0.02 245);
+   102→  --sidebar-foreground: oklch(0.97 0.01 230);
+   103→  --sidebar-primary: oklch(0.7 0.16 245);
+   104→}
+   105→
+   106→@layer base {
+   107→  *, *::before, *::after {
+   108→    @apply border-border outline-ring/50;
+   109→    /* Eliminate blinking caret bar on non-editable text when clicking */
+   110→    caret-color: transparent;
+   111→  }
+   112→
+   113→  /* Only editable inputs and textareas show the text insertion caret */
+   114→  input,
+   115→  textarea,
+   116→  [contenteditable="true"],
+   117→  [contenteditable=""] {
+   118→    caret-color: #2563eb !important;
+   119→  }
+   120→
+   121→  /* Prevent accidental caret and selection on dashboard titles, badges, and controls */
+   122→  h1, h2, h3, h4, h5, h6,
+   123→  button, nav, [role="button"] {
+   124→    user-select: none;
+   125→    -webkit-user-select: none;
+   126→    caret-color: transparent !important;
+   127→  }
+   128→
+   129→  html, body {
+   130→    @apply bg-background text-foreground;
+   131→    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+   132→  }
+   133→  body {
+   134→    background-color: #e0f2fe;
+   135→    background-image:
+   136→      radial-gradient(at 8% 0%, rgba(125, 211, 252, 0.5) 0px, transparent 50%),
+   137→      radial-gradient(at 92% 2%, rgba(186, 230, 253, 0.55) 0px, transparent 50%),
+   138→      radial-gradient(at 50% 100%, rgba(224, 242, 254, 0.6) 0px, transparent 55%),
+   139→      radial-gradient(at 0% 60%, rgba(207, 233, 254, 0.45) 0px, transparent 45%),
+   140→      radial-gradient(at 100% 50%, rgba(165, 216, 255, 0.3) 0px, transparent 40%);
+   141→    background-attachment: fixed;
+   142→    min-height: 100vh;
+   143→  }
+   144→}
+   145→
+   146→/* ============================================================
+   147→   GLASSMORPHISM — MEIL Liquid Glass Design System
+   148→   ============================================================ */
+   149→
+   150→@layer components {
+   151→  /* Frosted glass surface — premium shadow + readable text intensity */
+   152→  .glass {
+   153→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.80) 0%, rgba(240, 248, 255, 0.70) 50%, rgba(245, 250, 255, 0.75) 100%);
+   154→    backdrop-filter: blur(20px) saturate(180%);
+   155→    -webkit-backdrop-filter: blur(20px) saturate(180%);
+   156→    border: 1px solid rgba(150, 180, 210, 0.20);
+   157→    box-shadow:
+   158→      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+   159→      0 0 0 1px rgba(14, 165, 233, 0.05),
+   160→      0 4px 6px -1px rgba(0, 0, 0, 0.04),
+   161→      0 10px 30px -8px rgba(2, 132, 199, 0.12),
+   162→      0 4px 12px -4px rgba(2, 132, 199, 0.08),
+   163→      inset 0 1px 2px rgba(255, 255, 255, 0.6);
+   164→  }
+   165→
+   166→  .glass-strong {
+   167→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.90) 0%, rgba(240, 248, 255, 0.85) 50%, rgba(245, 250, 255, 0.88) 100%);
+   168→    backdrop-filter: blur(24px) saturate(200%);
+   169→    -webkit-backdrop-filter: blur(24px) saturate(200%);
+   170→    border: 1px solid rgba(150, 180, 210, 0.25);
+   171→    box-shadow:
+   172→      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+   173→      0 0 0 1px rgba(14, 165, 233, 0.06),
+   174→      0 4px 6px -1px rgba(0, 0, 0, 0.05),
+   175→      0 16px 40px -10px rgba(2, 132, 199, 0.15),
+   176→      0 6px 16px -4px rgba(2, 132, 199, 0.1),
+   177→      inset 0 1px 3px rgba(255, 255, 255, 0.7);
+   178→  }
+   179→
+   180→  /* Intense iOS Liquid Glass — deep multi-layer caustic reflections, specular sheen & crisp border */
+   181→  .glass-ios-liquid {
+   182→    position: relative;
+   183→    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94) 0%, rgba(240, 248, 255, 0.88) 45%, rgba(245, 250, 255, 0.92) 100%);
+   184→    backdrop-filter: blur(28px) saturate(210%);
+   185→    -webkit-backdrop-filter: blur(28px) saturate(210%);
+   186→    border: 1px solid rgba(255, 255, 255, 0.88);
+   187→    box-shadow:
+   188→      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+   189→      0 0 0 1px rgba(186, 230, 253, 0.45),
+   190→      0 20px 48px -10px rgba(2, 132, 199, 0.16),
+   191→      0 8px 24px -6px rgba(14, 165, 233, 0.12),
+   192→      0 2px 6px 0 rgba(0, 0, 0, 0.03),
+   193→      inset 0 1px 3px 0 rgba(255, 255, 255, 0.85),
+   194→      inset 0 -1px 2px 0 rgba(14, 165, 233, 0.05);
+   195→  }
+   196→  .glass-ios-liquid::before {
+   197→    content: "";
+   198→    position: absolute;
+   199→    inset: 0;
+   200→    top: 0;
+   201→    height: 40%;
+   202→    border-radius: inherit;
+   203→    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.12) 65%, transparent 100%);
+   204→    pointer-events: none;
+   205→    z-index: 1;
+   206→  }
+   207→
+   208→  .glass-subtle {
+   209→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.65) 0%, rgba(240, 248, 255, 0.55) 100%);
+   210→    backdrop-filter: blur(14px) saturate(160%);
+   211→    -webkit-backdrop-filter: blur(14px) saturate(160%);
+   212→    border: 1px solid rgba(150, 180, 210, 0.18);
+   213→    box-shadow:
+   214→      0 2px 4px -1px rgba(0, 0, 0, 0.03),
+   215→      0 4px 16px -4px rgba(2, 132, 199, 0.10),
+   216→      inset 0 1px 1px rgba(255, 255, 255, 0.5);
+   217→  }
+   218→
+   219→  .glass-nav {
+   220→    background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(245, 250, 255, 0.78) 100%);
+   221→    backdrop-filter: blur(22px) saturate(190%);
+   222→    -webkit-backdrop-filter: blur(22px) saturate(190%);
+   223→    border: 1px solid rgba(150, 180, 210, 0.20);
+   224→    box-shadow:
+   225→      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+   226→      0 4px 6px -1px rgba(0, 0, 0, 0.03),
+   227→      0 4px 20px -6px rgba(2, 132, 199, 0.10),
+   228→      inset 0 1px 2px rgba(255, 255, 255, 0.5);
+   229→  }
+   230→
+   231→  /* Premium gradient border for highlighted cards */
+   232→  .glass-gradient-border {
+   233→    position: relative;
+   234→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(224, 242, 254, 0.55) 100%);
+   235→    backdrop-filter: blur(24px) saturate(200%);
+   236→    -webkit-backdrop-filter: blur(24px) saturate(200%);
+   237→    border: 1px solid transparent;
+   238→    background-clip: padding-box;
+   239→    box-shadow:
+   240→      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+   241→      0 8px 32px -6px rgba(2, 132, 199, 0.15);
+   242→  }
+   243→  .glass-gradient-border::before {
+   244→    content: "";
+   245→    position: absolute;
+   246→    inset: 0;
+   247→    border-radius: inherit;
+   248→    padding: 1px;
+   249→    background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(56, 189, 248, 0.2), transparent);
+   250→    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+   251→    -webkit-mask-composite: xor;
+   252→    mask-composite: exclude;
+   253→    pointer-events: none;
+   254→  }
+   255→
+   256→  /* Sky-blue accent glass for KPI tiles + highlights */
+   257→  .glass-sky {
+   258→    background: linear-gradient(135deg, rgba(224, 242, 254, 0.7) 0%, rgba(186, 230, 253, 0.5) 100%);
+   259→    backdrop-filter: blur(20px) saturate(180%);
+   260→    -webkit-backdrop-filter: blur(20px) saturate(180%);
+   261→    border: 1px solid rgba(125, 211, 252, 0.3);
+   262→    box-shadow: 0 4px 16px -4px rgba(14, 165, 233, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+   263→  }
+   264→
+   265→  /* 3D Convex Frosted Glass Cushion (iOS Liquid Glass Centerpiece) */
+   266→  .glass-cushion-3d {
+   267→    position: relative;
+   268→    background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.98) 0%, rgba(240, 248, 255, 0.88) 55%, rgba(224, 242, 254, 0.82) 100%);
+   269→    backdrop-filter: blur(32px) saturate(220%);
+   270→    -webkit-backdrop-filter: blur(32px) saturate(220%);
+   271→    border: 1.5px solid rgba(255, 255, 255, 0.95);
+   272→    box-shadow:
+   273→      0 2px 0 0 rgba(255, 255, 255, 1) inset,
+   274→      0 24px 50px -12px rgba(2, 132, 199, 0.22),
+   275→      0 10px 25px -5px rgba(14, 165, 233, 0.15),
+   276→      inset 0 -8px 20px -4px rgba(186, 230, 253, 0.5),
+   277→      inset 0 2px 4px 0 rgba(255, 255, 255, 1);
+   278→  }
+   279→
+   280→  /* 3D Liquid Glass Sphere / Bubble */
+   281→  .glass-sphere-3d {
+   282→    border-radius: 9999px;
+   283→    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(224, 242, 254, 0.5) 35%, rgba(186, 230, 253, 0.25) 70%, rgba(56, 189, 248, 0.4) 100%);
+   284→    backdrop-filter: blur(12px);
+   285→    -webkit-backdrop-filter: blur(12px);
+   286→    border: 1px solid rgba(255, 255, 255, 0.8);
+   287→    box-shadow:
+   288→      inset -4px -6px 12px 0 rgba(14, 165, 233, 0.35),
+   289→      inset 3px 4px 8px 0 rgba(255, 255, 255, 0.9),
+   290→      0 8px 24px -4px rgba(2, 132, 199, 0.2);
+   291→  }
+   292→
+   293→  /* Electric Blue Liquid Glass Pill Button */
+   294→  .btn-liquid-blue {
+   295→    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 50%, #38bdf8 100%);
+   296→    color: white;
+   297→    box-shadow:
+   298→      0 1px 0 0 rgba(255, 255, 255, 0.4) inset,
+   299→      0 6px 20px -2px rgba(2, 132, 199, 0.45),
+   300→      0 2px 6px 0 rgba(2, 132, 199, 0.25);
+   301→    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+   302→  }
+   303→  .btn-liquid-blue:hover {
+   304→    transform: translateY(-1px) scale(1.01);
+   305→    box-shadow:
+   306→      0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
+   307→      0 10px 28px -2px rgba(2, 132, 199, 0.55),
+   308→      0 3px 8px 0 rgba(2, 132, 199, 0.35);
+   309→  }
+   310→
+   311→  /* High Intensity iOS Liquid Glass Role Card Shadows */
+   312→  .shadow-role-card {
+   313→    box-shadow:
+   314→      0 20px 48px -10px rgba(2, 132, 199, 0.22),
+   315→      0 8px 20px -4px rgba(14, 165, 233, 0.14),
+   316→      inset 0 1px 2px rgba(255, 255, 255, 0.95);
+   317→  }
+   318→  .shadow-role-card-hover {
+   319→    box-shadow:
+   320→      0 30px 65px -8px rgba(2, 132, 199, 0.38),
+   321→      0 14px 28px -4px rgba(14, 165, 233, 0.28),
+   322→      inset 0 2px 3px rgba(255, 255, 255, 1);
+   323→  }
+   324→  .shadow-role-active {
+   325→    box-shadow:
+   326→      0 32px 75px -6px rgba(2, 132, 199, 0.48),
+   327→      0 16px 32px -4px rgba(14, 165, 233, 0.35),
+   328→      inset 0 2px 4px rgba(255, 255, 255, 1);
+   329→  }
+   330→
+   331→  /* Soft floating orbs for welcome / hero backgrounds */
+   332→  .orb {
+   333→    position: absolute;
+   334→    border-radius: 9999px;
+   335→    filter: blur(40px);
+   336→    opacity: 0.55;
+   337→    pointer-events: none;
+   338→  }
+   339→
+   340→  /* Status pill base */
+   341→  .status-pill {
+   342→    display: inline-flex;
+   343→    align-items: center;
+   344→    gap: 0.3rem;
+   345→    padding: 0.125rem 0.55rem;
+   346→    border-radius: 9999px;
+   347→    font-size: 0.7rem;
+   348→    font-weight: 600;
+   349→    letter-spacing: 0.01em;
+   350→    border: 1px solid transparent;
+   351→    white-space: nowrap;
+   352→  }
+   353→
+   354→  .status-draft {
+   355→    background: rgba(245, 158, 11, 0.12);
+   356→    color: rgb(146, 64, 14);
+   357→    border-color: rgba(245, 158, 11, 0.25);
+   358→  }
+   359→  .status-submitted {
+   360→    background: rgba(59, 130, 246, 0.12);
+   361→    color: rgb(29, 78, 216);
+   362→    border-color: rgba(59, 130, 246, 0.25);
+   363→  }
+   364→  .status-review {
+   365→    background: rgba(168, 85, 247, 0.12);
+   366→    color: rgb(109, 40, 217);
+   367→    border-color: rgba(168, 85, 247, 0.25);
+   368→  }
+   369→  .status-approved {
+   370→    background: rgba(16, 185, 129, 0.12);
+   371→    color: rgb(4, 120, 87);
+   372→    border-color: rgba(16, 185, 129, 0.25);
+   373→  }
+   374→  .status-locked {
+   375→    background: rgba(15, 23, 42, 0.08);
+   376→    color: rgb(30, 41, 59);
+   377→    border-color: rgba(15, 23, 42, 0.18);
+   378→  }
+   379→  .status-missing {
+   380→    background: rgba(239, 68, 68, 0.1);
+   381→    color: rgb(185, 28, 28);
+   382→    border-color: rgba(239, 68, 68, 0.22);
+   383→  }
+   384→  .status-error {
+   385→    background: rgba(239, 68, 68, 0.1);
+   386→    color: rgb(185, 28, 28);
+   387→    border-color: rgba(239, 68, 68, 0.22);
+   388→  }
+   389→  .status-warning {
+   390→    background: rgba(245, 158, 11, 0.12);
+   391→    color: rgb(146, 64, 14);
+   392→    border-color: rgba(245, 158, 11, 0.25);
+   393→  }
+   394→  .status-verified {
+   395→    background: rgba(16, 185, 129, 0.12);
+   396→    color: rgb(4, 120, 87);
+   397→    border-color: rgba(16, 185, 129, 0.25);
+   398→  }
+   399→
+   400→  /* Primary gradient button */
+   401→  .btn-glass-primary {
+   402→    background: linear-gradient(135deg, oklch(0.62 0.18 245), oklch(0.52 0.2 235));
+   403→    color: white;
+   404→    box-shadow:
+   405→      0 1px 0 0 rgba(255, 255, 255, 0.35) inset,
+   406→      0 6px 20px -4px oklch(0.52 0.2 245 / 0.45);
+   407→  }
+   408→
+   409→  /* KPI icon tile backgrounds */
+   410→  .kpi-tile {
+   411→    display: inline-flex;
+   412→    align-items: center;
+   413→    justify-content: center;
+   414→    width: 2.75rem;
+   415→    height: 2.75rem;
+   416→    border-radius: 0.85rem;
+   417→    border: 1px solid rgba(255, 255, 255, 0.7);
+   418→    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.9) inset, 0 4px 12px -4px rgba(30, 58, 138, 0.18);
+   419→  }
+   420→
+   421→  /* ============================================================
+   422→     iOS LIQUID GLASS FORM CONTROLS
+   423→     Frosted multi-layer fields with specular top highlight,
+   424→     sky-blue focus halo, and iOS-style dropdown affordances.
+   425→     ============================================================ */
+   426→
+   427→  .ios-field {
+   428→    width: 100%;
+   429→    font-size: 13px;
+   430→    line-height: 1.45;
+   431→    font-weight: 500;
+   432→    color: #1e293b;
+   433→    padding: 9px 14px;
+   434→    border-radius: 14px;
+   435→    background-color: transparent;
+   436→    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+   437→    border: 1px solid rgba(148, 178, 214, 0.38);
+   438→    box-shadow:
+   439→      inset 0 1px 2px rgba(15, 23, 42, 0.045),
+   440→      inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+   441→      0 1px 2px rgba(2, 132, 199, 0.06);
+   442→    backdrop-filter: blur(8px) saturate(150%);
+   443→    -webkit-backdrop-filter: blur(8px) saturate(150%);
+   444→    outline: none;
+   445→    transition: border-color 0.2s ease, box-shadow 0.25s ease, background-image 0.25s ease;
+   446→  }
+   447→  .ios-field::placeholder {
+   448→    color: #94a3b8;
+   449→    font-weight: 400;
+   450→  }
+   451→  .ios-field:hover:not(:disabled):not(:focus) {
+   452→    border-color: rgba(56, 189, 248, 0.55);
+   453→    box-shadow:
+   454→      inset 0 1px 2px rgba(15, 23, 42, 0.04),
+   455→      inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+   456→      0 2px 8px -2px rgba(2, 132, 199, 0.14);
+   457→  }
+   458→  .ios-field:focus {
+   459→    border-color: #0ea5e9;
+   460→    background-image: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+   461→    box-shadow:
+   462→      0 0 0 4px rgba(14, 165, 233, 0.14),
+   463→      inset 0 1px 2px rgba(15, 23, 42, 0.03),
+   464→      0 8px 20px -8px rgba(2, 132, 199, 0.3);
+   465→  }
+   466→  .ios-field:disabled,
+   467→  .ios-field[readonly] {
+   468→    opacity: 0.55;
+   469→    cursor: not-allowed;
+   470→    background-image: linear-gradient(180deg, rgba(241, 248, 253, 0.75), rgba(236, 244, 252, 0.65));
+   471→  }
+   472→  .ios-field:disabled {
+   473→    cursor: not-allowed;
+   474→  }
+   475→  .ios-field:-webkit-autofill {
+   476→    -webkit-box-shadow: 0 0 0 1000px #f8fbff inset;
+   477→    -webkit-text-fill-color: #1e293b;
+   478→  }
+   479→
+   480→  /* Select — native dropdown with iOS chevron affordance */
+   481→  select.ios-field {
+   482→    appearance: none;
+   483→    -webkit-appearance: none;
+   484→    -moz-appearance: none;
+   485→    padding-right: 38px;
+   486→    cursor: pointer;
+   487→    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+   488→      linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+   489→    background-repeat: no-repeat;
+   490→    background-position: right 13px center, 0 0;
+   491→    background-size: 14px, auto;
+   492→  }
+   493→  select.ios-field:hover:not(:disabled):not(:focus) {
+   494→    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230ea5e9' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+   495→      linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+   496→  }
+   497→  select.ios-field option {
+   498→    background-color: #ffffff;
+   499→    color: #1e293b;
+   500→    font-weight: 500;
+   501→    padding: 8px;
+   502→  }
+   503→
+   504→  textarea.ios-field {
+   505→    min-height: 72px;
+   506→    resize: vertical;
+   507→    line-height: 1.55;
+   508→  }
+   509→
+   510→  /* Uppercase micro-label above fields */
+   511→  .ios-label {
+   512→    display: block;
+   513→    margin-bottom: 6px;
+   514→    font-size: 10.5px;
+   515→    font-weight: 700;
+   516→    letter-spacing: 0.07em;
+   517→    text-transform: uppercase;
+   518→    color: #475569;
+   519→  }
+   520→
+   521→  /* Premium liquid-glass form section card */
+   522→  .glass-form-card {
+   523→    position: relative;
+   524→    border-radius: 24px;
+   525→    padding: 24px;
+   526→    background-image: linear-gradient(150deg, rgba(255, 255, 255, 0.9) 0%, rgba(243, 249, 255, 0.76) 45%, rgba(248, 252, 255, 0.85) 100%);
+   527→    backdrop-filter: blur(26px) saturate(190%);
+   528→    -webkit-backdrop-filter: blur(26px) saturate(190%);
+   529→    border: 1px solid rgba(255, 255, 255, 0.85);
+   530→    box-shadow:
+   531→      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+   532→      0 0 0 1px rgba(186, 230, 253, 0.35),
+   533→      0 18px 44px -12px rgba(2, 132, 199, 0.14),
+   534→      0 6px 18px -6px rgba(14, 165, 233, 0.1),
+   535→      inset 0 -1px 2px rgba(14, 165, 233, 0.05);
+   536→  }
+   537→
+   538→  /* Form card section title */
+   539→  .form-card-title {
+   540→    font-size: 17px;
+   541→    font-weight: 800;
+   542→    letter-spacing: -0.015em;
+   543→    color: #0f172a;
+   544→  }
+   545→
+   546→  /* iOS frosted ghost action button */
+   547→  .ios-btn-ghost {
+   548→    display: inline-flex;
+   549→    align-items: center;
+   550→    justify-content: center;
+   551→    gap: 6px;
+   552→    border-radius: 9999px;
+   553→    padding: 8px 16px;
+   554→    font-size: 12px;
+   555→    font-weight: 700;
+   556→    color: #334155;
+   557→    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.82));
+   558→    border: 1px solid rgba(148, 178, 214, 0.4);
+   559→    box-shadow:
+   560→      0 1px 2px rgba(2, 132, 199, 0.08),
+   561→      inset 0 1px 1px rgba(255, 255, 255, 0.95);
+   562→    backdrop-filter: blur(8px) saturate(150%);
+   563→    -webkit-backdrop-filter: blur(8px) saturate(150%);
+   564→    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+   565→    cursor: pointer;
+   566→  }
+   567→  .ios-btn-ghost:hover:not(:disabled) {
+   568→    transform: translateY(-1px);
+   569→    border-color: rgba(56, 189, 248, 0.65);
+   570→    color: #0369a1;
+   571→    box-shadow:
+   572→      0 8px 18px -6px rgba(2, 132, 199, 0.28),
+   573→      inset 0 1px 1px rgba(255, 255, 255, 1);
+   574→  }
+   575→  .ios-btn-ghost:active:not(:disabled) {
+   576→    transform: scale(0.97);
+   577→  }
+   578→  .ios-btn-ghost:disabled {
+   579→    opacity: 0.45;
+   580→    cursor: not-allowed;
+   581→    transform: none;
+   582→  }
+   583→
+   584→  /* iOS segmented control (view switchers) */
+   585→  .ios-seg {
+   586→    display: inline-flex;
+   587→    align-items: center;
+   588→    gap: 4px;
+   589→    padding: 4px;
+   590→    border-radius: 16px;
+   591→    background-image: linear-gradient(180deg, rgba(238, 246, 253, 0.92), rgba(224, 240, 252, 0.75));
+   592→    border: 1px solid rgba(186, 230, 253, 0.55);
+   593→    box-shadow:
+   594→      inset 0 1px 3px rgba(15, 23, 42, 0.07),
+   595→      inset 0 -1px 1px rgba(255, 255, 255, 0.85);
+   596→    backdrop-filter: blur(10px) saturate(160%);
+   597→    -webkit-backdrop-filter: blur(10px) saturate(160%);
+   598→  }
+   599→  .ios-seg-btn {
+   600→    display: inline-flex;
+   601→    align-items: center;
+   602→    gap: 7px;
+   603→    border-radius: 12px;
+   604→    padding: 7px 14px;
+   605→    font-size: 12px;
+   606→    font-weight: 600;
+   607→    color: #475569;
+   608→    transition: all 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+   609→    cursor: pointer;
+   610→  }
+   611→  .ios-seg-btn:hover {
+   612→    color: #0f172a;
+   613→  }
+   614→  .ios-seg-btn-active {
+   615→    color: #0c4a6e;
+   616→    background-image: linear-gradient(180deg, #ffffff, #f0f9ff);
+   617→    border: 1px solid rgba(125, 211, 252, 0.6);
+   618→    box-shadow:
+   619→      0 3px 10px -2px rgba(2, 132, 199, 0.25),
+   620→      inset 0 1px 1px rgba(255, 255, 255, 1);
+   621→    font-weight: 700;
+   622→  }
+   623→
+   624→  /* iOS selection chip (source / category pills) */
+   625→  .ios-chip {
+   626→    position: relative;
+   627→    display: inline-flex;
+   628→    align-items: center;
+   629→    gap: 6px;
+   630→    border-radius: 9999px;
+   631→    padding: 7px 14px;
+   632→    font-size: 11.5px;
+   633→    font-weight: 600;
+   634→    color: #475569;
+   635→    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 250, 255, 0.75));
+   636→    border: 1px solid rgba(148, 178, 214, 0.35);
+   637→    box-shadow:
+   638→      0 1px 2px rgba(2, 132, 199, 0.06),
+   639→      inset 0 1px 1px rgba(255, 255, 255, 0.9);
+   640→    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+   641→    cursor: pointer;
+   642→  }
+   643→  .ios-chip:hover:not(:disabled) {
+   644→    transform: translateY(-1px);
+   645→    border-color: rgba(56, 189, 248, 0.55);
+   646→    color: #0369a1;
+   647→    box-shadow: 0 6px 14px -4px rgba(2, 132, 199, 0.22);
+   648→  }
+   649→  .ios-chip:active:not(:disabled) {
+   650→    transform: scale(0.97);
+   651→  }
+   652→  .ios-chip-active {
+   653→    color: #ffffff;
+   654→    background-image: linear-gradient(135deg, #0284c7 0%, #0ea5e9 55%, #38bdf8 100%);
+   655→    border-color: rgba(2, 132, 199, 0.9);
+   656→    box-shadow:
+   657→      0 6px 18px -4px rgba(2, 132, 199, 0.45),
+   658→      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+   659→  }
+   660→  .ios-chip-active:hover:not(:disabled) {
+   661→    color: #ffffff;
+   662→    border-color: rgba(2, 132, 199, 1);
+   663→  }
+   664→}
+   665→
+   666→/* ============================================================
+   667→   ANIMATIONS — premium subtle motion
+   668→   ============================================================ */
+   669→
+   670→@keyframes orb-float {
+   671→  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
+   672→  33% { transform: translateY(-22px) translateX(12px) scale(1.05); }
+   673→  66% { transform: translateY(14px) translateX(-16px) scale(0.96); }
+   674→}
+   675→
+   676→@keyframes shimmer {
+   677→  0% { background-position: -200% 0; }
+   678→  100% { background-position: 200% 0; }
+   679→}
+   680→
+   681→@keyframes fade-up {
+   682→  0% { opacity: 0; transform: translateY(12px); }
+   683→  100% { opacity: 1; transform: translateY(0); }
+   684→}
+   685→
+   686→@keyframes scale-in {
+   687→  0% { opacity: 0; transform: scale(0.94); }
+   688→  100% { opacity: 1; transform: scale(1); }
+   689→}
+   690→
+   691→@keyframes pulse-ring {
+   692→  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+   693→  70% { box-shadow: 0 0 0 14px rgba(59, 130, 246, 0); }
+   694→  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+   695→}
+   696→
+   697→@keyframes draw-line {
+   698→  0% { stroke-dashoffset: 1000; }
+   699→  100% { stroke-dashoffset: 0; }
+   700→}
+   701→
+   702→@keyframes count-glow {
+   703→  0%, 100% { text-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+   704→  50% { text-shadow: 0 0 18px rgba(59, 130, 246, 0.25); }
+   705→}
+   706→
+   707→.animate-orb { animation: orb-float 14s ease-in-out infinite; }
+   708→.animate-fade-up { animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+   709→.animate-scale-in { animation: scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+   710→.animate-pulse-ring { animation: pulse-ring 2s infinite; }
+   711→
+   712→/* Stagger helpers */
+   713→.stagger-1 { animation-delay: 0.05s; }
+   714→.stagger-2 { animation-delay: 0.12s; }
+   715→.stagger-3 { animation-delay: 0.19s; }
+   716→.stagger-4 { animation-delay: 0.26s; }
+   717→.stagger-5 { animation-delay: 0.33s; }
+   718→.stagger-6 { animation-delay: 0.4s; }
+   719→.stagger-7 { animation-delay: 0.47s; }
+   720→.stagger-8 { animation-delay: 0.54s; }
+   721→
+   722→/* Glass shimmer sweep on hover for premium cards */
+   723→.glass-shimmer {
+   724→  position: relative;
+   725→  overflow: hidden;
+   726→}
+   727→.glass-shimmer::after {
+   728→  content: "";
+   729→  position: absolute;
+   730→  inset: 0;
+   731→  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.6) 50%, transparent 65%);
+   732→  background-size: 200% 100%;
+   733→  opacity: 0;
+   734→  transition: opacity 0.3s ease;
+   735→  pointer-events: none;
+   736→}
+   737→.glass-shimmer:hover::after {
+   738→  opacity: 1;
+   739→  animation: shimmer 1.4s ease-in-out;
+   740→}
+   741→
+   742→/* Custom scrollbar */
+   743→.scroll-elegant::-webkit-scrollbar { width: 8px; height: 8px; }
+   744→.scroll-elegant::-webkit-scrollbar-track { background: transparent; }
+   745→.scroll-elegant::-webkit-scrollbar-thumb {
+   746→  background: rgba(100, 116, 139, 0.25);
+   747→  border-radius: 9999px;
+   748→}
+   749→.scroll-elegant::-webkit-scrollbar-thumb:hover {
+   750→  background: rgba(100, 116, 139, 0.4);
+   751→}
+   752→
+   753→/* Tabular numbers for data-heavy KPIs */
+   754→.tabular-nums { font-variant-numeric: tabular-nums; }
+   755→
+   756→@media (prefers-reduced-motion: reduce) {
+   757→  *, *::before, *::after {
+   758→    animation-duration: 0.01ms !important;
+   759→    animation-iteration-count: 1 !important;
+   760→    transition-duration: 0.01ms !important;
+   761→  }
+   762→  .animate-orb { animation: none !important; }
+   763→}
+   764→

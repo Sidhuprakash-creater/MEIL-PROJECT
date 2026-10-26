@@ -118,6 +118,32 @@ export async function POST(req: NextRequest) {
             refId: id,
           },
         });
+        // Portal reflection: if this submission came from the Project User
+        // Portal (ref PU-*), walk the portal approval ladder + notify the
+        // sender so the decision is visible on the receiver side seamlessly.
+        if (s.ref?.startsWith("PU-")) {
+          try {
+            const { syncDecisionToPu } = await import("@/lib/bridge/pu-link");
+            const decision =
+              action === "approve"
+                ? ("approve" as const)
+                : action === "reject" || action === "request_changes" || action === "return"
+                  ? ("reject" as const)
+                  : null;
+            if (decision) {
+              await syncDecisionToPu({
+                mainRef: s.ref,
+                decision,
+                level: "GROUP",
+                actorName: ACTOR.name,
+                actorRole: "Group Admin",
+                reason: reason || comment || undefined,
+              });
+            }
+          } catch (bridgeErr) {
+            console.warn("[esg-submissions] portal reflection notice:", bridgeErr);
+          }
+        }
         await Promise.all([
           logActivity({
             actorName: ACTOR.name,

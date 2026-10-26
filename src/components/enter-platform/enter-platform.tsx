@@ -973,9 +973,13 @@ const DEMO_ACCOUNTS: Array<[string, string, string]> = [
 export default function EnterPlatform({
   onBack,
   onAuthed,
+  onEnterProjectPortal,
 }: {
   onBack: () => void;
   onAuthed: (user: VerifiedUser) => void;
+  /* Project User Portal → straight into the portal's own welcome flow
+     (org → project → role → portal sign-in), skipping the gateway wizard. */
+  onEnterProjectPortal?: () => void;
 }) {
   const [view, setView] = useState<PortalId | null>(null);
   const [subsidiaries, setSubsidiaries] = useState<SubsidiaryOpt[] | null>(null);
@@ -996,6 +1000,14 @@ export default function EnterPlatform({
 
   const openPortal = (p: PortalDef) => {
     setNotice(null);
+    if (p.id === "project") {
+      /* The Project User Portal has its own native welcome experience —
+         open it directly instead of the gateway credential wizard. */
+      if (onEnterProjectPortal) {
+        onEnterProjectPortal();
+        return;
+      }
+    }
     if (p.id === "subsidiary" || p.id === "business_unit") loadSubsidiaries();
     setView(p.id);
   };

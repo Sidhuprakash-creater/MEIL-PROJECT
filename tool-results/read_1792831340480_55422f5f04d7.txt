@@ -1,0 +1,800 @@
+     1→"use client";
+     2→
+     3→/* ═══════════════════════════════════════════════════════════════════════════
+     4→   MEIL BU Manager — REPORT REVIEW WORKSPACE (ESG Review Studio).
+     5→
+     6→   Three-zone desktop composition:
+     7→     · Left  zone  — report navigation (project + period context, validation
+     8→       issue count, evidence indicators, section shortcuts)
+     9→     · Center zone — ESG reporting sections (data values table, supporting
+    10→       calculations, reviewer comments, resubmission comparison)
+    11→     · Right zone  — review panel (review status, available review actions,
+    12→       review activity, evidence preview)
+    13→   On narrower screens the left + right zones collapse into the dialog's
+    14→   stacked layout (the dialog body scrolls; the decision footer stays fixed
+    15→   at the bottom).
+    16→
+    17→   Review actions (all backend-backed by /api/bm/submissions/[id]/decision):
+    18→     · Approve → ConfirmDialog summarising report + version, optional comment,
+    19→       persist decision + audit, advance workflow, cross-console notify.
+    20→     · Return for correction → mandatory reason ≥10 + mandatory actionable
+    21→       instructions ≥10 + optional affected-field list. Confirm before
+    22→       submission. Status → CHANGES_REQUESTED. bmNotify fires on all 5 consoles.
+    23→     · Reject → mandatory reason ≥10 chars. Confirm. Persist decision + actor
+    24→       + timestamp + version + reason. Status → REJECTED. Cross-console notify.
+    25→
+    26→   Every decision POST carries `expectedUpdatedAt` so the backend can refuse
+    27→   stale decisions with 409. The resubmission comparison view shows when the
+    28→   history contains a "Returned for correction" + "Resubmitted" pair — the
+    29→   prior period value (recorded in the values table) is rendered next to the
+    30→   current reported value.
+    31→   ═══════════════════════════════════════════════════════════════════════════ */
+    32→
+    33→import * as React from "react";
+    34→import {
+    35→  AlertTriangle, ArrowLeftRight, CheckCircle2, Download, FileText,
+    36→  GitCompareArrows, Loader2, MessageSquare, ShieldCheck, Sparkles, XCircle,
+    37→} from "lucide-react";
+    38→import { Button } from "@/components/ui/button";
+    39→import { Input } from "@/components/ui/input";
+    40→import { Textarea } from "@/components/ui/textarea";
+    41→import {
+    42→  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+    43→} from "@/components/ui/dialog";
+    44→import { useToast } from "@/hooks/use-toast";
+    45→import {
+    46→  Chip, ConfirmDialog, EmptyState, ErrorState, GlassTabBar, InfoRow, LoadingBlock,
+    47→} from "@/components/workspace/ui";
+    48→import { apiGet, apiPost, fmtDate, fmtDateTime, fmtNumber, timeAgo, useMutation } from "@/lib/bm/client";
+    49→import type { EvidenceRow, BmSubmissionDetail } from "@/lib/bm/types";
+    50→import { EvidenceChip, StatusChip, UrgencyChip, fmtMetric, severityTone } from "@/components/bm/shared";
+    51→
+    52→type DetailResponse = { submission: BmSubmissionDetail; updatedAt: string; version: number };
+    53→
+    54→const REVIEW_ELIGIBLE = ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"];
+    55→
+    56→export function ReportReviewWorkspace({
+    57→  submissionId,
+    58→  open,
+    59→  onOpenChange,
+    60→  onDecided,
+    61→  startTab,
+    62→}: {
+    63→  submissionId: string | null;
+    64→  open: boolean;
+    65→  onOpenChange: (open: boolean) => void;
+    66→  onDecided?: (action: "approve" | "reject" | "return") => void;
+    67→  startTab?: string;
+    68→}) {
+    69→  const { toast } = useToast();
+    70→  const [detail, setDetail] = React.useState<DetailResponse | null>(null);
+    71→  const [loading, setLoading] = React.useState(false);
+    72→  const [error, setError] = React.useState<string | null>(null);
+    73→  const [tab, setTab] = React.useState(startTab ?? "report");
+    74→  const [evidence, setEvidence] = React.useState<EvidenceRow[] | null>(null);
+    75→  const [evidenceLoading, setEvidenceLoading] = React.useState(false);
+    76→  const [activeDoc, setActiveDoc] = React.useState<EvidenceRow | null>(null);
+    77→  const [docReceipt, setDocReceipt] = React.useState<string | null>(null);
+    78→  const [docLoading, setDocLoading] = React.useState(false);
+    79→  const [approveOpen, setApproveOpen] = React.useState(false);
+    80→  const [returnOpen, setReturnOpen] = React.useState(false);
+    81→  const [rejectOpen, setRejectOpen] = React.useState(false);
+    82→  const [rejectReason, setRejectReason] = React.useState("");
+    83→  const [rejectInstructions, setRejectInstructions] = React.useState("");
+    84→  const [rejectFields, setRejectFields] = React.useState("");
+    85→  const [compareOpen, setCompareOpen] = React.useState(false);
+    86→  const decision = useMutation<{ message: string; decision: { action: string; version: number } }>();
+    87→
+    88→  const sub = detail?.submission ?? null;
+    89→  const eligible = !!sub && REVIEW_ELIGIBLE.includes(sub.status);
+    90→
+    91→  /* Load report detail. */
+    92→  React.useEffect(() => {
+    93→    if (!open || !submissionId) {
+    94→      setDetail(null);
+    95→      setError(null);
+    96→      return;
+    97→    }
+    98→    let cancelled = false;
+    99→    setLoading(true);
+   100→    setError(null);
+   101→    setTab(startTab ?? "report");
+   102→    apiGet<DetailResponse>(`/api/bm/submissions/${submissionId}`)
+   103→      .then((d) => { if (!cancelled) setDetail(d); })
+   104→      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load report"); })
+   105→      .finally(() => { if (!cancelled) setLoading(false); });
+   106→    return () => { cancelled = true; };
+   107→  }, [open, submissionId, startTab]);
+   108→
+   109→  /* Load evidence lazily when the Evidence tab opens. */
+   110→  React.useEffect(() => {
+   111→    if (!open || !sub || tab !== "evidence") return;
+   112→    let cancelled = false;
+   113→    setEvidenceLoading(true);
+   114→    apiGet<{ docs: EvidenceRow[] }>(`/api/bm/evidence?submissionRef=${encodeURIComponent(sub.ref)}&pageSize=50`)
+   115→      .then((d) => { if (!cancelled) setEvidence(d.docs); })
+   116→      .catch(() => { if (!cancelled) setEvidence([]); })
+   117→      .finally(() => { if (!cancelled) setEvidenceLoading(false); });
+   118→    return () => { cancelled = true; };
+   119→  }, [open, sub, tab]);
+   120→
+   121→  /* Reset decision dialog state when closed. */
+   122→  React.useEffect(() => {
+   123→    if (!rejectOpen) {
+   124→      setRejectReason("");
+   125→      setRejectInstructions("");
+   126→      setRejectFields("");
+   127→    }
+   128→    if (!returnOpen) {
+   129→      setReturnReason("");
+   130→      setReturnInstructions("");
+   131→      setReturnFields("");
+   132→    }
+   133→  }, [rejectOpen, returnOpen]);
+   134→
+   135→  // Return-for-correction form state
+   136→  const [returnReason, setReturnReason] = React.useState("");
+   137→  const [returnInstructions, setReturnInstructions] = React.useState("");
+   138→  const [returnFields, setReturnFields] = React.useState("");
+   139→  const returnReasonValid = returnReason.trim().length >= 10;
+   140→  const returnInstructionsValid = returnInstructions.trim().length >= 10;
+   141→
+   142→  const decide = async (
+   143→    action: "approve" | "reject" | "return",
+   144→    body: { reason?: string; instructions?: string; affectedFields?: string[] }
+   145→  ) => {
+   146→    if (!detail) return;
+   147→    const result = await decision.run(() =>
+   148→      apiPost(`/api/bm/submissions/${detail.submission.id}/decision`, {
+   149→        action,
+   150→        reason: body.reason ?? "",
+   151→        instructions: body.instructions ?? "",
+   152→        affectedFields: body.affectedFields ?? [],
+   153→        expectedUpdatedAt: detail.updatedAt, // stale-version guard
+   154→      })
+   155→    );
+   156→    if (result) {
+   157→      toast({
+   158→        title:
+   159→          action === "approve" ? "Report approved"
+   160→            : action === "reject" ? "Report rejected"
+   161→              : "Report returned for correction",
+   162→        description: result.message,
+   163→      });
+   164→      setApproveOpen(false);
+   165→      setReturnOpen(false);
+   166→      setRejectOpen(false);
+   167→      onOpenChange(false);
+   168→      onDecided?.(action);
+   169→    } else if (decision.error) {
+   170→      toast({ title: "Decision not recorded", description: decision.error, variant: "destructive" });
+   171→    }
+   172→  };
+   173→
+   174→  const downloadDoc = async (doc: EvidenceRow) => {
+   175→    setDocLoading(true);
+   176→    setDocReceipt(null);
+   177→    try {
+   178→      const r = await apiGet<{ receipt: { name: string; access: string } }>(`/api/bm/evidence/${doc.id}/download`);
+   179→      setDocReceipt(`${r.receipt.name} — ${r.receipt.access}`);
+   180→    } catch (e) {
+   181→      setDocReceipt(e instanceof Error ? e.message : "Download failed");
+   182→    } finally {
+   183→      setDocLoading(false);
+   184→    }
+   185→  };
+   186→
+   187→  const warnings = sub?.validationIssues.filter((v) => v.status !== "RESOLVED" && v.status !== "WAIVED") ?? [];
+   188→  const evidenceCount = sub?.evidenceCount ?? 0;
+   189→  const isResubmission = sub?.isResubmission ?? false;
+   190→  const priorValue = sub?.values.find((v) => /prior/i.test(v.label));
+   191→  const reportedValue = sub?.values.find((v) => /reported|current/i.test(v.label));
+   192→
+   193→  return (
+   194→    <>
+   195→      <Dialog open={open} onOpenChange={(o) => {
+   196→        if (!o && (approveOpen || returnOpen || rejectOpen)) return; // decision dialogs stay on top
+   197→        onOpenChange(o);
+   198→      }}>
+   199→        <DialogContent className="glass-strong glass-sheen nice-scroll fixed top-1/2 left-1/2 grid h-[92vh] w-full max-w-[calc(100vw-1.5rem)] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-3xl border-white/80 p-0 sm:max-w-6xl">
+   200→          {/* Header */}
+   201→          <DialogHeader className="glass-sheen shrink-0 border-b border-[rgba(139,92,246,0.18)] bg-white/50 px-5 py-4">
+   202→            <DialogTitle className="flex flex-wrap items-center gap-2 text-base leading-snug text-[color:var(--ink)]">
+   203→              {sub ? (
+   204→                <>
+   205→                  <span className="font-bold text-[color:var(--bum-purple-deep)]">{sub.ref}</span>
+   206→                  <span className="text-[color:var(--ink-soft)]">— {sub.title}</span>
+   207→                  <StatusChip status={sub.status} />
+   208→                  {isResubmission && <Chip tone="purple">Resubmission</Chip>}
+   209→                  {sub.overdue && sub.status !== "APPROVED" && <Chip tone="red">Overdue</Chip>}
+   210→                </>
+   211→              ) : (
+   212→                <span className="text-[color:var(--ink-faint)]">Report review</span>
+   213→              )}
+   214→            </DialogTitle>
+   215→            <DialogDescription className="text-[12.5px] text-[color:var(--ink-faint)]">
+   216→              {sub ? `${sub.level === "PROJECT" ? "Project report" : "BU-level report"} · ${sub.period} · ${sub.fiscalQuarter} · v${detail?.version ?? 1}` : "Loading the report context…"}
+   217→            </DialogDescription>
+   218→          </DialogHeader>
+   219→
+   220→          {/* Body — three-zone on desktop, stacked on mobile */}
+   221→          <div className="nice-scroll flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+   222→            {loading && <LoadingBlock rows={6} label="Loading the full report…" />}
+   223→            {error && !loading && <ErrorState message={error} onRetry={() => window.location.reload()} />}
+   224→            {sub && !loading && (
+   225→              <div className="space-y-4">
+   226→                {/* Report header summary */}
+   227→                <div className="glass-subtle rounded-2xl p-3.5">
+   228→                  <div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 lg:grid-cols-4">
+   229→                    <InfoRow label="Business unit">{sub.buName ?? "—"}</InfoRow>
+   230→                    <InfoRow label={sub.level === "PROJECT" ? "Project / site" : "Level"}>
+   231→                      {sub.level === "PROJECT" ? sub.projectName ?? "—" : "Business-unit level"}
+   232→                    </InfoRow>
+   233→                    <InfoRow label="Category">{sub.category}</InfoRow>
+   234→                    <InfoRow label="Submitted by">{sub.submittedByName ?? "—"}</InfoRow>
+   235→                    <InfoRow label="Submitted">{fmtDateTime(sub.submittedAt)}</InfoRow>
+   236→                    <InfoRow label="Report due">{fmtDate(sub.dueDate)}</InfoRow>
+   237→                    <InfoRow label="Review deadline">
+   238→                      <span>{fmtDate(sub.reviewDeadline)}</span>{" "}
+   239→                      <span className="text-[11px] text-[color:var(--ink-faint)]">({sub.reviewDeadlineLabel})</span>
+   240→                    </InfoRow>
+   241→                    <InfoRow label="Reviewer on record">{sub.reviewerName ?? "Not yet decided"}</InfoRow>
+   242→                  </div>
+   243→                </div>
+   244→
+   245→                <GlassTabBar
+   246→                  value={tab}
+   247→                  onChange={setTab}
+   248→                  tabs={[
+   249→                    { value: "report", label: "Report" },
+   250→                    { value: "validation", label: `Validation${warnings.length ? ` (${warnings.length})` : ""}` },
+   251→                    { value: "evidence", label: `Evidence (${evidenceCount})` },
+   252→                    { value: "history", label: "History & comments" },
+   253→                  ]}
+   254→                />
+   255→
+   256→                {/* ── REPORT tab — three-zone composition ── */}
+   257→                {tab === "report" && (
+   258→                  <div className="grid gap-3 lg:grid-cols-12">
+   259→                    {/* Left zone — navigation / context */}
+   260→                    <aside className="lg:col-span-3">
+   261→                      <div className="space-y-2">
+   262→                        <div className="glass-subtle rounded-2xl p-3">
+   263→                          <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Reporting context</div>
+   264→                          <div className="mt-1.5 text-[12.5px] font-semibold text-[color:var(--ink)]">{sub.metricName || sub.title}</div>
+   265→                          <div className="mt-1 text-[11px] text-[color:var(--ink-faint)]">{sub.category} · {sub.fiscalQuarter}</div>
+   266→                        </div>
+   267→                        <div className="glass-subtle rounded-2xl p-3">
+   268→                          <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Quality indicators</div>
+   269→                          <div className="mt-2 flex flex-wrap gap-1.5">
+   270→                            {warnings.length > 0
+   271→                              ? <Chip tone="amber">{warnings.length} validation warning{warnings.length > 1 ? "s" : ""}</Chip>
+   272→                              : <Chip tone="green">Validation clear</Chip>}
+   273→                            <EvidenceChip count={evidenceCount} />
+   274→                            <UrgencyChip days={sub.daysRemaining} />
+   275→                          </div>
+   276→                        </div>
+   277→                        <div className="glass-subtle rounded-2xl p-3">
+   278→                          <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Sections</div>
+   279→                          <nav className="mt-1.5 space-y-0.5 text-[12px]">
+   280→                            <button onClick={() => setTab("report")} className="block w-full rounded-lg px-2 py-1 text-left text-[color:var(--ink-soft)] hover:bg-white/70">Reported metric</button>
+   281→                            <button onClick={() => setTab("report")} className="block w-full rounded-lg px-2 py-1 text-left text-[color:var(--ink-soft)] hover:bg-white/70">Data values</button>
+   282→                            <button onClick={() => setTab("validation")} className="block w-full rounded-lg px-2 py-1 text-left text-[color:var(--ink-soft)] hover:bg-white/70">Validation issues</button>
+   283→                            <button onClick={() => setTab("evidence")} className="block w-full rounded-lg px-2 py-1 text-left text-[color:var(--ink-soft)] hover:bg-white/70">Supporting evidence</button>
+   284→                            <button onClick={() => setTab("history")} className="block w-full rounded-lg px-2 py-1 text-left text-[color:var(--ink-soft)] hover:bg-white/70">Review history</button>
+   285→                          </nav>
+   286→                        </div>
+   287→                      </div>
+   288→                    </aside>
+   289→
+   290→                    {/* Center zone — ESG reporting content */}
+   291→                    <section className="lg:col-span-6">
+   292→                      <div className="space-y-3">
+   293→                        <div className="glass-subtle flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4">
+   294→                          <div>
+   295→                            <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Reported metric</div>
+   296→                            <div className="mt-0.5 text-[14px] font-semibold text-[color:var(--ink)]">{sub.metricName || sub.title}</div>
+   297→                          </div>
+   298→                          <div className="text-right">
+   299→                            <div className="text-[24px] font-bold tabular leading-none text-[color:var(--bum-purple-deep)]">{fmtMetric(sub.metricValue)}</div>
+   300→                            <div className="text-[11px] font-medium text-[color:var(--ink-faint)]">{sub.metricUnit || "units"}</div>
+   301→                          </div>
+   302→                        </div>
+   303→
+   304→                        {isResubmission && priorValue && reportedValue && (
+   305→                          <button
+   306→                            onClick={() => setCompareOpen((v) => !v)}
+   307→                            className="glass-subtle flex w-full items-center justify-between gap-2 rounded-2xl p-3 text-left transition-colors hover:bg-white/80"
+   308→                          >
+   309→                            <span className="flex items-center gap-2 text-[12px] font-semibold text-[color:var(--bum-purple-deep)]">
+   310→                              <GitCompareArrows className="h-4 w-4" />
+   311→                              Compare with previous version
+   312→                            </span>
+   313→                            <Chip tone="purple">Resubmission</Chip>
+   314→                          </button>
+   315→                        )}
+   316→                        {compareOpen && priorValue && reportedValue && (
+   317→                          <div className="glass-subtle rounded-2xl p-3">
+   318→                            <div className="grid grid-cols-2 gap-2 text-center">
+   319→                              <div>
+   320→                                <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Previous</div>
+   321→                                <div className="text-[18px] font-bold tabular text-[color:var(--ink-soft)]">{fmtMetric(priorValue.value)}</div>
+   322→                                <div className="text-[10.5px] text-[color:var(--ink-faint)]">{priorValue.unit}</div>
+   323→                              </div>
+   324→                              <div>
+   325→                                <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Current</div>
+   326→                                <div className="text-[18px] font-bold tabular text-[color:var(--bum-purple-deep)]">{fmtMetric(reportedValue.value)}</div>
+   327→                                <div className="text-[10.5px] text-[color:var(--ink-faint)]">{reportedValue.unit}</div>
+   328→                              </div>
+   329→                            </div>
+   330→                            {(() => {
+   331→                              const diff = reportedValue.value - priorValue.value;
+   332→                              const pct = priorValue.value !== 0 ? Math.round((diff / Math.abs(priorValue.value)) * 100) : 0;
+   333→                              return (
+   334→                                <p className="mt-2 text-center text-[11px] text-[color:var(--ink-soft)]">
+   335→                                  Change: <span className={diff >= 0 ? "text-[#0e6b50]" : "text-[#a02a36]"}>{diff >= 0 ? "+" : ""}{fmtNumber(diff, 2)} ({pct >= 0 ? "+" : ""}{pct}%)</span>
+   336→                                </p>
+   337→                              );
+   338→                            })()}
+   339→                          </div>
+   340→                        )}
+   341→
+   342→                        {sub.values.length > 0 ? (
+   343→                          <div className="overflow-hidden rounded-2xl border border-[rgba(139,92,246,0.18)]">
+   344→                            <table className="w-full text-sm">
+   345→                              <thead>
+   346→                                <tr className="bg-white/60 [&>th]:border-b [&>th]:border-[rgba(139,92,246,0.2)] [&>th]:px-4 [&>th]:py-2.5 [&>th]:text-left [&>th]:text-[11px] [&>th]:font-semibold [&>th]:uppercase [&>th]:tracking-wide [&>th]:text-[color:var(--ink-faint)]">
+   347→                                  <th>Data value</th>
+   348→                                  <th className="text-right">Value</th>
+   349→                                  <th className="text-right">Unit</th>
+   350→                                </tr>
+   351→                              </thead>
+   352→                              <tbody>
+   353→                                {sub.values.map((v, i) => (
+   354→                                  <tr key={`${v.label}-${i}`} className="border-b border-[rgba(139,92,246,0.12)] last:border-0">
+   355→                                    <td className="px-4 py-2.5 text-[color:var(--ink-soft)]">{v.label}</td>
+   356→                                    <td className="px-4 py-2.5 text-right font-semibold tabular text-[color:var(--ink)]">{fmtMetric(v.value)}</td>
+   357→                                    <td className="px-4 py-2.5 text-right text-[color:var(--ink-faint)]">{v.unit}</td>
+   358→                                  </tr>
+   359→                                ))}
+   360→                              </tbody>
+   361→                            </table>
+   362→                          </div>
+   363→                        ) : (
+   364→                          <EmptyState title="No data values recorded" message="The submitter filed only the headline metric for this report." icon={FileText} />
+   365→                        )}
+   366→
+   367→                        {sub.comments.length > 0 && (
+   368→                          <div className="space-y-2">
+   369→                            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">
+   370→                              <MessageSquare className="h-3.5 w-3.5" /> Reviewer comments
+   371→                            </div>
+   372→                            {sub.comments.map((c, i) => (
+   373→                              <div key={i} className="glass-subtle rounded-2xl p-3">
+   374→                                <div className="flex items-center justify-between gap-2">
+   375→                                  <span className="text-[12.5px] font-semibold text-[color:var(--ink)]">
+   376→                                    {c.author} <span className="font-normal text-[color:var(--ink-faint)]">· {c.role.replace(/_/g, " ").toLowerCase()}</span>
+   377→                                  </span>
+   378→                                  <span className="text-[10.5px] text-[color:var(--ink-faint)]">{fmtDateTime(c.at)}</span>
+   379→                                </div>
+   380→                                <p className="mt-1.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-[color:var(--ink-soft)]">{c.text}</p>
+   381→                              </div>
+   382→                            ))}
+   383→                          </div>
+   384→                        )}
+   385→                      </div>
+   386→                    </section>
+   387→
+   388→                    {/* Right zone — review panel */}
+   389→                    <aside className="lg:col-span-3">
+   390→                      <div className="space-y-2">
+   391→                        <div className="glass-subtle rounded-2xl p-3">
+   392→                          <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Review status</div>
+   393→                          <div className="mt-1.5"><StatusChip status={sub.status} /></div>
+   394→                          <div className="mt-2 text-[11px] text-[color:var(--ink-soft)]">
+   395→                            {sub.status === "APPROVED"
+   396→                              ? "Approved — eligible for subsidiary consolidation."
+   397→                              : sub.status === "REJECTED"
+   398→                                ? "Rejected — awaiting correction by the responsible user."
+   399→                                : sub.status === "CHANGES_REQUESTED"
+   400→                                  ? "Returned for correction — the responsible user has been notified."
+   401→                                  : "Awaiting your review decision."}
+   402→                          </div>
+   403→                        </div>
+   404→                        <div className="glass-subtle rounded-2xl p-3">
+   405→                          <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Quality checks</div>
+   406→                          <div className="mt-1.5 space-y-1.5 text-[12px]">
+   407→                            <div className="flex items-center justify-between">
+   408→                              <span className="text-[color:var(--ink-soft)]">Data values</span>
+   409→                              <Chip tone={sub.values.length > 0 ? "green" : "amber"}>{sub.values.length}</Chip>
+   410→                            </div>
+   411→                            <div className="flex items-center justify-between">
+   412→                              <span className="text-[color:var(--ink-soft)]">Evidence docs</span>
+   413→                              <EvidenceChip count={evidenceCount} />
+   414→                            </div>
+   415→                            <div className="flex items-center justify-between">
+   416→                              <span className="text-[color:var(--ink-soft)]">Validation warnings</span>
+   417→                              <Chip tone={warnings.length === 0 ? "green" : "amber"}>{warnings.length}</Chip>
+   418→                            </div>
+   419→                            <div className="flex items-center justify-between">
+   420→                              <span className="text-[color:var(--ink-soft)]">Headline metric</span>
+   421→                              <Chip tone={sub.metricValue ? "green" : "amber"}>{sub.metricValue ? "Present" : "Missing"}</Chip>
+   422→                            </div>
+   423→                          </div>
+   424→                        </div>
+   425→                        {sub.history.length > 0 && (
+   426→                          <div className="glass-subtle rounded-2xl p-3">
+   427→                            <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Recent activity</div>
+   428→                            <div className="mt-1.5 space-y-1.5">
+   429→                              {sub.history.slice(-3).reverse().map((h, i) => (
+   430→                                <div key={i} className="text-[11.5px]">
+   431→                                  <div className="font-medium text-[color:var(--ink-soft)]">{h.action}</div>
+   432→                                  <div className="text-[10.5px] text-[color:var(--ink-faint)]">{timeAgo(h.at)}</div>
+   433→                                </div>
+   434→                              ))}
+   435→                            </div>
+   436→                          </div>
+   437→                        )}
+   438→                      </div>
+   439→                    </aside>
+   440→                  </div>
+   441→                )}
+   442→
+   443→                {/* ── VALIDATION tab ── */}
+   444→                {tab === "validation" && (
+   445→                  <div className="space-y-3">
+   446→                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+   447→                      {[
+   448→                        { label: "Data values", value: sub.values.length, ok: sub.values.length > 0 },
+   449→                        { label: "Evidence docs", value: evidenceCount, ok: evidenceCount > 0 },
+   450→                        { label: "Warnings", value: warnings.length, ok: warnings.length === 0 },
+   451→                        { label: "Headline metric", value: sub.metricValue ? 1 : 0, ok: !!sub.metricValue },
+   452→                      ].map((c) => (
+   453→                        <div key={c.label} className="glass-subtle rounded-2xl p-3 text-center">
+   454→                          <div className={`text-[18px] font-bold tabular ${c.ok ? "text-[#0e6b50]" : "text-[#9c5d1b]"}`}>{c.value}</div>
+   455→                          <div className="text-[10.5px] font-medium text-[color:var(--ink-faint)]">{c.label}</div>
+   456→                        </div>
+   457→                      ))}
+   458→                    </div>
+   459→                    {sub.validationIssues.length === 0 ? (
+   460→                      <EmptyState
+   461→                        title="No validation issues on this report"
+   462→                        message="Automated checks found no missing fields, duplicates or calculation exceptions."
+   463→                        icon={ShieldCheck}
+   464→                      />
+   465→                    ) : (
+   466→                      sub.validationIssues.map((v) => (
+   467→                        <div key={v.ref} className="glass-subtle flex items-start justify-between gap-3 rounded-2xl p-3.5">
+   468→                          <div className="min-w-0">
+   469→                            <div className="flex items-center gap-2">
+   470→                              <Chip tone={severityTone(v.severity)}>{v.severity}</Chip>
+   471→                              <span className="text-[12px] font-medium text-[color:var(--ink-faint)]">{v.ref}</span>
+   472→                            </div>
+   473→                            <p className="mt-1.5 text-[13px] text-[color:var(--ink-soft)]">{v.description}</p>
+   474→                          </div>
+   475→                          <Chip tone={v.status === "RESOLVED" || v.status === "WAIVED" ? "green" : "amber"}>{v.status}</Chip>
+   476→                        </div>
+   477→                      ))
+   478→                    )}
+   479→                    <p className="text-[11.5px] leading-relaxed text-[color:var(--ink-faint)]">
+   480→                      Passing validation does not imply approval — the decision is always yours to make explicitly. The BU Manager cannot alter submitted values; corrections follow the configured workflow and preserve revision history.
+   481→                    </p>
+   482→                  </div>
+   483→                )}
+   484→
+   485→                {/* ── EVIDENCE tab (in-context drawer) ── */}
+   486→                {tab === "evidence" && (
+   487→                  <div className="space-y-3">
+   488→                    {evidenceLoading && <LoadingBlock rows={3} label="Loading evidence…" />}
+   489→                    {!evidenceLoading && (evidence ?? []).length === 0 && (
+   490→                      <EmptyState
+   491→                        title="No evidence attached"
+   492→                        message="This report has no supporting documents in the repository. Returning it for correction may be appropriate if evidence is mandatory."
+   493→                        icon={AlertTriangle}
+   494→                      />
+   495→                    )}
+   496→                    {!evidenceLoading && (evidence ?? []).map((doc) => (
+   497→                      <div key={doc.id} className="glass-subtle rounded-2xl p-3.5">
+   498→                        <div className="flex flex-wrap items-start justify-between gap-2">
+   499→                          <div className="min-w-0">
+   500→                            <div className="truncate text-[13px] font-semibold text-[color:var(--ink)]">{doc.name}</div>
+   501→                            <div className="mt-0.5 text-[11.5px] text-[color:var(--ink-faint)]">
+   502→                              {doc.fileType} · {doc.sizeKb > 0 ? `${fmtNumber(doc.sizeKb)} KB` : "metadata only"} · v{doc.version} · uploaded {timeAgo(doc.uploadedAt)} by {doc.uploadedBy}
+   503→                            </div>
+   504→                            {doc.disclosureRef && <div className="mt-0.5 text-[11px] text-[color:var(--ink-faint)]">Disclosure: {doc.disclosureRef}</div>}
+   505→                          </div>
+   506→                          <div className="flex shrink-0 items-center gap-2">
+   507→                            <Chip tone={doc.status === "VALID" ? "green" : doc.status === "EXPIRED" ? "red" : "amber"}>{doc.status}</Chip>
+   508→                            <Button variant="outline" size="sm" className="glass-subtle h-8 rounded-xl" onClick={() => { setActiveDoc(doc); void downloadDoc(doc); }} disabled={docLoading}>
+   509→                              {docLoading && activeDoc?.id === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+   510→                              <span className="ml-1.5">Download</span>
+   511→                            </Button>
+   512→                          </div>
+   513→                        </div>
+   514→                      </div>
+   515→                    ))}
+   516→                    {docReceipt && (
+   517→                      <p className="rounded-2xl bg-[rgba(22,166,122,0.08)] px-3 py-2 text-[11.5px] text-[#0e6b50]" role="status">{docReceipt}</p>
+   518→                    )}
+   519→                  </div>
+   520→                )}
+   521→
+   522→                {/* ── HISTORY tab ── */}
+   523→                {tab === "history" && (
+   524→                  <div className="space-y-4">
+   525→                    <div className="space-y-2">
+   526→                      <div className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Workflow timeline</div>
+   527→                      {sub.history.length === 0 && <EmptyState title="No history recorded" icon={FileText} />}
+   528→                      {sub.history.map((h, i) => (
+   529→                        <div key={i} className="flex items-start gap-3">
+   530→                          <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[color:var(--bum-purple)]" />
+   531→                          <div className="min-w-0 flex-1 border-b border-[rgba(139,92,246,0.14)] pb-2.5">
+   532→                            <div className="flex flex-wrap items-center justify-between gap-1">
+   533→                              <span className="text-[12.5px] font-medium text-[color:var(--ink)]">{h.action}</span>
+   534→                              <span className="text-[10.5px] text-[color:var(--ink-faint)]">{fmtDateTime(h.at)}</span>
+   535→                            </div>
+   536→                            {h.note && <p className="mt-1 whitespace-pre-wrap text-[12px] leading-relaxed text-[color:var(--ink-soft)]">{h.note}</p>}
+   537→                          </div>
+   538→                        </div>
+   539→                      ))}
+   540→                    </div>
+   541→                  </div>
+   542→                )}
+   543→              </div>
+   544→            )}
+   545→          </div>
+   546→
+   547→          {/* Footer — review actions */}
+   548→          <DialogFooter className="glass-sheen shrink-0 border-t border-[rgba(139,92,246,0.18)] bg-white/60 px-5 py-3.5">
+   549→            {eligible && sub ? (
+   550→              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+   551→                <div className="flex flex-wrap items-center gap-1.5 text-[11.5px] text-[color:var(--ink-faint)]">
+   552→                  <span className="font-semibold uppercase tracking-wide">Review checks:</span>
+   553→                  {warnings.length > 0 ? <Chip tone="amber">{warnings.length} validation warning{warnings.length > 1 ? "s" : ""}</Chip> : <Chip tone="green">Validation clear</Chip>}
+   554→                  <EvidenceChip count={evidenceCount} />
+   555→                </div>
+   556→                <div className="flex shrink-0 flex-wrap items-center gap-2">
+   557→                  <Button
+   558→                    variant="outline"
+   559→                    disabled={decision.pending}
+   560→                    className="rounded-2xl border-[rgba(139,92,246,0.4)] text-[color:var(--bum-purple-deep)] hover:bg-[rgba(139,92,246,0.06)]"
+   561→                    onClick={() => setReturnOpen(true)}
+   562→                  >
+   563→                    <ArrowLeftRight className="mr-1.5 h-4 w-4" />
+   564→                    Return for correction…
+   565→                  </Button>
+   566→                  <Button
+   567→                    variant="outline"
+   568→                    disabled={decision.pending}
+   569→                    className="rounded-2xl border-[rgba(195,74,74,0.4)] text-[#a53b3b] hover:bg-[rgba(195,74,74,0.06)]"
+   570→                    onClick={() => setRejectOpen(true)}
+   571→                  >
+   572→                    <XCircle className="mr-1.5 h-4 w-4" />
+   573→                    Reject…
+   574→                  </Button>
+   575→                  <Button
+   576→                    disabled={decision.pending}
+   577→                    className="btn-bum-action rounded-2xl"
+   578→                    onClick={() => setApproveOpen(true)}
+   579→                  >
+   580→                    {decision.pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+   581→                    Approve
+   582→                  </Button>
+   583→                </div>
+   584→              </div>
+   585→            ) : sub ? (
+   586→              <div className="flex w-full items-center justify-between gap-2">
+   587→                <span className="text-[12px] text-[color:var(--ink-faint)]">
+   588→                  {sub.status === "APPROVED"
+   589→                    ? "This report is approved — eligible for subsidiary consolidation."
+   590→                    : "This report is outside the review stage — decisions are only available while it awaits review."}
+   591→                </span>
+   592→                <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => onOpenChange(false)}>Close</Button>
+   593→              </div>
+   594→            ) : null}
+   595→          </DialogFooter>
+   596→        </DialogContent>
+   597→      </Dialog>
+   598→
+   599→      {/* ── Approve confirmation ── */}
+   600→      <ConfirmDialog
+   601→        open={approveOpen}
+   602→        onOpenChange={setApproveOpen}
+   603→        title="Confirm approval"
+   604→        confirmLabel="Confirm approval"
+   605→        pending={decision.pending}
+   606→        message={
+   607→          sub
+   608→            ? `Approve ${sub.ref} — ${sub.title} (${sub.level === "PROJECT" ? sub.projectName : sub.buName ?? ""}, ${sub.period})? The responsible user, the BU Admin and the Subsidiary Manager will be notified, and the report becomes eligible for subsidiary consolidation.`
+   609→            : ""
+   610→        }
+   611→        onConfirm={(reason) => void decide("approve", { reason })}
+   612→      />
+   613→
+   614→      {/* ── Return-for-correction dialog (mandatory reason + mandatory instructions) ── */}
+   615→      <Dialog open={returnOpen} onOpenChange={setReturnOpen}>
+   616→        <DialogContent className="glass-strong max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll sm:max-w-xl">
+   617→          <DialogHeader>
+   618→            <DialogTitle className="text-base text-[color:var(--ink)]">Return {sub?.ref ?? ""} for correction</DialogTitle>
+   619→            <DialogDescription className="text-[12.5px] text-[color:var(--ink-faint)]">
+   620→              The report returns to the responsible user with a clear correction note. A meaningful reason and actionable instructions are mandatory.
+   621→            </DialogDescription>
+   622→          </DialogHeader>
+   623→          {sub && (
+   624→            <div className="space-y-3.5">
+   625→              <div className="glass-subtle rounded-2xl p-3 text-[12.5px] text-[color:var(--ink-soft)]">
+   626→                <span className="font-semibold text-[color:var(--ink)]">{sub.ref} — {sub.title}</span>
+   627→                {" "}· {sub.level === "PROJECT" ? sub.projectName : sub.buName} · {sub.period} · submitted by {sub.submittedByName ?? "—"}
+   628→              </div>
+   629→              <div>
+   630→                <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="return-reason">
+   631→                  Reason for return <span className="text-[#c34a4a]">*</span>
+   632→                </label>
+   633→                <Textarea
+   634→                  id="return-reason"
+   635→                  value={returnReason}
+   636→                  onChange={(e) => setReturnReason(e.target.value)}
+   637→                  rows={3}
+   638→                  placeholder="Explain what is incorrect, incomplete or inadequately supported (min 10 characters)…"
+   639→                  className="glass-subtle rounded-2xl border-white/60"
+   640→                />
+   641→                {returnReason.length > 0 && !returnReasonValid && (
+   642→                  <p className="mt-1 text-xs font-medium text-[#c34a4a]" role="alert">Reason must be at least 10 characters — empty returns are blocked.</p>
+   643→                )}
+   644→              </div>
+   645→              <div>
+   646→                <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="return-instructions">
+   647→                  Correction instructions <span className="text-[#c34a4a]">*</span>
+   648→                </label>
+   649→                <Textarea
+   650→                  id="return-instructions"
+   651→                  value={returnInstructions}
+   652→                  onChange={(e) => setReturnInstructions(e.target.value)}
+   653→                  rows={3}
+   654→                  placeholder="Specific actionable steps the responsible user should take to correct the report (min 10 characters)…"
+   655→                  className="glass-subtle rounded-2xl border-white/60"
+   656→                />
+   657→                {returnInstructions.length > 0 && !returnInstructionsValid && (
+   658→                  <p className="mt-1 text-xs font-medium text-[#c34a4a]" role="alert">Instructions must be at least 10 characters.</p>
+   659→                )}
+   660→              </div>
+   661→              <div>
+   662→                <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="return-fields">
+   663→                  Affected fields / evidence <span className="text-[color:var(--ink-faint)]">(optional)</span>
+   664→                </label>
+   665→                <Input
+   666→                  id="return-fields"
+   667→                  value={returnFields}
+   668→                  onChange={(e) => setReturnFields(e.target.value)}
+   669→                  placeholder="e.g. I-REC statement, unit conversion, Q2 meter log"
+   670→                  className="glass-subtle rounded-2xl border-white/60"
+   671→                />
+   672→              </div>
+   673→              <div className="flex items-start gap-2 rounded-2xl bg-[rgba(139,92,246,0.06)] p-3 text-[11.5px] leading-relaxed text-[color:var(--bum-purple-deep)]">
+   674→                <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+   675→                The current version, evidence and reviewer comments are preserved. The report moves to CHANGES_REQUESTED and the responsible user is notified with your reason + instructions.
+   676→              </div>
+   677→            </div>
+   678→          )}
+   679→          <DialogFooter className="gap-2 sm:justify-between">
+   680→            <span className="text-[11.5px] text-[color:var(--ink-faint)]">
+   681→              {returnReasonValid && returnInstructionsValid ? "Ready to record the decision" : "Reason and instructions must each be ≥ 10 characters"}
+   682→            </span>
+   683→            <div className="flex items-center gap-2">
+   684→              <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setReturnOpen(false)} disabled={decision.pending}>Cancel</Button>
+   685→              <Button
+   686→                className="btn-bum-action rounded-2xl"
+   687→                disabled={!returnReasonValid || !returnInstructionsValid || decision.pending}
+   688→                onClick={() => {
+   689→                  const fields = returnFields.trim()
+   690→                    ? returnFields.split(",").map((f) => f.trim()).filter(Boolean)
+   691→                    : [];
+   692→                  void decide("return", {
+   693→                    reason: returnReason.trim(),
+   694→                    instructions: returnInstructions.trim(),
+   695→                    affectedFields: fields,
+   696→                  });
+   697→                }}
+   698→              >
+   699→                {decision.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   700→                Confirm return for correction
+   701→              </Button>
+   702→            </div>
+   703→          </DialogFooter>
+   704→        </DialogContent>
+   705→      </Dialog>
+   706→
+   707→      {/* ── Reject dialog (mandatory reason) ── */}
+   708→      <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+   709→        <DialogContent className="glass-strong max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll sm:max-w-xl">
+   710→          <DialogHeader>
+   711→            <DialogTitle className="text-base text-[color:var(--ink)]">Reject {sub?.ref ?? ""}</DialogTitle>
+   712→            <DialogDescription className="text-[12.5px] text-[color:var(--ink-faint)]">
+   713→              The report is rejected and returned to the responsible user. A meaningful reason is mandatory — empty rejections are blocked server-side.
+   714→            </DialogDescription>
+   715→          </DialogHeader>
+   716→          {sub && (
+   717→            <div className="space-y-3.5">
+   718→              <div className="glass-subtle rounded-2xl p-3 text-[12.5px] text-[color:var(--ink-soft)]">
+   719→                <span className="font-semibold text-[color:var(--ink)]">{sub.ref} — {sub.title}</span>
+   720→                {" "}· {sub.level === "PROJECT" ? sub.projectName : sub.buName} · {sub.period} · submitted by {sub.submittedByName ?? "—"}
+   721→              </div>
+   722→              <div>
+   723→                <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="reject-reason">
+   724→                  Rejection reason <span className="text-[#c34a4a]">*</span>
+   725→                </label>
+   726→                <Textarea
+   727→                  id="reject-reason"
+   728→                  value={rejectReason}
+   729→                  onChange={(e) => setRejectReason(e.target.value)}
+   730→                  rows={3}
+   731→                  placeholder="Explain what is incorrect, incomplete or inadequately supported (min 10 characters)…"
+   732→                  className="glass-subtle rounded-2xl border-white/60"
+   733→                />
+   734→                {rejectReason.length > 0 && rejectReason.trim().length < 10 && (
+   735→                  <p className="mt-1 text-xs font-medium text-[#c34a4a]" role="alert">Reason must be at least 10 characters — empty rejections are blocked.</p>
+   736→                )}
+   737→              </div>
+   738→              <div>
+   739→                <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="reject-instructions">
+   740→                  Correction instructions <span className="text-[color:var(--ink-faint)]">(optional)</span>
+   741→                </label>
+   742→                <Textarea
+   743→                  id="reject-instructions"
+   744→                  value={rejectInstructions}
+   745→                  onChange={(e) => setRejectInstructions(e.target.value)}
+   746→                  rows={2}
+   747→                  placeholder="Specific steps the responsible user should take to correct the report…"
+   748→                  className="glass-subtle rounded-2xl border-white/60"
+   749→                />
+   750→              </div>
+   751→              <div>
+   752→                <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="reject-fields">
+   753→                  Affected fields / evidence <span className="text-[color:var(--ink-faint)]">(optional)</span>
+   754→                </label>
+   755→                <Input
+   756→                  id="reject-fields"
+   757→                  value={rejectFields}
+   758→                  onChange={(e) => setRejectFields(e.target.value)}
+   759→                  placeholder="e.g. I-REC statement, unit conversion, Q2 meter log"
+   760→                  className="glass-subtle rounded-2xl border-white/60"
+   761→                />
+   762→              </div>
+   763→              <div className="flex items-start gap-2 rounded-2xl bg-[rgba(195,74,74,0.06)] p-3 text-[11.5px] leading-relaxed text-[#a53b3b]">
+   764→                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+   765→                The rejected version and its evidence are preserved. The report returns to the correction workflow — the responsible user and the BU Admin will be notified with your reason.
+   766→              </div>
+   767→            </div>
+   768→          )}
+   769→          <DialogFooter className="gap-2 sm:justify-between">
+   770→            <span className="text-[11.5px] text-[color:var(--ink-faint)]">
+   771→              {rejectReason.trim().length >= 10 ? "Ready to record the decision" : "Reason must be at least 10 characters"}
+   772→            </span>
+   773→            <div className="flex items-center gap-2">
+   774→              <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setRejectOpen(false)} disabled={decision.pending}>Cancel</Button>
+   775→              <Button
+   776→                variant="destructive"
+   777→                className="rounded-2xl"
+   778→                disabled={rejectReason.trim().length < 10 || decision.pending}
+   779→                onClick={() => {
+   780→                  const fields = rejectFields.trim()
+   781→                    ? rejectFields.split(",").map((f) => f.trim()).filter(Boolean)
+   782→                    : [];
+   783→                  void decide("reject", {
+   784→                    reason: rejectReason.trim(),
+   785→                    instructions: rejectInstructions.trim(),
+   786→                    affectedFields: fields,
+   787→                  });
+   788→                }}
+   789→              >
+   790→                {decision.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+   791→                Confirm rejection
+   792→              </Button>
+   793→            </div>
+   794→          </DialogFooter>
+   795→        </DialogContent>
+   796→      </Dialog>
+   797→    </>
+   798→  );
+   799→}
+   800→

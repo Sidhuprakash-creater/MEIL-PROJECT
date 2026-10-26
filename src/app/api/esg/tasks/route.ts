@@ -124,6 +124,27 @@ export async function POST(req: NextRequest) {
         refId: t.id,
       },
     });
+    // Push the task + deadline into the Project User Portal so site-operations
+    // users see the assignment on the receiver side too (best-effort).
+    try {
+      const { pushTaskToPortalUsers } = await import("@/lib/bridge/pu-link");
+      const pushed = await pushTaskToPortalUsers({
+        id: t.id,
+        ref: t.ref,
+        title: t.title,
+        description: t.description,
+        category: t.category,
+        dueDate: t.dueDate,
+        priority: t.priority,
+        subsidiaryId: t.subsidiaryId,
+        businessUnitId: t.businessUnitId,
+      });
+      if (pushed.notified > 0) {
+        console.log("[tasks] portal push:", t.ref, "→", pushed.notified, "site user(s)");
+      }
+    } catch (portalErr) {
+      console.warn("[tasks] portal push notice:", portalErr);
+    }
     await Promise.all([
       logActivity({ actorName: ACTOR.name, action: "TASK_ASSIGN", targetType: "Task", targetLabel: `${t.ref} — ${t.title}` }),
       logAudit({ actorName: ACTOR.name, action: "TASK_CREATE", targetType: "Task", targetId: t.id, targetLabel: t.ref, after: { title: t.title, assignee: t.assigneeLabel, dueDate: due.toISOString(), priority: t.priority } }),

@@ -426,3 +426,22 @@ Stage Summary:
 - Root cause: workspace too large / too many files for the platform archive step; live turbopack cache files were the immediate failure trigger
 - Deliverable: download/meil-esg-platform-source.zip — full runnable project source (3 MB); run: bun install → bun run db:push → bunx tsx prisma/seed-auth.ts, seed-sa.ts, seed-so.ts → bun run dev
 - node_modules (1.3 GB) cannot be removed (project must run), so the platform's own button may still be slow/fragile; the zip in download/ is the reliable path
+
+---
+Task ID: CLEAN-1
+Agent: main thread (Z.ai Code)
+Task: Clean codebase of unnecessary files so the project downloads properly and size is reduced, without touching anything the app needs
+
+Work Log:
+- Reference-checked every candidate before deletion: grep confirmed zero code references to upload/, public/logo.svg; confirmed all 5 project JPGs are used by landing page; src/lib/so/meil-brsr-official.pdf is used by reports download API (kept); public/evidence-uploads is runtime evidence storage (kept)
+- Removed: upload/ contents (40 MB — original portal ZIP + extracted copy + pasted content, all already integrated into src/), tool-results/ (4.7 MB platform bash outputs), agent-ctx/ (40 KB subagent docs), tests/ (16 KB sandbox scaffold shell scripts, not app tests), public/logo.svg (unreferenced scaffold asset), .next purge with server restart
+- upload/ itself is a platform mount (Device or resource busy) — emptied its contents instead
+- Restarted dev server (nohup bun run dev), verified GET / 200
+- Rebuilt download/meil-esg-platform-source.zip (3.0 MB, unzip -t OK) from the cleaned tree
+- Browser-verified via agent-browser: landing page renders fully, zero console/page errors
+
+Stage Summary:
+- Workspace: 1.8 GB → 1.5 GB; non-essential payload removed ≈ 380 MB; remaining floor is node_modules 1.3 GB (required to run), .git 64 MB (history), skills 61 MB (platform-owned)
+- Project source is now ~11 MB of pure code + needed assets; src/ contains only ts/tsx/css + 1 referenced PDF
+- Deliverable refreshed: download/meil-esg-platform-source.zip (clean tree, includes .env)
+- App verified healthy after cleanup (curl 200 + agent-browser render, no errors)

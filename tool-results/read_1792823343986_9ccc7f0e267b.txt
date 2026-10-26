@@ -1,0 +1,1115 @@
+     1→"use client";
+     2→
+     3→/* ═══════════════════════════════════════════════════════════════════════════
+     4→   MEIL ESG — ENTER PLATFORM (secure access gateway)
+     5→   Left: cinematic sustainability stage + brand story.
+     6→   Right: four access portals with role-scoped, server-verified login flows.
+     7→   ═══════════════════════════════════════════════════════════════════════════ */
+     8→
+     9→import {
+    10→  useCallback,
+    11→  useEffect,
+    12→  useMemo,
+    13→  useRef,
+    14→  useState,
+    15→  type ComponentType,
+    16→  type FormEvent,
+    17→  type KeyboardEvent as ReactKeyboardEvent,
+    18→} from "react";
+    19→import {
+    20→  AlertCircle,
+    21→  ArrowLeft,
+    22→  ArrowRight,
+    23→  BadgeCheck,
+    24→  BarChart3,
+    25→  Building2,
+    26→  Check,
+    27→  CheckCircle2,
+    28→  ChevronDown,
+    29→  ExternalLink,
+    30→  Eye,
+    31→  EyeOff,
+    32→  FileClock,
+    33→  Fingerprint,
+    34→  HardHat,
+    35→  Info,
+    36→  KeyRound,
+    37→  Loader2,
+    38→  LockKeyhole,
+    39→  Network,
+    40→  ScrollText,
+    41→  Search,
+    42→  ShieldCheck,
+    43→  Workflow,
+    44→  X,
+    45→} from "lucide-react";
+    46→import {
+    47→  PROJECT_USER_PORTAL_NOTICE,
+    48→  PROJECT_USER_PORTAL_URL,
+    49→  PORTAL_ROLE_LABELS,
+    50→  PORTAL_TITLES,
+    51→  type PortalId,
+    52→  type VerifiedUser,
+    53→} from "@/lib/platform-config";
+    54→import "./enter-platform.css";
+    55→
+    56→/* ── types ─────────────────────────────────────────────────────────────────── */
+    57→
+    58→interface SubsidiaryOpt {
+    59→  id: string;
+    60→  code: string;
+    61→  name: string;
+    62→}
+    63→
+    64→interface BUOpt extends SubsidiaryOpt {
+    65→  subsidiaryId: string;
+    66→}
+    67→
+    68→interface ApiError {
+    69→  code: string;
+    70→  message: string;
+    71→  fields?: Record<string, string>;
+    72→}
+    73→
+    74→/* ── portal catalogue ──────────────────────────────────────────────────────── */
+    75→
+    76→interface PortalDef {
+    77→  id: PortalId | "project";
+    78→  tier: string;
+    79→  accent: "gold" | "teal" | "green" | "amber";
+    80→  icon: ComponentType<{ size?: number; strokeWidth?: number }>;
+    81→  title: string;
+    82→  desc: string;
+    83→  cta: string;
+    84→  external?: boolean;
+    85→}
+    86→
+    87→const PORTALS: PortalDef[] = [
+    88→  {
+    89→    id: "group",
+    90→    tier: "Tier 01",
+    91→    accent: "gold",
+    92→    icon: Building2,
+    93→    title: "Group Portal",
+    94→    desc: "Access group-level ESG reporting, consolidated data, governance, and organization-wide dashboards.",
+    95→    cta: "Continue",
+    96→  },
+    97→  {
+    98→    id: "subsidiary",
+    99→    tier: "Tier 02",
+   100→    accent: "teal",
+   101→    icon: Network,
+   102→    title: "Subsidiary Portal",
+   103→    desc: "Manage subsidiary-level ESG reporting, business units, consolidation, and approvals.",
+   104→    cta: "Continue",
+   105→  },
+   106→  {
+   107→    id: "business_unit",
+   108→    tier: "Tier 03",
+   109→    accent: "green",
+   110→    icon: Workflow,
+   111→    title: "Business Unit Portal",
+   112→    desc: "Manage business-unit-level ESG reporting, performance, and project data consolidation.",
+   113→    cta: "Continue",
+   114→  },
+   115→  {
+   116→    id: "project",
+   117→    tier: "Tier 04",
+   118→    accent: "amber",
+   119→    icon: HardHat,
+   120→    title: "Project User Portal",
+   121→    desc: "Access project-level ESG data entry and reporting.",
+   122→    cta: "External Link",
+   123→    external: true,
+   124→  },
+   125→];
+   126→
+   127→const STEP_LABELS: Record<PortalId, string[]> = {
+   128→  group: ["Role", "Credentials"],
+   129→  subsidiary: ["Subsidiary", "Role", "Credentials"],
+   130→  business_unit: ["Subsidiary", "Business Unit", "Role", "Credentials"],
+   131→};
+   132→
+   133→/* ═══════════════════════════════════════════════════════════════════════════
+   134→   Searchable subsidiary combobox (keyboard + screen-reader accessible)
+   135→   ═══════════════════════════════════════════════════════════════════════════ */
+   136→
+   137→function SubsidiaryCombobox({
+   138→  label,
+   139→  hint,
+   140→  required = true,
+   141→  value,
+   142→  options,
+   143→  loading,
+   144→  disabled,
+   145→  invalid,
+   146→  errorText,
+   147→  placeholder = "Search subsidiaries…",
+   148→  onChange,
+   149→}: {
+   150→  label: string;
+   151→  hint?: string;
+   152→  required?: boolean;
+   153→  value: SubsidiaryOpt | null;
+   154→  options: SubsidiaryOpt[];
+   155→  loading?: boolean;
+   156→  disabled?: boolean;
+   157→  invalid?: boolean;
+   158→  errorText?: string;
+   159→  placeholder?: string;
+   160→  onChange: (opt: SubsidiaryOpt | null) => void;
+   161→}) {
+   162→  const [open, setOpen] = useState(false);
+   163→  const [query, setQuery] = useState("");
+   164→  const [active, setActive] = useState(0);
+   165→  const wrapRef = useRef<HTMLDivElement>(null);
+   166→  const inputRef = useRef<HTMLInputElement>(null);
+   167→  const listId = useMemo(() => `ep-combo-${Math.random().toString(36).slice(2, 8)}`, []);
+   168→
+   169→  const filtered = useMemo(() => {
+   170→    const q = query.trim().toLowerCase();
+   171→    if (!q) return options;
+   172→    return options.filter(
+   173→      (o) => o.name.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
+   174→    );
+   175→  }, [options, query]);
+   176→
+   177→  /* close on outside interaction */
+   178→  useEffect(() => {
+   179→    if (!open) return;
+   180→    const onDown = (e: PointerEvent) => {
+   181→      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+   182→        setOpen(false);
+   183→      }
+   184→    };
+   185→    document.addEventListener("pointerdown", onDown);
+   186→    return () => document.removeEventListener("pointerdown", onDown);
+   187→  }, [open]);
+   188→
+   189→  const openList = () => {
+   190→    if (disabled) return;
+   191→    setQuery("");
+   192→    setActive(0);
+   193→    setOpen(true);
+   194→  };
+   195→
+   196→  const pick = (opt: SubsidiaryOpt) => {
+   197→    onChange(opt);
+   198→    setOpen(false);
+   199→    inputRef.current?.blur();
+   200→  };
+   201→
+   202→  const onKey = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+   203→    if (!open && (e.key === "ArrowDown" || e.key === "Enter")) {
+   204→      e.preventDefault();
+   205→      openList();
+   206→      return;
+   207→    }
+   208→    if (e.key === "ArrowDown") {
+   209→      e.preventDefault();
+   210→      setActive((a) => Math.min(a + 1, filtered.length - 1));
+   211→    } else if (e.key === "ArrowUp") {
+   212→      e.preventDefault();
+   213→      setActive((a) => Math.max(a - 1, 0));
+   214→    } else if (e.key === "Enter") {
+   215→      e.preventDefault();
+   216→      if (filtered[active]) pick(filtered[active]);
+   217→    } else if (e.key === "Escape") {
+   218→      setOpen(false);
+   219→    }
+   220→  };
+   221→
+   222→  const displayValue = open ? query : value ? value.name : "";
+   223→
+   224→  return (
+   225→    <div className={`ep-block${disabled ? " is-disabled" : ""}`}>
+   226→      <label className="ep-label" htmlFor={listId + "-input"}>
+   227→        <span>
+   228→          {label}
+   229→          {required && <span className="ep-req">*</span>}
+   230→        </span>
+   231→        {hint && <span className="ep-hint">{hint}</span>}
+   232→      </label>
+   233→      <div className="ep-combo" ref={wrapRef}>
+   234→        <div style={{ position: "relative" }}>
+   235→          <Search
+   236→            size={15}
+   237→            strokeWidth={2}
+   238→            style={{
+   239→              position: "absolute",
+   240→              left: 15,
+   241→              top: "50%",
+   242→              transform: "translateY(-50%)",
+   243→              color: "var(--tx-400)",
+   244→              pointerEvents: "none",
+   245→            }}
+   246→          />
+   247→          <input
+   248→            id={listId + "-input"}
+   249→            ref={inputRef}
+   250→            className={`ep-combo-input${invalid ? " is-invalid" : ""}`}
+   251→            style={{ paddingLeft: 42, paddingRight: value && !open ? 96 : 40, cursor: disabled ? "not-allowed" : "text" }}
+   252→            role="combobox"
+   253→            aria-expanded={open}
+   254→            aria-controls={listId}
+   255→            aria-autocomplete="list"
+   256→            aria-activedescendant={open && filtered[active] ? `${listId}-opt-${active}` : undefined}
+   257→            autoComplete="off"
+   258→            disabled={disabled}
+   259→            placeholder={disabled ? "Select a subsidiary first" : placeholder}
+   260→            value={displayValue}
+   261→            onFocus={openList}
+   262→            onChange={(e) => {
+   263→              setQuery(e.target.value);
+   264→              setOpen(true);
+   265→              setActive(0);
+   266→              if (value) onChange(null);
+   267→            }}
+   268→            onKeyDown={onKey}
+   269→          />
+   270→          {value && !open && (
+   271→            <span className="ep-combo-value">
+   272→              <span className="ep-combo-code">{value.code}</span>
+   273→            </span>
+   274→          )}
+   275→          {!open && (
+   276→            <ChevronDown
+   277→              size={16}
+   278→              style={{
+   279→                position: "absolute",
+   280→                right: 16,
+   281→                top: "50%",
+   282→                transform: "translateY(-50%)",
+   283→                color: "var(--tx-400)",
+   284→                pointerEvents: "none",
+   285→              }}
+   286→            />
+   287→          )}
+   288→        </div>
+   289→
+   290→        {open && (
+   291→          <ul
+   292→            className="ep-combo-list"
+   293→            id={listId}
+   294→            role="listbox"
+   295→            aria-label={label}
+   296→            style={{ ["--ep-accent" as string]: "var(--gold-400)" }}
+   297→          >
+   298→            {loading ? (
+   299→              <li className="ep-combo-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+   300→                <Loader2 size={14} className="ep-spin" style={{ animation: "ep-spin 0.7s linear infinite" }} />
+   301→                Loading subsidiaries…
+   302→              </li>
+   303→            ) : filtered.length === 0 ? (
+   304→              <li className="ep-combo-empty">No subsidiaries match “{query}”.</li>
+   305→            ) : (
+   306→              filtered.map((opt, i) => (
+   307→                <li key={opt.id} role="none">
+   308→                  <button
+   309→                    type="button"
+   310→                    id={`${listId}-opt-${i}`}
+   311→                    role="option"
+   312→                    aria-selected={value?.id === opt.id}
+   313→                    className={`ep-combo-opt${i === active ? " is-active" : ""}`}
+   314→                    onMouseEnter={() => setActive(i)}
+   315→                    onPointerDown={(e) => e.preventDefault()}
+   316→                    onClick={() => pick(opt)}
+   317→                  >
+   318→                    <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+   319→                      <span>{opt.name}</span>
+   320→                      {value?.id === opt.id && (
+   321→                        <span style={{ fontSize: 10, color: "var(--gold-600)", fontFamily: "var(--font-mono)", letterSpacing: "0.1em" }}>
+   322→                          SELECTED
+   323→                        </span>
+   324→                      )}
+   325→                    </span>
+   326→                    <span className="ep-combo-code">{opt.code}</span>
+   327→                  </button>
+   328→                </li>
+   329→              ))
+   330→            )}
+   331→          </ul>
+   332→        )}
+   333→      </div>
+   334→      {errorText && (
+   335→        <div className="ep-field-err" role="alert">
+   336→          <AlertCircle size={13} /> {errorText}
+   337→        </div>
+   338→      )}
+   339→    </div>
+   340→  );
+   341→}
+   342→
+   343→/* ═══════════════════════════════════════════════════════════════════════════
+   344→   Portal login workflow (per-portal state machine)
+   345→   ═══════════════════════════════════════════════════════════════════════════ */
+   346→
+   347→function PortalFlow({
+   348→  portal,
+   349→  subsidiaries,
+   350→  subsidiariesLoading,
+   351→  onBackToPortals,
+   352→  onAuthed,
+   353→}: {
+   354→  portal: PortalId;
+   355→  subsidiaries: SubsidiaryOpt[] | null;
+   356→  subsidiariesLoading: boolean;
+   357→  onBackToPortals: () => void;
+   358→  onAuthed: (user: VerifiedUser) => void;
+   359→}) {
+   360→  const def = PORTALS.find((p) => p.id === portal) as PortalDef;
+   361→  const needsSubs = portal === "subsidiary" || portal === "business_unit";
+   362→
+   363→  /* selection + credentials state */
+   364→  const [subsidiary, setSubsidiary] = useState<SubsidiaryOpt | null>(null);
+   365→  const [businessUnits, setBusinessUnits] = useState<BUOpt[]>([]);
+   366→  const [buLoading, setBuLoading] = useState(false);
+   367→  const [businessUnit, setBusinessUnit] = useState<BUOpt | null>(null);
+   368→  const [role, setRole] = useState("");
+   369→  const [employeeId, setEmployeeId] = useState("");
+   370→  const [password, setPassword] = useState("");
+   371→  const [showPw, setShowPw] = useState(false);
+   372→  const [remember, setRemember] = useState(false);
+   373→
+   374→  /* ui state */
+   375→  const [loading, setLoading] = useState(false);
+   376→  const [error, setError] = useState<ApiError | null>(null);
+   377→  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+   378→  const [success, setSuccess] = useState<VerifiedUser | null>(null);
+   379→  const [forgotOpen, setForgotOpen] = useState(false);
+   380→  const [forgotLoading, setForgotLoading] = useState(false);
+   381→  const [forgotMsg, setForgotMsg] = useState("");
+   382→  const [forgotId, setForgotId] = useState("");
+   383→
+   384→  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+   385→  useEffect(() => () => { if (successTimer.current) clearTimeout(successTimer.current); }, []);
+   386→
+   387→  /* changing subsidiary clears everything downstream (spec §4) */
+   388→  const selectSubsidiary = useCallback(
+   389→    (opt: SubsidiaryOpt | null) => {
+   390→      setSubsidiary(opt);
+   391→      setBusinessUnit(null);
+   392→      setBusinessUnits([]);
+   393→      setRole("");
+   394→      setEmployeeId("");
+   395→      setPassword("");
+   396→      setError(null);
+   397→      setFieldErrors({});
+   398→      setForgotMsg("");
+   399→      if (portal === "business_unit" && opt) {
+   400→        setBuLoading(true);
+   401→        fetch(`/api/master/business-units?subsidiaryId=${encodeURIComponent(opt.id)}`)
+   402→          .then((r) => r.json())
+   403→          .then((d) => setBusinessUnits(d.businessUnits ?? []))
+   404→          .catch(() => setBusinessUnits([]))
+   405→          .finally(() => setBuLoading(false));
+   406→      }
+   407→    },
+   408→    [portal]
+   409→  );
+   410→
+   411→  /* changing business unit clears role + credentials (spec §5) */
+   412→  const selectBusinessUnit = useCallback((opt: BUOpt | null) => {
+   413→    setBusinessUnit(opt);
+   414→    setRole("");
+   415→    setEmployeeId("");
+   416→    setPassword("");
+   417→    setError(null);
+   418→    setFieldErrors({});
+   419→  }, []);
+   420→
+   421→  const changeRole = (v: string) => {
+   422→    setRole(v);
+   423→    setError(null);
+   424→    setFieldErrors((f) => ({ ...f, role: "" }));
+   425→  };
+   426→
+   427→  /* stepper status */
+   428→  const steps = STEP_LABELS[portal];
+   429→  const doneCount = useMemo(() => {
+   430→    if (portal === "group") return role ? 1 : 0;
+   431→    if (portal === "subsidiary") return role ? 2 : subsidiary ? 1 : 0;
+   432→    return role ? 3 : businessUnit ? 2 : subsidiary ? 1 : 0;
+   433→  }, [portal, role, subsidiary, businessUnit]);
+   434→
+   435→  /* client-side required-field validation */
+   436→  const validate = (): boolean => {
+   437→    const fe: Record<string, string> = {};
+   438→    if (needsSubs && !subsidiary) fe.subsidiaryId = "Please select your subsidiary.";
+   439→    if (portal === "business_unit" && !businessUnit)
+   440→      fe.businessUnitId = "Please select your business unit.";
+   441→    if (!role) fe.role = "Please select your role.";
+   442→    if (!employeeId.trim()) fe.employeeId = "Employee ID or email is required.";
+   443→    if (!password) fe.password = "Password is required.";
+   444→    setFieldErrors(fe);
+   445→    return Object.keys(fe).length === 0;
+   446→  };
+   447→
+   448→  const submit = async (e: FormEvent) => {
+   449→    e.preventDefault();
+   450→    if (loading || success) return; // prevent duplicate submissions
+   451→    setError(null);
+   452→    if (!validate()) return;
+   453→
+   454→    setLoading(true);
+   455→    try {
+   456→      const res = await fetch("/api/auth/login", {
+   457→        method: "POST",
+   458→        headers: { "Content-Type": "application/json" },
+   459→        body: JSON.stringify({
+   460→          portal,
+   461→          role,
+   462→          employeeId: employeeId.trim(),
+   463→          password,
+   464→          subsidiaryId: subsidiary?.id,
+   465→          businessUnitId: businessUnit?.id,
+   466→          rememberMe: remember,
+   467→        }),
+   468→      });
+   469→      const data = await res.json();
+   470→      if (!res.ok || !data.ok) {
+   471→        setError({ code: data.code ?? "ERROR", message: data.message ?? "Sign-in failed. Please try again.", fields: data.fields });
+   472→        if (data.fields) setFieldErrors((f) => ({ ...f, ...data.fields }));
+   473→        setLoading(false);
+   474→        return;
+   475→      }
+   476→      const user = data.user as VerifiedUser;
+   477→      setSuccess(user);
+   478→      setLoading(false);
+   479→      successTimer.current = setTimeout(() => onAuthed(user), 1500);
+   480→    } catch {
+   481→      setError({ code: "NETWORK", message: "Could not reach the secure gateway. Check your connection and try again." });
+   482→      setLoading(false);
+   483→    }
+   484→  };
+   485→
+   486→  const sendForgot = async () => {
+   487→    if (forgotLoading) return;
+   488→    if (!forgotId.trim()) {
+   489→      setForgotMsg("Enter your Employee ID or email first.");
+   490→      return;
+   491→    }
+   492→    setForgotLoading(true);
+   493→    setForgotMsg("");
+   494→    try {
+   495→      const res = await fetch("/api/auth/forgot-password", {
+   496→        method: "POST",
+   497→        headers: { "Content-Type": "application/json" },
+   498→        body: JSON.stringify({ employeeId: forgotId.trim() }),
+   499→      });
+   500→      const data = await res.json();
+   501→      setForgotMsg(
+   502→        data.ok
+   503→          ? data.message
+   504→          : data.message ?? "Could not submit the request. Please try again."
+   505→      );
+   506→    } catch {
+   507→      setForgotMsg("Could not submit the request. Please try again.");
+   508→    } finally {
+   509→      setForgotLoading(false);
+   510→    }
+   511→  };
+   512→
+   513→  const roleOptions: Array<[string, string]> =
+   514→    portal === "group"
+   515→      ? [
+   516→          ["GROUP_ADMIN", PORTAL_ROLE_LABELS.group.admin],
+   517→          ["ORG_MANAGER", PORTAL_ROLE_LABELS.group.manager],
+   518→        ]
+   519→      : portal === "subsidiary"
+   520→        ? [
+   521→            ["SUBSIDIARY_ADMIN", PORTAL_ROLE_LABELS.subsidiary.admin],
+   522→            ["SUBSIDIARY_MANAGER", PORTAL_ROLE_LABELS.subsidiary.manager],
+   523→          ]
+   524→        : [
+   525→            ["BU_ADMIN", PORTAL_ROLE_LABELS.business_unit.admin],
+   526→            ["BU_MANAGER", PORTAL_ROLE_LABELS.business_unit.manager],
+   527→          ];
+   528→
+   529→  const credsReady = portal === "group" ? !!role : !!role && (portal === "subsidiary" ? !!subsidiary : !!businessUnit);
+   530→
+   531→  return (
+   532→    <div className="ep-flow" style={{ ["--ep-accent" as string]: `var(--${def.accent === "gold" ? "gold-400" : def.accent === "teal" ? "teal-400" : def.accent === "green" ? "green-400" : "gold-400"})` }}>
+   533→      {/* header */}
+   534→      <div className="ep-flow-head">
+   535→        <span className="ep-card-ico" style={{ ["--ep-accent" as string]: `var(--${def.accent === "teal" ? "teal-400" : def.accent === "green" ? "green-400" : "gold-400"})` }}>
+   536→          <def.icon size={23} strokeWidth={1.8} />
+   537→        </span>
+   538→        <div>
+   539→          <b>{PORTAL_TITLES[portal]}</b>
+   540→          <small>Secure Login · {def.tier}</small>
+   541→        </div>
+   542→      </div>
+   543→
+   544→      {/* stepper */}
+   545→      <ol className="ep-steps" aria-label="Login steps">
+   546→        {steps.map((label, i) => (
+   547→          <li key={label} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+   548→            <span
+   549→              className={`ep-step${i < doneCount ? " is-done" : i === doneCount ? " is-active" : ""}`}
+   550→              aria-current={i === doneCount ? "step" : undefined}
+   551→            >
+   552→              <span className="ep-step-n">{i < doneCount ? <Check size={9} strokeWidth={3} /> : i + 1}</span>
+   553→              {label}
+   554→            </span>
+   555→            {i < steps.length - 1 && <span className="ep-step-sep" aria-hidden />}
+   556→          </li>
+   557→        ))}
+   558→      </ol>
+   559→
+   560→      {error && (
+   561→        <div className="ep-alert" role="alert">
+   562→          <AlertCircle size={16} strokeWidth={2.1} />
+   563→          <span>{error.message}</span>
+   564→        </div>
+   565→      )}
+   566→
+   567→      <form onSubmit={submit} noValidate>
+   568→        {/* STEP 1 — subsidiary (subsidiary & BU portals) */}
+   569→        {needsSubs && (
+   570→          <SubsidiaryCombobox
+   571→            label="Select Subsidiary"
+   572→            hint="Searchable · active entities"
+   573→            value={subsidiary}
+   574→            options={subsidiaries ?? []}
+   575→            loading={subsidiariesLoading}
+   576→            invalid={!!fieldErrors.subsidiaryId}
+   577→            errorText={fieldErrors.subsidiaryId}
+   578→            onChange={selectSubsidiary}
+   579→          />
+   580→        )}
+   581→
+   582→        {/* STEP 2 — business unit (BU portal only, strictly dependent) */}
+   583→        {portal === "business_unit" && (
+   584→          <div className={`ep-block${!subsidiary ? " is-disabled" : ""}`}>
+   585→            <label className="ep-label" htmlFor="ep-bu-select">
+   586→              <span>
+   587→                Select Business Unit<span className="ep-req">*</span>
+   588→              </span>
+   589→              <span className="ep-hint">{subsidiary ? `${businessUnits.length} unit${businessUnits.length === 1 ? "" : "s"} in ${subsidiary.code}` : "Select a subsidiary first"}</span>
+   590→            </label>
+   591→            <div className="ep-select-wrap">
+   592→              <select
+   593→                id="ep-bu-select"
+   594→                className={`ep-select${fieldErrors.businessUnitId ? " is-invalid" : ""}`}
+   595→                value={businessUnit?.id ?? ""}
+   596→                disabled={!subsidiary || buLoading}
+   597→                onChange={(e) => selectBusinessUnit(businessUnits.find((b) => b.id === e.target.value) ?? null)}
+   598→                aria-describedby={fieldErrors.businessUnitId ? "ep-bu-err" : undefined}
+   599→              >
+   600→                <option value="">{buLoading ? "Loading business units…" : businessUnit ? "" : "Choose business unit…"}</option>
+   601→                {businessUnits.map((b) => (
+   602→                  <option key={b.id} value={b.id}>
+   603→                    {b.name}
+   604→                  </option>
+   605→                ))}
+   606→              </select>
+   607→              <ChevronDown size={16} strokeWidth={2.2} />
+   608→            </div>
+   609→            {fieldErrors.businessUnitId && (
+   610→              <div className="ep-field-err" id="ep-bu-err" role="alert">
+   611→                <AlertCircle size={13} /> {fieldErrors.businessUnitId}
+   612→              </div>
+   613→            )}
+   614→          </div>
+   615→        )}
+   616→
+   617→        {/* STEP 3 — role */}
+   618→        <div className={`ep-block${(portal === "subsidiary" && !subsidiary) || (portal === "business_unit" && !businessUnit) ? " is-disabled" : ""}`}>
+   619→          <label className="ep-label" htmlFor="ep-role-select">
+   620→            <span>
+   621→              Select {portal === "group" ? "Group" : portal === "subsidiary" ? "Subsidiary" : "Business Unit"} Role<span className="ep-req">*</span>
+   622→            </span>
+   623→            <span className="ep-hint">Verified server-side</span>
+   624→          </label>
+   625→          <div className="ep-select-wrap">
+   626→            <select
+   627→              id="ep-role-select"
+   628→              className={`ep-select${fieldErrors.role ? " is-invalid" : ""}`}
+   629→              value={role}
+   630→              disabled={(portal === "subsidiary" && !subsidiary) || (portal === "business_unit" && !businessUnit)}
+   631→              onChange={(e) => changeRole(e.target.value)}
+   632→            >
+   633→              <option value="">Choose your role…</option>
+   634→              {roleOptions.map(([code, label]) => (
+   635→                <option key={code} value={code}>
+   636→                  {label}
+   637→                </option>
+   638→              ))}
+   639→            </select>
+   640→            <ChevronDown size={16} strokeWidth={2.2} />
+   641→          </div>
+   642→          {fieldErrors.role && (
+   643→            <div className="ep-field-err" role="alert">
+   644→              <AlertCircle size={13} /> {fieldErrors.role}
+   645→            </div>
+   646→          )}
+   647→        </div>
+   648→
+   649→        {/* STEP 4 — credentials */}
+   650→        <div className={`ep-block${!credsReady ? " is-disabled" : ""}`}>
+   651→          <label className="ep-label" htmlFor="ep-emp-id">
+   652→            <span>
+   653→              Employee ID / Email<span className="ep-req">*</span>
+   654→            </span>
+   655→          </label>
+   656→          <input
+   657→            id="ep-emp-id"
+   658→            className={`ep-input mono${fieldErrors.employeeId ? " is-invalid" : ""}`}
+   659→            type="text"
+   660→            inputMode="text"
+   661→            autoCapitalize="off"
+   662→            autoComplete="username"
+   663→            spellCheck={false}
+   664→            disabled={!credsReady}
+   665→            placeholder="e.g. GRP-0001 or arun.bhaskar@meil.in"
+   666→            value={employeeId}
+   667→            onChange={(e) => {
+   668→              setEmployeeId(e.target.value);
+   669→              setFieldErrors((f) => ({ ...f, employeeId: "" }));
+   670→            }}
+   671→          />
+   672→          {fieldErrors.employeeId && (
+   673→            <div className="ep-field-err" role="alert">
+   674→              <AlertCircle size={13} /> {fieldErrors.employeeId}
+   675→            </div>
+   676→          )}
+   677→
+   678→          <label className="ep-label" htmlFor="ep-pw" style={{ marginTop: 16 }}>
+   679→            <span>
+   680→              Password<span className="ep-req">*</span>
+   681→            </span>
+   682→          </label>
+   683→          <div className="ep-pw-wrap">
+   684→            <input
+   685→              id="ep-pw"
+   686→              className={`ep-input${fieldErrors.password ? " is-invalid" : ""}`}
+   687→              type={showPw ? "text" : "password"}
+   688→              autoComplete="current-password"
+   689→              disabled={!credsReady}
+   690→              placeholder="Enter your password"
+   691→              value={password}
+   692→              onChange={(e) => {
+   693→                setPassword(e.target.value);
+   694→                setFieldErrors((f) => ({ ...f, password: "" }));
+   695→              }}
+   696→            />
+   697→            <button
+   698→              type="button"
+   699→              className="ep-pw-toggle"
+   700→              aria-label={showPw ? "Hide password" : "Show password"}
+   701→              aria-pressed={showPw}
+   702→              disabled={!credsReady}
+   703→              onClick={() => setShowPw((s) => !s)}
+   704→            >
+   705→              {showPw ? <EyeOff size={17} strokeWidth={1.9} /> : <Eye size={17} strokeWidth={1.9} />}
+   706→            </button>
+   707→          </div>
+   708→          {fieldErrors.password && (
+   709→            <div className="ep-field-err" role="alert">
+   710→              <AlertCircle size={13} /> {fieldErrors.password}
+   711→            </div>
+   712→          )}
+   713→
+   714→          <div className="ep-row" style={{ marginTop: 16 }}>
+   715→            <label className="ep-check">
+   716→              <input
+   717→                type="checkbox"
+   718→                checked={remember}
+   719→                disabled={!credsReady}
+   720→                onChange={(e) => setRemember(e.target.checked)}
+   721→              />
+   722→              Remember me for 30 days
+   723→            </label>
+   724→            <button
+   725→              type="button"
+   726→              className="ep-link"
+   727→              onClick={() => setForgotOpen((o) => !o)}
+   728→              aria-expanded={forgotOpen}
+   729→              style={{ pointerEvents: "auto" }}
+   730→            >
+   731→              Forgot Password?
+   732→            </button>
+   733→          </div>
+   734→        </div>
+   735→
+   736→        {/* forgot password — always available, self-contained employee-id input */}
+   737→        {forgotOpen && (
+   738→          <div className="ep-forgot">
+   739→            <p>
+   740→              Enter your Employee ID or registered email below and we will issue
+   741→              reset instructions to your business email. Every request is recorded
+   742→              on the audit trail.
+   743→            </p>
+   744→            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+   745→              <input
+   746→                className="ep-input mono"
+   747→                style={{ flex: "1 1 220px" }}
+   748→                type="text"
+   749→                placeholder="Employee ID / Email"
+   750→                aria-label="Employee ID or email for password reset"
+   751→                value={forgotId}
+   752→                onChange={(e) => {
+   753→                  setForgotId(e.target.value);
+   754→                  setForgotMsg("");
+   755→                }}
+   756→              />
+   757→              <button
+   758→                type="button"
+   759→                className="ep-btn"
+   760→                style={{ width: "auto", padding: "12px 22px", fontSize: 13 }}
+   761→                onClick={sendForgot}
+   762→                disabled={forgotLoading}
+   763→              >
+   764→                {forgotLoading ? (
+   765→                  <>
+   766→                    <span className="ep-spinner" aria-hidden />
+   767→                    Submitting…
+   768→                  </>
+   769→                ) : (
+   770→                  "Request Reset"
+   771→                )}
+   772→              </button>
+   773→            </div>
+   774→            {forgotMsg && (
+   775→              <div className="ep-forgot-msg" role="status" style={{ marginTop: 12 }}>
+   776→                {forgotMsg}
+   777→              </div>
+   778→            )}
+   779→          </div>
+   780→        )}
+   781→
+   782→        {/* actions */}
+   783→        <div className="ep-block">
+   784→          <button type="submit" className="ep-btn" disabled={loading || !!success}>
+   785→            {loading ? (
+   786→              <>
+   787→                <span className="ep-spinner" aria-hidden />
+   788→                Verifying credentials…
+   789→              </>
+   790→            ) : (
+   791→              <>
+   792→                <LockKeyhole size={16} strokeWidth={2.3} />
+   793→                Login
+   794→              </>
+   795→            )}
+   796→          </button>
+   797→          <button type="button" className="ep-btn ep-btn-ghost" style={{ marginTop: 10 }} onClick={onBackToPortals} disabled={loading}>
+   798→            <ArrowLeft size={15} strokeWidth={2.2} />
+   799→            Back to All Portals
+   800→          </button>
+   801→          <div className="ep-form-foot">
+   802→            <ShieldCheck size={13} strokeWidth={2.1} />
+   803→            Zero-trust verification · Role-scoped · Audit logged
+   804→          </div>
+   805→        </div>
+   806→      </form>
+   807→
+   808→      {/* success overlay */}
+   809→      {success && (
+   810→        <div className="ep-success" role="status" aria-live="polite">
+   811→          <div className="ep-success-card glass-dark glass-edge">
+   812→            <span className="ep-success-ring">
+   813→              <CheckCircle2 size={30} strokeWidth={2.1} />
+   814→            </span>
+   815→            <b>Access Granted</b>
+   816→            <p>
+   817→              Verified as <strong style={{ color: "var(--gold-600)" }}>{success.roleLabel}</strong>
+   818→              {success.scope.subsidiary ? ` · ${success.scope.subsidiary.name}` : ""}
+   819→              {success.scope.businessUnit ? ` · ${success.scope.businessUnit.name}` : ""}
+   820→              <br />
+   821→              Opening your dashboard…
+   822→            </p>
+   823→          </div>
+   824→        </div>
+   825→      )}
+   826→    </div>
+   827→  );
+   828→}
+   829→
+   830→/* ═══════════════════════════════════════════════════════════════════════════
+   831→   Root — stage + panel
+   832→   ═══════════════════════════════════════════════════════════════════════════ */
+   833→
+   834→const BENEFITS = [
+   835→  {
+   836→    icon: ShieldCheck,
+   837→    accent: "var(--gold-400)",
+   838→    title: "Role-Based Access Control",
+   839→    desc: "Every credential is scoped on the server — group, subsidiary and business-unit boundaries are enforced per request, never in the browser.",
+   840→  },
+   841→  {
+   842→    icon: BarChart3,
+   843→    accent: "var(--teal-400)",
+   844→    title: "Centralized ESG Reporting",
+   845→    desc: "Scope 1, 2 & 3 emissions, water, safety and social indicators consolidate through one engine aligned to CEA factors and the GHG Protocol.",
+   846→  },
+   847→  {
+   848→    icon: FileClock,
+   849→    accent: "var(--green-400)",
+   850→    title: "Traceable Audit Trail",
+   851→    desc: "Every submission, approval and sign-in is written to an immutable chain of custody with timestamped evidentiary documentation.",
+   852→  },
+   853→  {
+   854→    icon: ScrollText,
+   855→    accent: "var(--gold-400)",
+   856→    title: "BRSR Principles 1–9",
+   857→    desc: "Full alignment to the NGRBC nine principles with SEBI BRSR Core indicator mapping and XBRL disclosure-ready outputs.",
+   858→  },
+   859→] as const;
+   860→
+   861→const DEMO_ACCOUNTS: Array<[string, string, string]> = [
+   862→  ["Group", "GRP-0001", "Group Admin · Arun Bhaskar"],
+   863→  ["Subsidiary", "SUB-1001", "Subsidiary Manager · MEIL Energy"],
+   864→  ["Subsidiary", "SUB-1002", "Subsidiary Admin · MEIL Energy"],
+   865→  ["Business Unit", "BU-1001", "BU Manager · Thermal"],
+   866→  ["Business Unit", "BU-3002", "BU Admin · Water Supply"],
+   867→];
+   868→
+   869→export default function EnterPlatform({
+   870→  onBack,
+   871→  onAuthed,
+   872→}: {
+   873→  onBack: () => void;
+   874→  onAuthed: (user: VerifiedUser) => void;
+   875→}) {
+   876→  const [view, setView] = useState<PortalId | null>(null);
+   877→  const [subsidiaries, setSubsidiaries] = useState<SubsidiaryOpt[] | null>(null);
+   878→  const [subsLoading, setSubsLoading] = useState(false);
+   879→  const [notice, setNotice] = useState<string | null>(null);
+   880→  const panelRef = useRef<HTMLDivElement>(null);
+   881→
+   882→  /* master data is fetched from the backend when a scoped portal opens */
+   883→  const loadSubsidiaries = useCallback(() => {
+   884→    if (subsidiaries || subsLoading) return;
+   885→    setSubsLoading(true);
+   886→    fetch("/api/master/subsidiaries")
+   887→      .then((r) => r.json())
+   888→      .then((d) => setSubsidiaries(d.subsidiaries ?? []))
+   889→      .catch(() => setSubsidiaries([]))
+   890→      .finally(() => setSubsLoading(false));
+   891→  }, [subsidiaries, subsLoading]);
+   892→
+   893→  const openPortal = (p: PortalDef) => {
+   894→    setNotice(null);
+   895→    if (p.id === "project") {
+   896→      /* external-link entry point — never navigate to a broken URL */
+   897→      if (PROJECT_USER_PORTAL_URL) {
+   898→        window.open(PROJECT_USER_PORTAL_URL, "_blank", "noopener,noreferrer");
+   899→      } else {
+   900→        setNotice(PROJECT_USER_PORTAL_NOTICE);
+   901→      }
+   902→      return;
+   903→    }
+   904→    if (p.id === "subsidiary" || p.id === "business_unit") loadSubsidiaries();
+   905→    setView(p.id);
+   906→  };
+   907→
+   908→  useEffect(() => {
+   909→    panelRef.current?.scrollTo({ top: 0, behavior: "auto" });
+   910→  }, [view]);
+   911→
+   912→  return (
+   913→    <div className="ep-root">
+   914→      <div className="ep-bubbles" aria-hidden="true">
+   915→        <span className="ep-bubble ep-bubble-1" />
+   916→        <span className="ep-bubble ep-bubble-2" />
+   917→        <span className="ep-bubble ep-bubble-3" />
+   918→        <span className="ep-bubble ep-bubble-4" />
+   919→      </div>
+   920→      <div className="ep-grid">
+   921→        {/* ═══ LEFT — STAGE ═══ */}
+   922→        <aside className="ep-stage">
+   923→          <div className="ep-stage-media" aria-hidden>
+   924→            <img src="/meil_kaleshwaram_project.jpg" alt="" />
+   925→          </div>
+   926→
+   927→          {/* decorative ambience — aura glows + floating glass bubbles */}
+   928→          <div className="ep-stage-aura" aria-hidden>
+   929→            <span className="ep-aura ep-aura-a" />
+   930→            <span className="ep-aura ep-aura-b" />
+   931→            <span className="ep-stage-bubble ep-sb-1" />
+   932→            <span className="ep-stage-bubble ep-sb-2" />
+   933→            <span className="ep-stage-bubble ep-sb-3" />
+   934→          </div>
+   935→
+   936→          <div className="ep-stage-content">
+   937→            <div className="ep-brand">
+   938→              <span className="ep-brand-mark">M</span>
+   939→              <span className="ep-brand-text">
+   940→                <b>MEIL Group</b>
+   941→                <small>BRSR &amp; ESG Intelligence</small>
+   942→              </span>
+   943→              <span className="ep-secure-chip">
+   944→                <span className="ep-pulse" aria-hidden />
+   945→                Zero-Trust Gateway
+   946→              </span>
+   947→            </div>
+   948→
+   949→            <div className="ep-stage-heading">
+   950→              <span className="ep-eyebrow">Secure Access · Enter Platform</span>
+   951→              <h1 className="ep-title">
+   952→                Enterprise <em>Sustainability</em> Management System
+   953→              </h1>
+   954→              <p className="ep-lede">
+   955→                One governed ledger for <strong>Megha Engineering &amp; Infrastructures</strong> —
+   956→                BRSR Core indicators, CEA emission factors and assurance-grade evidence,
+   957→                consolidated from every subsidiary, business unit and project site into
+   958→                board-ready disclosure.
+   959→              </p>
+   960→            </div>
+   961→
+   962→            <div className="ep-benefits">
+   963→              {BENEFITS.map((b) => (
+   964→                <div className="ep-benefit" key={b.title} style={{ ["--ep-accent" as string]: b.accent }}>
+   965→                  <span className="ep-benefit-ico">
+   966→                    <b.icon size={19} strokeWidth={1.9} />
+   967→                  </span>
+   968→                  <div>
+   969→                    <b>{b.title}</b>
+   970→                    <p>{b.desc}</p>
+   971→                  </div>
+   972→                </div>
+   973→              ))}
+   974→            </div>
+   975→
+   976→            <div className="ep-trust">
+   977→              <span className="ep-trust-chip">
+   978→                <ShieldCheck size={12} strokeWidth={2.2} /> ISO 27001 Aligned
+   979→              </span>
+   980→              <span className="ep-trust-chip">
+   981→                <BadgeCheck size={12} strokeWidth={2.2} /> SEBI BRSR Core
+   982→              </span>
+   983→              <span className="ep-trust-chip">
+   984→                <LockKeyhole size={12} strokeWidth={2.2} /> 256-bit Encrypted
+   985→              </span>
+   986→            </div>
+   987→          </div>
+   988→
+   989→          <div className="ep-stage-foot">
+   990→            <span>© Megha Engineering &amp; Infrastructures Ltd</span>
+   991→            <span>Kaleshwaram Lift Irrigation · Telangana</span>
+   992→          </div>
+   993→        </aside>
+   994→
+   995→        {/* ═══ RIGHT — GATEWAY PANEL ═══ */}
+   996→        <main className="ep-panel-zone">
+   997→          <div className="aurora aurora-a" aria-hidden />
+   998→          <div className="aurora aurora-b" aria-hidden />
+   999→
+  1000→          <div className="ep-panel glass-dark glass-edge noise" ref={panelRef}>
+  1001→            <div className="ep-topbar">
+  1002→              <button
+  1003→                type="button"
+  1004→                className="ep-back"
+  1005→                onClick={() => (view ? setView(null) : onBack())}
+  1006→              >
+  1007→                <ArrowLeft size={15} strokeWidth={2.2} />
+  1008→                {view ? "Back to Portals" : "Back to Site"}
+  1009→              </button>
+  1010→              <span className="ep-status">
+  1011→                <Fingerprint size={13} strokeWidth={1.9} />
+  1012→                Secure Gateway · TLS 1.3
+  1013→              </span>
+  1014→            </div>
+  1015→
+  1016→            {view === null ? (
+  1017→              /* ── PORTAL CHOOSER ── */
+  1018→              <div className="ep-flow">
+  1019→                <div className="ep-panel-heading">
+  1020→                  <span className="ep-eyebrow">Access Portals</span>
+  1021→                  <h2>
+  1022→                    Choose Your <em>Access Portal</em>
+  1023→                  </h2>
+  1024→                  <p>
+  1025→                    Select your organizational level to continue to secure login. Authorization
+  1026→                    is always verified against your assigned role and scope.
+  1027→                  </p>
+  1028→                </div>
+  1029→
+  1030→                {notice && (
+  1031→                  <div className="ep-notice" role="status" aria-live="polite">
+  1032→                    <Info size={16} strokeWidth={2} />
+  1033→                    <span>{notice}</span>
+  1034→                    <button type="button" aria-label="Dismiss notice" onClick={() => setNotice(null)}>
+  1035→                      <X size={14} strokeWidth={2.2} />
+  1036→                    </button>
+  1037→                  </div>
+  1038→                )}
+  1039→
+  1040→                <div className="ep-cards">
+  1041→                  {PORTALS.map((p, i) => (
+  1042→                    <button
+  1043→                      key={p.id}
+  1044→                      type="button"
+  1045→                      className="ep-card sweep"
+  1046→                      data-accent={p.accent}
+  1047→                      style={{ ["--i" as string]: i }}
+  1048→                      onClick={() => openPortal(p)}
+  1049→                      aria-label={`${p.title}${p.external ? " (opens external site)" : ""}`}
+  1050→                    >
+  1051→                      <span className="ep-card-top">
+  1052→                        <span className="ep-card-ico">
+  1053→                          <p.icon size={22} strokeWidth={1.8} />
+  1054→                        </span>
+  1055→                        <span className="ep-card-tier">{p.tier}</span>
+  1056→                      </span>
+  1057→                      <b>{p.title}</b>
+  1058→                      <p>{p.desc}</p>
+  1059→                      <span className="ep-card-cta">
+  1060→                        {p.cta}
+  1061→                        {p.external ? (
+  1062→                          <ExternalLink size={13} strokeWidth={2.2} />
+  1063→                        ) : (
+  1064→                          <ArrowRight size={13} strokeWidth={2.4} />
+  1065→                        )}
+  1066→                      </span>
+  1067→                    </button>
+  1068→                  ))}
+  1069→                </div>
+  1070→
+  1071→                <details className="ep-demo">
+  1072→                  <summary>
+  1073→                    <Info size={13} strokeWidth={2} />
+  1074→                    Demo environment · seeded credentials
+  1075→                  </summary>
+  1076→                  <table className="ep-demo-table">
+  1077→                    <thead>
+  1078→                      <tr>
+  1079→                        <th>Portal</th>
+  1080→                        <th>Employee ID</th>
+  1081→                        <th>Assigned role</th>
+  1082→                      </tr>
+  1083→                    </thead>
+  1084→                    <tbody>
+  1085→                      {DEMO_ACCOUNTS.map(([portal, emp, role]) => (
+  1086→                        <tr key={emp}>
+  1087→                          <td>{portal}</td>
+  1088→                          <td>{emp}</td>
+  1089→                          <td>{role}</td>
+  1090→                        </tr>
+  1091→                      ))}
+  1092→                    </tbody>
+  1093→                  </table>
+  1094→                  <p style={{ marginTop: 10, fontSize: 11, color: "var(--tx-500)", fontFamily: "var(--font-mono)" }}>
+  1095→                    Password for all demo accounts: <span style={{ color: "var(--gold-600)" }}>Esg@2025</span> · master data is configurable in <span style={{ color: "var(--gold-600)" }}>prisma/seed.ts</span>
+  1096→                  </p>
+  1097→                </details>
+  1098→              </div>
+  1099→            ) : (
+  1100→              /* ── PORTAL WORKFLOW ── */
+  1101→              <PortalFlow
+  1102→                portal={view}
+  1103→                subsidiaries={subsidiaries}
+  1104→                subsidiariesLoading={subsLoading}
+  1105→                onBackToPortals={() => setView(null)}
+  1106→                onAuthed={onAuthed}
+  1107→              />
+  1108→            )}
+  1109→          </div>
+  1110→        </main>
+  1111→      </div>
+  1112→    </div>
+  1113→  );
+  1114→}
+  1115→

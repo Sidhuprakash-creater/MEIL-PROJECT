@@ -1,0 +1,766 @@
+     1→/* ═══════════════════════════════════════════════════════════════════════════
+     2→   PROJECT USER PORTAL — scoped design system
+     3→   Ported from the portal project's globals.css. EVERY rule is scoped under
+     4→   `.pu-root` so the main platform's .glass family, keyframes and tokens are
+     5→   never overridden outside the portal experience.
+     6→
+     7→   Cascade note: rules live in the same `base` / `components` cascade layers
+     8→   Tailwind v4 establishes (theme → base → components → utilities), so Tailwind
+     9→   utilities still win over these classes exactly like in the source project.
+    10→   ═══════════════════════════════════════════════════════════════════════════ */
+    11→
+    12→/* ── Portal root — page chrome (replaces the zip's html/body/:root rules) ── */
+    13→.pu-root {
+    14→  /* shadcn tokens (zip palette) — cascades to every shadcn/ui element inside */
+    15→  --radius: 1rem;
+    16→  --background: oklch(0.975 0.02 235);
+    17→  --foreground: oklch(0.12 0.04 250);
+    18→  --card: oklch(1 0 0);
+    19→  --card-foreground: oklch(0.12 0.04 250);
+    20→  --popover: oklch(1 0 0);
+    21→  --popover-foreground: oklch(0.12 0.04 250);
+    22→  --primary: oklch(0.55 0.20 240);
+    23→  --primary-foreground: oklch(0.99 0 0);
+    24→  --secondary: oklch(0.94 0.02 230);
+    25→  --secondary-foreground: oklch(0.15 0.04 245);
+    26→  --muted: oklch(0.94 0.015 230);
+    27→  --muted-foreground: oklch(0.35 0.03 245);
+    28→  --accent: oklch(0.93 0.03 230);
+    29→  --accent-foreground: oklch(0.2 0.05 245);
+    30→  --destructive: oklch(0.58 0.22 27);
+    31→  --border: oklch(0.88 0.02 230);
+    32→  --input: oklch(0.9 0.015 230);
+    33→  --ring: oklch(0.62 0.17 235);
+    34→  --chart-1: oklch(0.6 0.19 235);
+    35→  --chart-2: oklch(0.72 0.16 200);
+    36→  --chart-3: oklch(0.62 0.16 145);
+    37→  --chart-4: oklch(0.75 0.16 70);
+    38→  --chart-5: oklch(0.6 0.2 30);
+    39→  --sidebar: oklch(0.975 0.02 235);
+    40→  --sidebar-foreground: oklch(0.16 0.05 245);
+    41→  --sidebar-primary: oklch(0.6 0.19 235);
+    42→  --sidebar-primary-foreground: oklch(0.99 0 0);
+    43→  --sidebar-accent: oklch(0.95 0.02 230);
+    44→  --sidebar-accent-foreground: oklch(0.22 0.05 245);
+    45→  --sidebar-border: oklch(0.9 0.015 230);
+    46→  --sidebar-ring: oklch(0.6 0.16 245);
+    47→
+    48→  /* fill the viewport with the portal's own sky atmosphere */
+    49→  min-height: 100dvh;
+    50→  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+    51→  color: var(--foreground);
+    52→  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    53→  background-color: #e0f2fe;
+    54→  background-image:
+    55→    radial-gradient(at 8% 0%, rgba(125, 211, 252, 0.5) 0px, transparent 50%),
+    56→    radial-gradient(at 92% 2%, rgba(186, 230, 253, 0.55) 0px, transparent 50%),
+    57→    radial-gradient(at 50% 100%, rgba(224, 242, 254, 0.6) 0px, transparent 55%),
+    58→    radial-gradient(at 0% 60%, rgba(207, 233, 254, 0.45) 0px, transparent 45%),
+    59→    radial-gradient(at 100% 50%, rgba(165, 216, 255, 0.3) 0px, transparent 40%);
+    60→  background-attachment: fixed;
+    61→}
+    62→
+    63→.pu-root.dark {
+    64→  --background: oklch(0.16 0.02 245);
+    65→  --foreground: oklch(0.97 0.01 230);
+    66→  --card: oklch(0.22 0.02 245);
+    67→  --card-foreground: oklch(0.97 0.01 230);
+    68→  --popover: oklch(0.22 0.02 245);
+    69→  --popover-foreground: oklch(0.97 0.01 230);
+    70→  --primary: oklch(0.7 0.16 245);
+    71→  --primary-foreground: oklch(0.16 0.02 245);
+    72→  --secondary: oklch(0.28 0.02 245);
+    73→  --secondary-foreground: oklch(0.97 0.01 230);
+    74→  --muted: oklch(0.28 0.02 245);
+    75→  --muted-foreground: oklch(0.7 0.02 230);
+    76→  --accent: oklch(0.32 0.03 245);
+    77→  --accent-foreground: oklch(0.97 0.01 230);
+    78→  --destructive: oklch(0.7 0.19 22);
+    79→  --border: oklch(1 0 0 / 12%);
+    80→  --input: oklch(1 0 0 / 15%);
+    81→  --ring: oklch(0.62 0.16 245);
+    82→  --sidebar: oklch(0.2 0.02 245);
+    83→  --sidebar-foreground: oklch(0.97 0.01 230);
+    84→  --sidebar-primary: oklch(0.7 0.16 245);
+    85→}
+    86→
+    87→@layer base {
+    88→  /* caret discipline (from zip base layer), scoped */
+    89→  .pu-root *,
+    90→  .pu-root *::before,
+    91→  .pu-root *::after {
+    92→    caret-color: transparent;
+    93→  }
+    94→  .pu-root input,
+    95→  .pu-root textarea,
+    96→  .pu-root [contenteditable="true"],
+    97→  .pu-root [contenteditable=""] {
+    98→    caret-color: #2563eb !important;
+    99→  }
+   100→  .pu-root h1,
+   101→  .pu-root h2,
+   102→  .pu-root h3,
+   103→  .pu-root h4,
+   104→  .pu-root h5,
+   105→  .pu-root h6,
+   106→  .pu-root button,
+   107→  .pu-root nav,
+   108→  .pu-root [role="button"] {
+   109→    user-select: none;
+   110→    -webkit-user-select: none;
+   111→    caret-color: transparent !important;
+   112→  }
+   113→}
+   114→
+   115→/* ============================================================
+   116→   GLASSMORPHISM — MEIL Liquid Glass Design System (scoped)
+   117→   ============================================================ */
+   118→
+   119→@layer components {
+   120→  /* Frosted glass surface — premium shadow + readable text intensity */
+   121→  .pu-root .glass {
+   122→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.80) 0%, rgba(240, 248, 255, 0.70) 50%, rgba(245, 250, 255, 0.75) 100%);
+   123→    backdrop-filter: blur(20px) saturate(180%);
+   124→    -webkit-backdrop-filter: blur(20px) saturate(180%);
+   125→    border: 1px solid rgba(150, 180, 210, 0.20);
+   126→    box-shadow:
+   127→      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+   128→      0 0 0 1px rgba(14, 165, 233, 0.05),
+   129→      0 4px 6px -1px rgba(0, 0, 0, 0.04),
+   130→      0 10px 30px -8px rgba(2, 132, 199, 0.12),
+   131→      0 4px 12px -4px rgba(2, 132, 199, 0.08),
+   132→      inset 0 1px 2px rgba(255, 255, 255, 0.6);
+   133→  }
+   134→
+   135→  .pu-root .glass-strong {
+   136→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.90) 0%, rgba(240, 248, 255, 0.85) 50%, rgba(245, 250, 255, 0.88) 100%);
+   137→    backdrop-filter: blur(24px) saturate(200%);
+   138→    -webkit-backdrop-filter: blur(24px) saturate(200%);
+   139→    border: 1px solid rgba(150, 180, 210, 0.25);
+   140→    box-shadow:
+   141→      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+   142→      0 0 0 1px rgba(14, 165, 233, 0.06),
+   143→      0 4px 6px -1px rgba(0, 0, 0, 0.05),
+   144→      0 16px 40px -10px rgba(2, 132, 199, 0.15),
+   145→      0 6px 16px -4px rgba(2, 132, 199, 0.1),
+   146→      inset 0 1px 3px rgba(255, 255, 255, 0.7);
+   147→  }
+   148→
+   149→  /* Intense iOS Liquid Glass — deep multi-layer caustic reflections */
+   150→  .pu-root .glass-ios-liquid {
+   151→    position: relative;
+   152→    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94) 0%, rgba(240, 248, 255, 0.88) 45%, rgba(245, 250, 255, 0.92) 100%);
+   153→    backdrop-filter: blur(28px) saturate(210%);
+   154→    -webkit-backdrop-filter: blur(28px) saturate(210%);
+   155→    border: 1px solid rgba(255, 255, 255, 0.88);
+   156→    box-shadow:
+   157→      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+   158→      0 0 0 1px rgba(186, 230, 253, 0.45),
+   159→      0 20px 48px -10px rgba(2, 132, 199, 0.16),
+   160→      0 8px 24px -6px rgba(14, 165, 233, 0.12),
+   161→      0 2px 6px 0 rgba(0, 0, 0, 0.03),
+   162→      inset 0 1px 3px 0 rgba(255, 255, 255, 0.85),
+   163→      inset 0 -1px 2px 0 rgba(14, 165, 233, 0.05);
+   164→  }
+   165→  .pu-root .glass-ios-liquid::before {
+   166→    content: "";
+   167→    position: absolute;
+   168→    inset: 0;
+   169→    top: 0;
+   170→    height: 40%;
+   171→    border-radius: inherit;
+   172→    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.12) 65%, transparent 100%);
+   173→    pointer-events: none;
+   174→    z-index: 1;
+   175→  }
+   176→
+   177→  .pu-root .glass-subtle {
+   178→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.65) 0%, rgba(240, 248, 255, 0.55) 100%);
+   179→    backdrop-filter: blur(14px) saturate(160%);
+   180→    -webkit-backdrop-filter: blur(14px) saturate(160%);
+   181→    border: 1px solid rgba(150, 180, 210, 0.18);
+   182→    box-shadow:
+   183→      0 2px 4px -1px rgba(0, 0, 0, 0.03),
+   184→      0 4px 16px -4px rgba(2, 132, 199, 0.10),
+   185→      inset 0 1px 1px rgba(255, 255, 255, 0.5);
+   186→  }
+   187→
+   188→  .pu-root .glass-nav {
+   189→    background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(245, 250, 255, 0.78) 100%);
+   190→    backdrop-filter: blur(22px) saturate(190%);
+   191→    -webkit-backdrop-filter: blur(22px) saturate(190%);
+   192→    border: 1px solid rgba(150, 180, 210, 0.20);
+   193→    box-shadow:
+   194→      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+   195→      0 4px 6px -1px rgba(0, 0, 0, 0.03),
+   196→      0 4px 20px -6px rgba(2, 132, 199, 0.10),
+   197→      inset 0 1px 2px rgba(255, 255, 255, 0.5);
+   198→  }
+   199→
+   200→  /* Premium gradient border for highlighted cards */
+   201→  .pu-root .glass-gradient-border {
+   202→    position: relative;
+   203→    background: linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(224, 242, 254, 0.55) 100%);
+   204→    backdrop-filter: blur(24px) saturate(200%);
+   205→    -webkit-backdrop-filter: blur(24px) saturate(200%);
+   206→    border: 1px solid transparent;
+   207→    background-clip: padding-box;
+   208→    box-shadow:
+   209→      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+   210→      0 8px 32px -6px rgba(2, 132, 199, 0.15);
+   211→  }
+   212→  .pu-root .glass-gradient-border::before {
+   213→    content: "";
+   214→    position: absolute;
+   215→    inset: 0;
+   216→    border-radius: inherit;
+   217→    padding: 1px;
+   218→    background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(56, 189, 248, 0.2), transparent);
+   219→    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+   220→    -webkit-mask-composite: xor;
+   221→    mask-composite: exclude;
+   222→    pointer-events: none;
+   223→  }
+   224→
+   225→  /* Sky-blue accent glass for KPI tiles + highlights */
+   226→  .pu-root .glass-sky {
+   227→    background: linear-gradient(135deg, rgba(224, 242, 254, 0.7) 0%, rgba(186, 230, 253, 0.5) 100%);
+   228→    backdrop-filter: blur(20px) saturate(180%);
+   229→    -webkit-backdrop-filter: blur(20px) saturate(180%);
+   230→    border: 1px solid rgba(125, 211, 252, 0.3);
+   231→    box-shadow: 0 4px 16px -4px rgba(14, 165, 233, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+   232→  }
+   233→
+   234→  /* 3D Convex Frosted Glass Cushion (iOS Liquid Glass Centerpiece) */
+   235→  .pu-root .glass-cushion-3d {
+   236→    position: relative;
+   237→    background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.98) 0%, rgba(240, 248, 255, 0.88) 55%, rgba(224, 242, 254, 0.82) 100%);
+   238→    backdrop-filter: blur(32px) saturate(220%);
+   239→    -webkit-backdrop-filter: blur(32px) saturate(220%);
+   240→    border: 1.5px solid rgba(255, 255, 255, 0.95);
+   241→    box-shadow:
+   242→      0 2px 0 0 rgba(255, 255, 255, 1) inset,
+   243→      0 24px 50px -12px rgba(2, 132, 199, 0.22),
+   244→      0 10px 25px -5px rgba(14, 165, 233, 0.15),
+   245→      inset 0 -8px 20px -4px rgba(186, 230, 253, 0.5),
+   246→      inset 0 2px 4px 0 rgba(255, 255, 255, 1);
+   247→  }
+   248→
+   249→  /* 3D Liquid Glass Sphere / Bubble */
+   250→  .pu-root .glass-sphere-3d {
+   251→    border-radius: 9999px;
+   252→    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(224, 242, 254, 0.5) 35%, rgba(186, 230, 253, 0.25) 70%, rgba(56, 189, 248, 0.4) 100%);
+   253→    backdrop-filter: blur(12px);
+   254→    -webkit-backdrop-filter: blur(12px);
+   255→    border: 1px solid rgba(255, 255, 255, 0.8);
+   256→    box-shadow:
+   257→      inset -4px -6px 12px 0 rgba(14, 165, 233, 0.35),
+   258→      inset 3px 4px 8px 0 rgba(255, 255, 255, 0.9),
+   259→      0 8px 24px -4px rgba(2, 132, 199, 0.2);
+   260→  }
+   261→
+   262→  /* Electric Blue Liquid Glass Pill Button */
+   263→  .pu-root .btn-liquid-blue {
+   264→    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 50%, #38bdf8 100%);
+   265→    color: white;
+   266→    box-shadow:
+   267→      0 1px 0 0 rgba(255, 255, 255, 0.4) inset,
+   268→      0 6px 20px -2px rgba(2, 132, 199, 0.45),
+   269→      0 2px 6px 0 rgba(2, 132, 199, 0.25);
+   270→    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+   271→  }
+   272→  .pu-root .btn-liquid-blue:hover {
+   273→    transform: translateY(-1px) scale(1.01);
+   274→    box-shadow:
+   275→      0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
+   276→      0 10px 28px -2px rgba(2, 132, 199, 0.55),
+   277→      0 3px 8px 0 rgba(2, 132, 199, 0.35);
+   278→  }
+   279→
+   280→  /* High Intensity iOS Liquid Glass Role Card Shadows */
+   281→  .pu-root .shadow-role-card {
+   282→    box-shadow:
+   283→      0 20px 48px -10px rgba(2, 132, 199, 0.22),
+   284→      0 8px 20px -4px rgba(14, 165, 233, 0.14),
+   285→      inset 0 1px 2px rgba(255, 255, 255, 0.95);
+   286→  }
+   287→  .pu-root .shadow-role-card-hover {
+   288→    box-shadow:
+   289→      0 30px 65px -8px rgba(2, 132, 199, 0.38),
+   290→      0 14px 28px -4px rgba(14, 165, 233, 0.28),
+   291→      inset 0 2px 3px rgba(255, 255, 255, 1);
+   292→  }
+   293→  .pu-root .shadow-role-active {
+   294→    box-shadow:
+   295→      0 32px 75px -6px rgba(2, 132, 199, 0.48),
+   296→      0 16px 32px -4px rgba(14, 165, 233, 0.35),
+   297→      inset 0 2px 4px rgba(255, 255, 255, 1);
+   298→  }
+   299→
+   300→  /* Soft floating orbs for welcome / hero backgrounds */
+   301→  .pu-root .orb {
+   302→    position: absolute;
+   303→    border-radius: 9999px;
+   304→    filter: blur(40px);
+   305→    opacity: 0.55;
+   306→    pointer-events: none;
+   307→  }
+   308→
+   309→  /* Status pill base */
+   310→  .pu-root .status-pill {
+   311→    display: inline-flex;
+   312→    align-items: center;
+   313→    gap: 0.3rem;
+   314→    padding: 0.125rem 0.55rem;
+   315→    border-radius: 9999px;
+   316→    font-size: 0.7rem;
+   317→    font-weight: 600;
+   318→    letter-spacing: 0.01em;
+   319→    border: 1px solid transparent;
+   320→    white-space: nowrap;
+   321→  }
+   322→
+   323→  .pu-root .status-draft {
+   324→    background: rgba(245, 158, 11, 0.12);
+   325→    color: rgb(146, 64, 14);
+   326→    border-color: rgba(245, 158, 11, 0.25);
+   327→  }
+   328→  .pu-root .status-submitted {
+   329→    background: rgba(59, 130, 246, 0.12);
+   330→    color: rgb(29, 78, 216);
+   331→    border-color: rgba(59, 130, 246, 0.25);
+   332→  }
+   333→  .pu-root .status-review {
+   334→    background: rgba(168, 85, 247, 0.12);
+   335→    color: rgb(109, 40, 217);
+   336→    border-color: rgba(168, 85, 247, 0.25);
+   337→  }
+   338→  .pu-root .status-approved {
+   339→    background: rgba(16, 185, 129, 0.12);
+   340→    color: rgb(4, 120, 87);
+   341→    border-color: rgba(16, 185, 129, 0.25);
+   342→  }
+   343→  .pu-root .status-locked {
+   344→    background: rgba(15, 23, 42, 0.08);
+   345→    color: rgb(30, 41, 59);
+   346→    border-color: rgba(15, 23, 42, 0.18);
+   347→  }
+   348→  .pu-root .status-missing {
+   349→    background: rgba(239, 68, 68, 0.1);
+   350→    color: rgb(185, 28, 28);
+   351→    border-color: rgba(239, 68, 68, 0.22);
+   352→  }
+   353→  .pu-root .status-error {
+   354→    background: rgba(239, 68, 68, 0.1);
+   355→    color: rgb(185, 28, 28);
+   356→    border-color: rgba(239, 68, 68, 0.22);
+   357→  }
+   358→  .pu-root .status-warning {
+   359→    background: rgba(245, 158, 11, 0.12);
+   360→    color: rgb(146, 64, 14);
+   361→    border-color: rgba(245, 158, 11, 0.25);
+   362→  }
+   363→  .pu-root .status-verified {
+   364→    background: rgba(16, 185, 129, 0.12);
+   365→    color: rgb(4, 120, 87);
+   366→    border-color: rgba(16, 185, 129, 0.25);
+   367→  }
+   368→
+   369→  /* Primary gradient button */
+   370→  .pu-root .btn-glass-primary {
+   371→    background: linear-gradient(135deg, oklch(0.62 0.18 245), oklch(0.52 0.2 235));
+   372→    color: white;
+   373→    box-shadow:
+   374→      0 1px 0 0 rgba(255, 255, 255, 0.35) inset,
+   375→      0 6px 20px -4px oklch(0.52 0.2 245 / 0.45);
+   376→  }
+   377→
+   378→  /* KPI icon tile backgrounds */
+   379→  .pu-root .kpi-tile {
+   380→    display: inline-flex;
+   381→    align-items: center;
+   382→    justify-content: center;
+   383→    width: 2.75rem;
+   384→    height: 2.75rem;
+   385→    border-radius: 0.85rem;
+   386→    border: 1px solid rgba(255, 255, 255, 0.7);
+   387→    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.9) inset, 0 4px 12px -4px rgba(30, 58, 138, 0.18);
+   388→  }
+   389→
+   390→  /* ============================================================
+   391→     iOS LIQUID GLASS FORM CONTROLS
+   392→     ============================================================ */
+   393→
+   394→  .pu-root .ios-field {
+   395→    width: 100%;
+   396→    font-size: 13px;
+   397→    line-height: 1.45;
+   398→    font-weight: 500;
+   399→    color: #1e293b;
+   400→    padding: 9px 14px;
+   401→    border-radius: 14px;
+   402→    background-color: transparent;
+   403→    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+   404→    border: 1px solid rgba(148, 178, 214, 0.38);
+   405→    box-shadow:
+   406→      inset 0 1px 2px rgba(15, 23, 42, 0.045),
+   407→      inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+   408→      0 1px 2px rgba(2, 132, 199, 0.06);
+   409→    backdrop-filter: blur(8px) saturate(150%);
+   410→    -webkit-backdrop-filter: blur(8px) saturate(150%);
+   411→    outline: none;
+   412→    transition: border-color 0.2s ease, box-shadow 0.25s ease, background-image 0.25s ease;
+   413→  }
+   414→  .pu-root .ios-field::placeholder {
+   415→    color: #94a3b8;
+   416→    font-weight: 400;
+   417→  }
+   418→  .pu-root .ios-field:hover:not(:disabled):not(:focus) {
+   419→    border-color: rgba(56, 189, 248, 0.55);
+   420→    box-shadow:
+   421→      inset 0 1px 2px rgba(15, 23, 42, 0.04),
+   422→      inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+   423→      0 2px 8px -2px rgba(2, 132, 199, 0.14);
+   424→  }
+   425→  .pu-root .ios-field:focus {
+   426→    border-color: #0ea5e9;
+   427→    background-image: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+   428→    box-shadow:
+   429→      0 0 0 4px rgba(14, 165, 233, 0.14),
+   430→      inset 0 1px 2px rgba(15, 23, 42, 0.03),
+   431→      0 8px 20px -8px rgba(2, 132, 199, 0.3);
+   432→  }
+   433→  .pu-root .ios-field:disabled,
+   434→  .pu-root .ios-field[readonly] {
+   435→    opacity: 0.55;
+   436→    cursor: not-allowed;
+   437→    background-image: linear-gradient(180deg, rgba(241, 248, 253, 0.75), rgba(236, 244, 252, 0.65));
+   438→  }
+   439→  .pu-root .ios-field:disabled {
+   440→    cursor: not-allowed;
+   441→  }
+   442→  .pu-root .ios-field:-webkit-autofill {
+   443→    -webkit-box-shadow: 0 0 0 1000px #f8fbff inset;
+   444→    -webkit-text-fill-color: #1e293b;
+   445→  }
+   446→
+   447→  /* Select — native dropdown with iOS chevron affordance */
+   448→  .pu-root select.ios-field {
+   449→    appearance: none;
+   450→    -webkit-appearance: none;
+   451→    -moz-appearance: none;
+   452→    padding-right: 38px;
+   453→    cursor: pointer;
+   454→    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+   455→      linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+   456→    background-repeat: no-repeat;
+   457→    background-position: right 13px center, 0 0;
+   458→    background-size: 14px, auto;
+   459→  }
+   460→  .pu-root select.ios-field:hover:not(:disabled):not(:focus) {
+   461→    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230ea5e9' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+   462→      linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+   463→  }
+   464→  .pu-root select.ios-field option {
+   465→    background-color: #ffffff;
+   466→    color: #1e293b;
+   467→    font-weight: 500;
+   468→    padding: 8px;
+   469→  }
+   470→
+   471→  .pu-root textarea.ios-field {
+   472→    min-height: 72px;
+   473→    resize: vertical;
+   474→    line-height: 1.55;
+   475→  }
+   476→
+   477→  /* Uppercase micro-label above fields */
+   478→  .pu-root .ios-label {
+   479→    display: block;
+   480→    margin-bottom: 6px;
+   481→    font-size: 10.5px;
+   482→    font-weight: 700;
+   483→    letter-spacing: 0.07em;
+   484→    text-transform: uppercase;
+   485→    color: #475569;
+   486→  }
+   487→
+   488→  /* Premium liquid-glass form section card */
+   489→  .pu-root .glass-form-card {
+   490→    position: relative;
+   491→    border-radius: 24px;
+   492→    padding: 24px;
+   493→    background-image: linear-gradient(150deg, rgba(255, 255, 255, 0.9) 0%, rgba(243, 249, 255, 0.76) 45%, rgba(248, 252, 255, 0.85) 100%);
+   494→    backdrop-filter: blur(26px) saturate(190%);
+   495→    -webkit-backdrop-filter: blur(26px) saturate(190%);
+   496→    border: 1px solid rgba(255, 255, 255, 0.85);
+   497→    box-shadow:
+   498→      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+   499→      0 0 0 1px rgba(186, 230, 253, 0.35),
+   500→      0 18px 44px -12px rgba(2, 132, 199, 0.14),
+   501→      0 6px 18px -6px rgba(14, 165, 233, 0.1),
+   502→      inset 0 -1px 2px rgba(14, 165, 233, 0.05);
+   503→  }
+   504→
+   505→  /* Form card section title */
+   506→  .pu-root .form-card-title {
+   507→    font-size: 17px;
+   508→    font-weight: 800;
+   509→    letter-spacing: -0.015em;
+   510→    color: #0f172a;
+   511→  }
+   512→
+   513→  /* iOS frosted ghost action button */
+   514→  .pu-root .ios-btn-ghost {
+   515→    display: inline-flex;
+   516→    align-items: center;
+   517→    justify-content: center;
+   518→    gap: 6px;
+   519→    border-radius: 9999px;
+   520→    padding: 8px 16px;
+   521→    font-size: 12px;
+   522→    font-weight: 700;
+   523→    color: #334155;
+   524→    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.82));
+   525→    border: 1px solid rgba(148, 178, 214, 0.4);
+   526→    box-shadow:
+   527→      0 1px 2px rgba(2, 132, 199, 0.08),
+   528→      inset 0 1px 1px rgba(255, 255, 255, 0.95);
+   529→    backdrop-filter: blur(8px) saturate(150%);
+   530→    -webkit-backdrop-filter: blur(8px) saturate(150%);
+   531→    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+   532→    cursor: pointer;
+   533→  }
+   534→  .pu-root .ios-btn-ghost:hover:not(:disabled) {
+   535→    transform: translateY(-1px);
+   536→    border-color: rgba(56, 189, 248, 0.65);
+   537→    color: #0369a1;
+   538→    box-shadow:
+   539→      0 8px 18px -6px rgba(2, 132, 199, 0.28),
+   540→      inset 0 1px 1px rgba(255, 255, 255, 1);
+   541→  }
+   542→  .pu-root .ios-btn-ghost:active:not(:disabled) {
+   543→    transform: scale(0.97);
+   544→  }
+   545→  .pu-root .ios-btn-ghost:disabled {
+   546→    opacity: 0.45;
+   547→    cursor: not-allowed;
+   548→    transform: none;
+   549→  }
+   550→
+   551→  /* iOS segmented control (view switchers) */
+   552→  .pu-root .ios-seg {
+   553→    display: inline-flex;
+   554→    align-items: center;
+   555→    gap: 4px;
+   556→    padding: 4px;
+   557→    border-radius: 16px;
+   558→    background-image: linear-gradient(180deg, rgba(238, 246, 253, 0.92), rgba(224, 240, 252, 0.75));
+   559→    border: 1px solid rgba(186, 230, 253, 0.55);
+   560→    box-shadow:
+   561→      inset 0 1px 3px rgba(15, 23, 42, 0.07),
+   562→      inset 0 -1px 1px rgba(255, 255, 255, 0.85);
+   563→    backdrop-filter: blur(10px) saturate(160%);
+   564→    -webkit-backdrop-filter: blur(10px) saturate(160%);
+   565→  }
+   566→  .pu-root .ios-seg-btn {
+   567→    display: inline-flex;
+   568→    align-items: center;
+   569→    gap: 7px;
+   570→    border-radius: 12px;
+   571→    padding: 7px 14px;
+   572→    font-size: 12px;
+   573→    font-weight: 600;
+   574→    color: #475569;
+   575→    transition: all 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+   576→    cursor: pointer;
+   577→  }
+   578→  .pu-root .ios-seg-btn:hover {
+   579→    color: #0f172a;
+   580→  }
+   581→  .pu-root .ios-seg-btn-active {
+   582→    color: #0c4a6e;
+   583→    background-image: linear-gradient(180deg, #ffffff, #f0f9ff);
+   584→    border: 1px solid rgba(125, 211, 252, 0.6);
+   585→    box-shadow:
+   586→      0 3px 10px -2px rgba(2, 132, 199, 0.25),
+   587→      inset 0 1px 1px rgba(255, 255, 255, 1);
+   588→    font-weight: 700;
+   589→  }
+   590→
+   591→  /* iOS selection chip (source / category pills) */
+   592→  .pu-root .ios-chip {
+   593→    position: relative;
+   594→    display: inline-flex;
+   595→    align-items: center;
+   596→    gap: 6px;
+   597→    border-radius: 9999px;
+   598→    padding: 7px 14px;
+   599→    font-size: 11.5px;
+   600→    font-weight: 600;
+   601→    color: #475569;
+   602→    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 250, 255, 0.75));
+   603→    border: 1px solid rgba(148, 178, 214, 0.35);
+   604→    box-shadow:
+   605→      0 1px 2px rgba(2, 132, 199, 0.06),
+   606→      inset 0 1px 1px rgba(255, 255, 255, 0.9);
+   607→    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+   608→    cursor: pointer;
+   609→  }
+   610→  .pu-root .ios-chip:hover:not(:disabled) {
+   611→    transform: translateY(-1px);
+   612→    border-color: rgba(56, 189, 248, 0.55);
+   613→    color: #0369a1;
+   614→    box-shadow: 0 6px 14px -4px rgba(2, 132, 199, 0.22);
+   615→  }
+   616→  .pu-root .ios-chip:active:not(:disabled) {
+   617→    transform: scale(0.97);
+   618→  }
+   619→  .pu-root .ios-chip-active {
+   620→    color: #ffffff;
+   621→    background-image: linear-gradient(135deg, #0284c7 0%, #0ea5e9 55%, #38bdf8 100%);
+   622→    border-color: rgba(2, 132, 199, 0.9);
+   623→    box-shadow:
+   624→      0 6px 18px -4px rgba(2, 132, 199, 0.45),
+   625→      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+   626→  }
+   627→  .pu-root .ios-chip-active:hover:not(:disabled) {
+   628→    color: #ffffff;
+   629→    border-color: rgba(2, 132, 199, 1);
+   630→  }
+   631→}
+   632→
+   633→/* ============================================================
+   634→   ANIMATIONS — premium subtle motion (pu- prefixed so the
+   635→   main platform's shimmer/orb/pulse keyframes are never hit)
+   636→   ============================================================ */
+   637→
+   638→@keyframes pu-orb-float {
+   639→  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
+   640→  33% { transform: translateY(-22px) translateX(12px) scale(1.05); }
+   641→  66% { transform: translateY(14px) translateX(-16px) scale(0.96); }
+   642→}
+   643→
+   644→@keyframes pu-shimmer {
+   645→  0% { background-position: -200% 0; }
+   646→  100% { background-position: 200% 0; }
+   647→}
+   648→
+   649→@keyframes pu-fade-up {
+   650→  0% { opacity: 0; transform: translateY(12px); }
+   651→  100% { opacity: 1; transform: translateY(0); }
+   652→}
+   653→
+   654→@keyframes pu-scale-in {
+   655→  0% { opacity: 0; transform: scale(0.94); }
+   656→  100% { opacity: 1; transform: scale(1); }
+   657→}
+   658→
+   659→@keyframes pu-pulse-ring {
+   660→  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+   661→  70% { box-shadow: 0 0 0 14px rgba(59, 130, 246, 0); }
+   662→  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+   663→}
+   664→
+   665→@keyframes pu-draw-line {
+   666→  0% { stroke-dashoffset: 1000; }
+   667→  100% { stroke-dashoffset: 0; }
+   668→}
+   669→
+   670→@keyframes pu-count-glow {
+   671→  0%, 100% { text-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+   672→  50% { text-shadow: 0 0 18px rgba(59, 130, 246, 0.25); }
+   673→}
+   674→
+   675→.pu-root .animate-orb { animation: pu-orb-float 14s ease-in-out infinite; }
+   676→.pu-root .animate-fade-up { animation: pu-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+   677→.pu-root .animate-scale-in { animation: pu-scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+   678→.pu-root .animate-pulse-ring { animation: pu-pulse-ring 2s infinite; }
+   679→
+   680→/* Stagger helpers */
+   681→.pu-root .stagger-1 { animation-delay: 0.05s; }
+   682→.pu-root .stagger-2 { animation-delay: 0.12s; }
+   683→.pu-root .stagger-3 { animation-delay: 0.19s; }
+   684→.pu-root .stagger-4 { animation-delay: 0.26s; }
+   685→.pu-root .stagger-5 { animation-delay: 0.33s; }
+   686→.pu-root .stagger-6 { animation-delay: 0.4s; }
+   687→.pu-root .stagger-7 { animation-delay: 0.47s; }
+   688→.pu-root .stagger-8 { animation-delay: 0.54s; }
+   689→
+   690→/* Glass shimmer sweep on hover for premium cards */
+   691→.pu-root .glass-shimmer {
+   692→  position: relative;
+   693→  overflow: hidden;
+   694→}
+   695→.pu-root .glass-shimmer::after {
+   696→  content: "";
+   697→  position: absolute;
+   698→  inset: 0;
+   699→  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.6) 50%, transparent 65%);
+   700→  background-size: 200% 100%;
+   701→  opacity: 0;
+   702→  transition: opacity 0.3s ease;
+   703→  pointer-events: none;
+   704→}
+   705→.pu-root .glass-shimmer:hover::after {
+   706→  opacity: 1;
+   707→  animation: pu-shimmer 1.4s ease-in-out;
+   708→}
+   709→
+   710→/* Custom scrollbar */
+   711→.pu-root .scroll-elegant::-webkit-scrollbar { width: 8px; height: 8px; }
+   712→.pu-root .scroll-elegant::-webkit-scrollbar-track { background: transparent; }
+   713→.pu-root .scroll-elegant::-webkit-scrollbar-thumb {
+   714→  background: rgba(100, 116, 139, 0.25);
+   715→  border-radius: 9999px;
+   716→}
+   717→.pu-root .scroll-elegant::-webkit-scrollbar-thumb:hover {
+   718→  background: rgba(100, 116, 139, 0.4);
+   719→}
+   720→
+   721→/* Tabular numbers for data-heavy KPIs */
+   722→.pu-root .tabular-nums { font-variant-numeric: tabular-nums; }
+   723→
+   724→/* ── Floating "Exit portal" gateway button ────────────────────────────────
+   725→   Sits below both of the portal's own top bars (welcome header ≈60px,
+   726→   workspace header = 56px) so it never covers the profile/notifications,
+   727→   and respects the right safe-area inset on notched devices. */
+   728→.pu-root .pu-exit-btn {
+   729→  position: fixed;
+   730→  top: 64px;
+   731→  right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+   732→  z-index: 70;
+   733→  display: inline-flex;
+   734→  align-items: center;
+   735→  gap: 6px;
+   736→  border-radius: 9999px;
+   737→  padding: 7px 14px;
+   738→  font-size: 12px;
+   739→  font-weight: 600;
+   740→  color: #475569;
+   741→  cursor: pointer;
+   742→  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+   743→}
+   744→.pu-root .pu-exit-btn:hover {
+   745→  color: #0369a1;
+   746→  border-color: rgba(56, 189, 248, 0.65);
+   747→  transform: translateY(-1px);
+   748→  box-shadow:
+   749→    0 8px 18px -6px rgba(2, 132, 199, 0.28),
+   750→    inset 0 1px 1px rgba(255, 255, 255, 1);
+   751→}
+   752→.pu-root .pu-exit-btn:active {
+   753→  transform: scale(0.97);
+   754→}
+   755→
+   756→@media (prefers-reduced-motion: reduce) {
+   757→  .pu-root *,
+   758→  .pu-root *::before,
+   759→  .pu-root *::after {
+   760→    animation-duration: 0.01ms !important;
+   761→    animation-iteration-count: 1 !important;
+   762→    transition-duration: 0.01ms !important;
+   763→  }
+   764→  .pu-root .animate-orb { animation: none !important; }
+   765→}
+   766→

@@ -63,6 +63,7 @@ model Project {
   updatedAt     DateTime     @updatedAt
   users         User[]
   energyRecords    EnergyRecord[]
+  puSubmissions    Submission[]   @relation("PuSubmissionProject")
   waterRecords     WaterRecord[]
   wasteRecords     WasteRecord[]
   workforceRecords WorkforceRecord[]
@@ -99,6 +100,7 @@ model User {
   soAuditLogs       SoAuditLog[]
   soNotifications   SoNotification[]
   soReviewedSubmissions SoSubmission[] @relation("SoSubmissionReviewer")
+  reviewedSubmissions   Submission[]   @relation("SubmissionReviewer")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
@@ -168,6 +170,21 @@ model Submission {
   evidence      String    @default("[]") // JSON array of file names
   comments      String    @default("[]") // JSON array of {author, role, text, at}
   history       String    @default("[]") // JSON array of {action, actor, at, note}
+  // ── Project User Portal workflow extensions (additive; other consoles ignore these) ──
+  module            String?   // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+  recordIds         String?   // JSON array of linked source record IDs
+  reportingPeriodId String?
+  reportingPeriod   ReportingPeriod? @relation(fields: [reportingPeriodId], references: [id], onDelete: SetNull)
+  reviewer          User?     @relation("SubmissionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  project           Project?  @relation("PuSubmissionProject", fields: [projectId], references: [id], onDelete: SetNull)
+  completionPct     Float?
+  evidenceCount     Int?
+  validationPassed  Int?
+  validationErrors  Int?
+  lockedAt          DateTime?
+  lockedBy          String?
+  reviewComment     String?   // pu: reviewer note on REVIEW/REJECT/LOCK transitions
+  corrections       String?   @default("[]") // pu: JSON array of correction requests (portal-side)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -453,9 +470,10 @@ model ReportingPeriod {
   safetyRecords      SafetyRecord[]
   travelRecords      TravelRecord[]
   soSubmissions      SoSubmission[]
+  puSubmissions      Submission[]
 }
 
-// ── Units & conversions (calculation engine) ─────────────────────────────────
+// ── Units & conversions (calculation engine) ─────────────────────────────
 
 model UnitMaster {
   id        String  @id @default(cuid())

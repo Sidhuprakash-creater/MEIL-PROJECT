@@ -1,0 +1,783 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROJECT USER PORTAL — scoped design system
+   Ported from the portal project's globals.css. EVERY rule is scoped under
+   `.pu-root` so the main platform's .glass family, keyframes and tokens are
+   never overridden outside the portal experience.
+
+   Cascade note: rules live in the same `base` / `components` cascade layers
+   Tailwind v4 establishes (theme → base → components → utilities), so Tailwind
+   utilities still win over these classes exactly like in the source project.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Portal root — page chrome (replaces the zip's html/body/:root rules) ── */
+.pu-root {
+  /* shadcn tokens (zip palette) — cascades to every shadcn/ui element inside */
+  --radius: 1rem;
+  --background: oklch(0.975 0.02 235);
+  --foreground: oklch(0.12 0.04 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.12 0.04 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.12 0.04 250);
+  --primary: oklch(0.55 0.20 240);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.94 0.02 230);
+  --secondary-foreground: oklch(0.15 0.04 245);
+  --muted: oklch(0.94 0.015 230);
+  --muted-foreground: oklch(0.35 0.03 245);
+  --accent: oklch(0.93 0.03 230);
+  --accent-foreground: oklch(0.2 0.05 245);
+  --destructive: oklch(0.58 0.22 27);
+  --border: oklch(0.88 0.02 230);
+  --input: oklch(0.9 0.015 230);
+  --ring: oklch(0.62 0.17 235);
+  --chart-1: oklch(0.6 0.19 235);
+  --chart-2: oklch(0.72 0.16 200);
+  --chart-3: oklch(0.62 0.16 145);
+  --chart-4: oklch(0.75 0.16 70);
+  --chart-5: oklch(0.6 0.2 30);
+  --sidebar: oklch(0.975 0.02 235);
+  --sidebar-foreground: oklch(0.16 0.05 245);
+  --sidebar-primary: oklch(0.6 0.19 235);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.95 0.02 230);
+  --sidebar-accent-foreground: oklch(0.22 0.05 245);
+  --sidebar-border: oklch(0.9 0.015 230);
+  --sidebar-ring: oklch(0.6 0.16 245);
+
+  /* fill the viewport with the portal's own sky atmosphere */
+  min-height: 100dvh;
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  color: var(--foreground);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  background-color: #e0f2fe;
+  background-image:
+    radial-gradient(at 8% 0%, rgba(125, 211, 252, 0.5) 0px, transparent 50%),
+    radial-gradient(at 92% 2%, rgba(186, 230, 253, 0.55) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(224, 242, 254, 0.6) 0px, transparent 55%),
+    radial-gradient(at 0% 60%, rgba(207, 233, 254, 0.45) 0px, transparent 45%),
+    radial-gradient(at 100% 50%, rgba(165, 216, 255, 0.3) 0px, transparent 40%);
+  background-attachment: fixed;
+}
+
+.pu-root.dark {
+  --background: oklch(0.16 0.02 245);
+  --foreground: oklch(0.97 0.01 230);
+  --card: oklch(0.22 0.02 245);
+  --card-foreground: oklch(0.97 0.01 230);
+  --popover: oklch(0.22 0.02 245);
+  --popover-foreground: oklch(0.97 0.01 230);
+  --primary: oklch(0.7 0.16 245);
+  --primary-foreground: oklch(0.16 0.02 245);
+  --secondary: oklch(0.28 0.02 245);
+  --secondary-foreground: oklch(0.97 0.01 230);
+  --muted: oklch(0.28 0.02 245);
+  --muted-foreground: oklch(0.7 0.02 230);
+  --accent: oklch(0.32 0.03 245);
+  --accent-foreground: oklch(0.97 0.01 230);
+  --destructive: oklch(0.7 0.19 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.62 0.16 245);
+  --sidebar: oklch(0.2 0.02 245);
+  --sidebar-foreground: oklch(0.97 0.01 230);
+  --sidebar-primary: oklch(0.7 0.16 245);
+}
+
+@layer base {
+  /* caret discipline (from zip base layer), scoped */
+  .pu-root *,
+  .pu-root *::before,
+  .pu-root *::after {
+    caret-color: transparent;
+  }
+  .pu-root input,
+  .pu-root textarea,
+  .pu-root [contenteditable="true"],
+  .pu-root [contenteditable=""] {
+    caret-color: #2563eb !important;
+  }
+  .pu-root h1,
+  .pu-root h2,
+  .pu-root h3,
+  .pu-root h4,
+  .pu-root h5,
+  .pu-root h6,
+  .pu-root button,
+  .pu-root nav,
+  .pu-root [role="button"] {
+    user-select: none;
+    -webkit-user-select: none;
+    caret-color: transparent !important;
+  }
+}
+
+/* ============================================================
+   GLASSMORPHISM — MEIL Liquid Glass Design System (scoped)
+   ============================================================ */
+
+@layer components {
+  /* Frosted glass surface — premium shadow + readable text intensity */
+  .pu-root .glass {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.80) 0%, rgba(240, 248, 255, 0.70) 50%, rgba(245, 250, 255, 0.75) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(150, 180, 210, 0.20);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+      0 0 0 1px rgba(14, 165, 233, 0.05),
+      0 4px 6px -1px rgba(0, 0, 0, 0.04),
+      0 10px 30px -8px rgba(2, 132, 199, 0.12),
+      0 4px 12px -4px rgba(2, 132, 199, 0.08),
+      inset 0 1px 2px rgba(255, 255, 255, 0.6);
+  }
+
+  .pu-root .glass-strong {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.90) 0%, rgba(240, 248, 255, 0.85) 50%, rgba(245, 250, 255, 0.88) 100%);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid rgba(150, 180, 210, 0.25);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+      0 0 0 1px rgba(14, 165, 233, 0.06),
+      0 4px 6px -1px rgba(0, 0, 0, 0.05),
+      0 16px 40px -10px rgba(2, 132, 199, 0.15),
+      0 6px 16px -4px rgba(2, 132, 199, 0.1),
+      inset 0 1px 3px rgba(255, 255, 255, 0.7);
+  }
+
+  /* Intense iOS Liquid Glass — deep multi-layer caustic reflections */
+  .pu-root .glass-ios-liquid {
+    position: relative;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94) 0%, rgba(240, 248, 255, 0.88) 45%, rgba(245, 250, 255, 0.92) 100%);
+    backdrop-filter: blur(28px) saturate(210%);
+    -webkit-backdrop-filter: blur(28px) saturate(210%);
+    border: 1px solid rgba(255, 255, 255, 0.88);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+      0 0 0 1px rgba(186, 230, 253, 0.45),
+      0 20px 48px -10px rgba(2, 132, 199, 0.16),
+      0 8px 24px -6px rgba(14, 165, 233, 0.12),
+      0 2px 6px 0 rgba(0, 0, 0, 0.03),
+      inset 0 1px 3px 0 rgba(255, 255, 255, 0.85),
+      inset 0 -1px 2px 0 rgba(14, 165, 233, 0.05);
+  }
+  .pu-root .glass-ios-liquid::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    top: 0;
+    height: 40%;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.65) 0%, rgba(255, 255, 255, 0.12) 65%, transparent 100%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .pu-root .glass-subtle {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.65) 0%, rgba(240, 248, 255, 0.55) 100%);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(150, 180, 210, 0.18);
+    box-shadow:
+      0 2px 4px -1px rgba(0, 0, 0, 0.03),
+      0 4px 16px -4px rgba(2, 132, 199, 0.10),
+      inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  }
+
+  .pu-root .glass-nav {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.82) 0%, rgba(245, 250, 255, 0.78) 100%);
+    backdrop-filter: blur(22px) saturate(190%);
+    -webkit-backdrop-filter: blur(22px) saturate(190%);
+    border: 1px solid rgba(150, 180, 210, 0.20);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+      0 4px 6px -1px rgba(0, 0, 0, 0.03),
+      0 4px 20px -6px rgba(2, 132, 199, 0.10),
+      inset 0 1px 2px rgba(255, 255, 255, 0.5);
+  }
+
+  /* Premium gradient border for highlighted cards */
+  .pu-root .glass-gradient-border {
+    position: relative;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.72) 0%, rgba(224, 242, 254, 0.55) 100%);
+    backdrop-filter: blur(24px) saturate(200%);
+    -webkit-backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid transparent;
+    background-clip: padding-box;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.98) inset,
+      0 8px 32px -6px rgba(2, 132, 199, 0.15);
+  }
+  .pu-root .glass-gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(56, 189, 248, 0.2), transparent);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Sky-blue accent glass for KPI tiles + highlights */
+  .pu-root .glass-sky {
+    background: linear-gradient(135deg, rgba(224, 242, 254, 0.7) 0%, rgba(186, 230, 253, 0.5) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(125, 211, 252, 0.3);
+    box-shadow: 0 4px 16px -4px rgba(14, 165, 233, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+  }
+
+  /* 3D Convex Frosted Glass Cushion (iOS Liquid Glass Centerpiece) */
+  .pu-root .glass-cushion-3d {
+    position: relative;
+    background: radial-gradient(circle at 50% 20%, rgba(255, 255, 255, 0.98) 0%, rgba(240, 248, 255, 0.88) 55%, rgba(224, 242, 254, 0.82) 100%);
+    backdrop-filter: blur(32px) saturate(220%);
+    -webkit-backdrop-filter: blur(32px) saturate(220%);
+    border: 1.5px solid rgba(255, 255, 255, 0.95);
+    box-shadow:
+      0 2px 0 0 rgba(255, 255, 255, 1) inset,
+      0 24px 50px -12px rgba(2, 132, 199, 0.22),
+      0 10px 25px -5px rgba(14, 165, 233, 0.15),
+      inset 0 -8px 20px -4px rgba(186, 230, 253, 0.5),
+      inset 0 2px 4px 0 rgba(255, 255, 255, 1);
+  }
+
+  /* 3D Liquid Glass Sphere / Bubble */
+  .pu-root .glass-sphere-3d {
+    border-radius: 9999px;
+    background: radial-gradient(circle at 32% 28%, rgba(255, 255, 255, 0.95) 0%, rgba(224, 242, 254, 0.5) 35%, rgba(186, 230, 253, 0.25) 70%, rgba(56, 189, 248, 0.4) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow:
+      inset -4px -6px 12px 0 rgba(14, 165, 233, 0.35),
+      inset 3px 4px 8px 0 rgba(255, 255, 255, 0.9),
+      0 8px 24px -4px rgba(2, 132, 199, 0.2);
+  }
+
+  /* Electric Blue Liquid Glass Pill Button */
+  .pu-root .btn-liquid-blue {
+    background: linear-gradient(135deg, #0284c7 0%, #0ea5e9 50%, #38bdf8 100%);
+    color: white;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.4) inset,
+      0 6px 20px -2px rgba(2, 132, 199, 0.45),
+      0 2px 6px 0 rgba(2, 132, 199, 0.25);
+    transition: all 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .pu-root .btn-liquid-blue:hover {
+    transform: translateY(-1px) scale(1.01);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.6) inset,
+      0 10px 28px -2px rgba(2, 132, 199, 0.55),
+      0 3px 8px 0 rgba(2, 132, 199, 0.35);
+  }
+
+  /* Shine sweep for primary pills (welcome + project dock CTAs) */
+  .pu-root .btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  .pu-root .btn-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 42%, rgba(255, 255, 255, 0.5) 50%, transparent 58%);
+    transform: translateX(-130%);
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  .pu-root .btn-shine:hover::after {
+    transform: translateX(130%);
+  }
+
+  /* High Intensity iOS Liquid Glass Role Card Shadows */
+  .pu-root .shadow-role-card {
+    box-shadow:
+      0 20px 48px -10px rgba(2, 132, 199, 0.22),
+      0 8px 20px -4px rgba(14, 165, 233, 0.14),
+      inset 0 1px 2px rgba(255, 255, 255, 0.95);
+  }
+  .pu-root .shadow-role-card-hover {
+    box-shadow:
+      0 30px 65px -8px rgba(2, 132, 199, 0.38),
+      0 14px 28px -4px rgba(14, 165, 233, 0.28),
+      inset 0 2px 3px rgba(255, 255, 255, 1);
+  }
+  .pu-root .shadow-role-active {
+    box-shadow:
+      0 32px 75px -6px rgba(2, 132, 199, 0.48),
+      0 16px 32px -4px rgba(14, 165, 233, 0.35),
+      inset 0 2px 4px rgba(255, 255, 255, 1);
+  }
+
+  /* Soft floating orbs for welcome / hero backgrounds */
+  .pu-root .orb {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(40px);
+    opacity: 0.55;
+    pointer-events: none;
+  }
+
+  /* Status pill base */
+  .pu-root .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.125rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .pu-root .status-draft {
+    background: rgba(245, 158, 11, 0.12);
+    color: rgb(146, 64, 14);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+  .pu-root .status-submitted {
+    background: rgba(59, 130, 246, 0.12);
+    color: rgb(29, 78, 216);
+    border-color: rgba(59, 130, 246, 0.25);
+  }
+  .pu-root .status-review {
+    background: rgba(168, 85, 247, 0.12);
+    color: rgb(109, 40, 217);
+    border-color: rgba(168, 85, 247, 0.25);
+  }
+  .pu-root .status-approved {
+    background: rgba(16, 185, 129, 0.12);
+    color: rgb(4, 120, 87);
+    border-color: rgba(16, 185, 129, 0.25);
+  }
+  .pu-root .status-locked {
+    background: rgba(15, 23, 42, 0.08);
+    color: rgb(30, 41, 59);
+    border-color: rgba(15, 23, 42, 0.18);
+  }
+  .pu-root .status-missing {
+    background: rgba(239, 68, 68, 0.1);
+    color: rgb(185, 28, 28);
+    border-color: rgba(239, 68, 68, 0.22);
+  }
+  .pu-root .status-error {
+    background: rgba(239, 68, 68, 0.1);
+    color: rgb(185, 28, 28);
+    border-color: rgba(239, 68, 68, 0.22);
+  }
+  .pu-root .status-warning {
+    background: rgba(245, 158, 11, 0.12);
+    color: rgb(146, 64, 14);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+  .pu-root .status-verified {
+    background: rgba(16, 185, 129, 0.12);
+    color: rgb(4, 120, 87);
+    border-color: rgba(16, 185, 129, 0.25);
+  }
+
+  /* Primary gradient button */
+  .pu-root .btn-glass-primary {
+    background: linear-gradient(135deg, oklch(0.62 0.18 245), oklch(0.52 0.2 235));
+    color: white;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.35) inset,
+      0 6px 20px -4px oklch(0.52 0.2 245 / 0.45);
+  }
+
+  /* KPI icon tile backgrounds */
+  .pu-root .kpi-tile {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.9) inset, 0 4px 12px -4px rgba(30, 58, 138, 0.18);
+  }
+
+  /* ============================================================
+     iOS LIQUID GLASS FORM CONTROLS
+     ============================================================ */
+
+  .pu-root .ios-field {
+    width: 100%;
+    font-size: 13px;
+    line-height: 1.45;
+    font-weight: 500;
+    color: #1e293b;
+    padding: 9px 14px;
+    border-radius: 14px;
+    background-color: transparent;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+    border: 1px solid rgba(148, 178, 214, 0.38);
+    box-shadow:
+      inset 0 1px 2px rgba(15, 23, 42, 0.045),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+      0 1px 2px rgba(2, 132, 199, 0.06);
+    backdrop-filter: blur(8px) saturate(150%);
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+    outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.25s ease, background-image 0.25s ease;
+  }
+  .pu-root .ios-field::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
+  }
+  .pu-root .ios-field:hover:not(:disabled):not(:focus) {
+    border-color: rgba(56, 189, 248, 0.55);
+    box-shadow:
+      inset 0 1px 2px rgba(15, 23, 42, 0.04),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.9),
+      0 2px 8px -2px rgba(2, 132, 199, 0.14);
+  }
+  .pu-root .ios-field:focus {
+    border-color: #0ea5e9;
+    background-image: linear-gradient(180deg, #ffffff 0%, #f6faff 100%);
+    box-shadow:
+      0 0 0 4px rgba(14, 165, 233, 0.14),
+      inset 0 1px 2px rgba(15, 23, 42, 0.03),
+      0 8px 20px -8px rgba(2, 132, 199, 0.3);
+  }
+  .pu-root .ios-field:disabled,
+  .pu-root .ios-field[readonly] {
+    opacity: 0.55;
+    cursor: not-allowed;
+    background-image: linear-gradient(180deg, rgba(241, 248, 253, 0.75), rgba(236, 244, 252, 0.65));
+  }
+  .pu-root .ios-field:disabled {
+    cursor: not-allowed;
+  }
+  .pu-root .ios-field:-webkit-autofill {
+    -webkit-box-shadow: 0 0 0 1000px #f8fbff inset;
+    -webkit-text-fill-color: #1e293b;
+  }
+
+  /* Select — native dropdown with iOS chevron affordance */
+  .pu-root select.ios-field {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 38px;
+    cursor: pointer;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230284c7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+    background-repeat: no-repeat;
+    background-position: right 13px center, 0 0;
+    background-size: 14px, auto;
+  }
+  .pu-root select.ios-field:hover:not(:disabled):not(:focus) {
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230ea5e9' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(245, 250, 255, 0.82) 100%);
+  }
+  .pu-root select.ios-field option {
+    background-color: #ffffff;
+    color: #1e293b;
+    font-weight: 500;
+    padding: 8px;
+  }
+
+  .pu-root textarea.ios-field {
+    min-height: 72px;
+    resize: vertical;
+    line-height: 1.55;
+  }
+
+  /* Uppercase micro-label above fields */
+  .pu-root .ios-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #475569;
+  }
+
+  /* Premium liquid-glass form section card */
+  .pu-root .glass-form-card {
+    position: relative;
+    border-radius: 24px;
+    padding: 24px;
+    background-image: linear-gradient(150deg, rgba(255, 255, 255, 0.9) 0%, rgba(243, 249, 255, 0.76) 45%, rgba(248, 252, 255, 0.85) 100%);
+    backdrop-filter: blur(26px) saturate(190%);
+    -webkit-backdrop-filter: blur(26px) saturate(190%);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 1) inset,
+      0 0 0 1px rgba(186, 230, 253, 0.35),
+      0 18px 44px -12px rgba(2, 132, 199, 0.14),
+      0 6px 18px -6px rgba(14, 165, 233, 0.1),
+      inset 0 -1px 2px rgba(14, 165, 233, 0.05);
+  }
+
+  /* Form card section title */
+  .pu-root .form-card-title {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    color: #0f172a;
+  }
+
+  /* iOS frosted ghost action button */
+  .pu-root .ios-btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border-radius: 9999px;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #334155;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(246, 251, 255, 0.82));
+    border: 1px solid rgba(148, 178, 214, 0.4);
+    box-shadow:
+      0 1px 2px rgba(2, 132, 199, 0.08),
+      inset 0 1px 1px rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px) saturate(150%);
+    -webkit-backdrop-filter: blur(8px) saturate(150%);
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+  }
+  .pu-root .ios-btn-ghost:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.65);
+    color: #0369a1;
+    box-shadow:
+      0 8px 18px -6px rgba(2, 132, 199, 0.28),
+      inset 0 1px 1px rgba(255, 255, 255, 1);
+  }
+  .pu-root .ios-btn-ghost:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .pu-root .ios-btn-ghost:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* iOS segmented control (view switchers) */
+  .pu-root .ios-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 16px;
+    background-image: linear-gradient(180deg, rgba(238, 246, 253, 0.92), rgba(224, 240, 252, 0.75));
+    border: 1px solid rgba(186, 230, 253, 0.55);
+    box-shadow:
+      inset 0 1px 3px rgba(15, 23, 42, 0.07),
+      inset 0 -1px 1px rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px) saturate(160%);
+    -webkit-backdrop-filter: blur(10px) saturate(160%);
+  }
+  .pu-root .ios-seg-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border-radius: 12px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    transition: all 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+  }
+  .pu-root .ios-seg-btn:hover {
+    color: #0f172a;
+  }
+  .pu-root .ios-seg-btn-active {
+    color: #0c4a6e;
+    background-image: linear-gradient(180deg, #ffffff, #f0f9ff);
+    border: 1px solid rgba(125, 211, 252, 0.6);
+    box-shadow:
+      0 3px 10px -2px rgba(2, 132, 199, 0.25),
+      inset 0 1px 1px rgba(255, 255, 255, 1);
+    font-weight: 700;
+  }
+
+  /* iOS selection chip (source / category pills) */
+  .pu-root .ios-chip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 9999px;
+    padding: 7px 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: #475569;
+    background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 250, 255, 0.75));
+    border: 1px solid rgba(148, 178, 214, 0.35);
+    box-shadow:
+      0 1px 2px rgba(2, 132, 199, 0.06),
+      inset 0 1px 1px rgba(255, 255, 255, 0.9);
+    transition: all 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+  }
+  .pu-root .ios-chip:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: rgba(56, 189, 248, 0.55);
+    color: #0369a1;
+    box-shadow: 0 6px 14px -4px rgba(2, 132, 199, 0.22);
+  }
+  .pu-root .ios-chip:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .pu-root .ios-chip-active {
+    color: #ffffff;
+    background-image: linear-gradient(135deg, #0284c7 0%, #0ea5e9 55%, #38bdf8 100%);
+    border-color: rgba(2, 132, 199, 0.9);
+    box-shadow:
+      0 6px 18px -4px rgba(2, 132, 199, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+  .pu-root .ios-chip-active:hover:not(:disabled) {
+    color: #ffffff;
+    border-color: rgba(2, 132, 199, 1);
+  }
+}
+
+/* ============================================================
+   ANIMATIONS — premium subtle motion (pu- prefixed so the
+   main platform's shimmer/orb/pulse keyframes are never hit)
+   ============================================================ */
+
+@keyframes pu-orb-float {
+  0%, 100% { transform: translateY(0) translateX(0) scale(1); }
+  33% { transform: translateY(-22px) translateX(12px) scale(1.05); }
+  66% { transform: translateY(14px) translateX(-16px) scale(0.96); }
+}
+
+@keyframes pu-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pu-fade-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pu-scale-in {
+  0% { opacity: 0; transform: scale(0.94); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pu-pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45); }
+  70% { box-shadow: 0 0 0 14px rgba(59, 130, 246, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+}
+
+@keyframes pu-draw-line {
+  0% { stroke-dashoffset: 1000; }
+  100% { stroke-dashoffset: 0; }
+}
+
+@keyframes pu-count-glow {
+  0%, 100% { text-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+  50% { text-shadow: 0 0 18px rgba(59, 130, 246, 0.25); }
+}
+
+.pu-root .animate-orb { animation: pu-orb-float 14s ease-in-out infinite; }
+.pu-root .animate-fade-up { animation: pu-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pu-root .animate-scale-in { animation: pu-scale-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.pu-root .animate-pulse-ring { animation: pu-pulse-ring 2s infinite; }
+
+/* Stagger helpers */
+.pu-root .stagger-1 { animation-delay: 0.05s; }
+.pu-root .stagger-2 { animation-delay: 0.12s; }
+.pu-root .stagger-3 { animation-delay: 0.19s; }
+.pu-root .stagger-4 { animation-delay: 0.26s; }
+.pu-root .stagger-5 { animation-delay: 0.33s; }
+.pu-root .stagger-6 { animation-delay: 0.4s; }
+.pu-root .stagger-7 { animation-delay: 0.47s; }
+.pu-root .stagger-8 { animation-delay: 0.54s; }
+
+/* Glass shimmer sweep on hover for premium cards */
+.pu-root .glass-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.pu-root .glass-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 35%, rgba(255, 255, 255, 0.6) 50%, transparent 65%);
+  background-size: 200% 100%;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.pu-root .glass-shimmer:hover::after {
+  opacity: 1;
+  animation: pu-shimmer 1.4s ease-in-out;
+}
+
+/* Custom scrollbar */
+.pu-root .scroll-elegant::-webkit-scrollbar { width: 8px; height: 8px; }
+.pu-root .scroll-elegant::-webkit-scrollbar-track { background: transparent; }
+.pu-root .scroll-elegant::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.25);
+  border-radius: 9999px;
+}
+.pu-root .scroll-elegant::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.4);
+}
+
+/* Tabular numbers for data-heavy KPIs */
+.pu-root .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* ── Floating "Exit portal" gateway button ────────────────────────────────
+   Sits below both of the portal's own top bars (welcome header ≈60px,
+   workspace header = 56px) so it never covers the profile/notifications,
+   and respects the right safe-area inset on notched devices. */
+.pu-root .pu-exit-btn {
+  position: fixed;
+  top: 64px;
+  right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
+  z-index: 70;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.pu-root .pu-exit-btn:hover {
+  color: #0369a1;
+  border-color: rgba(56, 189, 248, 0.65);
+  transform: translateY(-1px);
+  box-shadow:
+    0 8px 18px -6px rgba(2, 132, 199, 0.28),
+    inset 0 1px 1px rgba(255, 255, 255, 1);
+}
+.pu-root .pu-exit-btn:active {
+  transform: scale(0.97);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pu-root *,
+  .pu-root *::before,
+  .pu-root *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .pu-root .animate-orb { animation: none !important; }
+}

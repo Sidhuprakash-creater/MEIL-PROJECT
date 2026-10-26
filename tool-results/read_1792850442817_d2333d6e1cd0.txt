@@ -1,0 +1,902 @@
+     1→/* ═══════════════════════════════════════════════════════════════════════════
+     2→   MEIL ESG — ENTER PLATFORM (secure gateway)
+     3→   Extends the "Sky & Cobalt" system: light glassmorphism gateway over an airy
+     4→   sky-blue stage with floating glass bubbles. Tokens come from landing.css
+     5→   (body scope). NOTE: --gold-* tokens now resolve to the cobalt family —
+     6→   accent TEXT on light surfaces uses --gold-600/--gold-500; light blues
+     7→   (--gold-400/--gold-300) are reserved for icons/glows.
+     8→   ═══════════════════════════════════════════════════════════════════════════ */
+     9→
+    10→/* ── 0. SHELL ────────────────────────────────────────────────────────────── */
+    11→
+    12→.ep-root {
+    13→  position: relative;
+    14→  min-height: 100vh;
+    15→  display: flex;
+    16→  align-items: stretch;
+    17→  font-family: var(--font-sans);
+    18→  color: var(--tx-700);
+    19→  background:
+    20→    radial-gradient(1100px 700px at 82% -10%, rgba(29, 111, 242, 0.06), transparent 60%),
+    21→    radial-gradient(900px 620px at -10% 110%, rgba(31, 157, 137, 0.10), transparent 55%),
+    22→    linear-gradient(165deg, #F3F9FC 0%, #E6F0FA 45%, #DAE7F4 100%);
+    23→  overflow: clip;
+    24→  -webkit-font-smoothing: antialiased;
+    25→  text-rendering: optimizeLegibility;
+    26→}
+    27→
+    28→.ep-root ::selection {
+    29→  background: rgba(29, 111, 242, 0.2);
+    30→  color: var(--tx-900);
+    31→}
+    32→
+    33→/* faint engineering grid over the whole shell */
+    34→.ep-root::before {
+    35→  content: "";
+    36→  position: absolute;
+    37→  inset: 0;
+    38→  background-image:
+    39→    linear-gradient(rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    40→    linear-gradient(90deg, rgba(255, 255, 255, 0.55) 1px, transparent 1px),
+    41→    linear-gradient(rgba(21, 87, 204, 0.03) 1px, transparent 1px),
+    42→    linear-gradient(90deg, rgba(21, 87, 204, 0.03) 1px, transparent 1px);
+    43→  background-size: 56px 56px;
+    44→  mask-image: radial-gradient(1200px 800px at 50% 40%, #000 0%, transparent 78%);
+    45→  pointer-events: none;
+    46→}
+    47→
+    48→/* floating glossy glass bubbles (reference signature) */
+    49→.ep-bubbles {
+    50→  position: absolute;
+    51→  inset: 0;
+    52→  z-index: 1;
+    53→  pointer-events: none;
+    54→}
+    55→
+    56→.ep-bubble {
+    57→  position: absolute;
+    58→  border-radius: 999px;
+    59→  background: radial-gradient(
+    60→    circle at 30% 28%,
+    61→    rgba(255, 255, 255, 0.95) 0%,
+    62→    rgba(234, 242, 249, 0.6) 38%,
+    63→    rgba(178, 199, 222, 0.3) 68%,
+    64→    rgba(152, 172, 196, 0.26) 100%
+    65→  );
+    66→  box-shadow:
+    67→    inset -8px -10px 22px rgba(255, 255, 255, 0.6),
+    68→    inset 6px 8px 16px rgba(152, 172, 196, 0.3),
+    69→    0 22px 40px -16px rgba(31, 52, 78, 0.22);
+    70→  animation: ep-float 18s ease-in-out infinite alternate;
+    71→}
+    72→
+    73→@keyframes ep-float {
+    74→  from { transform: translateY(-12px) rotate(-4deg); }
+    75→  to   { transform: translateY(14px) rotate(5deg); }
+    76→}
+    77→
+    78→.ep-bubble-1 { width: 104px; height: 104px; top: 10%; left: 41%; animation-duration: 24s; animation-delay: -4s; }
+    79→.ep-bubble-2 { width: 58px; height: 58px; top: 67%; left: 6%; animation-duration: 18s; animation-delay: -9s; }
+    80→.ep-bubble-3 { width: 34px; height: 34px; top: 24%; right: 5%; animation-duration: 16s; animation-delay: -2s; }
+    81→.ep-bubble-4 { width: 84px; height: 84px; bottom: 7%; right: 38%; animation-duration: 21s; animation-delay: -12s; }
+    82→
+    83→.ep-grid {
+    84→  position: relative;
+    85→  z-index: 1;
+    86→  display: grid;
+    87→  grid-template-columns: minmax(0, 1.04fr) minmax(0, 1fr);
+    88→  width: 100%;
+    89→  min-height: 100vh;
+    90→}
+    91→
+    92→/* ── 1. LEFT — AIRY BRAND STAGE ──────────────────────────────────────────── */
+    93→
+    94→.ep-stage {
+    95→  position: relative;
+    96→  display: flex;
+    97→  flex-direction: column;
+    98→  justify-content: space-between;
+    99→  padding: 40px 56px 28px;
+   100→  overflow: clip;
+   101→  border-right: 1px solid rgba(164, 180, 199, 0.45);
+   102→}
+   103→
+   104→.ep-stage-media {
+   105→  position: absolute;
+   106→  inset: 0;
+   107→  z-index: 0;
+   108→}
+   109→
+   110→.ep-stage-media img {
+   111→  width: 100%;
+   112→  height: 100%;
+   113→  object-fit: cover;
+   114→  filter: saturate(0.65) brightness(1.3) contrast(0.9);
+   115→  opacity: 0.2;
+   116→  mix-blend-mode: luminosity;
+   117→  animation: ep-kenburns 46s var(--ease-out) infinite alternate;
+   118→}
+   119→
+   120→@keyframes ep-kenburns {
+   121→  from { transform: scale(1.02) translate3d(0, 0, 0); }
+   122→  to   { transform: scale(1.13) translate3d(-1.6%, -2%, 0); }
+   123→}
+   124→
+   125→/* layered sky veils for legibility */
+   126→.ep-stage-media::after {
+   127→  content: "";
+   128→  position: absolute;
+   129→  inset: 0;
+   130→  background:
+   131→    linear-gradient(180deg, rgba(244, 249, 253, 0.88) 0%, rgba(228, 239, 249, 0.72) 40%, rgba(216, 232, 245, 0.9) 100%),
+   132→    linear-gradient(100deg, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.3) 55%, rgba(240, 247, 253, 0.15) 100%);
+   133→}
+   134→
+   135→/* stage ambience — soft aurora glows + floating glass bubbles */
+   136→.ep-stage-aura {
+   137→  position: absolute;
+   138→  inset: 0;
+   139→  z-index: 1;
+   140→  pointer-events: none;
+   141→}
+   142→
+   143→.ep-aura {
+   144→  position: absolute;
+   145→  border-radius: 50%;
+   146→}
+   147→
+   148→.ep-aura-a {
+   149→  width: 560px;
+   150→  height: 560px;
+   151→  top: -16%;
+   152→  right: -12%;
+   153→  background: radial-gradient(circle, rgba(29, 111, 242, 0.11) 0%, transparent 65%);
+   154→  animation: aurora-drift 30s ease-in-out infinite;
+   155→}
+   156→
+   157→.ep-aura-b {
+   158→  width: 520px;
+   159→  height: 520px;
+   160→  bottom: -18%;
+   161→  left: -14%;
+   162→  background: radial-gradient(circle, rgba(31, 157, 137, 0.1) 0%, transparent 65%);
+   163→  animation: aurora-drift 36s ease-in-out infinite reverse;
+   164→}
+   165→
+   166→.ep-stage-bubble {
+   167→  position: absolute;
+   168→  border-radius: 999px;
+   169→  background: radial-gradient(
+   170→    circle at 30% 28%,
+   171→    rgba(255, 255, 255, 0.95) 0%,
+   172→    rgba(234, 242, 249, 0.6) 38%,
+   173→    rgba(178, 199, 222, 0.3) 68%,
+   174→    rgba(152, 172, 196, 0.26) 100%
+   175→  );
+   176→  box-shadow:
+   177→    inset -8px -10px 22px rgba(255, 255, 255, 0.6),
+   178→    inset 6px 8px 16px rgba(152, 172, 196, 0.3),
+   179→    0 22px 40px -16px rgba(31, 52, 78, 0.22);
+   180→  animation: ep-float 20s ease-in-out infinite alternate;
+   181→}
+   182→
+   183→.ep-sb-1 { width: 118px; height: 118px; top: 5%; right: 6%; animation-duration: 24s; animation-delay: -6s; }
+   184→.ep-sb-2 { width: 62px; height: 62px; bottom: 20%; left: -18px; animation-duration: 18s; animation-delay: -11s; }
+   185→.ep-sb-3 { width: 34px; height: 34px; top: 38%; right: 4%; animation-duration: 15s; animation-delay: -3s; }
+   186→
+   187→.ep-stage-content {
+   188→  position: relative;
+   189→  z-index: 2;
+   190→  display: flex;
+   191→  flex-direction: column;
+   192→  gap: 28px;
+   193→  max-width: 620px;
+   194→}
+   195→
+   196→/* brand row */
+   197→.ep-brand {
+   198→  display: flex;
+   199→  align-items: center;
+   200→  gap: 14px;
+   201→}
+   202→
+   203→.ep-brand-mark {
+   204→  width: 46px;
+   205→  height: 46px;
+   206→  display: grid;
+   207→  place-items: center;
+   208→  border-radius: 14px;
+   209→  font-family: var(--font-serif);
+   210→  font-size: 22px;
+   211→  font-weight: 600;
+   212→  color: #fff;
+   213→  background: var(--brand-red);
+   214→  border: 1px solid rgba(255, 255, 255, 0.4);
+   215→  box-shadow: 0 8px 20px -6px rgba(225, 29, 46, 0.45);
+   216→}
+   217→
+   218→.ep-brand-text b {
+   219→  display: block;
+   220→  font-size: 15px;
+   221→  font-weight: 650;
+   222→  letter-spacing: 0.015em;
+   223→  color: var(--tx-900);
+   224→}
+   225→
+   226→.ep-brand-text small {
+   227→  display: block;
+   228→  font-family: var(--font-mono);
+   229→  font-size: 10px;
+   230→  letter-spacing: 0.24em;
+   231→  text-transform: uppercase;
+   232→  color: var(--gold-600);
+   233→  margin-top: 3px;
+   234→}
+   235→
+   236→/* secure chip beside brand */
+   237→.ep-secure-chip {
+   238→  margin-left: auto;
+   239→  display: inline-flex;
+   240→  align-items: center;
+   241→  gap: 8px;
+   242→  font-family: var(--font-mono);
+   243→  font-size: 10px;
+   244→  font-weight: 600;
+   245→  letter-spacing: 0.18em;
+   246→  text-transform: uppercase;
+   247→  color: var(--teal-600);
+   248→  padding: 9px 14px;
+   249→  border-radius: var(--r-full);
+   250→  background: rgba(31, 157, 137, 0.1);
+   251→  border: 1px solid rgba(19, 122, 107, 0.3);
+   252→  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+   253→}
+   254→
+   255→.ep-secure-chip .ep-pulse {
+   256→  width: 7px;
+   257→  height: 7px;
+   258→  border-radius: 50%;
+   259→  background: var(--teal-400);
+   260→  box-shadow: 0 0 0 0 rgba(67, 187, 167, 0.6);
+   261→  animation: ep-pulse 2.4s ease-out infinite;
+   262→}
+   263→
+   264→@keyframes ep-pulse {
+   265→  0%   { box-shadow: 0 0 0 0 rgba(67, 187, 167, 0.55); }
+   266→  70%  { box-shadow: 0 0 0 9px rgba(67, 187, 167, 0); }
+   267→  100% { box-shadow: 0 0 0 0 rgba(67, 187, 167, 0); }
+   268→}
+   269→
+   270→/* heading */
+   271→.ep-stage-heading {
+   272→  display: flex;
+   273→  flex-direction: column;
+   274→  gap: 18px;
+   275→}
+   276→
+   277→.ep-eyebrow {
+   278→  display: inline-flex;
+   279→  align-items: center;
+   280→  gap: 14px;
+   281→  font-family: var(--font-mono);
+   282→  font-size: 11px;
+   283→  font-weight: 600;
+   284→  letter-spacing: 0.26em;
+   285→  text-transform: uppercase;
+   286→  color: var(--gold-600);
+   287→}
+   288→
+   289→.ep-eyebrow::before {
+   290→  content: "";
+   291→  width: 34px;
+   292→  height: 1px;
+   293→  background: currentColor;
+   294→  opacity: 0.7;
+   295→}
+   296→
+   297→.ep-title {
+   298→  font-family: var(--font-serif);
+   299→  font-size: clamp(34px, 3.4vw, 52px);
+   300→  line-height: 1.06;
+   301→  letter-spacing: -0.015em;
+   302→  font-weight: 550;
+   303→  color: var(--tx-900);
+   304→  text-wrap: balance;
+   305→}
+   306→
+   307→.ep-title em {
+   308→  font-style: italic;
+   309→  font-weight: 500;
+   310→  background: linear-gradient(115deg, var(--gold-600), var(--gold-400) 85%);
+   311→  -webkit-background-clip: text;
+   312→  background-clip: text;
+   313→  -webkit-text-fill-color: transparent;
+   314→}
+   315→
+   316→.ep-lede {
+   317→  font-size: 15.5px;
+   318→  line-height: 1.72;
+   319→  color: var(--tx-500);
+   320→  max-width: 540px;
+   321→}
+   322→
+   323→.ep-lede strong {
+   324→  color: var(--tx-900);
+   325→  font-weight: 600;
+   326→}
+   327→
+   328→/* benefits — premium glass tiles with index numerals */
+   329→.ep-benefits {
+   330→  display: flex;
+   331→  flex-direction: column;
+   332→  gap: 12px;
+   333→  counter-reset: epben;
+   334→}
+   335→
+   336→.ep-benefit {
+   337→  position: relative;
+   338→  counter-increment: epben;
+   339→  display: flex;
+   340→  align-items: flex-start;
+   341→  gap: 16px;
+   342→  padding: 15px 52px 15px 16px;
+   343→  border-radius: 18px;
+   344→  background: linear-gradient(150deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.42));
+   345→  border: 1px solid rgba(164, 180, 199, 0.42);
+   346→  -webkit-backdrop-filter: blur(14px);
+   347→  backdrop-filter: blur(14px);
+   348→  box-shadow:
+   349→    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+   350→    0 16px 34px -22px rgba(31, 52, 78, 0.28);
+   351→  transition: transform 0.45s var(--ease-glass), background 0.45s var(--ease-glass), border-color 0.45s var(--ease-glass), box-shadow 0.45s var(--ease-glass);
+   352→}
+   353→
+   354→.ep-benefit::before {
+   355→  content: "0" counter(epben);
+   356→  position: absolute;
+   357→  top: 15px;
+   358→  right: 17px;
+   359→  font-family: var(--font-mono);
+   360→  font-size: 10.5px;
+   361→  font-weight: 600;
+   362→  letter-spacing: 0.12em;
+   363→  color: color-mix(in srgb, var(--ep-accent, var(--gold-500)) 55%, var(--tx-400));
+   364→  opacity: 0.85;
+   365→}
+   366→
+   367→.ep-benefit:hover {
+   368→  transform: translateY(-2px);
+   369→  background: linear-gradient(150deg, rgba(255, 255, 255, 0.82), rgba(255, 255, 255, 0.6));
+   370→  border-color: color-mix(in srgb, var(--ep-accent, var(--gold-500)) 38%, rgba(164, 180, 199, 0.5));
+   371→  box-shadow:
+   372→    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+   373→    0 22px 40px -20px color-mix(in srgb, var(--ep-accent, var(--gold-500)) 32%, rgba(31, 52, 78, 0.2));
+   374→}
+   375→
+   376→.ep-benefit-ico {
+   377→  flex: none;
+   378→  width: 46px;
+   379→  height: 46px;
+   380→  display: grid;
+   381→  place-items: center;
+   382→  border-radius: 14px;
+   383→  color: var(--ep-accent, var(--gold-400));
+   384→  background:
+   385→    linear-gradient(150deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.76)),
+   386→    radial-gradient(26px 26px at 30% 20%, color-mix(in srgb, var(--ep-accent, var(--gold-500)) 22%, transparent), transparent 70%);
+   387→  border: 1px solid color-mix(in srgb, var(--ep-accent, var(--gold-500)) 30%, rgba(164, 180, 199, 0.5));
+   388→  box-shadow:
+   389→    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+   390→    0 10px 22px -10px color-mix(in srgb, var(--ep-accent, var(--gold-500)) 45%, transparent);
+   391→}
+   392→
+   393→.ep-benefit b {
+   394→  display: block;
+   395→  font-size: 15px;
+   396→  font-weight: 620;
+   397→  letter-spacing: 0.005em;
+   398→  color: var(--tx-900);
+   399→}
+   400→
+   401→.ep-benefit p {
+   402→  margin-top: 3px;
+   403→  font-size: 13px;
+   404→  line-height: 1.6;
+   405→  color: var(--tx-500);
+   406→  max-width: 460px;
+   407→}
+   408→
+   409→/* trust chips */
+   410→.ep-trust {
+   411→  display: flex;
+   412→  flex-wrap: wrap;
+   413→  gap: 10px;
+   414→}
+   415→
+   416→.ep-trust-chip {
+   417→  display: inline-flex;
+   418→  align-items: center;
+   419→  gap: 7px;
+   420→  font-family: var(--font-mono);
+   421→  font-size: 10px;
+   422→  font-weight: 600;
+   423→  letter-spacing: 0.14em;
+   424→  text-transform: uppercase;
+   425→  color: var(--tx-700);
+   426→  padding: 8px 13px;
+   427→  border-radius: var(--r-full);
+   428→  background: rgba(255, 255, 255, 0.72);
+   429→  border: 1px solid rgba(164, 180, 199, 0.5);
+   430→  -webkit-backdrop-filter: blur(12px);
+   431→  backdrop-filter: blur(12px);
+   432→  box-shadow:
+   433→    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+   434→    0 10px 24px -16px rgba(31, 52, 78, 0.3);
+   435→}
+   436→
+   437→.ep-trust-chip svg { color: var(--gold-500); }
+   438→
+   439→.ep-stage-foot {
+   440→  position: relative;
+   441→  z-index: 2;
+   442→  display: flex;
+   443→  align-items: center;
+   444→  justify-content: space-between;
+   445→  gap: 16px;
+   446→  padding-top: 16px;
+   447→  border-top: 1px solid rgba(164, 180, 199, 0.4);
+   448→  font-family: var(--font-mono);
+   449→  font-size: 10px;
+   450→  letter-spacing: 0.16em;
+   451→  text-transform: uppercase;
+   452→  color: var(--tx-500);
+   453→}
+   454→
+   455→/* ── 2. RIGHT — GATEWAY PANEL ────────────────────────────────────────────── */
+   456→
+   457→.ep-panel-zone {
+   458→  position: relative;
+   459→  display: flex;
+   460→  align-items: center;
+   461→  justify-content: center;
+   462→  padding: 48px 52px;
+   463→}
+   464→
+   465→.ep-panel-zone .aurora-a {
+   466→  width: 460px;
+   467→  height: 460px;
+   468→  top: -140px;
+   469→  right: -120px;
+   470→  background: radial-gradient(circle, rgba(31, 157, 137, 0.12), transparent 65%);
+   471→  animation: aurora-drift 26s ease-in-out infinite;
+   472→}
+   473→
+   474→.ep-panel-zone .aurora-b {
+   475→  width: 520px;
+   476→  height: 520px;
+   477→  bottom: -180px;
+   478→  left: -150px;
+   479→  background: radial-gradient(circle, rgba(29, 111, 242, 0.08), transparent 65%);
+   480→  animation: aurora-drift 32s ease-in-out infinite reverse;
+   481→}
+   482→
+   483→.ep-panel {
+   484→  position: relative;
+   485→  width: min(640px, 100%);
+   486→  border-radius: var(--r-lg);
+   487→  padding: 34px 38px 30px;
+   488→  max-height: calc(100vh - 64px);
+   489→  overflow-y: auto;
+   490→  scrollbar-width: thin;
+   491→  scrollbar-color: rgba(93, 113, 137, 0.4) transparent;
+   492→}
+   493→
+   494→.ep-panel::-webkit-scrollbar { width: 8px; }
+   495→.ep-panel::-webkit-scrollbar-thumb {
+   496→  background: rgba(93, 113, 137, 0.35);
+   497→  border-radius: 8px;
+   498→}
+   499→
+   500→/* white frosted glass surfaces — re-scoped replacement for the dark
+   501→   .glass-dark recipe inside the light gateway/dashboard */
+   502→.ep-root .ep-panel.glass-dark,
+   503→.ep-root .ep-dash-bar.glass-dark,
+   504→.ep-root .ep-dash-card.glass-dark,
+   505→.ep-root .ep-success-card.glass-dark {
+   506→  background: linear-gradient(155deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.72) 100%);
+   507→  border: 1px solid rgba(255, 255, 255, 0.9);
+   508→  -webkit-backdrop-filter: blur(28px) saturate(150%);
+   509→  backdrop-filter: blur(28px) saturate(150%);
+   510→  box-shadow:
+   511→    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+   512→    0 0 0 1px rgba(164, 180, 199, 0.45),
+   513→    var(--glass-shadow-light);
+   514→}
+   515→
+   516→/* top bar */
+   517→.ep-topbar {
+   518→  display: flex;
+   519→  align-items: center;
+   520→  justify-content: space-between;
+   521→  gap: 14px;
+   522→  margin-bottom: 26px;
+   523→}
+   524→
+   525→.ep-back {
+   526→  display: inline-flex;
+   527→  align-items: center;
+   528→  gap: 8px;
+   529→  font-size: 13px;
+   530→  font-weight: 560;
+   531→  color: var(--tx-700);
+   532→  background: rgba(255, 255, 255, 0.72);
+   533→  border: 1px solid rgba(164, 180, 199, 0.5);
+   534→  padding: 9px 16px 9px 12px;
+   535→  border-radius: var(--r-full);
+   536→  cursor: pointer;
+   537→  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+   538→  transition: all 0.35s var(--ease-out);
+   539→}
+   540→
+   541→.ep-back:hover {
+   542→  color: var(--gold-600);
+   543→  background: rgba(255, 255, 255, 0.95);
+   544→  border-color: rgba(29, 111, 242, 0.3);
+   545→  transform: translateX(-2px);
+   546→}
+   547→
+   548→.ep-status {
+   549→  font-family: var(--font-mono);
+   550→  font-size: 10px;
+   551→  letter-spacing: 0.18em;
+   552→  text-transform: uppercase;
+   553→  color: var(--tx-400);
+   554→  display: inline-flex;
+   555→  align-items: center;
+   556→  gap: 8px;
+   557→}
+   558→
+   559→.ep-status svg { color: var(--gold-500); }
+   560→
+   561→/* headings inside panel */
+   562→.ep-panel-heading { margin-bottom: 24px; }
+   563→
+   564→.ep-panel-heading h2 {
+   565→  font-family: var(--font-serif);
+   566→  font-size: clamp(26px, 2.4vw, 34px);
+   567→  line-height: 1.12;
+   568→  font-weight: 550;
+   569→  letter-spacing: -0.01em;
+   570→  color: var(--tx-900);
+   571→  margin-top: 12px;
+   572→}
+   573→
+   574→.ep-panel-heading h2 em {
+   575→  font-style: italic;
+   576→  background: linear-gradient(115deg, var(--gold-600), var(--gold-400) 85%);
+   577→  -webkit-background-clip: text;
+   578→  background-clip: text;
+   579→  -webkit-text-fill-color: transparent;
+   580→}
+   581→
+   582→.ep-panel-heading p {
+   583→  margin-top: 8px;
+   584→  font-size: 13.5px;
+   585→  line-height: 1.65;
+   586→  color: var(--tx-500);
+   587→}
+   588→
+   589→/* ── 3. PORTAL CARDS ─────────────────────────────────────────────────────── */
+   590→
+   591→.ep-cards {
+   592→  display: grid;
+   593→  grid-template-columns: repeat(2, minmax(0, 1fr));
+   594→  gap: 14px;
+   595→}
+   596→
+   597→.ep-card {
+   598→  --ep-accent: var(--gold-400);
+   599→  --ep-accent-soft: rgba(29, 111, 242, 0.09);
+   600→  position: relative;
+   601→  display: flex;
+   602→  flex-direction: column;
+   603→  align-items: flex-start;
+   604→  gap: 14px;
+   605→  text-align: left;
+   606→  padding: 20px 20px 18px;
+   607→  border-radius: var(--r-md);
+   608→  border: 1px solid rgba(255, 255, 255, 0.9);
+   609→  background: linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.7));
+   610→  -webkit-backdrop-filter: blur(22px) saturate(150%);
+   611→  backdrop-filter: blur(22px) saturate(150%);
+   612→  box-shadow:
+   613→    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+   614→    0 0 0 1px rgba(164, 180, 199, 0.4),
+   615→    var(--glass-shadow-light);
+   616→  cursor: pointer;
+   617→  font: inherit;
+   618→  color: inherit;
+   619→  transition:
+   620→    transform 0.5s var(--ease-out),
+   621→    border-color 0.5s var(--ease-glass),
+   622→    box-shadow 0.5s var(--ease-out),
+   623→    background 0.5s var(--ease-glass);
+   624→  animation: ep-rise 0.7s var(--ease-out) both;
+   625→  animation-delay: calc(var(--i, 0) * 70ms);
+   626→}
+   627→
+   628→.ep-card[data-accent="gold"]   { --ep-accent: var(--gold-400);  --ep-accent-soft: rgba(29, 111, 242, 0.1); }
+   629→.ep-card[data-accent="teal"]   { --ep-accent: var(--teal-400);  --ep-accent-soft: rgba(31, 157, 137, 0.14); }
+   630→.ep-card[data-accent="green"]  { --ep-accent: var(--green-400); --ep-accent-soft: rgba(74, 187, 142, 0.14); }
+   631→.ep-card[data-accent="amber"]  { --ep-accent: #b8722c;          --ep-accent-soft: rgba(184, 114, 44, 0.16); }
+   632→
+   633→.ep-card:hover {
+   634→  transform: translateY(-4px);
+   635→  border-color: rgba(29, 111, 242, 0.3);
+   636→  background:
+   637→    linear-gradient(150deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.8)),
+   638→    radial-gradient(220px 140px at 18% 0%, var(--ep-accent-soft), transparent 75%);
+   639→  box-shadow:
+   640→    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+   641→    0 0 0 1px rgba(29, 111, 242, 0.13),
+   642→    0 26px 52px -22px rgba(23, 78, 130, 0.32),
+   643→    0 12px 34px -14px color-mix(in srgb, var(--ep-accent) 30%, transparent);
+   644→}
+   645→
+   646→.ep-card:focus-visible,
+   647→.ep-back:focus-visible,
+   648→.ep-btn:focus-visible,
+   649→.ep-input:focus-visible,
+   650→.ep-select:focus-visible,
+   651→.ep-combo-input:focus-visible,
+   652→.ep-link:focus-visible {
+   653→  outline: 2px solid color-mix(in srgb, var(--ep-accent, var(--gold-400)) 75%, transparent);
+   654→  outline-offset: 2px;
+   655→}
+   656→
+   657→/* specular top edge on hover */
+   658→.ep-card::before {
+   659→  content: "";
+   660→  position: absolute;
+   661→  inset: 0;
+   662→  border-radius: inherit;
+   663→  padding: 1px;
+   664→  background: linear-gradient(135deg, color-mix(in srgb, var(--ep-accent) 70%, transparent), transparent 38%, transparent 62%, color-mix(in srgb, var(--ep-accent) 40%, transparent));
+   665→  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+   666→  -webkit-mask-composite: xor;
+   667→  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+   668→  mask-composite: exclude;
+   669→  opacity: 0;
+   670→  transition: opacity 0.5s var(--ease-glass);
+   671→  pointer-events: none;
+   672→}
+   673→
+   674→.ep-card:hover::before { opacity: 1; }
+   675→
+   676→.ep-card-top {
+   677→  display: flex;
+   678→  align-items: center;
+   679→  justify-content: space-between;
+   680→  width: 100%;
+   681→}
+   682→
+   683→.ep-card-ico {
+   684→  width: 46px;
+   685→  height: 46px;
+   686→  display: grid;
+   687→  place-items: center;
+   688→  border-radius: 14px;
+   689→  color: var(--ep-accent);
+   690→  background:
+   691→    linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.75)),
+   692→    radial-gradient(26px 26px at 30% 18%, var(--ep-accent-soft), transparent 72%);
+   693→  border: 1px solid color-mix(in srgb, var(--ep-accent) 32%, transparent);
+   694→  box-shadow:
+   695→    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+   696→    0 10px 24px -12px color-mix(in srgb, var(--ep-accent) 40%, transparent);
+   697→  transition: transform 0.5s var(--ease-out);
+   698→}
+   699→
+   700→.ep-card:hover .ep-card-ico { transform: translateY(-2px) scale(1.05); }
+   701→
+   702→.ep-card-tier {
+   703→  font-family: var(--font-mono);
+   704→  font-size: 9.5px;
+   705→  font-weight: 600;
+   706→  letter-spacing: 0.2em;
+   707→  color: color-mix(in srgb, var(--ep-accent) 55%, var(--tx-900) 45%);
+   708→  padding: 5px 10px;
+   709→  border-radius: var(--r-full);
+   710→  border: 1px solid color-mix(in srgb, var(--ep-accent) 30%, transparent);
+   711→  background: color-mix(in srgb, var(--ep-accent) 12%, transparent);
+   712→}
+   713→
+   714→.ep-card b {
+   715→  font-size: 16.5px;
+   716→  font-weight: 630;
+   717→  letter-spacing: 0.005em;
+   718→  color: var(--tx-900);
+   719→}
+   720→
+   721→.ep-card p {
+   722→  font-size: 12.5px;
+   723→  line-height: 1.6;
+   724→  color: var(--tx-500);
+   725→  flex: 1;
+   726→}
+   727→
+   728→.ep-card-cta {
+   729→  display: inline-flex;
+   730→  align-items: center;
+   731→  gap: 7px;
+   732→  font-family: var(--font-mono);
+   733→  font-size: 10.5px;
+   734→  font-weight: 600;
+   735→  letter-spacing: 0.16em;
+   736→  text-transform: uppercase;
+   737→  color: color-mix(in srgb, var(--ep-accent) 58%, var(--tx-900) 42%);
+   738→}
+   739→
+   740→.ep-card-cta svg { transition: transform 0.4s var(--ease-out); }
+   741→.ep-card:hover .ep-card-cta svg { transform: translateX(4px); }
+   742→
+   743→/* project notice (aria-live) — cobalt-tinted info panel */
+   744→.ep-notice {
+   745→  display: flex;
+   746→  align-items: flex-start;
+   747→  gap: 12px;
+   748→  padding: 14px 16px;
+   749→  border-radius: 16px;
+   750→  border: 1px solid rgba(29, 111, 242, 0.24);
+   751→  background:
+   752→    linear-gradient(150deg, rgba(29, 111, 242, 0.06), rgba(29, 111, 242, 0.02));
+   753→  color: var(--gold-700);
+   754→  font-size: 13px;
+   755→  line-height: 1.6;
+   756→  margin-bottom: 16px;
+   757→  animation: ep-rise 0.5s var(--ease-out) both;
+   758→}
+   759→
+   760→.ep-notice svg { flex: none; color: var(--gold-600); margin-top: 1px; }
+   761→.ep-notice button {
+   762→  flex: none;
+   763→  margin-left: auto;
+   764→  color: rgba(12, 63, 148, 0.65);
+   765→  cursor: pointer;
+   766→  background: none;
+   767→  border: 0;
+   768→  padding: 2px;
+   769→  transition: color 0.3s;
+   770→}
+   771→.ep-notice button:hover { color: var(--gold-700); }
+   772→
+   773→/* ── 4. WORKFLOW (portal login forms) ────────────────────────────────────── */
+   774→
+   775→.ep-flow { animation: ep-rise 0.55s var(--ease-out) both; }
+   776→
+   777→.ep-flow-head {
+   778→  display: flex;
+   779→  align-items: center;
+   780→  gap: 16px;
+   781→  padding-bottom: 20px;
+   782→  margin-bottom: 22px;
+   783→  border-bottom: 1px solid rgba(164, 180, 199, 0.45);
+   784→}
+   785→
+   786→.ep-flow-head .ep-card-ico { width: 50px; height: 50px; }
+   787→
+   788→.ep-flow-head b {
+   789→  display: block;
+   790→  font-family: var(--font-serif);
+   791→  font-size: 22px;
+   792→  font-weight: 560;
+   793→  color: var(--tx-900);
+   794→  letter-spacing: -0.005em;
+   795→}
+   796→
+   797→.ep-flow-head small {
+   798→  display: block;
+   799→  margin-top: 3px;
+   800→  font-family: var(--font-mono);
+   801→  font-size: 10px;
+   802→  letter-spacing: 0.18em;
+   803→  text-transform: uppercase;
+   804→  color: color-mix(in srgb, var(--ep-accent, var(--gold-500)) 55%, var(--tx-900) 45%);
+   805→}
+   806→
+   807→/* stepper */
+   808→.ep-steps {
+   809→  display: flex;
+   810→  align-items: center;
+   811→  gap: 8px;
+   812→  margin-bottom: 24px;
+   813→  flex-wrap: wrap;
+   814→}
+   815→
+   816→.ep-step {
+   817→  display: inline-flex;
+   818→  align-items: center;
+   819→  gap: 8px;
+   820→  font-family: var(--font-mono);
+   821→  font-size: 10px;
+   822→  font-weight: 600;
+   823→  letter-spacing: 0.12em;
+   824→  text-transform: uppercase;
+   825→  color: var(--tx-400);
+   826→  padding: 7px 12px;
+   827→  border-radius: var(--r-full);
+   828→  border: 1px solid rgba(164, 180, 199, 0.5);
+   829→  background: rgba(255, 255, 255, 0.6);
+   830→  transition: all 0.45s var(--ease-glass);
+   831→}
+   832→
+   833→.ep-step-n {
+   834→  width: 17px;
+   835→  height: 17px;
+   836→  display: grid;
+   837→  place-items: center;
+   838→  font-size: 9px;
+   839→  border-radius: 50%;
+   840→  border: 1px solid currentColor;
+   841→}
+   842→
+   843→.ep-step.is-active {
+   844→  color: color-mix(in srgb, var(--ep-accent, var(--gold-500)) 55%, var(--tx-900) 45%);
+   845→  border-color: color-mix(in srgb, var(--ep-accent, var(--gold-500)) 45%, transparent);
+   846→  background: color-mix(in srgb, var(--ep-accent, var(--gold-500)) 12%, rgba(255, 255, 255, 0.65));
+   847→  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--ep-accent, var(--gold-500)) 45%, transparent);
+   848→}
+   849→
+   850→.ep-step.is-done {
+   851→  color: var(--teal-600);
+   852→  border-color: rgba(19, 122, 107, 0.35);
+   853→  background: rgba(31, 157, 137, 0.1);
+   854→}
+   855→
+   856→.ep-step-sep {
+   857→  width: 14px;
+   858→  height: 1px;
+   859→  background: rgba(140, 160, 184, 0.5);
+   860→}
+   861→
+   862→/* form blocks — fill: backwards (NOT both): a forwards-filled opacity/transform
+   863→   animation would pin a permanent stacking context on every block and bury any
+   864→   absolutely-positioned dropdown inside it beneath later sibling blocks */
+   865→.ep-block {
+   866→  margin-bottom: 20px;
+   867→  animation: ep-rise 0.5s var(--ease-out) backwards;
+   868→}
+   869→
+   870→/* while a combobox dropdown is open, lift its whole block above the sibling
+   871→   blocks (disabled blocks keep opacity/filter stacking contexts, so the popup
+   872→   must outrank them explicitly rather than rely on DOM order) */
+   873→.ep-block:has(.ep-combo-list) {
+   874→  position: relative;
+   875→  z-index: 40;
+   876→}
+   877→
+   878→.ep-block.is-disabled {
+   879→  opacity: 0.42;
+   880→  pointer-events: none;
+   881→  filter: saturate(0.6);
+   882→}
+   883→
+   884→.ep-label {
+   885→  display: flex;
+   886→  align-items: baseline;
+   887→  justify-content: space-between;
+   888→  gap: 10px;
+   889→  font-size: 12px;
+   890→  font-weight: 620;
+   891→  letter-spacing: 0.04em;
+   892→  color: var(--tx-900);
+   893→  margin-bottom: 8px;
+   894→}
+   895→
+   896→.ep-label .ep-hint {
+   897→  font-weight: 480;
+   898→  font-size: 11px;
+   899→  color: var(--tx-400);
+   900→  letter-spacing: 0.02em;
+
+[showing lines 1-900 of 1732; use offset=901 with limit to continue reading]
