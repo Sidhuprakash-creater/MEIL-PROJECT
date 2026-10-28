@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
-import { authErrorToStatus, parseJsonArray, parseRecordIds } from '@/lib/pu/workflow'
+import { authErrorToStatus, parseJsonArray, parseRecordIds, submissionCompat } from '@/lib/pu/workflow'
 
 export const runtime = 'nodejs'
 
@@ -185,7 +185,7 @@ export async function GET(
     return NextResponse.json({
       user: { id: user.id, name: user.name },
       submission: {
-        ...submission,
+        ...submissionCompat(submission),
         recordIds,
         history: parseJsonArray(submission.history),
         corrections: parseJsonArray(submission.corrections),

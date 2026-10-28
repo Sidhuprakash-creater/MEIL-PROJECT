@@ -8,6 +8,7 @@ import {
   fetchSourceRecords,
   parseJsonArray,
   parseRecordIds,
+  submissionCompat,
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
 import { moduleToCategory } from '@/lib/bridge/pu-link'
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
       const history = parseJsonArray(s.history)
       const corrections = parseJsonArray(s.corrections)
       return {
-        ...s,
+        ...submissionCompat(s),
         history: history.slice(-5).reverse(),
         corrections,
         _count: { corrections: corrections.length },

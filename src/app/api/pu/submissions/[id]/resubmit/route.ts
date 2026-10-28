@@ -13,6 +13,8 @@ import {
   listCorrections,
   parseRecordIds,
   primaryRoleLabel,
+  SAFE_PROJECT,
+  withProjectCompat,
 } from '@/lib/pu/workflow'
 
 export const runtime = 'nodejs'
@@ -231,7 +233,7 @@ export async function POST(
     }
 
     return NextResponse.json({
-      submission: updated,
+      submission: { ...updated, project: updated?.project ? withProjectCompat(updated.project) : { ...SAFE_PROJECT } },
       correctionsAddressed: openCorrections.length,
       revisionsBumped: recordIds.length,
     })

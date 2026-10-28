@@ -11,6 +11,8 @@ import {
   isLocked,
   parseRecordIds,
   primaryRoleLabel,
+  SAFE_PROJECT,
+  withProjectCompat,
 } from '@/lib/pu/workflow'
 
 export const runtime = 'nodejs'
@@ -171,7 +173,7 @@ export async function POST(
       console.warn('[pu-link] submit bridge notice:', bridgeErr)
     }
 
-    return NextResponse.json({ submission: updated, rollup })
+    return NextResponse.json({ submission: { ...updated, project: updated?.project ? withProjectCompat(updated.project) : { ...SAFE_PROJECT } }, rollup })
   } catch (e) {
     console.error('POST /api/submissions/[id]/submit error', e)
     return NextResponse.json(

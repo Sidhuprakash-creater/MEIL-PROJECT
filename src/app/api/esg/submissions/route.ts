@@ -62,6 +62,28 @@ const TRANSITIONS: Record<string, { from: string[]; to: string }> = {
   start_review: { from: ["SUBMITTED"], to: "UNDER_REVIEW" },
 };
 
+
+/* reviewerId is a real User FK on the unified ledger — resolve the acting
+   Group Admin's id instead of writing a placeholder string. */
+const groupAdminIdCache = { id: null as string | null };
+async function resolveGroupAdminId(): Promise<string | null> {
+  if (groupAdminIdCache.id) return groupAdminIdCache.id;
+  const admin =
+    (await db.user.findUnique({ where: { email: "arun.bhaskar@meil.in" }, select: { id: true } })) ??
+    (await db.user.findFirst({ where: { role: "GROUP_ADMIN" }, select: { id: true } }));
+  groupAdminIdCache.id = admin?.id ?? null;
+  return groupAdminIdCache.id;
+}
+/* Legacy rows may carry employeeId-style reviewer strings — keep them only
+   when they resolve to a real user, else attribute to the acting admin. */
+async function resolveReviewerId(existing: string | null): Promise<string | null> {
+  if (existing) {
+    const u = await db.user.findUnique({ where: { id: existing }, select: { id: true } });
+    if (u) return existing;
+  }
+  return resolveGroupAdminId();
+}
+
 export async function POST(req: NextRequest) {
   return handle(async () => {
     const b = await body<Record<string, string | string[] | undefined>>(req);
@@ -100,7 +122,7 @@ export async function POST(req: NextRequest) {
           data: {
             status: t.to,
             reviewedAt: now,
-            reviewerId: s.reviewerId ?? "admin",
+            reviewerId: await resolveReviewerId(s.reviewerId),
             comments: JSON.stringify(newComment),
             history: JSON.stringify([
               ...history,

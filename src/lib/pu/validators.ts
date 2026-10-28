@@ -11,7 +11,7 @@ import type {
   WasteRecord,
   WorkforceRecord,
   SafetyRecord,
-} from '../../generated/pu'
+} from '@prisma/client'
 import { findEmissionFactorForSource, type ValidationIssue } from './engines'
 
 const KNOWN_ENERGY_UNITS = ['KWH', 'MWH', 'GJ', 'L', 'KL', 'M3', 'KG', 'TON', 'T']

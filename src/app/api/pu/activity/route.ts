@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { withProjectCompat } from '@/lib/pu/workflow'
 import { authErrorToStatus } from '@/lib/pu/workflow'
 
 export const runtime = 'nodejs'
@@ -51,7 +52,7 @@ export async function GET(req: NextRequest) {
       user: { id: user.id, name: user.name },
       total,
       count: activities.length,
-      items: activities,
+      items: activities.map((a) => ({ ...a, project: withProjectCompat(a.project) })),
     })
   } catch (e) {
     console.error('GET /api/activity error', e)

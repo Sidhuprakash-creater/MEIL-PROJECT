@@ -7,7 +7,7 @@
  */
 import { db } from '@/lib/pu/db'
 import { NextResponse } from 'next/server'
-import type { EmissionFactor } from '../../generated/pu'
+import type { EmissionFactor } from '@prisma/client'
 
 // ---------------------------------------------------------------------------
 // Error helpers

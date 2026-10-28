@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { db } from '@/lib/pu/db'
 import { moduleToCategory } from '@/lib/bridge/pu-link'
+import { SAFE_PROJECT, withProjectCompat } from '@/lib/pu/workflow'
 import {
   getLevelRecords,
   saveLevelRecord,
@@ -1074,7 +1075,9 @@ export async function POST(req: NextRequest) {
       issues,
       calculation,
       derivedLtifr: calculation?.derivedLtifr,
-      submission: synchedSubmission,
+      submission: synchedSubmission
+        ? { ...synchedSubmission, project: synchedSubmission.project ? withProjectCompat(synchedSubmission.project) : { ...SAFE_PROJECT } }
+        : null,
       submissionId: synchedSubmission?.id,
     })
   } catch (e: any) {

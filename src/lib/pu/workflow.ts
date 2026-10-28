@@ -277,13 +277,31 @@ export function withProjectCompat<P extends { id?: string; name?: string | null;
   } as P & { projectName: string; projectCode: string }
 }
 
-export function submissionCompat<S extends { project?: { id?: string; name?: string | null; code?: string | null } | null }>(
+export function submissionCompat<S extends { project?: { id?: string; name?: string | null; code?: string | null } | null; reportingPeriod?: unknown; period?: string | null }>(
   row: S,
-): S & { project: NonNullable<S['project']> & { projectName: string; projectCode: string } } {
+): S & { project: { projectName: string; projectCode: string }; reportingPeriod: { id: string; periodLabel: string; year: number; month: number | null; status: string } } {
+  const rp = (row as { reportingPeriod?: { id: string; periodLabel: string; year?: number; month?: number | null; status?: string } | null }).reportingPeriod
+  const periodLabel = (row as { period?: string | null }).period ?? ''
+  const r = row as S & {
+    completionPct?: number | null; evidenceCount?: number | null
+    validationPassed?: number | null; validationErrors?: number | null
+    history?: string | null; corrections?: string | null
+  }
   return {
-    ...(row as object),
-    project: withProjectCompat(row.project) as NonNullable<S['project']> & { projectName: string; projectCode: string },
-  } as S & { project: NonNullable<S['project']> & { projectName: string; projectCode: string } }
+    ...(r as object),
+    project: withProjectCompat(row.project),
+    reportingPeriod: rp ?? {
+      id: '',
+      periodLabel,
+      year: Number(periodLabel.slice(-7, -3)) || new Date().getFullYear(),
+      month: null,
+      status: 'OPEN',
+    },
+    completionPct: r.completionPct ?? 0,
+    evidenceCount: r.evidenceCount ?? 0,
+    validationPassed: r.validationPassed ?? 0,
+    validationErrors: r.validationErrors ?? 0,
+  } as unknown as S & { project: { projectName: string; projectCode: string }; reportingPeriod: { id: string; periodLabel: string; year: number; month: number | null; status: string } }
 }
 
 export interface NotifyContext {

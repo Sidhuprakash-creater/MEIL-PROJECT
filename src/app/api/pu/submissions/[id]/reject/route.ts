@@ -10,6 +10,8 @@ import {
   canTransition,
   isLocked,
   primaryRoleLabel,
+  SAFE_PROJECT,
+  withProjectCompat,
 } from '@/lib/pu/workflow'
 import { updateLevelRecordStatus } from '@/lib/pu/level-records'
 
@@ -196,7 +198,7 @@ export async function POST(
     })
 
     return NextResponse.json({
-      submission: updated,
+      submission: { ...updated, project: updated?.project ? withProjectCompat(updated.project) : { ...SAFE_PROJECT } },
       corrections: createdCorrections,
     })
   } catch (e) {

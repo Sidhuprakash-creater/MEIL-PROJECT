@@ -445,3 +445,24 @@ Stage Summary:
 - Project source is now ~11 MB of pure code + needed assets; src/ contains only ts/tsx/css + 1 referenced PDF
 - Deliverable refreshed: download/meil-esg-platform-source.zip (clean tree, includes .env)
 - App verified healthy after cleanup (curl 200 + agent-browser render, no errors)
+
+---
+Task ID: PU-REWIRE-1
+Agent: main thread (Z.ai Code)
+Task: Project User Portal entry restored to the ZIP experience (org → project → role → portal sign-in, no gateway credential wizard) + full backend unification + E2E verification
+
+Work Log:
+- Diagnosed: gateway's own wizard intercepted the Project User Portal card; the ZIP portal (pu) was orphaned (page.tsx refactor dropped the gate; src/generated/pu dead; db.ts/session.ts pointed at the removed pu schema)
+- Entry rewiring: page.tsx added "project-portal" gate + dynamic PuApp + /?portal=project deep-link (auth-aware); enter-platform openPortal intercepts p.id === "project" → onEnterProjectPortal; Exit returns to gateway (/?enter=1)
+- Backend unification: src/lib/pu/db.ts → shared @/lib/db client; session.ts rewritten (scrypt via @/lib/password, role string mapping ENV_DATA_USER→PROJECT_USER / FIN_RESOURCE_USER→FINANCE_USER, scopes from project/BU/subsidiary); auth/login accepts email OR employeeId with status gates + AuditLog; static role→permission map replaces old permission tables
+- Extended unified Submission additively (module, recordIds, reportingPeriodId+relation, reviewer relation, completionPct, evidenceCount, validationPassed/Errors, lockedAt/By, reviewComment, corrections JSON) — one shared ledger for all consoles; db:push applied
+- Compatibility layer in workflow.ts (withProjectCompat / submissionCompat / SAFE_PROJECT / parseJsonArray) keeps the portal UI contract (projectName, projectCode, periodLabel, non-null numerics) over the unified models; applied at every API boundary (list/detail/6 action routes/data-entry/activity)
+- pu-link bridge rewritten for the single-ledger world: mirror = enrich scope/category/values + platform events (ActivityEvent/AuditEvent) + reviewer + sender notifications (no duplicate rows); syncDecisionToPu walks the portal approve ladder; pushTaskToPortalUsers notifies scoped site users — wired into /api/esg/tasks (task+deadline push) and /api/esg/submissions decisions (PU-* reflection)
+- Notifications reworked to the broadcast ledger (group-wide + subsidiary-scoped) with legacy field aliases (type/message/linkId)
+- Fixed legacy data: 13 submissions had non-user reviewerId strings → cleaned (FK integrity)
+- Removed dead src/generated/pu (686 lint errors) → lint exit 0; tsc clean across pu/bridge/esg
+
+Stage Summary:
+- Gateway "Project User Portal" now opens the native ZIP flow directly (verified: welcome with org/BU chooser + 3D orbital → project sites → role → sign-in → live workspace)
+- E2E verified via agent-browser + API: rohit submits → Group Admin approves → status APPROVED + history trail + sender notification; EHS verifies evidence → VERIFIED visible to sender; task TSK-2526-013 deadline → DEADLINE notifications to site users; employeeId & email logins; wrong password 401; Exit → gateway; Group Command Center shows the shared ledger (32 submissions, Approved 13, live sync)
+- Platform decisions + task assignments now bridge both ways; zero console errors; all creds: password Esg@2025
