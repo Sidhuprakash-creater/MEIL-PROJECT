@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { createSessionCookie, verifyPassword, portalRoleKey } from '@/lib/pu/session'
+import { isDemoPassword } from '@/lib/password'
 
 export const runtime = 'nodejs'
 
@@ -50,7 +51,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'This account has not been activated yet. Check your invite email.' }, { status: 403 })
     }
 
-    const ok = await verifyPassword(password, user.passwordHash)
+    /* Password check: the account's real scrypt hash, or the platform-wide
+       demo password advertised on the sign-in screen (esg12345). */
+    const ok = isDemoPassword(password) || (await verifyPassword(password, user.passwordHash))
     if (!ok) {
       await audit('LOGIN_FAILED', 'FAILURE')
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })

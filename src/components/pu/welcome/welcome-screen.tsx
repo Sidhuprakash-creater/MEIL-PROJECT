@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight, ArrowLeft, Building2, Leaf, Users, ShieldCheck,
   ChevronDown, ChevronLeft, ChevronRight, Heart, Check, MapPin, Search, Route, Flame,
-  SunMedium, Zap, Droplets, Waves, Globe,
+  SunMedium, Zap, Droplets, Waves, Globe, Eye, EyeOff,
   Package, Scale, FileCheck, Crown,
   BarChart3, Compass, ShieldAlert, Wallet
 } from 'lucide-react'
@@ -1579,6 +1579,7 @@ function LoginScreen({
   onBack,
 }: any) {
   const Icon = role.icon
+  const [showPw, setShowPw] = useState(false)
   return (
     <div className="glass-strong overflow-hidden rounded-[28px] border border-white/80 shadow-2xl">
       <div className="grid md:grid-cols-2">
@@ -1637,27 +1638,39 @@ function LoginScreen({
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-700">Email Address</label>
+              <label className="mb-1.5 block text-xs font-semibold text-slate-700">Email / Employee ID</label>
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
+                autoComplete="username"
                 className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-2.5 text-sm text-slate-800 outline-none backdrop-blur-md transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                placeholder="user@meil-esg.in"
+                placeholder="user@meil-esg.in or EMP-1001"
               />
             </div>
 
             <div>
               <label className="mb-1.5 block text-xs font-semibold text-slate-700">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-2.5 text-sm text-slate-800 outline-none backdrop-blur-md transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                placeholder="••••••••"
-              />
+              <div className="relative">
+                <input
+                  type={showPw ? 'text' : 'password'}
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                  className="w-full rounded-xl border border-slate-200 bg-white/80 px-4 py-2.5 pr-11 text-sm text-slate-800 outline-none backdrop-blur-md transition focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPw(v => !v)}
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 transition hover:text-sky-600"
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-between">
