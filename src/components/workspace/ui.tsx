@@ -822,6 +822,7 @@ export function SectionCard({
   description,
   icon: Icon,
   actions,
+  action,
   children,
   className,
   noPad,
@@ -831,11 +832,13 @@ export function SectionCard({
   description?: string;
   icon?: React.ComponentType<{ className?: string }>;
   actions?: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
   noPad?: boolean;
   subtle?: boolean;
 }) {
+  const headerActions = actions ?? action;
   return (
     <GlassCard className={cn("overflow-hidden", className)} subtle={subtle}>
       {title && (
@@ -851,7 +854,7 @@ export function SectionCard({
               {description && <p className="text-xs text-[color:var(--muted-foreground)]">{description}</p>}
             </div>
           </div>
-          {actions && <div className="flex items-center gap-2">{actions}</div>}
+          {headerActions && <div className="flex items-center gap-2">{headerActions}</div>}
         </div>
       )}
       <div className={noPad ? "" : "p-4 sm:p-5"}>{children}</div>

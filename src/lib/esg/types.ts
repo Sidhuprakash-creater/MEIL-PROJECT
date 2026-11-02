@@ -114,6 +114,10 @@ export interface Project {
   capacityMw: number;
   status: string;
   frequency: string;
+  managerName?: string;
+  managerTitle?: string;
+  managerEmail?: string;
+  managerPhone?: string;
   userCount?: number;
   submissionStats?: { total: number; approved: number; pending: number; overdue: number };
 }

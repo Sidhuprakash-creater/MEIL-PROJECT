@@ -15,7 +15,9 @@ import {
   Pencil,
   Plus,
   Power,
+  ShieldCheck,
   Trash2,
+  UserCheck,
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -170,9 +172,9 @@ function ProjectFormFields({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Responsible user" hint="Optional — the reporting owner for this project">
+        <Field label="Project Manager (Responsible User)" hint="Designated Site Project Manager & ESG reporting owner">
           <Select value={form.responsibleUserId || "NONE"} onValueChange={(v) => set("responsibleUserId")(v === "NONE" ? "" : v)}>
-            <SelectTrigger className={`${inputCls} w-full`} aria-label="Responsible user">
+            <SelectTrigger className={`${inputCls} w-full`} aria-label="Project Manager">
               <SelectValue placeholder={usersLoading ? "Loading users…" : "Unassigned"} />
             </SelectTrigger>
             <SelectContent className="glass-strong rounded-2xl border-white/70">
@@ -280,40 +282,93 @@ function ProjectDetailDialog({
           <GlassTabBar tabs={tabs} value={tab} onChange={(v) => setTab(v as ProjectTab)} />
 
           {tab === "overview" && (
-            <div className="grid gap-4 xl:grid-cols-2">
-              <SectionCard title="Profile" description="Master data for this project / site" icon={ProjectsIcon}>
-                <div className="divide-y divide-[rgba(125,177,216,0.16)]">
-                  <InfoRow label="Code"><Chip tone="purple">{p.code}</Chip></InfoRow>
-                  <InfoRow label="Business unit">{p.buName}</InfoRow>
-                  <InfoRow label="Location">{p.location ? <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-[color:var(--ink-faint)]" />{p.location}</span> : "—"}</InfoRow>
-                  <InfoRow label="Type"><Chip tone="gray">{p.ptype}</Chip></InfoRow>
-                  <InfoRow label="Capacity">{p.capacityMw ? `${p.capacityMw} MW` : "—"}</InfoRow>
-                  <InfoRow label="Reporting frequency"><Chip tone="blue">{p.frequency === "QUARTERLY" ? "Quarterly" : "Monthly"}</Chip></InfoRow>
-                  <InfoRow label="Responsible">{p.responsibleName || "—"}</InfoRow>
-                  <InfoRow label="Status"><StatusBadge status={p.status} /></InfoRow>
-                  <InfoRow label="Registered">{fmtDate(p.createdAt)}</InfoRow>
-                </div>
-              </SectionCard>
-              <SectionCard title="Reporting & deadlines" description="Effective deadline via timeline inheritance" icon={CalendarClock}>
-                <div className="space-y-3">
+            <div className="space-y-4">
+              <div className="grid gap-4 xl:grid-cols-2">
+                <SectionCard title="Profile" description="Master data for this project / site" icon={ProjectsIcon}>
                   <div className="divide-y divide-[rgba(125,177,216,0.16)]">
-                    <InfoRow label="Effective due date">
-                      <span className="inline-flex items-center gap-1.5">
-                        {fmtDate(p.dueDate)}
-                        {p.dueDate && (daysUntil(p.dueDate) ?? 0) < 0 && <Chip tone="red">overdue</Chip>}
-                      </span>
-                    </InfoRow>
-                    <InfoRow label="Approved records">{p.approved}</InfoRow>
-                    <InfoRow label="In review">{p.pending}</InfoRow>
-                    <InfoRow label="Overdue">{p.overdue}</InfoRow>
-                    <InfoRow label="Validation state">
-                      <Chip tone={validationTone(p.validationState)}>{p.validationState === "OK" ? "OK" : p.validationState}</Chip>
-                    </InfoRow>
-                    <InfoRow label="Team size">{p.teamCount}</InfoRow>
+                    <InfoRow label="Code"><Chip tone="purple">{p.code}</Chip></InfoRow>
+                    <InfoRow label="Business unit">{p.buName}</InfoRow>
+                    <InfoRow label="Location">{p.location ? <span className="inline-flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-[color:var(--ink-faint)]" />{p.location}</span> : "—"}</InfoRow>
+                    <InfoRow label="Type"><Chip tone="gray">{p.ptype}</Chip></InfoRow>
+                    <InfoRow label="Capacity">{p.capacityMw ? `${p.capacityMw} MW` : "—"}</InfoRow>
+                    <InfoRow label="Reporting frequency"><Chip tone="blue">{p.frequency === "QUARTERLY" ? "Quarterly" : "Monthly"}</Chip></InfoRow>
+                    <InfoRow label="Project Manager">{p.responsibleName || "—"}</InfoRow>
+                    <InfoRow label="Status"><StatusBadge status={p.status} /></InfoRow>
+                    <InfoRow label="Registered">{fmtDate(p.createdAt)}</InfoRow>
                   </div>
-                  <Button variant="outline" size="sm" className="glass-subtle w-full rounded-2xl border-white/60" onClick={() => navigate("timelines")}>
-                    Manage reporting timelines
-                  </Button>
+                </SectionCard>
+                <SectionCard title="Reporting & deadlines" description="Effective deadline via timeline inheritance" icon={CalendarClock}>
+                  <div className="space-y-3">
+                    <div className="divide-y divide-[rgba(125,177,216,0.16)]">
+                      <InfoRow label="Effective due date">
+                        <span className="inline-flex items-center gap-1.5">
+                          {fmtDate(p.dueDate)}
+                          {p.dueDate && (daysUntil(p.dueDate) ?? 0) < 0 && <Chip tone="red">overdue</Chip>}
+                        </span>
+                      </InfoRow>
+                      <InfoRow label="Approved records">{p.approved}</InfoRow>
+                      <InfoRow label="In review">{p.pending}</InfoRow>
+                      <InfoRow label="Overdue">{p.overdue}</InfoRow>
+                      <InfoRow label="Validation state">
+                        <Chip tone={validationTone(p.validationState)}>{p.validationState === "OK" ? "OK" : p.validationState}</Chip>
+                      </InfoRow>
+                      <InfoRow label="Team size">{p.teamCount}</InfoRow>
+                    </div>
+                    <Button variant="outline" size="sm" className="glass-subtle w-full rounded-2xl border-white/60" onClick={() => navigate("timelines")}>
+                      Manage reporting timelines
+                    </Button>
+                  </div>
+                </SectionCard>
+              </div>
+
+              <SectionCard title="Project Manager & Site Leadership" description="Designated ESG site leadership & operational accountability" icon={UserCheck}>
+                <div className="space-y-3">
+                  <div className="glass-subtle flex items-start gap-3 rounded-2xl p-3.5">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#1b6442] to-[#2ca568] text-white shadow-md shadow-[#2ca568]/20 font-bold text-sm tracking-wide">
+                      {p.responsibleName && p.responsibleName !== "—"
+                        ? p.responsibleName.split(" ").filter(Boolean).slice(-2).map((s) => s[0]).join("").toUpperCase()
+                        : "PM"}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[14px] font-semibold text-[color:var(--ink)]">
+                          {p.responsibleName && p.responsibleName !== "—" ? p.responsibleName : "Unassigned Manager"}
+                        </span>
+                        <Chip tone="green">Designated Site PM</Chip>
+                      </div>
+                      <p className="mt-0.5 text-[11px] text-[color:var(--ink-soft)]">
+                        Executive Site In-Charge · Operational & ESG Compliance
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/60 px-2 py-0.5 text-[11px] text-[color:var(--ink-soft)]">
+                          <ShieldCheck className="h-3 w-3 text-emerald-600" /> Statutory Sign-Off
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-white/60 px-2 py-0.5 text-[11px] text-[color:var(--ink-soft)]">
+                          <CheckCircle2 className="h-3 w-3 text-blue-600" /> Direct Site Lead
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="glass-subtle flex-1 rounded-xl text-xs"
+                      onClick={() => navigate("users")}
+                    >
+                      <Users className="mr-1.5 h-3.5 w-3.5" />
+                      View in User Directory
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="glass-subtle flex-1 rounded-xl text-xs"
+                      onClick={() => onEdit(p)}
+                    >
+                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                      Reassign Manager
+                    </Button>
+                  </div>
                 </div>
               </SectionCard>
             </div>
@@ -590,7 +645,29 @@ export default function ProjectsView() {
       ),
     },
     { key: "bu", header: "Business Unit", sortable: true, sortValue: (r) => r.buName, render: (r) => r.buName },
-    { key: "responsible", header: "Responsible", render: (r) => r.responsibleName || "—" },
+    {
+      key: "manager",
+      header: "Project Manager",
+      sortable: true,
+      sortValue: (r) => r.responsibleName || "",
+      render: (r) => (
+        <div className="flex items-center gap-2">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-[10px] font-bold text-white shadow-sm">
+            {r.responsibleName && r.responsibleName !== "—"
+              ? r.responsibleName.split(" ").filter(Boolean).slice(-2).map((s) => s[0]).join("").toUpperCase()
+              : "PM"}
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-medium text-[color:var(--ink)]">
+              {r.responsibleName || "Unassigned"}
+            </div>
+            <div className="truncate text-[10px] text-[color:var(--ink-faint)]">
+              Site Project Manager
+            </div>
+          </div>
+        </div>
+      ),
+    },
     { key: "team", header: "Team", sortable: true, sortValue: (r) => r.teamCount, className: "tabular", render: (r) => r.teamCount },
     {
       key: "reports",
@@ -637,7 +714,7 @@ export default function ProjectsView() {
     type: r.ptype,
     capacity_mw: r.capacityMw,
     frequency: r.frequency,
-    responsible: r.responsibleName,
+    manager: r.responsibleName,
     team_size: r.teamCount,
     approved: r.approved,
     in_review: r.pending,

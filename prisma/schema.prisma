@@ -9,8 +9,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ─── Organization hierarchy: GROUP → SUBSIDIARY → BUSINESS UNIT → PROJECT ───
@@ -753,12 +754,12 @@ model ValidationResult {
   detectedAt        DateTime @default(now())
   resolvedAt        DateTime?
   resolutionComment String?
-  energyRecord      EnergyRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  waterRecord       WaterRecord?     @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  wasteRecord       WasteRecord?     @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  workforceRecord   WorkforceRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  safetyRecord      SafetyRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade)
-  travelRecord      TravelRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  energyRecord      EnergyRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade, map: "ValidationResult_energyRecord_fkey")
+  waterRecord       WaterRecord?     @relation(fields: [recordId], references: [id], onDelete: Cascade, map: "ValidationResult_waterRecord_fkey")
+  wasteRecord       WasteRecord?     @relation(fields: [recordId], references: [id], onDelete: Cascade, map: "ValidationResult_wasteRecord_fkey")
+  workforceRecord   WorkforceRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade, map: "ValidationResult_workforceRecord_fkey")
+  safetyRecord      SafetyRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade, map: "ValidationResult_safetyRecord_fkey")
+  travelRecord      TravelRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade, map: "ValidationResult_travelRecord_fkey")
 
   @@index([recordId])
 }

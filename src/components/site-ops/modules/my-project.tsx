@@ -2236,7 +2236,7 @@ function ProjectDetailsPanel({
                     />
                     <DetailRow
                       icon={UserCheck}
-                      label="Project Director"
+                      label="Project Manager"
                       value={profile.projectHead.split(',')[0]}
                     />
                     <DetailRow
@@ -2263,6 +2263,33 @@ function ProjectDetailsPanel({
                         value={profile.landArea}
                       />
                     )}
+                  </div>
+
+                  {/* PROJECT MANAGER & SITE LEADERSHIP SECTION */}
+                  <div className="rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 p-4 border border-emerald-500/25 shadow-2xs backdrop-blur-md">
+                    <div className="flex items-start gap-3.5">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white font-black text-sm shadow-md shadow-emerald-700/20">
+                        {profile.projectHead
+                          ? profile.projectHead.split(' ').filter(Boolean).slice(-2).map((s) => s[0]).join('').toUpperCase()
+                          : 'PM'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[14px] font-black text-slate-950">
+                            {profile.projectHead || 'Er. K. Venkataramana'}
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10.5px] font-bold text-emerald-800 border border-emerald-300">
+                            Designated Project Manager
+                          </span>
+                          <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 px-2.5 py-0.5 text-[10.5px] font-bold text-sky-800 border border-sky-300">
+                            Site ESG Sign-off Authority
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[12px] text-slate-600 font-medium">
+                          Executive Site In-Charge · Operational Leadership & Statutory ESG Compliance · Contact: <span className="font-semibold text-slate-800">{profile.leadContact || 'contact@meilgroup.com'}</span>
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   {/* SCOPE DESCRIPTION */}

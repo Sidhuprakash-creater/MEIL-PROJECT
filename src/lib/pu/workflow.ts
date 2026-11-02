@@ -383,6 +383,19 @@ export async function fetchSourceRecords(
   // 1. Try Prisma models where applicable
   try {
     switch (module) {
+      case 'ENVIRONMENT': {
+        const [eRows, wRows, wstRows, tRows] = await Promise.all([
+          db.energyRecord.findMany({ where: { id: { in: Array.from(remainingIds) } } }),
+          db.waterRecord.findMany({ where: { id: { in: Array.from(remainingIds) } } }),
+          db.wasteRecord.findMany({ where: { id: { in: Array.from(remainingIds) } } }),
+          db.travelRecord.findMany({ where: { id: { in: Array.from(remainingIds) } } }),
+        ])
+        for (const r of [...eRows, ...wRows, ...wstRows, ...tRows]) {
+          out.push(r as unknown as SourceRecordSummary)
+          remainingIds.delete(r.id)
+        }
+        break
+      }
       case 'ENERGY': {
         const rows = await db.energyRecord.findMany({
           where: { id: { in: Array.from(remainingIds) } },

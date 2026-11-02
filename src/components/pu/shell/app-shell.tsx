@@ -77,6 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     PROCUREMENT_USER: 'from-violet-500 to-purple-600',
     CSR_USER: 'from-rose-500 to-pink-600',
     COMPLIANCE_USER: 'from-emerald-500 to-green-600',
+    PROJECT_ADMIN: 'from-blue-600 via-indigo-600 to-purple-700',
   }
   const tint = roleTint[roleKey] ?? 'from-blue-500 to-cyan-600'
 

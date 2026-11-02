@@ -25,29 +25,29 @@ async function main() {
   console.log("🌱 Seeding Site Operations portal (Project User)...");
 
   /* ── 0. Locate platform org entities (created by prisma/seed.ts) ────────── */
-  const projectByCode = async (code: string) => {
-    const p = await db.project.findUnique({ where: { code } });
-    if (!p) throw new Error(`Project ${code} not found — run prisma/seed.ts first`);
-    return p;
-  };
-  const pvagada = await projectByCode("PRJ-PVAN"); // Pavagada Solar Park
-  const ktpp = await projectByCode("PRJ-KTPP"); // Kothagudem Thermal Plant
-  const nh48 = await projectByCode("PRJ-NH48"); // NH-48 Highway Package
-  const ring = await projectByCode("PRJ-RING"); // Hyderabad Regional Ring Road
-  const klbd = await projectByCode("PRJ-KLBD"); // Kaleshwaram Lift Package-12
-  const desal = await projectByCode("PRJ-DESAL"); // Chennai Desalination Plant-2
+  const projects = await db.project.findMany();
+  if (projects.length === 0) throw new Error("No projects found — run prisma/seed.ts first");
+  const getProject = (code: string, fallbackIdx: number) =>
+    projects.find((p) => p.code === code) || projects[fallbackIdx % projects.length];
+
+  const pvagada = getProject("PRJ-PVG-SOL", 0);
+  const ktpp = getProject("PRJ-MONG", 1);
+  const nh48 = getProject("PRJ-ZOJ", 2);
+  const ring = getProject("PRJ-TBTT", 3);
+  const klbd = getProject("PRJ-KLIP", 4);
+  const desal = getProject("PRJ-POLA", 5);
 
   /* ── 1. Portal users (the remaining site-operations users) ──────────────── */
-  const passwordHash = await hashPassword("Esg@2025");
+  const passwordHash = await hashPassword("demo");
   const userDefs = [
-    { email: "rohit@meil-esg.in", name: "Rohit Kumar", employeeId: "ENV-1001", role: "ENV_DATA_USER", title: "Environment Data Officer", projectId: pvagada.id, phone: "+91 98480 11021" },
-    { email: "finance@meil-esg.in", name: "Rahul Verma", employeeId: "FIN-1001", role: "FIN_RESOURCE_USER", title: "Finance & Resource Analyst", projectId: ktpp.id, phone: "+91 98480 11022" },
-    { email: "kvenkat@meil-esg.in", name: "K. Venkat", employeeId: "EHS-1001", role: "EHS_USER", title: "EHS Safety Officer", projectId: ktpp.id, phone: "+91 98480 11023" },
-    { email: "sunita@meil-esg.in", name: "Sunita Rao", employeeId: "HR-1001", role: "HR_USER", title: "HR Data Coordinator", projectId: nh48.id, phone: "+91 98480 11024" },
-    { email: "priya@meil-esg.in", name: "Priya Nair", employeeId: "PRC-1001", role: "PROCUREMENT_USER", title: "Procurement Analyst", projectId: ring.id, phone: "+91 98480 11025" },
-    { email: "imran@meil-esg.in", name: "Imran Sheikh", employeeId: "CSR-1001", role: "CSR_USER", title: "CSR Program Lead", projectId: klbd.id, phone: "+91 98480 11026" },
-    { email: "deepika@meil-esg.in", name: "Deepika Joshi", employeeId: "CMP-1001", role: "COMPLIANCE_USER", title: "Compliance Officer", projectId: desal.id, phone: "+91 98480 11027" },
-    { email: "sameer@meil-esg.in", name: "Sameer Khan", employeeId: "ANA-1001", role: "ESG_ANALYST", title: "ESG Analyst — Group Analytics", projectId: ktpp.id, phone: "+91 98480 11028" },
+    { email: "rohit@meil-esg.in", name: "Rohit Kumar", employeeId: "PU-ENV-014", role: "ENV_DATA_USER", title: "Environment Data Officer", projectId: pvagada.id, phone: "+91 98480 11021" },
+    { email: "finance@meil-esg.in", name: "Rahul Verma", employeeId: "PU-FIN-015", role: "FIN_RESOURCE_USER", title: "Finance & Resource Analyst", projectId: ktpp.id, phone: "+91 98480 11022" },
+    { email: "kvenkat@meil-esg.in", name: "K. Venkat", employeeId: "PU-EHS-017", role: "EHS_USER", title: "EHS Safety Officer", projectId: ktpp.id, phone: "+91 98480 11023" },
+    { email: "sunita@meil-esg.in", name: "Sunita Rao", employeeId: "PU-HR-016", role: "HR_USER", title: "HR Data Coordinator", projectId: nh48.id, phone: "+91 98480 11024" },
+    { email: "priya@meil-esg.in", name: "Priya Nair", employeeId: "PU-PRC-018", role: "PROCUREMENT_USER", title: "Procurement Analyst", projectId: ring.id, phone: "+91 98480 11025" },
+    { email: "imran@meil-esg.in", name: "Imran Sheikh", employeeId: "PU-CSR-019", role: "CSR_USER", title: "CSR Program Lead", projectId: klbd.id, phone: "+91 98480 11026" },
+    { email: "deepika@meil-esg.in", name: "Deepika Joshi", employeeId: "PU-CMP-020", role: "COMPLIANCE_USER", title: "Compliance Officer", projectId: desal.id, phone: "+91 98480 11027" },
+    { email: "sameer@meil-esg.in", name: "Sameer Khan", employeeId: "PU-ANA-021", role: "ESG_ANALYST", title: "ESG Analyst — Group Analytics", projectId: ktpp.id, phone: "+91 98480 11028" },
   ] as const;
 
   const userIds: Record<string, string> = {};

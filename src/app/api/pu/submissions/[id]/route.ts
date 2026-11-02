@@ -70,6 +70,14 @@ export async function GET(
     let sourceRecords: Record<string, unknown>[] = []
     if (recordIds.length > 0) {
       switch (submission.module) {
+        case 'ENVIRONMENT':
+          sourceRecords = [
+            ...(await db.energyRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
+            ...(await db.waterRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
+            ...(await db.wasteRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
+            ...(await db.travelRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
+          ]
+          break
         case 'ENERGY':
           sourceRecords = await db.energyRecord.findMany({
             where: { id: { in: recordIds } },
@@ -109,11 +117,12 @@ export async function GET(
         default:
           break
       }
-      if (sourceRecords.length === 0) {
-        const { getLevelRecordById } = await import('@/lib/pu/level-records')
-        sourceRecords = recordIds
-          .map((id) => getLevelRecordById(id))
-          .filter(Boolean) as unknown as Record<string, unknown>[]
+      const { getLevelRecordById } = await import('@/lib/pu/level-records')
+      for (const rid of recordIds) {
+        if (!sourceRecords.some((r) => (r as any).id === rid)) {
+          const lr = getLevelRecordById(rid)
+          if (lr) sourceRecords.push(lr as unknown as Record<string, unknown>)
+        }
       }
     }
 

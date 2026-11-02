@@ -37,6 +37,8 @@ export function portalRoleKeyFor(role: string): string {
       return "FINANCE_USER";
     case "ESG_ANALYST":
       return "ESG_ANALYST";
+    case "PROJECT_ADMIN":
+      return "PROJECT_ADMIN";
     case "HR_USER":
     case "EHS_USER":
     case "PROCUREMENT_USER":
@@ -49,6 +51,7 @@ export function portalRoleKeyFor(role: string): string {
 }
 
 const PORTAL_ROLE_NAMES: Record<string, { name: string; phase: number }> = {
+  PROJECT_ADMIN: { name: "Project Admin", phase: 2 },
   PROJECT_USER: { name: "Environment Data User", phase: 1 },
   FINANCE_USER: { name: "Finance & Resource Data Contributor", phase: 1 },
   HR_USER: { name: "HR User", phase: 1 },
@@ -62,6 +65,12 @@ const PORTAL_ROLE_NAMES: Record<string, { name: string; phase: number }> = {
 /* Role→permission matrix (mirrors the site-operations RBAC seed). Keyed by
    PLATFORM role codes so no join tables are required. */
 const ROLE_PERMISSIONS: Record<string, string[]> = {
+  PROJECT_ADMIN: [
+    "organization.read", "project.read",
+    "submission.submit", "submission.review", "submission.approve", "submission.reject", "submission.lock",
+    "evidence.verify", "evidence.upload", "evidence.read",
+    "brsr.read", "report.read", "audit.read",
+  ],
   ENV_DATA_USER: [
     "organization.read", "project.read",
     "esg.energy.write", "esg.water.write", "esg.waste.write",

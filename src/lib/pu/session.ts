@@ -77,6 +77,8 @@ export function portalRoleKey(role: string): { key: string; name: string } {
       return { key: 'BU_ADMIN', name: 'BU Admin' }
     case 'BU_MANAGER':
       return { key: 'BU_MANAGER', name: 'BU Manager' }
+    case 'PROJECT_ADMIN':
+      return { key: 'PROJECT_ADMIN', name: 'Project Admin' }
     default:
       return { key: role || 'PROJECT_USER', name: role || 'Project User' }
   }
@@ -141,6 +143,7 @@ const ROLE_PERMS: Record<string, string[]> = {
   SUBSIDIARY_MANAGER: ALL_PERMS,
   BU_ADMIN: ALL_PERMS,
   BU_MANAGER: ALL_PERMS,
+  PROJECT_ADMIN: ALL_PERMS,
   PROJECT_USER: ['esg.energy.write', 'esg.waste.write', 'esg.water.write', 'esg.safety.write', 'esg.people.write', 'evidence.upload', 'submission.submit', 'audit.read'],
   ENV_DATA_USER: ['esg.energy.write', 'esg.waste.write', 'esg.water.write', 'esg.safety.write', 'esg.people.write', 'evidence.upload', 'submission.submit', 'audit.read'],
   FINANCE_USER: ['evidence.upload', 'submission.submit', 'audit.read'],

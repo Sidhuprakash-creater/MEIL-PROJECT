@@ -136,6 +136,19 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'audit', label: 'Audit', icon: History },
   ],
+
+  // Project Admin — operational review & sign-off authority
+  PROJECT_ADMIN: [
+    { key: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { key: 'submissions', label: 'Submissions & Approvals', icon: Send, badgeTone: 'rose' },
+    { key: 'data-entry', label: 'Data Entry', icon: FileText, badgeTone: 'green' },
+    { key: 'my-project', label: 'My Project', icon: Building2 },
+    { key: 'evidence', label: 'Evidence Vault', icon: Link2, badgeTone: 'blue' },
+    { key: 'analytics', label: 'Analytics', icon: TrendingUp },
+    { key: 'reports', label: 'Reports', icon: FileBarChart },
+    { key: 'team', label: 'Team', icon: Users },
+    { key: 'audit', label: 'Audit & Trace', icon: History },
+  ],
 }
 
 /** Minimal nav for roles without a dedicated map (add an entry above when a new role is introduced). */

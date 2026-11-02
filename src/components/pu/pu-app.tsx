@@ -47,6 +47,8 @@ function getRoleDashboard(roleKey: string) {
       return <ComplianceDashboard />;
     case "ESG_ANALYST":
       return <EsgAnalystDashboard />;
+    case "PROJECT_ADMIN":
+      return <SiteUserOverview />;
     default:
       return <SiteUserOverview />;
   }

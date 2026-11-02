@@ -379,7 +379,7 @@ function PortalFlow({
   const [project, setProject] = useState<ProjectOpt | null>(null);
   const [role, setRole] = useState("");
   const [employeeId, setEmployeeId] = useState("");
-  const [password, setPassword] = useState("");
+  const [password, setPassword] = useState("demo");
   const [showPw, setShowPw] = useState(false);
   const [remember, setRemember] = useState(false);
 
@@ -417,7 +417,7 @@ function PortalFlow({
       setBusinessUnits([]);
       setRole("");
       setEmployeeId("");
-      setPassword("");
+      setPassword("demo");
       setError(null);
       setFieldErrors({});
       setForgotMsg("");
@@ -438,7 +438,7 @@ function PortalFlow({
     setBusinessUnit(opt);
     setRole("");
     setEmployeeId("");
-    setPassword("");
+    setPassword("demo");
     setError(null);
     setFieldErrors({});
   }, []);
@@ -448,7 +448,7 @@ function PortalFlow({
     setProject(opt);
     setRole("");
     setEmployeeId("");
-    setPassword("");
+    setPassword("demo");
     setError(null);
     setFieldErrors({});
   }, []);
@@ -786,7 +786,7 @@ function PortalFlow({
               type={showPw ? "text" : "password"}
               autoComplete="current-password"
               disabled={!credsReady}
-              placeholder="Enter your password"
+              placeholder="demo"
               value={password}
               onChange={(e) => {
                 setPassword(e.target.value);
@@ -1199,7 +1199,7 @@ export default function EnterPlatform({
                     </tbody>
                   </table>
                   <p style={{ marginTop: 10, fontSize: 11, color: "var(--tx-500)", fontFamily: "var(--font-mono)" }}>
-                    Password for all demo accounts: <span style={{ color: "var(--gold-600)" }}>esg12345</span> · master data is configurable in <span style={{ color: "var(--gold-600)" }}>prisma/seed.ts</span>
+                    Password for all demo accounts: <span style={{ color: "var(--gold-600)" }}>demo</span> · master data is configurable in <span style={{ color: "var(--gold-600)" }}>prisma/seed.ts</span>
                   </p>
                 </details>
               </div>

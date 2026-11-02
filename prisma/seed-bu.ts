@@ -32,12 +32,12 @@ async function main() {
   // Two demo BU accounts (from seed.ts):
   //   - BU-THERMAL  → Suresh Babu (BU_MANAGER, employeeId BU-1001)
   //   - BU-WTRSUP   → Kiran Reddy (BU_ADMIN, employeeId BU-3002)
-  const thermal = units.find((u) => u.code === "BU-THERMAL");
-  const waterSupply = units.find((u) => u.code === "BU-WTRSUP");
-  if (!thermal || !waterSupply) throw new Error("Required BU-THERMAL or BU-WTRSUP not found.");
+  const thermal = units.find((u) => u.code === "HRP" || u.code === "BU-THERMAL") || units[0];
+  const waterSupply = units.find((u) => u.code === "EPBI" || u.code === "BU-WTRSUP") || units[1];
+  if (!thermal || !waterSupply) throw new Error("Required Business Units not found.");
 
-  const suresh = await db.user.findFirst({ where: { email: "suresh.babu@meil.in" } });
-  const kiran = await db.user.findFirst({ where: { email: "kiran.reddy@meil.in" } });
+  const suresh = await db.user.findFirst({ where: { email: { in: ["suresh.babu@meil.in"] } } });
+  const kiran = await db.user.findFirst({ where: { email: { in: ["kiran.reddy@olectra.com", "kiran.reddy@meil.in"] } } });
   if (!suresh || !kiran) throw new Error("Suresh Babu or Kiran Reddy not found — run seed.ts + seed-auth.ts.");
 
   const thermalProjects = await db.project.findMany({ where: { businessUnitId: thermal.id }, orderBy: { code: "asc" } });

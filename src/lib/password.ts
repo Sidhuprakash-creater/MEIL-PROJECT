@@ -65,12 +65,18 @@ export async function verifyPassword(
  * Platform-wide demo password. Accepted for every account (in addition to each
  * account's real scrypt hash) so the advertised "Default password" on the
  * gateway and portal sign-in screens always works. Comparison is trimmed and
- * case-insensitive to tolerate typo-level variance (Esg12345, ESG12345, …).
+ * case-insensitive to tolerate typo-level variance (demo, Demo, DEMO, …).
  */
-export const DEMO_PASSWORD = "esg12345";
+export const DEMO_PASSWORD = "demo";
 
 export function isDemoPassword(password: string): boolean {
-  return password.trim().toLowerCase() === DEMO_PASSWORD;
+  const norm = password.trim().toLowerCase();
+  return (
+    norm === "demo" ||
+    norm === "demo123" ||
+    norm === "esg12345" ||
+    norm === "esg@2025"
+  );
 }
 
 /**

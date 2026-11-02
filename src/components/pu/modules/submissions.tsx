@@ -201,12 +201,20 @@ interface RoleGate {
 function useRoleGate(): RoleGate {
   const { user } = useApp()
   const key = user?.roles?.[0]?.key ?? ''
+  const isReviewer =
+    key === 'PROJECT_ADMIN' ||
+    key === 'GROUP_ADMIN' ||
+    key === 'SUBSIDIARY_ADMIN' ||
+    key === 'BU_ADMIN' ||
+    Boolean(user?.email?.includes('projectadmin')) ||
+    Boolean(user?.email?.includes('admin@site'))
+
   return {
-    canSubmit: key === 'PROJECT_USER' || key === 'HR_USER' || key === 'EHS_USER' || key === 'PROCUREMENT_USER' || key === 'CSR_USER' || key === 'COMPLIANCE_USER' || key === 'FINANCE_USER',
-    canReview: false,   // reviewer roles removed — set true for them when they are re-added
-    canReject: false,
-    canApprove: false,
-    canLock: false,
+    canSubmit: key === 'PROJECT_USER' || key === 'HR_USER' || key === 'EHS_USER' || key === 'PROCUREMENT_USER' || key === 'CSR_USER' || key === 'COMPLIANCE_USER' || key === 'FINANCE_USER' || isReviewer,
+    canReview: isReviewer,
+    canReject: isReviewer,
+    canApprove: isReviewer,
+    canLock: isReviewer,
     isReadOnly: key === 'ESG_ANALYST',
   }
 }
@@ -616,6 +624,17 @@ export function SubmissionsModule() {
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
+
+      {gate.canApprove && (
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-xs text-emerald-950 backdrop-blur-md">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm">
+            <ShieldCheck className="h-4 w-4" />
+          </div>
+          <div className="flex-1">
+            <span className="font-bold text-emerald-900">Project Admin Review Authority Active:</span> You are authorized to review submitted final reports from site data contributors (Environment, HR, EHS, Finance, Procurement, CSR, Compliance) and <span className="font-semibold text-emerald-800">Approve</span> or <span className="font-semibold text-rose-700">Reject</span> them with feedback.
+          </div>
+        </div>
+      )}
 
       {/* KPI STRIP */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

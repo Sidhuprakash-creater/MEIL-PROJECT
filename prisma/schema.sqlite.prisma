@@ -1,0 +1,1037 @@
+// MEIL ESG & BRSR Platform — Group Admin Workspace schema
+// SQLite — JSON payloads stored as serialized strings, parsed in the API layer.
+// NOTE: models prefixed `So` belong to the integrated Site Operations portal
+// (Project User Portal) data chain: source records → evidence → validation →
+// calculation → submission → review → BRSR mapping → report → audit.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Organization hierarchy: GROUP → SUBSIDIARY → BUSINESS UNIT → PROJECT ───
+
+model Subsidiary {
+  id          String        @id @default(cuid())
+  code        String        @unique
+  name        String
+  sector      String        @default("Energy")
+  region      String        @default("India")
+  city        String        @default("")
+  status      String        @default("ACTIVE") // ACTIVE | INACTIVE
+  managerName String        @default("")
+  adminName   String        @default("")
+  description String        @default("")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  units       BusinessUnit[]
+  users       User[]
+}
+
+model BusinessUnit {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  name         String
+  subsidiaryId String
+  subsidiary   Subsidiary @relation(fields: [subsidiaryId], references: [id], onDelete: Cascade)
+  status       String     @default("ACTIVE")
+  managerName  String     @default("")
+  adminName    String     @default("")
+  description  String     @default("")
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  projects     Project[]
+  users        User[]
+}
+
+model Project {
+  id            String       @id @default(cuid())
+  code          String       @unique
+  name          String
+  businessUnitId String
+  businessUnit  BusinessUnit @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  location      String       @default("")
+  ptype         String       @default("SITE") // SITE | PLANT | OFFICE | WIND_FARM | SOLAR_PARK | HYDRO | PIPELINE
+  capacityMw    Float        @default(0)
+  status        String       @default("ACTIVE")
+  frequency     String       @default("MONTHLY") // MONTHLY | QUARTERLY
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  users         User[]
+  energyRecords    EnergyRecord[]
+  puSubmissions    Submission[]   @relation("PuSubmissionProject")
+  waterRecords     WaterRecord[]
+  wasteRecords     WasteRecord[]
+  workforceRecords WorkforceRecord[]
+  safetyRecords    SafetyRecord[]
+  travelRecords    TravelRecord[]
+  soSubmissions    SoSubmission[]
+  soActivities     Activity[]
+}
+
+// ─── Users & roles (11 role types; GROUP_ADMIN == SUPER ADMIN) ───
+
+model User {
+  id            String      @id @default(cuid())
+  name          String
+  email         String      @unique
+  employeeId    String?     @unique // portal login handle (e.g. GRP-0001) — optional for data users
+  passwordHash  String?     // scrypt hash (scrypt$N$r$p$salt$key) — null = no portal credential issued
+  role          String      // GROUP_ADMIN | SUBSIDIARY_MANAGER | SUBSIDIARY_ADMIN | BU_MANAGER | BU_ADMIN | ENV_DATA_USER | FIN_RESOURCE_USER | HR_USER | EHS_USER | PROCUREMENT_USER | CSR_USER | COMPLIANCE_USER
+  status        String      @default("ACTIVE") // ACTIVE | SUSPENDED | INACTIVE | INVITED
+  subsidiaryId  String?
+  subsidiary    Subsidiary? @relation(fields: [subsidiaryId], references: [id], onDelete: SetNull)
+  businessUnitId String?
+  businessUnit  BusinessUnit? @relation(fields: [businessUnitId], references: [id], onDelete: SetNull)
+  projectId     String?
+  project       Project?    @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  phone         String      @default("")
+  title         String      @default("")
+  joinedAt      DateTime    @default(now())
+  lastActiveAt  DateTime?
+  lastLoginAt   DateTime?
+  sessions      Session[]
+  auditLogs     AuditLog[]
+  soEvidence        Evidence[]
+  soAuditLogs       SoAuditLog[]
+  soNotifications   SoNotification[]
+  soReviewedSubmissions SoSubmission[] @relation("SoSubmissionReviewer")
+  reviewedSubmissions   Submission[]   @relation("SubmissionReviewer")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+// ─── Server-side auth sessions (opaque token; only its SHA-256 hash is stored) ──
+
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  userAgent String?
+  ip        String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ─── Authentication audit trail (login success/failure, logout, resets) ─────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  eventType  String // LOGIN_SUCCESS | LOGIN_FAILED | LOGOUT | PASSWORD_RESET_REQUESTED | RATE_LIMITED
+  result     String // SUCCESS | FAILURE | INFO
+  employeeId String? // attempted identifier (works even when no user matched)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  portal     String? // group | subsidiary | business_unit | project
+  role       String? // requested role
+  scopeRef   String? // subsidiary/BU code the attempt was scoped to
+  reason     String? // INVALID_CREDENTIALS | ROLE_MISMATCH | SCOPE_MISMATCH | INACTIVE | RATE_LIMITED | VALIDATION
+  detail     String?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+// ─── ESG data submissions ───
+
+model Submission {
+  id            String    @id @default(cuid())
+  ref           String    @unique
+  title         String
+  category      String    // ENVIRONMENT | ENERGY | EMISSIONS | WATER | WASTE | SAFETY | WORKFORCE | PROCUREMENT | CSR | COMPLIANCE
+  metricName    String    @default("")
+  metricValue   Float     @default(0)
+  metricUnit    String    @default("")
+  status        String    @default("DRAFT") // DRAFT | ASSIGNED | SUBMITTED | UNDER_REVIEW | CHANGES_REQUESTED | REJECTED | APPROVED
+  overdue       Boolean   @default(false)
+  period        String    @default("FY 2025-26")
+  fiscalQuarter String    @default("Q1")
+  dueDate       DateTime
+  submittedAt   DateTime?
+  reviewedAt    DateTime?
+  subsidiaryId  String?
+  businessUnitId String?
+  projectId     String?
+  submittedById String?
+  reviewerId    String?
+  values        String    @default("[]") // JSON array of {label, value, unit}
+  evidence      String    @default("[]") // JSON array of file names
+  comments      String    @default("[]") // JSON array of {author, role, text, at}
+  history       String    @default("[]") // JSON array of {action, actor, at, note}
+  // ── Project User Portal workflow extensions (additive; other consoles ignore these) ──
+  module            String?   // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+  recordIds         String?   // JSON array of linked source record IDs
+  reportingPeriodId String?
+  reportingPeriod   ReportingPeriod? @relation(fields: [reportingPeriodId], references: [id], onDelete: SetNull)
+  reviewer          User?     @relation("SubmissionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  project           Project?  @relation("PuSubmissionProject", fields: [projectId], references: [id], onDelete: SetNull)
+  completionPct     Float?
+  evidenceCount     Int?
+  validationPassed  Int?
+  validationErrors  Int?
+  lockedAt          DateTime?
+  lockedBy          String?
+  reviewComment     String?   // pu: reviewer note on REVIEW/REJECT/LOCK transitions
+  corrections       String?   @default("[]") // pu: JSON array of correction requests (portal-side)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ─── Tasks & deadlines ───
+
+model Task {
+  id               String   @id @default(cuid())
+  ref              String   @unique
+  title            String
+  description      String   @default("")
+  category         String   @default("ENVIRONMENT")
+  assigneeType     String   @default("USER") // USER | ROLE | BU | SUBSIDIARY | ALL
+  assigneeLabel    String   @default("")
+  assigneeFilter   String   @default("{}") // JSON: {role?|businessUnitId?|subsidiaryId?|userIds?[]}
+  subsidiaryId     String?
+  businessUnitId   String?
+  period            String   @default("FY 2025-26")
+  startDate        DateTime
+  dueDate          DateTime
+  priority         String   @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  status           String   @default("ACTIVE") // ACTIVE | UPCOMING | OVERDUE | COMPLETED
+  requiresEvidence Boolean  @default(true)
+  recipients       Int      @default(1)
+  acknowledged     Int      @default(0)
+  completed        Int      @default(0)
+  remindersSent    Int      @default(0)
+  reminderLog      String   @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// ─── Notifications ───
+
+model Notification {
+  id       String   @id @default(cuid())
+  ntype    String   // DEADLINE | OVERDUE | SUBMISSION | APPROVAL | DATA_QUALITY | SYSTEM | PACKAGE | MESSAGE | EVIDENCE | VALIDATION
+  title    String
+  body     String   @default("")
+  severity String   @default("INFO") // INFO | SUCCESS | WARNING | CRITICAL
+  read     Boolean  @default(false)
+  linkView String   @default("dashboard")
+  refId    String   @default("")
+  subsidiaryId String? // null = group-wide (Group Admin); set = subsidiary-scoped
+  createdAt DateTime @default(now())
+}
+
+// ─── Communication center ───
+
+model Message {
+  id            String    @id @default(cuid())
+  kind          String    @default("ANNOUNCEMENT") // MESSAGE | ANNOUNCEMENT | REMINDER | POLICY
+  channel       String    @default("GROUP_WIDE") // DIRECT | ROLE_GROUP | SUBSIDIARY | BU | GROUP_WIDE
+  subject       String
+  body          String
+  audienceLabel String   @default("")
+  audienceFilter String  @default("{}")
+  recipients    Int       @default(0)
+  delivered     Int       @default(0)
+  failed        Int       @default(0)
+  readCount     Int       @default(0)
+  status        String    @default("SENT") // SENT | SCHEDULED | DRAFT
+  scheduledFor  DateTime?
+  sentBy        String    @default("Group Admin")
+  createdAt     DateTime  @default(now())
+}
+
+// ─── BRSR reporting ───
+
+model BrsrReport {
+  id             String    @id @default(cuid())
+  ref            String    @unique
+  title          String
+  financialYear  String    @default("FY 2025-26")
+  framework      String    @default("SEBI BRSR Core v1.0")
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  description    String    @default("")
+  ownerName      String    @default("Group Admin")
+  status         String    @default("DRAFT") // DRAFT | CONSOLIDATION | VALIDATION | REVIEW | SIGNOFF | FINALIZED
+  wizardStep     Int       @default(1)
+  scope          String    @default("{}") // JSON {subsidiaryIds[], businessUnitIds[], projectIds[]}
+  sections       String    @default("[]") // JSON [{id,title,content,sourceRefs[]}]
+  disclosures    String    @default("[]") // JSON [{code,title,mapped,status,note,value,unit}]
+  signoffs       String    @default("[]") // JSON [{role,name,decision,at,comment}]
+  exports        String    @default("[]") // JSON [{format,at,by}]
+  version        Int       @default(1)
+  versions       String    @default("[]") // JSON [{version,at,by,note,snapshot}]
+  finalizedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Disclosure {
+  id          String @id @default(cuid())
+  code        String @unique // e.g. BRSR-C2-ENV-01
+  section     String // ENVIRONMENT | SOCIAL | GOVERNANCE
+  title       String
+  required    Boolean @default(true)
+  unit        String @default("")
+  description String @default("")
+}
+
+// ─── Governance: activity feed & authoritative audit trail ───
+
+model ActivityEvent {
+  id          String   @id @default(cuid())
+  actorName   String
+  actorRole   String   @default("")
+  action      String   // LOGIN | REPORT_CREATE | SUBMIT | RESUBMIT | DATA_EDIT | EVIDENCE_UPLOAD | TASK_ASSIGN | APPROVE | REJECT | ROLE_CHANGE | ACCOUNT_UPDATE | EXPORT | CONFIG_CHANGE
+  targetType  String   @default("")
+  targetLabel String   @default("")
+  orgLabel    String   @default("")
+  severity    String   @default("INFO")
+  createdAt   DateTime @default(now())
+}
+
+model AuditEvent {
+  id          String   @id @default(cuid())
+  actorName   String
+  actorRole   String   @default("")
+  action      String
+  targetType  String   @default("")
+  targetId    String   @default("")
+  targetLabel String   @default("")
+  orgScope    String   @default("GROUP")
+  before      String   @default("{}")
+  after       String   @default("{}")
+  reason      String   @default("")
+  outcome     String   @default("SUCCESS") // SUCCESS | FAILURE | DENIED
+  correlation String   @default("")
+  createdAt   DateTime @default(now())
+}
+
+// ─── Subsidiary workspace: reporting timelines (deadline inheritance) ───────
+
+model ReportingTimeline {
+  id              String    @id @default(cuid())
+  ref             String    @unique
+  name            String
+  period          String    @default("FY 2025-26")
+  level           String    // SUBSIDIARY | BUSINESS_UNIT | PROJECT
+  subsidiaryId    String
+  businessUnitId  String?
+  projectId       String?
+  startDate       DateTime
+  dueDate         DateTime?
+  reviewDeadline  DateTime?
+  categories      String    @default("[]") // JSON array of category codes
+  inheritanceMode String    @default("INHERIT") // INHERIT | OVERRIDE
+  overrideReason  String    @default("") // required when OVERRIDE
+  notify          Boolean   @default(true)
+  status          String    @default("ACTIVE") // ACTIVE | CLOSED
+  createdByName   String    @default("")
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([subsidiaryId])
+  @@index([period])
+}
+
+// ─── Subsidiary workspace: reporting packages submitted to Group ────────────
+
+model ReportingPackage {
+  id             String    @id @default(cuid())
+  ref            String    @unique
+  title          String
+  subsidiaryId   String
+  subsidiaryName String    @default("")
+  period         String    @default("FY 2025-26")
+  status         String    @default("DRAFT") // DRAFT | SUBMITTED | UNDER_GROUP_REVIEW | APPROVED | CHANGES_REQUESTED
+  readinessPct   Int       @default(0)
+  summary        String    @default("{}") // JSON {approved, pending, missing, metrics:{name,value,unit}[]}
+  sourceRefs     String    @default("[]") // JSON array of submission refs
+  submittedAt    DateTime?
+  submittedBy    String    @default("")
+  groupFeedback  String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([subsidiaryId])
+}
+
+// ─── Subsidiary workspace: data validation issues ───────────────────────────
+
+model ValidationIssue {
+  id             String    @id @default(cuid())
+  ref            String    @unique
+  severity       String    @default("MEDIUM") // LOW | MEDIUM | HIGH | CRITICAL
+  rule           String    // MISSING_FIELD | MISSING_EVIDENCE | DUPLICATE | UNIT_MISMATCH | PERIOD_MISMATCH | UNAPPROVED_SOURCE | MISSING_SUBMISSION | CALCULATION_EXCEPTION
+  description    String
+  subsidiaryId   String
+  businessUnitId String?
+  projectId      String?
+  submissionId   String?
+  submissionRef  String    @default("")
+  period         String    @default("FY 2025-26")
+  responsibleName String   @default("")
+  status         String    @default("OPEN") // OPEN | ASSIGNED | RESOLVED | WAIVED
+  ownerName      String    @default("")
+  resolveNote    String    @default("")
+  detectedAt     DateTime  @default(now())
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([subsidiaryId])
+}
+
+// ─── Subsidiary workspace: evidence & document repository ───────────────────
+
+model EvidenceDoc {
+  id             String   @id @default(cuid())
+  name           String
+  fileType       String   @default("PDF") // PDF | XLSX | CSV | IMAGE | DOCX
+  sizeKb         Int      @default(0)
+  version        Int      @default(1)
+  subsidiaryId   String
+  businessUnitId String?
+  projectId      String?
+  submissionId   String?
+  submissionRef  String   @default("")
+  disclosureRef  String   @default("")
+  uploadedBy     String   @default("")
+  status         String   @default("VALID") // VALID | MISSING | EXPIRED
+  uploadedAt     DateTime @default(now())
+
+  @@index([subsidiaryId])
+  @@index([submissionId])
+}
+
+// ─── System settings ───
+
+model AppSetting {
+  id        String   @id @default(cuid())
+  skey      String   @unique
+  label     String
+  category  String   @default("GENERAL")
+  svalue    String   @default("{}") // JSON
+  vtype     String   @default("toggle") // toggle | text | number | select
+  options   String   @default("[]")
+  updatedAt DateTime @updatedAt
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// SITE OPERATIONS PORTAL (Project User Portal) — integrated data chain
+// Source: bput_ps-8 site-operations portal. Colliding names are prefixed `So`:
+// SoSubmission (portal workflow submissions), SoAuditLog (portal audit trail),
+// SoNotification (portal user notifications). Roles/permissions are derived
+// from User.role via src/lib/so/session.ts (no RBAC tables).
+// ═════════════════════════════════════════════════════════════════════════════
+
+model ReportingYear {
+  id        String   @id @default(cuid())
+  groupId   String   @default("MEIL-GROUP") // synthetic group handle (no Group table)
+  year      Int
+  label     String
+  status    String   @default("OPEN")
+  createdAt DateTime @default(now())
+  periods   ReportingPeriod[]
+}
+
+model ReportingPeriod {
+  id                 String    @id @default(cuid())
+  reportingYearId    String
+  periodType         String // MONTHLY | QUARTERLY | ANNUAL
+  periodLabel        String // e.g. "April 2026", "Q1 FY27", "FY 2026"
+  year               Int
+  month              Int?
+  quarter            Int?
+  startDate          DateTime
+  endDate            DateTime
+  submissionDeadline DateTime?
+  reviewDeadline     DateTime?
+  approvalDeadline   DateTime?
+  status             String    @default("OPEN")
+  createdAt          DateTime  @default(now())
+  reportingYear      ReportingYear @relation(fields: [reportingYearId], references: [id], onDelete: Cascade)
+  energyRecords      EnergyRecord[]
+  waterRecords       WaterRecord[]
+  wasteRecords       WasteRecord[]
+  workforceRecords   WorkforceRecord[]
+  safetyRecords      SafetyRecord[]
+  travelRecords      TravelRecord[]
+  soSubmissions      SoSubmission[]
+  puSubmissions      Submission[]
+}
+
+// ── Units & conversions (calculation engine) ─────────────────────────────
+
+model UnitMaster {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  name      String
+  category  String // ENERGY | VOLUME | MASS | COUNT | EMISSION
+  baseUnit  String?
+  createdAt DateTime @default(now())
+}
+
+model ConversionRule {
+  id        String  @id @default(cuid())
+  fromUnit  String
+  toUnit    String
+  factor    Float
+  category  String
+  version   Int     @default(1)
+  createdAt DateTime @default(now())
+}
+
+model EmissionFactor {
+  id             String   @id @default(cuid())
+  name           String
+  category       String // STATIONARY | MOBILE | ELECTRICITY | TRAVEL | WASTE | FUGITIVE
+  source         String
+  fuelType       String?
+  geography      String   @default("IN")
+  factorValue    Float // kgCO2e per unit
+  factorUnit     String
+  ch4Factor      Float?
+  n2oFactor      Float?
+  scope          String   @default("SCOPE_1")
+  effectiveFrom  DateTime
+  effectiveTo    DateTime?
+  version        Int      @default(1)
+  methodology    String?
+  sourceDocument String?
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+}
+
+// ── ESG source records (project/site level) ──────────────────────────────────
+
+model EnergyRecord {
+  id                String   @id @default(cuid())
+  projectId         String
+  reportingPeriodId String
+  module            String   @default("ENERGY")
+  source            String // Electricity | Diesel | Petrol | Coal | CNG | LPG | Renewable | Grid | PPA
+  sourceCategory    String // RENEWABLE | NON_RENEWABLE
+  quantity          Float
+  sourceUnit        String
+  normalizedValue   Float?
+  normalizedUnit    String?
+  vendor            String?
+  meterRef          String?
+  evidenceId        String?
+  validationStatus  String   @default("PENDING")
+  calculationStatus String   @default("PENDING")
+  revisionNumber    Int      @default(1)
+  status            String   @default("DRAFT")
+  enteredBy         String
+  enteredAt         DateTime @default(now())
+  updatedBy         String?
+  updatedAt         DateTime? @updatedAt
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+
+  @@index([projectId, reportingPeriodId])
+}
+
+model WaterRecord {
+  id                String   @id @default(cuid())
+  projectId         String
+  reportingPeriodId String
+  module            String   @default("WATER")
+  source            String // Ground | Surface | ThirdParty | Recycled | Rainwater
+  withdrawal        Float
+  consumption       Float?
+  discharge         Float?
+  recycledReused    Float?
+  treatment         String?
+  destination       String?
+  sourceUnit        String
+  waterStress       Boolean  @default(false)
+  zldActive         Boolean  @default(false)
+  evidenceId        String?
+  validationStatus  String   @default("PENDING")
+  calculationStatus String   @default("PENDING")
+  revisionNumber    Int      @default(1)
+  status            String   @default("DRAFT")
+  enteredBy         String
+  enteredAt         DateTime @default(now())
+  updatedAt         DateTime? @updatedAt
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+
+  @@index([projectId, reportingPeriodId])
+}
+
+model WasteRecord {
+  id                String   @id @default(cuid())
+  projectId         String
+  reportingPeriodId String
+  module            String   @default("WASTE")
+  wasteType         String
+  hazardous         Boolean  @default(false)
+  generatedQty      Float
+  recoveredQty      Float?
+  recycledQty       Float?
+  reusedQty         Float?
+  disposedQty       Float?
+  disposalRoute     String?
+  vendor            String?
+  manifestRef       String?
+  sourceUnit        String
+  evidenceId        String?
+  validationStatus  String   @default("PENDING")
+  calculationStatus String   @default("PENDING")
+  revisionNumber    Int      @default(1)
+  status            String   @default("DRAFT")
+  enteredBy         String
+  enteredAt         DateTime @default(now())
+  updatedAt         DateTime? @updatedAt
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults CalculationResult[]
+  validationResults ValidationResult[]
+
+  @@index([projectId, reportingPeriodId])
+}
+
+model WorkforceRecord {
+  id                String   @id @default(cuid())
+  projectId         String
+  reportingPeriodId String
+  module            String   @default("PEOPLE")
+  category          String // EMPLOYEE | WORKER
+  permanent         Int
+  nonPermanent      Int
+  male              Int
+  female            Int
+  other             Int?
+  differentlyAbled  Int?
+  newHires          Int?
+  exits             Int?
+  trainingHours     Float?
+  evidenceId        String?
+  validationStatus  String   @default("PENDING")
+  status            String   @default("DRAFT")
+  revisionNumber    Int      @default(1)
+  enteredBy         String
+  enteredAt         DateTime @default(now())
+  updatedAt         DateTime? @updatedAt
+  project           Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  validationResults ValidationResult[]
+
+  @@index([projectId, reportingPeriodId])
+}
+
+model SafetyRecord {
+  id                       String   @id @default(cuid())
+  projectId                String
+  reportingPeriodId        String
+  module                   String   @default("SAFETY")
+  recordType               String // INCIDENT | INJURY | FATALITY | LTI | RECORDABLE | TRAINING | ASSESSMENT
+  fatalities               Int      @default(0)
+  injuries                 Int      @default(0)
+  lostTimeIncidents        Int      @default(0)
+  recordableInjuries       Int      @default(0)
+  highConsequenceIncidents Int      @default(0)
+  trainingHours            Float?
+  safetyHours              Float?
+  manHoursWorked           Float?
+  correctiveActions        String?
+  evidenceId               String?
+  validationStatus         String   @default("PENDING")
+  status                   String   @default("DRAFT")
+  revisionNumber           Int      @default(1)
+  enteredBy                String
+  enteredAt                DateTime @default(now())
+  updatedAt                DateTime? @updatedAt
+  project                  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod          ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  validationResults        ValidationResult[]
+
+  @@index([projectId, reportingPeriodId])
+}
+
+model TravelRecord {
+  id                  String   @id @default(cuid())
+  projectId           String
+  reportingPeriodId   String
+  module              String   @default("TRAVEL")
+  mode                String // FLIGHT | RAIL | ROAD
+  distance            Float
+  passengers          Int      @default(1)
+  sourceUnit          String
+  origin              String?
+  destination         String?
+  travelDate          DateTime?
+  factorId            String?
+  calculatedEmissions Float?
+  evidenceId          String?
+  validationStatus    String   @default("PENDING")
+  calculationStatus   String   @default("PENDING")
+  status              String   @default("DRAFT")
+  revisionNumber      Int      @default(1)
+  enteredBy           String
+  enteredAt           DateTime @default(now())
+  updatedAt           DateTime? @updatedAt
+  project             Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod     ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  calculationResults  CalculationResult[]
+  validationResults   ValidationResult[]
+
+  @@index([projectId, reportingPeriodId])
+}
+
+// ── Evidence vault (portal) ──────────────────────────────────────────────────
+
+model Evidence {
+  id                  String    @id @default(cuid())
+  fileName            String
+  documentType        String // INVOICE | METER_READING | WASTE_MANIFEST | POLICY | CERTIFICATE | TRAINING_RECORD | REGISTER
+  documentDate        DateTime?
+  reportingPeriodId   String?
+  projectId           String?
+  module              String?
+  sourceRecordId      String?
+  uploaderId          String
+  filePath            String
+  fileSize            Int
+  mimeType            String
+  hash                String?
+  version             Int       @default(1)
+  status              String    @default("UPLOADED") // REQUIRED | UPLOADED | UNDER_REVIEW | VERIFIED | REJECTED | EXPIRED
+  verificationComment String?
+  verifiedBy          String?
+  verifiedAt          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  uploader            User      @relation(fields: [uploaderId], references: [id])
+
+  @@index([projectId])
+  @@index([uploaderId])
+}
+
+// ── Validation & anomalies ───────────────────────────────────────────────────
+
+model ValidationRule {
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
+  module      String
+  severity    String // INFO | WARNING | ERROR | BLOCKING
+  description String
+  active      Boolean @default(true)
+}
+
+model ValidationResult {
+  id                String   @id @default(cuid())
+  ruleId            String?
+  ruleCode          String
+  recordId          String
+  recordType        String // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+  severity          String
+  message           String
+  field             String?
+  suggestedAction   String?
+  status            String   @default("OPEN") // OPEN | RESOLVED | WAIVED
+  detectedAt        DateTime @default(now())
+  resolvedAt        DateTime?
+  resolutionComment String?
+  energyRecord      EnergyRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  waterRecord       WaterRecord?     @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  wasteRecord       WasteRecord?     @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  workforceRecord   WorkforceRecord? @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  safetyRecord      SafetyRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  travelRecord      TravelRecord?    @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
+}
+
+model AnomalyEvent {
+  id                String    @id @default(cuid())
+  recordType        String
+  recordId          String
+  metric            String
+  expectedRange     String
+  actualValue       String
+  severity          String    @default("WARNING")
+  status            String    @default("OPEN")
+  detectedAt        DateTime  @default(now())
+  resolvedAt        DateTime?
+  resolutionComment String?
+}
+
+// ── Calculation results & lineage ────────────────────────────────────────────
+
+model CalculationResult {
+  id               String   @id @default(cuid())
+  recordType       String
+  recordId         String
+  energyRecordId   String?
+  waterRecordId    String?
+  wasteRecordId    String?
+  travelRecordId   String?
+  factorId         String?
+  factorVersion    Int?
+  conversionRuleId String?
+  sourceValue      Float
+  sourceUnit       String
+  normalizedValue  Float?
+  normalizedUnit   String?
+  calculatedValue  Float
+  resultUnit       String // kgCO2e | GJ | m3
+  scope            String?
+  methodologyNote  String?
+  calculatedAt     DateTime @default(now())
+  energyRecord     EnergyRecord? @relation(fields: [energyRecordId], references: [id], onDelete: Cascade)
+  waterRecord      WaterRecord?  @relation(fields: [waterRecordId], references: [id], onDelete: Cascade)
+  wasteRecord      WasteRecord?  @relation(fields: [wasteRecordId], references: [id], onDelete: Cascade)
+  travelRecord     TravelRecord? @relation(fields: [travelRecordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId])
+}
+
+// ── Workflow: portal submissions, approvals, corrections ─────────────────────
+
+model SoSubmission {
+  id                String    @id @default(cuid())
+  projectId         String
+  reportingPeriodId String
+  module            String // ENERGY | WATER | WASTE | PEOPLE | SAFETY | TRAVEL
+  title             String
+  status            String    @default("DRAFT")
+  recordIds         String // JSON array of source record IDs
+  completionPct     Float     @default(0)
+  evidenceCount     Int       @default(0)
+  validationPassed  Int       @default(0)
+  validationErrors  Int       @default(0)
+  submittedBy       String
+  submittedAt       DateTime?
+  currentReviewerId String?
+  currentReviewer   User?     @relation("SoSubmissionReviewer", fields: [currentReviewerId], references: [id])
+  reviewComment     String?
+  lockedAt          DateTime?
+  lockedBy          String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  reportingPeriod   ReportingPeriod @relation(fields: [reportingPeriodId], references: [id], onDelete: Cascade)
+  history           SubmissionStatusHistory[]
+  corrections       CorrectionRequest[]
+
+  @@index([projectId, reportingPeriodId])
+  @@index([status])
+}
+
+model SubmissionStatusHistory {
+  id           String       @id @default(cuid())
+  submissionId String
+  fromStatus   String
+  toStatus     String
+  actorId      String
+  actorName    String
+  actorRole    String
+  action       String // SUBMIT | REVIEW | APPROVE | REJECT | CORRECTION_REQUEST | RESUBMIT | LOCK
+  comment      String?
+  reason       String?
+  oldValues    String?
+  newValues    String?
+  createdAt    DateTime     @default(now())
+  submission   SoSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+model CorrectionRequest {
+  id                String       @id @default(cuid())
+  submissionId      String
+  requesterId       String
+  requesterName     String
+  field             String
+  issue             String
+  severity          String       @default("WARNING")
+  status            String       @default("OPEN") // OPEN | ADDRESSED | RESOLVED | WAIVED
+  comment           String?
+  resolutionComment String?
+  createdAt         DateTime     @default(now())
+  resolvedAt        DateTime?
+  submission        SoSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+// ── BRSR engine (configuration-driven, versioned) ────────────────────────────
+
+model BrsrFramework {
+  id            String   @id @default(cuid())
+  name          String
+  version       String
+  reportingYear Int
+  tier          String   @default("CORE") // CORE | ESSENTIAL | LEADERSHIP
+  status        String   @default("ACTIVE")
+  createdAt     DateTime @default(now())
+  sections      BrsrSection[]
+  principles    BrsrPrinciple[]
+  questions     BrsrQuestion[]
+  answers       BrsrAnswer[]
+}
+
+model BrsrSection {
+  id          String        @id @default(cuid())
+  frameworkId String
+  code        String // A | B | C
+  name        String
+  description String?
+  sortOrder   Int
+  framework   BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  questions   BrsrQuestion[]
+}
+
+model BrsrPrinciple {
+  id          String        @id @default(cuid())
+  frameworkId String
+  code        String // P1-P9
+  name        String
+  title       String
+  description String?
+  sortOrder   Int
+  framework   BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  questions   BrsrQuestion[]
+}
+
+model BrsrQuestion {
+  id                String   @id @default(cuid())
+  frameworkId       String
+  sectionId         String
+  principleId       String?
+  questionCode      String
+  questionText      String
+  answerType        String // TEXT | NUMERIC | BOOLEAN | SELECT | TABLE | SOURCE_MAPPED
+  unit              String?
+  evidenceRequired  Boolean  @default(false)
+  applicabilityRule String?
+  mappingSource     String? // source module/record this maps to
+  calculationMethod String?
+  sortOrder         Int
+  framework         BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  section           BrsrSection   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  principle         BrsrPrinciple? @relation(fields: [principleId], references: [id], onDelete: SetNull)
+  answers           BrsrAnswer[]
+}
+
+model BrsrAnswer {
+  id                  String   @id @default(cuid())
+  frameworkId         String
+  questionId          String
+  projectId           String?
+  reportingPeriodId   String?
+  answerValue         String?
+  numericValue        Float?
+  sourceType          String // MANUAL | SOURCE_RECORD | DERIVED_KPI | CONSOLIDATED_KPI
+  sourceRecordId      String?
+  sourceRecordType    String?
+  calculationResultId String?
+  evidenceId          String?
+  status              String   @default("MISSING") // MISSING | DRAFT | SUBMITTED | APPROVED | LOCKED | EVIDENCE_VERIFIED
+  readinessWeight     Float    @default(1)
+  updatedAt           DateTime @updatedAt
+  framework           BrsrFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  question            BrsrQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([frameworkId, projectId, reportingPeriodId])
+}
+
+// ── Portal audit trail (immutable) ───────────────────────────────────────────
+
+model SoAuditLog {
+  id        String   @id @default(cuid())
+  actorId   String
+  actorName String
+  actorRole String
+  action    String // CREATE | UPDATE | SUBMIT | VALIDATE | CORRECTION_REQUEST | RESUBMIT | REVIEW | APPROVE | REJECT | LOCK | EVIDENCE_UPLOAD | EVIDENCE_VERIFY | CALCULATION | BRSR_MAPPING | REPORT_GENERATE
+  entityType String
+  entityId  String
+  oldState  String?
+  newState  String?
+  reason    String?
+  metadata  String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  actor     User     @relation(fields: [actorId], references: [id])
+
+  @@index([entityId])
+  @@index([actorId])
+}
+
+// ── Activity feed & per-user notifications ───────────────────────────────────
+
+model Activity {
+  id          String   @id @default(cuid())
+  projectId   String
+  actorId     String
+  actorName   String
+  actorRole   String
+  action      String // DATA_ENTRY | SUBMIT | APPROVE | EVIDENCE_UPLOAD | CALCULATION | CORRECTION
+  title       String
+  description String?
+  module      String?
+  status      String?
+  createdAt   DateTime @default(now())
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model SoNotification {
+  id         String   @id @default(cuid())
+  userId     String
+  type       String // SUBMISSION_DUE | CORRECTION_REQUESTED | EVIDENCE_REJECTED | APPROVAL_PENDING | PERIOD_DEADLINE | ANOMALY_DETECTED | BRSR_ITEM_MISSING | REPORT_GENERATED
+  title      String
+  message    String
+  severity   String   @default("INFO")
+  read       Boolean  @default(false)
+  linkEntity String?
+  linkId     String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
+
+// ── Generated reports (versioned, real output) ───────────────────────────────
+
+model Report {
+  id              String   @id @default(cuid())
+  reportType      String // BRSR | ESG_SUMMARY | EMISSIONS | ENERGY | WATER | WASTE | WORKFORCE | SAFETY | EVIDENCE_PACKAGE | AUDIT_PACKAGE
+  frameworkId     String?
+  reportingYear   Int?
+  periodLabel     String?
+  scopeType       String?
+  scopeId         String?
+  scopeName       String?
+  generatedBy     String
+  generatedByName String?
+  status          String   @default("COMPLETED") // QUEUED | PROCESSING | COMPLETED | FAILED
+  fileName        String?
+  fileType        String? // PDF | XLSX | CSV
+  content         String?
+  checksum        String?
+  version         Int      @default(1)
+  createdAt       DateTime @default(now())
+}

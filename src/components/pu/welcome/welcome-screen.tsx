@@ -12,23 +12,26 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  ArrowRight, ArrowLeft, Building2, Leaf, Users, ShieldCheck,
+  ArrowRight, ArrowLeft, Building2, Building, Leaf, Users, ShieldCheck,
   ChevronDown, ChevronLeft, ChevronRight, Heart, Check, MapPin, Search, Route, Flame,
-  SunMedium, Zap, Droplets, Waves, Globe, Eye, EyeOff,
-  Package, Scale, FileCheck, Crown,
+  SunMedium, Sun, Zap, Droplets, Waves, Globe, Eye, EyeOff,
+  Package, Scale, FileCheck, Crown, Truck, Cpu, Activity, Fuel,
   BarChart3, Compass, ShieldAlert, Wallet
 } from 'lucide-react'
 import { useApp } from '@/lib/pu/auth-context'
 import {
   MEIL_BUSINESS_UNITS,
+  MEIL_SUBSIDIARIES,
   MEIL_ORGANIZATIONS,
   type MeilBusinessUnit,
   type MeilProject,
+  type MeilSubsidiary,
   getBusinessUnitById,
+  getBusinessUnitsBySubsidiary,
 } from '@/lib/pu/meil-portfolio'
 
 type Stage = 'welcome' | 'project' | 'role' | 'login'
-type RoleCategory = 'all' | 'operations' | 'approvals' | 'governance' | 'leadership'
+type RoleCategory = 'all' | 'operations' | 'admin' | 'approvals' | 'governance' | 'leadership'
 
 interface RoleCardDef {
   key: string
@@ -36,7 +39,7 @@ interface RoleCardDef {
   email: string
   role: string
   phase: 1 | 2 | 3
-  category: 'operations' | 'approvals' | 'governance' | 'leadership'
+  category: 'operations' | 'admin' | 'approvals' | 'governance' | 'leadership'
   icon: typeof Building2
   tint: string
   blurb: string
@@ -50,13 +53,14 @@ const ROLES: RoleCardDef[] = [
   { key: 'PROCUREMENT_USER', name: 'Priya Nair', email: 'priya@meil-esg.in', role: 'Procurement User', phase: 1, category: 'operations', icon: Package, tint: 'from-violet-500 to-purple-600', blurb: 'Supply chain sustainability & vendor ESG scores' },
   { key: 'CSR_USER', name: 'Imran Sheikh', email: 'imran@meil-esg.in', role: 'CSR / Community User', phase: 1, category: 'operations', icon: Heart, tint: 'from-rose-500 to-pink-600', blurb: 'Community outreach & CSR initiatives' },
   { key: 'COMPLIANCE_USER', name: 'Deepika Joshi', email: 'deepika@meil-esg.in', role: 'Compliance User', phase: 1, category: 'operations', icon: Scale, tint: 'from-emerald-500 to-green-600', blurb: 'Regulatory reporting & framework compliance' },
+  { key: 'PROJECT_ADMIN', name: 'Er. K. Venkataramana', email: 'projectadmin@meil-esg.in', role: 'Project Admin', phase: 2, category: 'admin', icon: ShieldCheck, tint: 'from-blue-600 via-indigo-600 to-purple-700', blurb: 'Site ESG operational command, sign-off authority, delegation & governance control' },
 ]
 
 // Phase definitions — pages with no roles are hidden automatically,
 // so re-adding reviewer / governance roles later restores their slides.
 const PHASE_DEFS = [
   { phase: 1 as const, label: 'Phase 1 — Site & Operational Data Entry', shortLabel: 'Phase 1 · Site Data Entry' },
-  { phase: 2 as const, label: 'Phase 2 — Multi-Level Review & Approvals', shortLabel: 'Phase 2 · Review & Approvals' },
+  { phase: 2 as const, label: 'Phase 2 — Project Administration & Site Governance', shortLabel: 'Phase 2 · Project Admin' },
   { phase: 3 as const, label: 'Phase 3 — BRSR Core, Assurance & Analytics', shortLabel: 'Phase 3 · Governance & Leadership' },
 ]
 
@@ -65,12 +69,19 @@ const PHASE_DEFS = [
 const BU_ICONS: Record<string, typeof Building2> = {
   Route,
   Building2,
+  Building,
   Flame,
   SunMedium,
+  Sun,
   Zap,
   Droplets,
   Waves,
   Globe,
+  Truck,
+  Cpu,
+  Activity,
+  Fuel,
+  ShieldCheck,
 }
 
 export function WelcomeScreen() {
@@ -83,16 +94,16 @@ export function WelcomeScreen() {
     return 'welcome' // Full flow on entry: Welcome (Org/BU) → Project → Role → Login
   })
 
-  // Organization & Business Unit selection state
-  const [selectedOrgId, setSelectedOrgId] = useState<string>('MEIL-GROUP')
-  const [activeBuId, setActiveBuId] = useState<string>(selectedBuId || 'bu-transportation')
-  const [activeProjectId, setActiveProjectId] = useState<string>(selectedProjectId || 'trans-01')
+  // Subsidiary & Business Unit selection state
+  const [selectedOrgId, setSelectedOrgId] = useState<string>('MEIL')
+  const [activeBuId, setActiveBuId] = useState<string>(selectedBuId || 'bu-iwen')
+  const [activeProjectId, setActiveProjectId] = useState<string>(selectedProjectId || 'prj-klip')
 
   // Role & login state
   const [selectedRole, setSelectedRole] = useState<RoleCardDef | null>(null)
   const [hoveredRole, setHoveredRole] = useState<string | null>(null)
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('esg12345')
+  const [password, setPassword] = useState('demo')
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -107,6 +118,14 @@ export function WelcomeScreen() {
     const list = currentBu.projects
     return list.find(p => p.id === activeProjectId) || list[0]
   }, [currentBu, activeProjectId])
+
+  const handleSelectSub = (subId: string) => {
+    setSelectedOrgId(subId)
+    const bus = getBusinessUnitsBySubsidiary(subId)
+    if (bus.length > 0) {
+      handleSelectBu(bus[0].id)
+    }
+  }
 
   // Sync to app context whenever selection changes
   const handleSelectBu = (buId: string) => {
@@ -177,7 +196,7 @@ export function WelcomeScreen() {
                 title="Back to Welcome Screen"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Organization & BU</span>
+                <span>Subsidiary & BU</span>
               </button>
             )}
             <div className="text-right">
@@ -222,11 +241,11 @@ export function WelcomeScreen() {
                       <LiquidGlassOrbitDiagram />
                     </div>
 
-                    {/* Right Column: Welcome Headline, Org + BU Dropdowns, Continue, Pillars (7 Cols) */}
+                    {/* Right Column: Welcome Headline, Subsidiary + BU Dropdowns, Continue, Pillars (7 Cols) */}
                     <div className="lg:col-span-7">
                       <WelcomePanel
                         selectedOrgId={selectedOrgId}
-                        setSelectedOrgId={setSelectedOrgId}
+                        onSelectSub={handleSelectSub}
                         activeBuId={activeBuId}
                         onSelectBu={handleSelectBu}
                         onContinue={() => setStage('project')}
@@ -557,13 +576,13 @@ function LiquidGlassOrbitDiagram() {
  */
 function WelcomePanel({
   selectedOrgId,
-  setSelectedOrgId,
+  onSelectSub,
   activeBuId,
   onSelectBu,
   onContinue,
 }: {
   selectedOrgId: string
-  setSelectedOrgId: (id: string) => void
+  onSelectSub: (id: string) => void
   activeBuId: string
   onSelectBu: (id: string) => void
   onContinue: () => void
@@ -571,15 +590,20 @@ function WelcomePanel({
   const [buDropdownOpen, setBuDropdownOpen] = useState(false)
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false)
 
-  const activeBu = useMemo(
-    () => getBusinessUnitById(activeBuId) || MEIL_BUSINESS_UNITS[0],
-    [activeBuId]
-  )
-
-  const activeOrg = useMemo(
-    () => MEIL_ORGANIZATIONS.find(o => o.id === selectedOrgId) || MEIL_ORGANIZATIONS[0],
+  const activeSub = useMemo(
+    () => MEIL_SUBSIDIARIES.find(o => o.id === selectedOrgId || o.code === selectedOrgId) || MEIL_SUBSIDIARIES[0],
     [selectedOrgId]
   )
+
+  const availableBus = useMemo(
+    () => getBusinessUnitsBySubsidiary(activeSub.code),
+    [activeSub.code]
+  )
+
+  const activeBu = useMemo(() => {
+    const found = availableBus.find(b => b.id === activeBuId)
+    return found || availableBus[0] || MEIL_BUSINESS_UNITS[0]
+  }, [availableBus, activeBuId])
 
   const BuIcon = BU_ICONS[activeBu.iconName] ?? Building2
 
@@ -618,17 +642,17 @@ function WelcomePanel({
         </p>
       </motion.div>
 
-      {/* Select Organization & Business Unit Dropdowns */}
+      {/* Select Subsidiary & Business Unit Dropdowns */}
       <motion.div
         className="space-y-3.5"
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
       >
-        {/* Dropdown 1: Select Organization */}
+        {/* Dropdown 1: Select Subsidiary */}
         <div className="relative">
           <label className="mb-1.5 block text-xs font-semibold text-slate-600">
-            Select Organization
+            Select Subsidiary
           </label>
           <motion.div
             whileHover={{ y: -1 }}
@@ -640,21 +664,21 @@ function WelcomePanel({
             className={`glass-ios-liquid flex cursor-pointer items-center justify-between gap-3 rounded-2xl px-4 py-3 transition-all duration-300 ${orgDropdownOpen ? 'border-sky-300 ring-2 ring-sky-200/70' : 'hover:border-sky-300 hover:shadow-[0_10px_28px_-12px_rgba(2,132,199,0.30)]'}`}
             role="combobox"
             aria-expanded={orgDropdownOpen}
-            aria-label="Select Organization"
+            aria-label="Select Subsidiary"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 text-white shadow-sm shadow-sky-500/30">
                 <Building2 className="h-4 w-4" />
               </div>
               <div>
-                <div className="text-xs font-bold text-slate-800">{activeOrg.name}</div>
-                <div className="text-[10px] text-slate-400">{activeOrg.legalName}</div>
+                <div className="text-xs font-bold text-slate-800">{activeSub.name}</div>
+                <div className="text-[10px] text-slate-400">{activeSub.sector}</div>
               </div>
             </div>
             <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300 ${orgDropdownOpen ? 'rotate-180 text-sky-600' : ''}`} />
           </motion.div>
 
-          {/* Org Dropdown Menu */}
+          {/* Subsidiary Dropdown Menu */}
           <AnimatePresence>
             {orgDropdownOpen && (
               <motion.div
@@ -665,14 +689,15 @@ function WelcomePanel({
                 className="glass-strong absolute left-0 right-0 top-full z-30 mt-1.5 overflow-hidden rounded-2xl border border-white/80 p-1.5 shadow-2xl backdrop-blur-2xl"
                 role="listbox"
               >
-                {MEIL_ORGANIZATIONS.map(org => {
-                  const isSelected = org.id === selectedOrgId
+                {MEIL_SUBSIDIARIES.map(sub => {
+                  const isSelected = sub.id === activeSub.id
+                  const subBus = getBusinessUnitsBySubsidiary(sub.code)
                   return (
                     <motion.div
                       variants={rowVariants}
-                      key={org.id}
+                      key={sub.id}
                       onClick={() => {
-                        setSelectedOrgId(org.id)
+                        onSelectSub(sub.id)
                         setOrgDropdownOpen(false)
                       }}
                       className={`relative flex cursor-pointer items-center justify-between gap-2 overflow-hidden rounded-xl px-3.5 py-2.5 text-xs transition-colors ${
@@ -683,8 +708,13 @@ function WelcomePanel({
                     >
                       {isSelected && <span className="absolute inset-y-1 left-0 w-1 rounded-full bg-gradient-to-b from-sky-400 to-blue-600" />}
                       <div className={isSelected ? 'pl-1.5' : 'pl-1.5'}>
-                        <div className="font-semibold">{org.name}</div>
-                        <div className="text-[10px] text-slate-400">{org.legalName}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{sub.name}</span>
+                          <span className="rounded-full bg-sky-100 px-1.5 py-0.2 text-[9px] font-bold text-sky-700">
+                            {subBus.length} {subBus.length === 1 ? 'BU' : 'BUs'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400">{sub.sector}</div>
                       </div>
                       {isSelected && <Check className="h-4 w-4 shrink-0 text-sky-600" />}
                     </motion.div>
@@ -707,7 +737,7 @@ function WelcomePanel({
               transition={{ delay: 0.25 }}
               className="glass-subtle rounded-full px-2 py-0.5 text-[10px] font-bold text-sky-700"
             >
-              {MEIL_BUSINESS_UNITS.length} Core Portfolios
+              {availableBus.length} {availableBus.length === 1 ? 'Business Unit' : 'Business Units'}
             </motion.span>
           </div>
 
@@ -731,7 +761,7 @@ function WelcomePanel({
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold text-slate-800">{activeBu.name}</span>
                   <span className="rounded-full bg-sky-100 px-1.5 py-0.2 text-[9px] font-bold text-sky-700">
-                    {activeBu.projects.length} Sites
+                    {activeBu.projects.length} {activeBu.projects.length === 1 ? 'Site' : 'Sites'}
                   </span>
                 </div>
                 <div className="text-[10px] text-slate-400">{activeBu.sector}</div>
@@ -751,9 +781,9 @@ function WelcomePanel({
                 className="glass-strong absolute left-0 right-0 top-full z-30 mt-1.5 max-h-72 overflow-y-auto scroll-elegant rounded-2xl border border-white/80 p-1.5 shadow-2xl backdrop-blur-2xl"
                 role="listbox"
               >
-                {MEIL_BUSINESS_UNITS.map(bu => {
+                {availableBus.map(bu => {
                   const IconComp = BU_ICONS[bu.iconName] ?? Building2
-                  const isSelected = bu.id === activeBuId
+                  const isSelected = bu.id === activeBu.id
                   return (
                     <motion.div
                       variants={rowVariants}
@@ -777,7 +807,7 @@ function WelcomePanel({
                           <div className="flex items-center gap-1.5">
                             <span className="font-semibold">{bu.name}</span>
                             <span className="rounded bg-slate-100 px-1 py-0.2 text-[9px] font-mono text-slate-500">
-                              {bu.projects.length}
+                              {bu.projects.length} {bu.projects.length === 1 ? 'Site' : 'Sites'}
                             </span>
                           </div>
                           <div className="line-clamp-1 text-[10px] text-slate-400">{bu.sector}</div>
@@ -1245,11 +1275,20 @@ function RolePickerScreen({
   const wheelLockRef = useRef<boolean>(false)
 
   // Phase slides built from PHASE_DEFS — only phases that still have roles are shown
+  const resolvedRoles = useMemo(() => {
+    return roles.map(r => {
+      if (r.key === 'PROJECT_ADMIN' && project?.reportingOwner) {
+        return { ...r, name: project.reportingOwner }
+      }
+      return r
+    })
+  }, [roles, project?.reportingOwner])
+
   const PHASES = useMemo(() => PHASE_DEFS.map(def => ({
     ...def,
-    badge: `${roles.filter(r => r.phase === def.phase).length} Roles`,
-    roles: roles.filter(r => r.phase === def.phase),
-  })).filter(p => p.roles.length > 0), [roles])
+    badge: `${resolvedRoles.filter(r => r.phase === def.phase).length} Roles`,
+    roles: resolvedRoles.filter(r => r.phase === def.phase),
+  })).filter(p => p.roles.length > 0), [resolvedRoles])
 
   const totalPages = PHASES.length
   const currentPhase = PHASES[currentPage] || PHASES[0]
@@ -1259,9 +1298,9 @@ function RolePickerScreen({
     if (selectedCategory === 'all') {
       return currentPhase.roles
     }
-    const catFiltered = roles.filter(r => r.category === selectedCategory)
+    const catFiltered = resolvedRoles.filter(r => r.category === selectedCategory)
     return catFiltered.length > 0 ? catFiltered : currentPhase.roles
-  }, [roles, selectedCategory, currentPhase])
+  }, [resolvedRoles, selectedCategory, currentPhase])
 
   const nextPage = () => {
     setCurrentPage(prev => (prev + 1) % totalPages)
@@ -1304,6 +1343,10 @@ function RolePickerScreen({
       const csrIdx = displayedRoles.findIndex(r => r.key === 'CSR_USER')
       if (csrIdx !== -1) return csrIdx
     }
+    // Highlight single card (Phase 2 - Project Admin)
+    if (displayedRoles.length === 1) {
+      return 0
+    }
     // Otherwise center card
     return Math.floor(displayedRoles.length / 2)
   }, [hovered, displayedRoles, currentPage])
@@ -1312,19 +1355,22 @@ function RolePickerScreen({
   const ROLE_CATEGORIES: { id: RoleCategory; label: string; count: number; icon: typeof Globe }[] = ([
     { id: 'all', label: 'All Roles', icon: Globe },
     { id: 'operations', label: 'Site Operations', icon: Building2 },
+    { id: 'admin', label: 'Project Admin', icon: ShieldCheck },
     { id: 'approvals', label: 'Review & Approvals', icon: FileCheck },
     { id: 'governance', label: 'BRSR & Governance', icon: Scale },
     { id: 'leadership', label: 'Leadership & Board', icon: Crown },
   ] as const)
-    .map(c => ({ ...c, count: c.id === 'all' ? roles.length : roles.filter(r => r.category === c.id).length }))
+    .map(c => ({ ...c, count: c.id === 'all' ? resolvedRoles.length : resolvedRoles.filter(r => r.category === c.id).length }))
     .filter(c => c.count > 0)
 
-  // Responsive dynamic card width and gap so all 7 cards fit completely without clipping
+  // Responsive dynamic card width and gap so all cards fit completely without clipping
   const cardWidthClass = displayedRoles.length >= 7
     ? 'w-[124px] sm:w-[132px] md:w-[138px] lg:w-[145px] xl:w-[150px] shrink-0'
-    : displayedRoles.length <= 3
-      ? 'w-[185px] sm:w-[205px] lg:w-[220px] shrink-0'
-      : 'w-[155px] sm:w-[168px] lg:w-[180px] shrink-0'
+    : displayedRoles.length === 1
+      ? 'w-[230px] sm:w-[250px] md:w-[270px] shrink-0'
+      : displayedRoles.length <= 3
+        ? 'w-[185px] sm:w-[205px] lg:w-[220px] shrink-0'
+        : 'w-[155px] sm:w-[168px] lg:w-[180px] shrink-0'
 
   const cardGapClass = displayedRoles.length >= 7
     ? 'gap-1.5 sm:gap-2 lg:gap-2.5'
@@ -1401,7 +1447,7 @@ function RolePickerScreen({
           <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
           <span>{currentPhase.label}</span>
           <span className="rounded-full bg-blue-600/10 px-2 py-0.5 text-[10px] font-black text-blue-700">
-            {displayedRoles.length} Containers
+            {displayedRoles.length} {displayedRoles.length === 1 ? 'Container' : 'Containers'}
           </span>
         </span>
       </div>
@@ -1549,7 +1595,7 @@ function RolePickerScreen({
       <div className="flex items-center justify-center gap-1.5 text-[10px] font-semibold text-slate-400 mb-1">
         <span>Click side arrows or scroll mouse wheel to browse phases</span>
         <span>•</span>
-        <span>Phase {currentPage + 1} of {totalPages} ({displayedRoles.length} containers)</span>
+        <span>Phase {currentPage + 1} of {totalPages} ({displayedRoles.length} {displayedRoles.length === 1 ? 'container' : 'containers'})</span>
       </div>
 
       {/* Bottom Slogan Matching Screenshot */}
@@ -1712,7 +1758,7 @@ function LoginScreen({
           <div className="mt-5 flex items-center gap-2 rounded-xl bg-sky-50/80 px-3.5 py-2.5 text-[11px] text-slate-600">
             <Check className="h-4 w-4 text-emerald-600 shrink-0" />
             <span>
-              Pre-filled demo login. Default password: <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold text-sky-700 shadow-2xs">esg12345</code>
+              Pre-filled demo login. Default password: <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold text-sky-700 shadow-2xs">demo</code>
             </span>
           </div>
         </div>
