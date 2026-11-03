@@ -46,6 +46,7 @@ export const ROLES = {
   CSR_USER: "CSR / Community User",
   COMPLIANCE_USER: "Compliance / Governance",
   ESG_ANALYST: "ESG Analyst",
+  PROJECT_ADMIN: "Project Admin",
 } as const;
 
 export type RoleCode = keyof typeof ROLES;
@@ -55,6 +56,7 @@ export const PORTAL_ROLES = {
   subsidiary: ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"],
   business_unit: ["BU_ADMIN", "BU_MANAGER"],
   project: [
+    "PROJECT_ADMIN",
     "ENV_DATA_USER",
     "FIN_RESOURCE_USER",
     "EHS_USER",

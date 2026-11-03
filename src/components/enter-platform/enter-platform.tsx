@@ -963,6 +963,7 @@ const DEMO_ACCOUNTS: Array<[string, string, string]> = [
   ["Subsidiary", "SUB-1002", "Subsidiary Admin · MEIL Energy"],
   ["Business Unit", "BU-1001", "BU Manager · Thermal"],
   ["Business Unit", "BU-3002", "BU Admin · Water Supply"],
+  ["Project", "PRJ-ADMIN", "Project Admin · Zojila Tunnel Project"],
   ["Project", "ENV-1001", "Site Data Entry · Pavagada Solar Park"],
   ["Project", "FIN-1001", "Finance & Resource · Kothagudem Thermal"],
   ["Project", "EHS-1001", "EHS Officer · Kothagudem Thermal"],

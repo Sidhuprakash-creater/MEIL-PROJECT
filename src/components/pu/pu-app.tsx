@@ -16,6 +16,7 @@ import { AppProvider, useApp } from "@/lib/pu/auth-context";
 import { WelcomeScreen } from "@/components/pu/welcome/welcome-screen";
 import { AppShell } from "@/components/pu/shell/app-shell";
 import { SiteUserOverview } from "@/components/pu/dashboard/site-user-overview";
+import { ProjectAdminWorkspaceShell } from "@/components/project-admin/shell";
 import { HrDashboard } from "@/components/pu/dashboard/hr-dashboard";
 import { EhsDashboard } from "@/components/pu/dashboard/ehs-dashboard";
 import { ProcurementDashboard } from "@/components/pu/dashboard/procurement-dashboard";
@@ -72,7 +73,7 @@ function ExitPortalButton({ onExit }: { onExit: () => void }) {
 }
 
 function PortalRoot({ onExit }: { onExit?: () => void }) {
-  const { user, loading, activeModule } = useApp();
+  const { user, loading, activeModule, logout } = useApp();
 
   if (loading) {
     return (
@@ -95,6 +96,25 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
 
   const roleKey = user?.roles?.[0]?.key ?? "";
 
+  if (roleKey === "PROJECT_ADMIN") {
+    return (
+      <ProjectAdminWorkspaceShell
+        sessionUser={{
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: "PROJECT_ADMIN",
+          roleLabel: "Project Admin",
+          subsidiary: null,
+          businessUnit: null,
+          project: null,
+        }}
+        onSignOut={() => void logout()}
+      />
+    );
+  }
+
+
   return (
     <AppShell>
       <ErrorBoundary label={activeModule}>
@@ -112,7 +132,6 @@ export default function PuApp({ onExit }: { onExit?: () => void }) {
           <PortalRoot onExit={onExit} />
         </ErrorBoundary>
       </AppProvider>
-      {onExit ? <ExitPortalButton onExit={onExit} /> : null}
     </div>
   );
 }

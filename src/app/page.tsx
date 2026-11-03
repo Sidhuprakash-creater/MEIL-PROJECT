@@ -93,6 +93,26 @@ const SmWorkspaceShell = dynamic(
   }
 );
 
+const ProjectAdminWorkspaceShell = dynamic(
+  () => import("@/components/project-admin/shell").then((m) => m.ProjectAdminWorkspaceShell),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
+        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
+          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
+            <span className="bg-gradient-to-br from-[#315CFF] to-[#8700E8] bg-clip-text text-[15px] font-extrabold text-transparent">PA</span>
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-[#17263d]">MEIL — Project Command Center</div>
+            <div className="text-xs text-[#66778d]">Loading Project Admin workspace…</div>
+          </div>
+        </div>
+      </div>
+    ),
+  }
+);
+
 const SiteOpsShell = dynamic(
   () => import("@/components/site-ops/shell").then((m) => m.SiteOpsShell),
   {
@@ -139,6 +159,7 @@ const GROUP_ROLES = new Set(["GROUP_ADMIN", "ORG_MANAGER"]);
 /* Subsidiary-scope roles with shipped consoles. */
 const SUBSIDIARY_ADMIN_ROLES = new Set(["SUBSIDIARY_ADMIN"]);
 const SUBSIDIARY_MANAGER_ROLES = new Set(["SUBSIDIARY_MANAGER"]);
+const PROJECT_ADMIN_ROLES = new Set(["PROJECT_ADMIN"]);
 /* Site-level roles served by the integrated Project User (site operations) portal. */
 const PROJECT_USER_ROLES = new Set([
   "ENV_DATA_USER",
@@ -158,10 +179,11 @@ export default function Page() {
   const [signingOut, setSigningOut] = useState(false);
 
   /* Resolve which console a verified role may open. */
-  const consoleForRole = useCallback((role: string): "group" | "subsidiary" | "manager" | "project" | "none" => {
+  const consoleForRole = useCallback((role: string): "group" | "subsidiary" | "manager" | "project" | "project-admin" | "none" => {
     if (GROUP_ROLES.has(role)) return "group";
     if (SUBSIDIARY_ADMIN_ROLES.has(role)) return "subsidiary";
     if (SUBSIDIARY_MANAGER_ROLES.has(role)) return "manager";
+    if (PROJECT_ADMIN_ROLES.has(role)) return "project-admin";
     if (PROJECT_USER_ROLES.has(role)) return "project";
     return "none";
   }, []);
@@ -359,6 +381,23 @@ export default function Page() {
               role: session.user.role,
               roleLabel: session.user.roleLabel,
               subsidiary: session.user.scope.subsidiary,
+            }}
+            onSignOut={() => void handleSignOut()}
+          />
+        );
+      }
+      if (PROJECT_ADMIN_ROLES.has(role)) {
+        return (
+          <ProjectAdminWorkspaceShell
+            sessionUser={{
+              id: session.user.id,
+              name: session.user.name,
+              email: session.user.employeeId,
+              role: session.user.role,
+              roleLabel: session.user.roleLabel,
+              subsidiary: session.user.scope.subsidiary ?? null,
+              businessUnit: session.user.scope.businessUnit ?? null,
+              project: session.user.scope.project ?? null,
             }}
             onSignOut={() => void handleSignOut()}
           />
