@@ -109,7 +109,11 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
           businessUnit: null,
           project: null,
         }}
-        onSignOut={() => void logout()}
+        onSignOut={async () => {
+          await logout();
+          window.history.replaceState(null, '', '/?portal=project&stage=role');
+          window.dispatchEvent(new PopStateEvent('popstate'));
+        }}
       />
     );
   }

@@ -84,10 +84,22 @@ export async function getProjectAdminContext(): Promise<ProjectAdminContext | nu
     return ctx;
   }
 
+  // 1b. Check PU Portal session if main session is not set
+  let resolvedUserId = user?.id;
+  if (!resolvedUserId) {
+    try {
+      const { getCurrentUser } = await import("@/lib/pu/session");
+      const puUser = await getCurrentUser();
+      if (puUser?.id) {
+        resolvedUserId = puUser.id;
+      }
+    } catch {}
+  }
+
   // 2. Query Project Admin account from DB (supports session or fallback to seeded Zojila Admin)
-  const adminUser = user
+  const adminUser = resolvedUserId
     ? await db.user.findUnique({
-        where: { id: user.id },
+        where: { id: resolvedUserId },
         select: {
           id: true,
           name: true,

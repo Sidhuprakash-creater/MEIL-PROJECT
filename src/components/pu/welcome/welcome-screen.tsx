@@ -94,6 +94,21 @@ export function WelcomeScreen() {
     return 'welcome' // Full flow on entry: Welcome (Org/BU) → Project → Role → Login
   })
 
+  // Synchronize stage whenever URL parameters update (e.g. on logout redirect to ?portal=project&stage=role)
+  useEffect(() => {
+    const syncStageFromUrl = () => {
+      if (typeof window !== 'undefined') {
+        const p = new URLSearchParams(window.location.search).get('stage')
+        if (p === 'welcome' || p === 'project' || p === 'role' || p === 'login') {
+          setStage(p as Stage)
+        }
+      }
+    }
+    syncStageFromUrl()
+    window.addEventListener('popstate', syncStageFromUrl)
+    return () => window.removeEventListener('popstate', syncStageFromUrl)
+  }, [])
+
   // Subsidiary & Business Unit selection state
   const [selectedOrgId, setSelectedOrgId] = useState<string>('MEIL')
   const [activeBuId, setActiveBuId] = useState<string>(selectedBuId || 'bu-iwen')

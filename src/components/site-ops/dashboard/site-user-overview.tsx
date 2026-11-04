@@ -2241,13 +2241,10 @@ export function SiteUserOverview() {
       const levelName = isWater ? 'Level 2 — Water Management' : 'Level 1 — Energy Consumption'
       const moduleKey = isWater ? 'WATER' : 'ENERGY'
 
-      const periodMap: Record<string, string> = {
-        'June 2026': 'cmv0skxfn009he9cgg61xsb4c',
-        'May 2026': 'cmv0skxfg009fe9cgmzebod5o',
-        'April 2026': 'cmv0skxf7009de9cggd2my30r',
-      }
-      const reportingPeriodId = periodMap[record.period] || 'cmv0skxfn009he9cgg61xsb4c'
-      const projectId = 'cmv0skx6l0071e9cgt6sn5w7i' // Gayatri Solar Plant
+      const userProjId = (user as any)?.scopes?.find((s: any) => s.scopeType === 'PROJECT')?.scopeId || (user as any)?.projectId
+      const projectId = userProjId || selectedProjectId || 'cmvt5836n00167kss0csnb7il'
+      const activePeriodObj = overview?.periods?.find((p: any) => p.label === record.period) || overview?.periods?.[0]
+      const reportingPeriodId = activePeriodObj?.id || 'cmvt6acpg00047kxwgjmt06r8' 
 
       const dataPayload = isWater
         ? {

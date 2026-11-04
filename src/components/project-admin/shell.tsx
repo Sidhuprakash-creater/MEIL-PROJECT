@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutGrid,
   Building2,
@@ -17,10 +18,13 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Search,
   LogOut,
   Calendar,
   ShieldAlert,
+  ShieldCheck,
+  HelpCircle,
   Sparkles,
   Command,
   X,
@@ -106,6 +110,15 @@ export function ProjectAdminWorkspaceShell({
   const projectCode = sessionUser?.project?.code || "PRJ-ZOJ";
   const buName = sessionUser?.businessUnit?.name || "Heavy Civil Infrastructure";
   const subName = sessionUser?.subsidiary?.name || "MEIL Core";
+  const userInitials = sessionUser?.name
+    ? sessionUser.name
+        .split(" ")
+        .filter(Boolean)
+        .map((n) => n[0])
+        .join("")
+        .slice(0, 2)
+        .toUpperCase()
+    : "PA";
 
   return (
     <div className="pa-root flex h-screen w-screen overflow-hidden">
@@ -220,12 +233,9 @@ export function ProjectAdminWorkspaceShell({
           </div>
         </div>
 
-        {/* User Profile Bar (Exit button removed) */}
+        {/* User Profile Bar (Static Clean Badge — Logout is located in top header) */}
         <div className="p-3 border-t border-slate-200/50">
-          <div
-            onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-            className="flex items-center gap-3 p-2 rounded-2xl hover:bg-white/80 cursor-pointer transition-colors"
-          >
+          <div className="flex items-center gap-3 p-2 rounded-2xl bg-white/40 border border-white/60">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-[#315CFF] to-[#8700E8] text-white font-bold text-xs shadow-xs">
               PA
             </div>
@@ -254,57 +264,94 @@ export function ProjectAdminWorkspaceShell({
             <span className="font-bold text-[#315CFF] truncate max-w-[160px]">{projectName}</span>
           </div>
 
-          {/* Quick Actions & Search */}
+          {/* Top Header Actions matching Image 1: Notification Bell, Help, Profile Pill with Dropdown */}
           <div className="flex items-center gap-3">
-            {/* Financial Year Selector */}
-            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 border border-slate-200/80 text-xs font-semibold text-[#202938] shadow-xs">
-              <Calendar size={13} className="text-[#315CFF]" />
-              <select
-                value={financialYear}
-                onChange={(e) => setFinancialYear(e.target.value)}
-                className="bg-transparent border-none outline-none cursor-pointer text-xs font-semibold"
-              >
-                <option value="FY 2025-26">FY 2025-26</option>
-                <option value="FY 2024-25">FY 2024-25</option>
-                <option value="FY 2026-27">FY 2026-27</option>
-              </select>
-            </div>
-
-            {/* Command Palette Trigger */}
-            <button
-              type="button"
-              onClick={() => setCommandPaletteOpen(true)}
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/80 border border-slate-200/80 text-xs text-slate-500 hover:border-blue-400 hover:text-slate-800 transition-all shadow-xs"
-            >
-              <Search size={14} className="text-slate-400" />
-              <span>Search modules…</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono bg-slate-100 rounded border border-slate-300">⌘K</kbd>
-            </button>
-
-            {/* Notification Bell */}
+            {/* Notification Bell with red counter badge */}
             <button
               type="button"
               onClick={() => navigate("notifications")}
-              className="relative p-2 rounded-xl bg-white/80 border border-slate-200/80 text-slate-600 hover:text-[#315CFF] hover:border-blue-300 transition-colors shadow-xs"
+              className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:text-blue-600 hover:bg-white/60 transition-colors"
               title="Notifications"
             >
-              <Bell size={16} />
+              <Bell className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
               {unreadNotificationsCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-extrabold text-white">
+                <span className="absolute -top-1 -right-1 flex min-w-4 h-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-extrabold text-white">
                   {unreadNotificationsCount}
                 </span>
               )}
             </button>
 
-            {/* Primary Action Button */}
-            <PaButton
-              size="sm"
-              icon={FileCheck2}
-              onClick={() => navigate("consolidated-report")}
-              className="hidden sm:inline-flex"
+            {/* Help button */}
+            <button
+              type="button"
+              onClick={() => navigate("project-overview")}
+              className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:text-blue-600 hover:bg-white/60 transition-colors"
+              title="Help & Info"
             >
-              Consolidated Report
-            </PaButton>
+              <HelpCircle className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
+            </button>
+
+            {/* Profile Pill matching Image 1 */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition hover:ring-2 hover:ring-blue-100 bg-white/70 border border-slate-200/70 shadow-xs"
+                title="Account menu"
+              >
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                  {userInitials}
+                </div>
+                <div className="hidden sm:block text-left leading-tight">
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-semibold text-slate-800">{sessionUser?.name || "Project Site Admin"}</span>
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                  </div>
+                  <div className="text-[10px] text-slate-500">{sessionUser?.roleLabel || "Project Admin"}</div>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {profileMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileMenuOpen(false)} />
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                      className="absolute right-0 top-12 z-50 w-64 rounded-2xl p-2 bg-white/95 backdrop-blur-xl border border-white/80 shadow-xl"
+                    >
+                      <div className="border-b border-slate-200/60 px-3 py-2.5">
+                        <div className="text-sm font-bold text-slate-800">{sessionUser?.name || "Project Site Admin"}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{sessionUser?.email || "admin@site.meil.in"}</div>
+                      </div>
+                      <div className="py-1">
+                        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                          ROLE & SCOPE
+                        </div>
+                        <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700">
+                          <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+                          <span>{sessionUser?.roleLabel || "Project Admin"}</span>
+                        </div>
+                      </div>
+                      <div className="border-t border-slate-200/60 py-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            if (onSignOut) onSignOut();
+                          }}
+                          className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                        >
+                          <LogOut className="h-3.5 w-3.5" />
+                          <span>Sign out</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 

@@ -15,6 +15,11 @@ import {
   withProjectCompat,
 } from '@/lib/pu/workflow'
 
+import { invalidatePuOverviewCache } from '@/app/api/pu/overview/route'
+import { invalidatePuSubmissionsCache } from '@/app/api/pu/submissions/route'
+import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
+import { invalidatePaServerCache } from '@/lib/project-admin/server'
+
 export const runtime = 'nodejs'
 
 // POST /api/submissions/[id]/submit
@@ -111,67 +116,67 @@ export async function POST(
       },
     })
 
-    await appendHistory({
-      submissionId: id,
-      fromStatus: 'DRAFT',
-      toStatus: 'SUBMITTED',
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: primaryRoleLabel(user),
-      action: 'SUBMIT',
-      comment: comment || null,
-      newValues: { rollup },
-    })
+    invalidatePuOverviewCache()
+    invalidatePuSubmissionsCache()
+    invalidatePuNotificationsCache()
+    invalidatePaServerCache()
 
-    await appendAudit({
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: primaryRoleLabel(user),
-      action: 'SUBMIT',
-      entityType: 'Submission',
-      entityId: id,
-      oldState: { status: 'DRAFT', rollup: null },
-      newState: { status: 'SUBMITTED', rollup },
-      reason: comment || 'Submission moved to SUBMITTED state',
-    })
+    // Fast-path non-blocking background telemetry, audit & platform bridge mirroring
+    const actorId = user.id
+    const actorName = user.name
+    const actorRole = primaryRoleLabel(user)
+    const subTitle = submission.title
+    const subModule = submission.module ?? ''
+    const subProjId = submission.projectId!
 
-    await appendActivity({
-      projectId: submission.projectId!,
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: primaryRoleLabel(user),
-      action: 'SUBMIT',
-      title: `Submitted: ${submission.title}`,
-      description: `Submission for ${submission.module ?? ''} moved DRAFT → SUBMITTED`,
-      module: submission.module,
-      status: 'SUBMITTED',
-    })
-
-    // BRIDGE: mirror into the main platform review chain (Subsidiary Manager /
-    // Group Admin queues) so BU→Subsidiary→Group sees site data immediately.
-    try {
-      const { mirrorPuSubmission } = await import('@/lib/bridge/pu-link')
-      const mirrored = await mirrorPuSubmission(id, {
-        phase: 'SUBMITTED',
-        actorId: user.id,
-        actorName: user.name,
-        actorRole: primaryRoleLabel(user),
-      })
-      if (mirrored.ok) {
-        await appendHistory({
-          submissionId: id,
-          fromStatus: 'SUBMITTED',
-          toStatus: 'SUBMITTED',
-          actorId: user.id,
-          actorName: user.name,
-          actorRole: primaryRoleLabel(user),
-          action: 'REVIEW',
-          comment: `Mirrored to platform review chain as ${mirrored.mainRef} (${mirrored.scopeLabel})`,
-        }).catch(() => {})
+    ;(async () => {
+      try {
+        const { mirrorPuSubmission } = await import('@/lib/bridge/pu-link')
+        await Promise.allSettled([
+          appendHistory({
+            submissionId: id,
+            fromStatus: 'DRAFT',
+            toStatus: 'SUBMITTED',
+            actorId,
+            actorName,
+            actorRole,
+            action: 'SUBMIT',
+            comment: comment || null,
+            newValues: { rollup },
+          }),
+          appendAudit({
+            actorId,
+            actorName,
+            actorRole,
+            action: 'SUBMIT',
+            entityType: 'Submission',
+            entityId: id,
+            oldState: { status: 'DRAFT', rollup: null },
+            newState: { status: 'SUBMITTED', rollup },
+            reason: comment || 'Submission moved to SUBMITTED state',
+          }),
+          appendActivity({
+            projectId: subProjId,
+            actorId,
+            actorName,
+            actorRole,
+            action: 'SUBMIT',
+            title: `Submitted: ${subTitle}`,
+            description: `Submission for ${subModule} moved DRAFT → SUBMITTED`,
+            module: subModule,
+            status: 'SUBMITTED',
+          }),
+          mirrorPuSubmission(id, {
+            phase: 'SUBMITTED',
+            actorId,
+            actorName,
+            actorRole,
+          }),
+        ])
+      } catch (bgErr) {
+        console.warn('[pu-link] submit bridge notice:', bgErr)
       }
-    } catch (bridgeErr) {
-      console.warn('[pu-link] submit bridge notice:', bridgeErr)
-    }
+    })()
 
     return NextResponse.json({ submission: { ...updated, project: updated?.project ? withProjectCompat(updated.project) : { ...SAFE_PROJECT } }, rollup })
   } catch (e) {

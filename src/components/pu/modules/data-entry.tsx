@@ -271,6 +271,42 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
   } | null>(null)
   const [existingRecords, setExistingRecords] = useState<any[]>([])
   const [csvImportOpen, setCsvImportOpen] = useState(false)
+  const [submittingAll, setSubmittingAll] = useState(false)
+  const [submitAllSuccess, setSubmitAllSuccess] = useState<any | null>(null)
+
+  const handleSubmitAll = async () => {
+    if (!selectedProjectId || !selectedPeriodId) {
+      toast.error('Select a valid project and period before submitting')
+      return
+    }
+    setSubmittingAll(true)
+    setActionError('')
+    try {
+      const res = await fetch('/api/pu/data-entry/submit-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectId: selectedProjectId,
+          reportingPeriodId: selectedPeriodId,
+          allData: formStateRef.current,
+        }),
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to submit all levels')
+
+      setSubmitAllSuccess(result)
+      toast.success('All Site Data Submitted to Project Admin!', {
+        description: `Successfully submitted all 9 BRSR disclosure levels for ${selectedProject?.projectName || 'Site'} at once. Status: SUBMITTED.`,
+      })
+      setActionInfo(`All 9 environmental levels submitted at once to Project Admin! Status: SUBMITTED. Dossier #${result.dossierId?.slice(-8)} generated.`)
+      refreshExistingRecords()
+    } catch (e: any) {
+      toast.error('Submission failed', { description: e?.message })
+      setActionError(e?.message || 'Failed to submit all site data')
+    } finally {
+      setSubmittingAll(false)
+    }
+  }
 
   // In-memory form state cache across level tabs
   const formStateRef = useRef<Record<string, Record<string, any>>>({})
@@ -417,7 +453,7 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
     if (submitted) {
       setStep(4)
       setSubmitResult({ submissionId: result.id, status: 'SUBMITTED' })
-      setActionInfo(`Submitted for BU review. Status: SUBMITTED. Visible in Submissions module.`)
+      setActionInfo(`Submitted for Project Admin review. Status: SUBMITTED. Visible in Submissions module.`)
       toast.success('Submitted for Review!', {
         description: `${activeSub.label} record #${result.id.slice(-8)} submitted and now visible in Submissions module.`,
       })
@@ -526,7 +562,7 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
 
       const finalStatus = submitted.submission?.status || 'SUBMITTED'
       setSubmitResult({ submissionId, status: finalStatus })
-      setActionInfo(`Submission #${submissionId.slice(-8)} sent for BU review. Status: ${finalStatus}.`)
+      setActionInfo(`Submission #${submissionId.slice(-8)} sent for Project Admin review. Status: ${finalStatus}.`)
 
       toast.success('Submitted for Review!', {
         description: `Submission #${submissionId.slice(-8)} is now visible in the Submissions module and Overview activity feed.`,
@@ -616,8 +652,49 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
             disabledReason="Your role does not permit data entry"
             onClick={() => setCsvImportOpen(true)}
           />
+
+          {/* Submit All to Project Admin Button */}
+          <button
+            type="button"
+            disabled={submittingAll || readOnly}
+            onClick={handleSubmitAll}
+            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700 active:scale-95 transition-all cursor-pointer"
+            title="Submit all site environmental data to Project Admin at once"
+          >
+            <Send className={`h-3.5 w-3.5 ${submittingAll ? 'animate-bounce' : ''}`} />
+            <span>{submittingAll ? 'Submitting All Levels...' : 'Submit All to Project Admin'}</span>
+          </button>
         </div>
       </motion.div>
+
+      {/* SUBMISSION SUCCESS BANNER */}
+      {submitAllSuccess && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center justify-between p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-blue-500/10 border border-emerald-300 text-xs shadow-sm"
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-md">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="font-bold text-slate-900 text-sm">
+                All 9 Environmental Levels Submitted at Once to Project Admin
+              </div>
+              <div className="text-slate-600 mt-0.5">
+                Submitted by <span className="font-semibold text-slate-800">{submitAllSuccess.contributor?.name}</span> ({submitAllSuccess.contributor?.email}) on {new Date(submitAllSuccess.timestamp).toLocaleDateString()} at {new Date(submitAllSuccess.timestamp).toLocaleTimeString()} • Status: <span className="font-bold text-emerald-700">SUBMITTED</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setSubmitAllSuccess(null)}
+            className="text-slate-400 hover:text-slate-600 p-1.5"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </motion.div>
+      )}
 
       {/* 6-LEVEL HORIZONTAL SUB-MODULE TAB BAR */}
       <motion.div
@@ -1390,7 +1467,7 @@ function FlippableEngineEvidencePanel({
                 className="mt-3 rounded-xl border border-emerald-300 bg-emerald-50/80 p-3 text-xs shadow-sm"
               >
                 <div className="flex items-center gap-1.5 font-bold text-emerald-800">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Submission Sent for BU Review
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" /> Submission Sent for Project Admin Review
                 </div>
                 <div className="mt-1 text-emerald-700">
                   Submission ID:{' '}
@@ -3222,7 +3299,7 @@ function Level1EnergyForm({
       if (!res.ok) throw new Error(d.error || 'Failed to save Energy record')
       toast.success(
         submitForReview
-          ? 'Energy submission sent for BU review!'
+          ? 'Energy submission sent for Project Admin review!'
           : 'Energy draft saved successfully!'
       )
       onSaved(d.record, submitForReview)
@@ -4518,7 +4595,7 @@ function Level2WaterForm({
       const d = await res.json()
       if (!res.ok) throw new Error(d.error || 'Failed to save Water record')
       toast.success(
-        submitForReview ? 'Water submission sent for BU review!' : 'Water draft saved successfully!'
+        submitForReview ? 'Water submission sent for Project Admin review!' : 'Water draft saved successfully!'
       )
       onSaved(d.record, submitForReview)
     } catch (e: any) {
@@ -6481,7 +6558,7 @@ function Level3GhgForm({
       if (!res.ok) throw new Error(d.error || 'Failed to save GHG record')
       toast.success(
         submitForReview
-          ? 'GHG & Air Quality submission sent for BU review!'
+          ? 'GHG & Air Quality submission sent for Project Admin review!'
           : `GHG inventory saved as ${overallWorkflowStatus}!`
       )
       onSaved(d.record, submitForReview)
@@ -7988,7 +8065,7 @@ function Level3GhgForm({
                 className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 shadow-xs outline-none focus:border-emerald-400"
               >
                 <option value="Draft">Draft (In Progress)</option>
-                <option value="Submitted">Submitted (Sent for BU Review)</option>
+                <option value="Submitted">Submitted (Sent for Project Admin Review)</option>
                 <option value="Under Review">Under Review (ESG Lead Audit)</option>
                 <option value="Approved">Approved (Final Sign-off)</option>
                 <option value="Returned for Correction">Returned for Correction</option>
@@ -8593,7 +8670,7 @@ function Level4WasteForm({
       const d = await res.json()
       if (!res.ok) throw new Error(d.error || 'Failed to save Waste record')
       toast.success(
-        submitForReview ? 'Waste submission sent for BU review!' : 'Waste draft saved successfully!'
+        submitForReview ? 'Waste submission sent for Project Admin review!' : 'Waste draft saved successfully!'
       )
       onSaved(d.record, submitForReview)
     } catch (e: any) {

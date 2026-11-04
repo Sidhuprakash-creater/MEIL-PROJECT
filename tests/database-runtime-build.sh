@@ -44,7 +44,7 @@ chmod +x "$FAKE_BIN/bun"
 export PATH="$FAKE_BIN:$PATH"
 export DB_PUSH_CALLS="$TEST_ROOT/db-push-calls"
 
-# 没有 Preview 数据库时，应只在部署产物中初始化空库，不修改项目目录。
+# When Preview database does not exist, initialize an empty db in build output without modifying project directory.
 EMPTY_PROJECT="$TEST_ROOT/empty-project"
 EMPTY_BUILD="$TEST_ROOT/empty-build"
 mkdir -p "$EMPTY_PROJECT"
@@ -56,7 +56,7 @@ test -f "$EMPTY_BUILD/db/custom.db"
 test "$(cat "$EMPTY_BUILD/db/custom.db")" = "initialized"
 test ! -e "$EMPTY_PROJECT/db/custom.db"
 
-# 有 Preview 数据库时，应保留数据和同目录文件，再对产物执行 schema 同步。
+# When Preview database exists, retain data and co-located files, then sync schema onto the build output.
 EXISTING_PROJECT="$TEST_ROOT/existing-project"
 EXISTING_BUILD="$TEST_ROOT/existing-build"
 mkdir -p "$EXISTING_PROJECT/db"

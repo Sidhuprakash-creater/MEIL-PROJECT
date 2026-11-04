@@ -1031,7 +1031,7 @@ export async function POST(req: NextRequest) {
         actorName: user.name,
         actorRole: primaryRoleLabel(user),
         action: isSubmittingForReview ? 'SUBMIT' : 'DATA_ENTRY',
-        title: `${record.levelName} ${isSubmittingForReview ? 'submitted for BU review' : 'saved as Draft'}`,
+        title: `${record.levelName} ${isSubmittingForReview ? 'submitted for Project Admin review' : 'saved as Draft'}`,
         description: `Source record ${recId.slice(-8)} captured with ${issues.length} issue(s).`,
         module: record.module,
         status: isSubmittingForReview ? 'SUBMITTED' : validationStatus,

@@ -221,7 +221,7 @@ export default function Page() {
       })
       .catch(() => {
         setSession({ authenticated: false });
-        if (deepLink) setGate("enter");
+        if (deepLink) setGate(deepLink === "project-portal" ? "project-portal" : "enter");
       });
   }, [consoleForRole]);
 
@@ -261,6 +261,27 @@ export default function Page() {
     setSigningOut(false);
     setGate("enter");
     window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  /* Project Admin / Site Operations sign out → revoke session → return directly to site operations role screen */
+  const handleProjectSignOut = useCallback(async () => {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      /* cookie revocation is best-effort; local state is authoritative */
+    }
+    try {
+      await fetch("/api/pu/auth/logout", { method: "POST" });
+    } catch {
+      /* ignore */
+    }
+    setSession({ authenticated: false });
+    setScopedUser(null);
+    setSigningOut(false);
+    setGate("project-portal");
+    window.history.replaceState(null, "", "/?portal=project&stage=role");
+    window.dispatchEvent(new PopStateEvent("popstate"));
   }, []);
 
   /* Gateway → Project User Portal (native welcome flow, no credential wizard) */
@@ -399,7 +420,7 @@ export default function Page() {
               businessUnit: session.user.scope.businessUnit ?? null,
               project: session.user.scope.project ?? null,
             }}
-            onSignOut={() => void handleSignOut()}
+            onSignOut={handleProjectSignOut}
           />
         );
       }
@@ -417,7 +438,7 @@ export default function Page() {
               businessUnit: session.user.scope.businessUnit ?? null,
               project: session.user.scope.project ?? null,
             }}
-            onSignOut={() => void handleSignOut()}
+            onSignOut={handleProjectSignOut}
           />
         );
       }

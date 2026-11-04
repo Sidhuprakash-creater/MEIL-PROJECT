@@ -1,6 +1,7 @@
+const globalUserLookupCache = new Map<string, any>()
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
-import { createSessionCookie, verifyPassword, portalRoleKey } from '@/lib/pu/session'
+import { createSessionCookie, verifyPassword, portalRoleKey, setPuCachedUser } from '@/lib/pu/session'
 import { isDemoPassword, hashPassword } from '@/lib/password'
 
 export const runtime = 'nodejs'
@@ -18,10 +19,20 @@ export async function POST(req: NextRequest) {
     }
 
     const isEmail = identifier.includes('@')
-    let user = await db.user.findUnique({
-      where: isEmail ? { email: identifier.toLowerCase() } : { employeeId: identifier.toUpperCase() },
-      include: { project: true, businessUnit: true, subsidiary: true },
-    })
+    const lookupKey = isEmail ? identifier.toLowerCase() : identifier.toUpperCase()
+    
+    // Fast path: cached user lookup
+    let user = globalUserLookupCache.get(lookupKey)
+    if (!user || user.expiresAt < Date.now()) {
+      const dbUser = await db.user.findUnique({
+        where: isEmail ? { email: identifier.toLowerCase() } : { employeeId: identifier.toUpperCase() },
+        include: { project: true, businessUnit: true, subsidiary: true },
+      })
+      if (dbUser) {
+        globalUserLookupCache.set(lookupKey, { ...dbUser, expiresAt: Date.now() + 120000 })
+        user = dbUser
+      }
+    }
 
     const idLower = identifier.toLowerCase()
     const idUpper = identifier.toUpperCase()
@@ -81,16 +92,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    await Promise.all([
-      db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastActiveAt: new Date() } }),
-      audit('LOGIN_SUCCESS', 'SUCCESS'),
-    ])
-
     const role = portalRoleKey(user.role)
     const scopes: { scopeType: string; scopeId: string }[] = []
     if (user.projectId) scopes.push({ scopeType: 'PROJECT', scopeId: user.projectId })
     if (user.businessUnitId) scopes.push({ scopeType: 'BUSINESS_UNIT', scopeId: user.businessUnitId })
     if (user.subsidiaryId) scopes.push({ scopeType: 'SUBSIDIARY', scopeId: user.subsidiaryId })
+
+    // Populate session user in memory cache immediately for instant subsequent calls
+    setPuCachedUser({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      employeeCode: user.employeeId ?? null,
+      groupId: null,
+      status: user.status,
+      demo: false,
+      roles: [{ id: `role-${role.key}`, key: role.key, name: role.name, phase: 1 }],
+      scopes: scopes.map((s) => ({ id: `sc-${s.scopeId}`, ...s })),
+    })
+
+    // Run audit and timestamp update asynchronously without blocking login response
+    Promise.allSettled([
+      db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastActiveAt: new Date() } }),
+      audit('LOGIN_SUCCESS', 'SUCCESS'),
+    ]).catch(() => {})
 
     const cookie = await createSessionCookie(user.id)
     const res = NextResponse.json({

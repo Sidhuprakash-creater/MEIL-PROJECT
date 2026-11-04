@@ -366,7 +366,7 @@ export function FinanceWorkspace() {
     } catch {}
 
     refreshData()
-    showToast('Record version v1.3 submitted for BU review approval!')
+    showToast('Record version v1.3 submitted for Project Admin review approval!')
     setActiveModule('fin-submissions')
   }
 

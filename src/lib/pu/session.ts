@@ -45,7 +45,20 @@ export async function createSessionCookie(userId: string) {
 }
 
 export async function clearSessionCookie() {
+  clearPuUserCache()
   return `${SESSION_COOKIE}=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`
+}
+
+// In-memory cache for fast session resolution (60s TTL)
+const puUserCache = new Map<string, { user: SessionUser; expiresAt: number }>()
+
+export function setPuCachedUser(user: SessionUser, ttlMs = 60000) {
+  puUserCache.set(user.id, { user, expiresAt: Date.now() + ttlMs })
+}
+
+export function clearPuUserCache(userId?: string) {
+  if (userId) puUserCache.delete(userId)
+  else puUserCache.clear()
 }
 
 /* Unified User.role → portal role key (the portal UI keys dashboards off these). */
@@ -93,6 +106,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const userId = Buffer.from(encoded, 'base64').toString()
   const expectedSig = await sign(userId)
   if (sig !== expectedSig) return null
+
+  // Fast path: cached session user
+  const cached = puUserCache.get(userId)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.user
+  }
+
   const user = await db.user.findUnique({
     where: { id: userId },
     include: { project: true, businessUnit: true, subsidiary: true },
@@ -105,7 +125,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (user.businessUnitId) scopes.push({ id: `sc-${user.businessUnitId}`, scopeType: 'BUSINESS_UNIT', scopeId: user.businessUnitId })
   if (user.subsidiaryId) scopes.push({ id: `sc-${user.subsidiaryId}`, scopeType: 'SUBSIDIARY', scopeId: user.subsidiaryId })
 
-  return {
+  const sessionUser: SessionUser = {
     id: user.id,
     email: user.email,
     name: user.name,
@@ -116,6 +136,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     roles: [{ id: `role-${role.key}`, key: role.key, name: role.name, phase: 1 }],
     scopes,
   }
+  puUserCache.set(userId, { user: sessionUser, expiresAt: Date.now() + 60000 })
+  return sessionUser
 }
 
 export async function requireUser(): Promise<SessionUser> {

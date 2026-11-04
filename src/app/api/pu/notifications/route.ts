@@ -5,6 +5,12 @@ import { authErrorToStatus } from '@/lib/pu/workflow'
 
 export const runtime = 'nodejs'
 
+const puNotificationsCache = new Map<string, { data: any; expiresAt: number }>()
+
+export function invalidatePuNotificationsCache() {
+  puNotificationsCache.clear()
+}
+
 // GET /api/notifications — current user's notifications.
 // Optional ?unreadOnly=true, ?type=, ?take= (default 50, max 200).
 export async function GET(req: NextRequest) {
@@ -26,12 +32,20 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get('type') || undefined
   const take = Math.min(Number(searchParams.get('take') || 50), 200)
 
+  const cacheKey = `${user.id}:${unreadOnly}:${type || 'all'}:${take}`
+  const cached = puNotificationsCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.data)
+  }
+
   // Unified ledger: notifications are broadcast rows scoped by subsidiary
   // (null = group-wide). Portal users see group-wide + their subsidiary's.
   const subsidiaryId = user.scopes.find((s) => s.scopeType === 'SUBSIDIARY')?.scopeId ?? null
-  const scopeWhere = subsidiaryId
-    ? { OR: [{ subsidiaryId: null }, { subsidiaryId }] }
-    : {}
+  const orConditions: any[] = [{ subsidiaryId: null }, { refId: user.id }]
+  if (subsidiaryId) {
+    orConditions.push({ subsidiaryId })
+  }
+  const scopeWhere = { OR: orConditions }
   const where: Record<string, unknown> = { ...scopeWhere }
   if (unreadOnly) where.read = false
   if (type) where.ntype = type
@@ -47,7 +61,7 @@ export async function GET(req: NextRequest) {
       db.notification.count({ where: { ...where, read: false } }),
     ])
 
-    return NextResponse.json({
+    const payload = {
       user: { id: user.id, name: user.name },
       total,
       unread: unreadCount,
@@ -58,7 +72,10 @@ export async function GET(req: NextRequest) {
         message: n.body,
         linkId: n.refId || null,
       })),
-    })
+    }
+
+    puNotificationsCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 15000 })
+    return NextResponse.json(payload)
   } catch (e) {
     console.error('GET /api/notifications error', e)
     return NextResponse.json(

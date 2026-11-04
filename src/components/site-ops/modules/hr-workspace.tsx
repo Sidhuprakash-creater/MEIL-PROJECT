@@ -210,7 +210,7 @@ export function HrWorkspace() {
             {[
               { label: 'Assigned HR Tasks', val: '4 Modules', sub: 'FY 2026-27', icon: Layers, tone: 'text-teal-600 bg-teal-50' },
               { label: 'Pending Data Entry', val: '2 Forms', sub: 'Turnover & Coord', icon: Clock, tone: 'text-amber-600 bg-amber-50' },
-              { label: 'Submitted Records', val: '1 Level', sub: 'Under BU Review', icon: CheckCircle2, tone: 'text-blue-600 bg-blue-50' },
+              { label: 'Submitted Records', val: '1 Level', sub: 'Under Project Admin Review', icon: CheckCircle2, tone: 'text-blue-600 bg-blue-50' },
               { label: 'Returned for Fix', val: '1 Record', sub: 'Contractor split required', icon: AlertTriangle, tone: 'text-rose-600 bg-rose-50' },
               { label: 'Workforce Completion', val: '78.5%', sub: 'Target: 100%', icon: TrendingUp, tone: 'text-emerald-600 bg-emerald-50' },
               { label: 'Evidence Attached', val: '3 / 4 Files', sub: '1 file missing', icon: FileCheck2, tone: 'text-purple-600 bg-purple-50' },

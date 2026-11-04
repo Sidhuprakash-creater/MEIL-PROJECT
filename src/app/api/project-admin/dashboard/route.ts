@@ -49,7 +49,13 @@ export async function GET(req: NextRequest) {
         },
       }),
       db.submission.findMany({
-        where: { OR: [{ businessUnitId: ctx.businessUnitId }, { subsidiaryId: ctx.subsidiaryId }] },
+        where: {
+          OR: [
+            { projectId: ctx.projectId },
+            { businessUnitId: ctx.businessUnitId },
+            { subsidiaryId: ctx.subsidiaryId },
+          ],
+        },
         select: { id: true, category: true, status: true, updatedAt: true, submittedById: true },
         orderBy: { updatedAt: "desc" },
       }),

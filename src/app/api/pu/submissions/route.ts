@@ -15,6 +15,12 @@ import { moduleToCategory } from '@/lib/bridge/pu-link'
 
 export const runtime = 'nodejs'
 
+const puSubmissionsCache = new Map<string, { data: any; expiresAt: number }>()
+
+export function invalidatePuSubmissionsCache() {
+  puSubmissionsCache.clear()
+}
+
 // GET /api/submissions?projectId=&periodId=&module=&status=
 // Paginated list (take 50). Includes project, reportingPeriod, history.
 export async function GET(req: NextRequest) {
@@ -38,6 +44,12 @@ export async function GET(req: NextRequest) {
     Number(searchParams.get('take') || 50),
     200,
   )
+
+  const cacheKey = `${projectId || 'all'}:${periodId || 'all'}:${moduleFilter || 'all'}:${status || 'all'}`
+  const cached = puSubmissionsCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.data)
+  }
 
   const where: Record<string, unknown> = {}
   if (projectId) where.projectId = projectId
@@ -99,12 +111,14 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    return NextResponse.json({
+    const resultPayload = {
       user: { id: user.id, name: user.name, roles: user.roles },
       total,
       count: submissions.length,
       items: submissions,
-    })
+    }
+    puSubmissionsCache.set(cacheKey, { data: resultPayload, expiresAt: Date.now() + 25000 })
+    return NextResponse.json(resultPayload)
   } catch (e) {
     console.error('GET /api/submissions error', e)
     return NextResponse.json(
@@ -295,6 +309,7 @@ export async function POST(req: NextRequest) {
       reason: 'Submission created in DRAFT state',
     })
 
+    invalidatePuSubmissionsCache()
     return NextResponse.json({ submission: created, rollup }, { status: 201 })
   } catch (e) {
     console.error('POST /api/submissions error', e)

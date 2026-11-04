@@ -95,11 +95,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     })
+    const d = await res.json().catch(() => ({}))
     if (!res.ok) {
-      const d = await res.json().catch(() => ({}))
       return { ok: false, error: d.error || 'Login failed' }
     }
-    await refreshUser()
+    if (d && d.id) {
+      setUser(d)
+    } else {
+      await refreshUser()
+    }
     return { ok: true }
   }, [refreshUser])
 

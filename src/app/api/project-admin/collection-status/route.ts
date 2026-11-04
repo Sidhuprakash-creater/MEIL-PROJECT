@@ -191,11 +191,19 @@ export async function POST(req: NextRequest) {
     invalidatePaServerCache(); // Invalidate server cache on mutation
 
     if (action === "approve") {
+      const sub = await db.submission.findUnique({
+        where: { id: submissionId },
+        select: { id: true, title: true, submittedById: true, recordIds: true },
+      });
+
       // 1. Try updating Submission
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
           status: "APPROVED",
+          reviewerId: ctx.userId,
+          reviewComment: comments || "Approved by Project Admin.",
+          reviewedAt: new Date(),
           updatedAt: new Date(),
         },
       });
@@ -209,15 +217,29 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // Sync underlying records to ACTIVE
+      if (sub?.recordIds) {
+        try {
+          const rids = typeof sub.recordIds === "string" ? JSON.parse(sub.recordIds) : sub.recordIds;
+          if (Array.isArray(rids)) {
+            await Promise.allSettled([
+              db.energyRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
+              db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
+              db.wasteRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
+            ]);
+          }
+        } catch {}
+      }
+
       // 3. Notify the assigned contributor
       await db.notification.create({
         data: {
           ntype: "APPROVAL",
-          title: "Submission Approved by Project Admin",
+          title: `Submission Approved: ${sub?.title || "Site ESG Record"}`,
           body: `Project Admin ${ctx.userName} approved your data submission for ${ctx.projectName}.`,
           severity: "SUCCESS",
           linkView: "submissions",
-          refId: submissionId,
+          refId: sub?.submittedById || submissionId,
           subsidiaryId: ctx.subsidiaryId,
         },
       });

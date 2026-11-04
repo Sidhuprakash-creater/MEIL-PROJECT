@@ -6,6 +6,7 @@ import {
   authErrorToStatus,
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
+import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
 
 export const runtime = 'nodejs'
 
@@ -58,7 +59,8 @@ export async function POST(
       data: { read: true },
     })
 
-    await appendAudit({
+    invalidatePuNotificationsCache()
+    appendAudit({
       actorId: user.id,
       actorName: user.name,
       actorRole: primaryRoleLabel(user),

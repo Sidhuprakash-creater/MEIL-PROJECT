@@ -302,7 +302,7 @@ export async function mirrorPuSubmission(
       data: {
         ntype: "SUBMISSION",
         title: `Sent for review: ${ref}`,
-        body: `Your ${pu.module ?? "site"} data for ${pu.project?.name ?? "your site"} has entered the BU/Subsidiary review chain. You will be notified when a reviewer decides.`,
+        body: `Your ${pu.module ?? "site"} data for ${pu.project?.name ?? "your site"} has entered the Project Admin review queue. You will be notified when a reviewer decides.`,
         severity: "INFO",
         linkView: "submissions",
         refId: pu.id,

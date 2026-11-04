@@ -8,6 +8,13 @@ import * as crypto from 'crypto'
 
 export const runtime = 'nodejs'
 
+const puEvidenceCache = new Map<string, { data: any; expiresAt: number }>()
+
+export function invalidatePuEvidenceCache() {
+  puEvidenceCache.clear()
+}
+
+
 // GET /api/evidence?projectId=&periodId=&module=&status=
 // Paginated list including uploader.
 export async function GET(req: NextRequest) {
@@ -30,6 +37,12 @@ export async function GET(req: NextRequest) {
   const moduleFilter = searchParams.get('module') || undefined
   const status = searchParams.get('status') || undefined
   const take = Math.min(Number(searchParams.get('take') || 50), 200)
+
+  const cacheKey = `${projectId || 'all'}:${periodId || 'all'}:${moduleFilter || 'all'}:${status || 'all'}:${take}`
+  const cached = puEvidenceCache.get(cacheKey)
+  if (cached && cached.expiresAt > Date.now()) {
+    return NextResponse.json(cached.data)
+  }
 
   const where: Record<string, unknown> = {
     NOT: {
@@ -56,12 +69,14 @@ export async function GET(req: NextRequest) {
       db.evidence.count({ where }),
     ])
 
-    return NextResponse.json({
+    const payload = {
       user: { id: user.id, name: user.name },
       total,
       count: evidence.length,
       items: evidence,
-    })
+    }
+    puEvidenceCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 20000 })
+    return NextResponse.json(payload)
   } catch (e) {
     console.error('GET /api/evidence error', e)
     return NextResponse.json(
@@ -147,8 +162,9 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    // Audit
-    await db.soAuditLog.create({
+    invalidatePuEvidenceCache()
+    // Audit asynchronously without blocking upload response
+    db.soAuditLog.create({
       data: {
         actorId: user.id,
         actorName: user.name,

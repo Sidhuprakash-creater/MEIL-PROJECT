@@ -4,11 +4,21 @@ import { getCurrentUser } from '@/lib/pu/session'
 
 export const runtime = 'nodejs'
 
+let treeCache: { data: any; expiresAt: number } | null = null
+
+export function invalidatePuTreeCache() {
+  treeCache = null
+}
+
 // GET /api/pu/organization/tree — full org hierarchy from the unified ledger.
 // Single tenant: one group (MEIL Group) → subsidiaries → business units → projects.
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+
+  if (treeCache && treeCache.expiresAt > Date.now()) {
+    return NextResponse.json(treeCache.data)
+  }
 
   const subsidiaries = await db.subsidiary.findMany({
     orderBy: { code: 'asc' },
@@ -47,5 +57,7 @@ export async function GET() {
     },
   ]
 
-  return NextResponse.json({ groups })
+  const payload = { groups }
+  treeCache = { data: payload, expiresAt: Date.now() + 120000 }
+  return NextResponse.json(payload)
 }

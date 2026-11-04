@@ -13,7 +13,17 @@ import {
   type VerifiedUser,
 } from "@/lib/platform-config";
 
-/* ── token helpers ─────────────────────────────────────────────────────────── */
+/* ── token & session cache ─────────────────────────────────────────────────── */
+
+const sessionPayloadCache = new Map<string, { payload: SessionPayload; expiresAt: number }>();
+
+export function clearSessionCache(token?: string) {
+  if (token) {
+    sessionPayloadCache.delete(hashToken(token));
+  } else {
+    sessionPayloadCache.clear();
+  }
+}
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -232,8 +242,14 @@ export async function getSessionPayload(): Promise<SessionPayload | null> {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
+  const tHash = hashToken(token);
+  const cached = sessionPayloadCache.get(tHash);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.payload;
+  }
+
   const session = await db.session.findUnique({
-    where: { tokenHash: hashToken(token) },
+    where: { tokenHash: tHash },
     include: {
       user: {
         include: { subsidiary: true, businessUnit: true, project: true },
@@ -259,7 +275,7 @@ export async function getSessionPayload(): Promise<SessionPayload | null> {
     select: { eventType: true, result: true, createdAt: true, ip: true },
   });
 
-  return {
+  const resultPayload: SessionPayload = {
     authenticated: true,
     user: toVerifiedUser(session.user),
     expiresAt: session.expiresAt.toISOString(),
@@ -270,6 +286,8 @@ export async function getSessionPayload(): Promise<SessionPayload | null> {
       ip: a.ip ?? undefined,
     })),
   };
+  sessionPayloadCache.set(tHash, { payload: resultPayload, expiresAt: Date.now() + 60000 });
+  return resultPayload;
 }
 
 /* Convenience for audit rows */

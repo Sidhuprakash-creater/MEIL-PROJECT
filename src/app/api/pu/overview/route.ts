@@ -4,12 +4,22 @@ import { getCurrentUser } from '@/lib/pu/session'
 
 export const runtime = 'nodejs'
 
+let overviewCache: { data: any; expiresAt: number } | null = null
+
+export function invalidatePuOverviewCache() {
+  overviewCache = null
+}
+
 // GET /api/overview — computes real KPIs from the database (no hardcoded values).
 // Covers: emissions, energy, water, waste, workforce, safety, BRSR readiness,
 // completion, exceptions, plus monthly trends & recent activity.
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+
+  if (overviewCache && overviewCache.expiresAt > Date.now()) {
+    return NextResponse.json(overviewCache.data)
+  }
 
   // Resolve scope: reviewer/exec roles see whole group; project users see their scope.
   // For this dashboard we show the group-wide consolidated picture (read-only for non-edit roles).
@@ -160,7 +170,7 @@ export async function GET() {
     if (em > 0) emissionsBySource[e.source] = (emissionsBySource[e.source] || 0) + em
   }
 
-  return NextResponse.json({
+  const payload = {
     user: { id: user.id, name: user.name, roles: user.roles, groupId: null },
     kpis: {
       totalEmissions: Math.round(totalEmissions * 100) / 100,
@@ -207,5 +217,7 @@ export async function GET() {
     trace: {
       note: 'All KPIs computed deterministically from approved source records + emission factor version 1. No hardcoded values.',
     },
-  })
+  }
+  overviewCache = { data: payload, expiresAt: Date.now() + 30000 }
+  return NextResponse.json(payload)
 }

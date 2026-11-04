@@ -172,7 +172,7 @@ const PIPELINE_LABEL: Record<string, string> = {
   SUBMITTED: 'Pending',
   PENDING: 'Pending',
   UNDER_REVIEW: 'Under Review',
-  BU_APPROVED: 'Active (BU Approved)',
+  BU_APPROVED: 'Approved (Project Admin)',
   SUBSIDIARY_APPROVED: 'Active (Subsidiary)',
   HQ_REVIEW: 'HQ Review',
   APPROVED: 'Active',
@@ -614,7 +614,7 @@ export function SubmissionsModule() {
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            Multi-level review pipeline · DRAFT → Submitted → BU → Subsidiary → HQ → Locked. · Signed in as <span className="font-semibold text-slate-700">{roleLabel}</span>
+            Multi-level review pipeline · DRAFT → Submitted → Project Admin Review → Subsidiary → HQ → Locked. · Signed in as <span className="font-semibold text-slate-700">{roleLabel}</span>
           </p>
         </div>
         <button

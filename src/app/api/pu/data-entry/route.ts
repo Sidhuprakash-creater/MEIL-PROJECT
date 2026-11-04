@@ -19,7 +19,91 @@ import {
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
 
+import { invalidatePuOverviewCache } from '@/app/api/pu/overview/route'
+import { invalidatePuSubmissionsCache } from '@/app/api/pu/submissions/route'
+import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
+import { invalidatePaServerCache } from '@/lib/project-admin/server'
+
 export const runtime = 'nodejs'
+
+const verifiedProjectIds = new Set<string>()
+const verifiedPeriodIds = new Set<string>()
+const projectMetaCache = new Map<string, { id: string; name: string; code: string }>()
+const periodMetaCache = new Map<string, { id: string; periodLabel: string; year: number; submissionDeadline: Date | null }>()
+
+function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {}, calculation: any = null) {
+  const m = String(moduleKey || '').toUpperCase()
+  const values: Array<{ label: string; value: string | number; unit?: string }> = []
+  let metricName = 'Data Points'
+  let metricValue = 0
+  let metricUnit = ''
+
+  if (m === 'ENERGY') {
+    const grid = Number(data.electricityGridKwh || data.gridKwh || 0)
+    const diesel = Number(data.dieselDgLiters || data.dgLiters || 0)
+    const solar = Number(data.solarRooftopKwh || data.solarKwh || 0)
+    const totalGj = calculation?.totalGj || +(grid * 0.0036 + diesel * 0.038 + solar * 0.0036).toFixed(2)
+    metricName = 'Total Energy Consumption'
+    metricValue = totalGj
+    metricUnit = 'GJ'
+    if (grid > 0) values.push({ label: 'Grid Electricity', value: grid.toLocaleString(), unit: 'kWh' })
+    if (diesel > 0) values.push({ label: 'Diesel (DG Sets)', value: diesel.toLocaleString(), unit: 'Liters' })
+    if (solar > 0) values.push({ label: 'Rooftop Solar', value: solar.toLocaleString(), unit: 'kWh' })
+    values.push({ label: 'Total Energy (Normalized)', value: totalGj.toLocaleString(), unit: 'GJ' })
+  } else if (m === 'WATER') {
+    const gw = Number(data.groundwaterKl || 0)
+    const sw = Number(data.surfaceWaterKl || 0)
+    const mun = Number(data.municipalKl || 0)
+    const tnk = Number(data.tankerKl || 0)
+    const rec = Number(data.recycledKl || 0)
+    const totalKl = +(gw + sw + mun + tnk).toFixed(2)
+    metricName = 'Total Water Withdrawal'
+    metricValue = totalKl
+    metricUnit = 'kL'
+    if (gw > 0) values.push({ label: 'Groundwater', value: gw.toLocaleString(), unit: 'kL' })
+    if (sw > 0) values.push({ label: 'Surface Water', value: sw.toLocaleString(), unit: 'kL' })
+    if (mun > 0) values.push({ label: 'Municipal Supply', value: mun.toLocaleString(), unit: 'kL' })
+    if (tnk > 0) values.push({ label: 'Tankers', value: tnk.toLocaleString(), unit: 'kL' })
+    if (rec > 0) values.push({ label: 'Recycled / Reused', value: rec.toLocaleString(), unit: 'kL' })
+  } else if (m === 'EMISSIONS') {
+    const s1 = calculation?.scope1 || Number(data.scope1 || 0)
+    const s2 = calculation?.scope2 || Number(data.scope2 || 0)
+    const s3 = calculation?.scope3 || Number(data.scope3 || 0)
+    metricName = 'GHG Emissions (Scope 1+2)'
+    metricValue = +(s1 + s2).toFixed(2)
+    metricUnit = 'tCO2e'
+    values.push({ label: 'Scope 1 (Direct)', value: s1, unit: 'tCO2e' })
+    values.push({ label: 'Scope 2 (Indirect)', value: s2, unit: 'tCO2e' })
+    if (s3 > 0) values.push({ label: 'Scope 3 (Value Chain)', value: s3, unit: 'tCO2e' })
+  } else if (m === 'WASTE') {
+    const haz = Number(data.hazardousMt || 0)
+    const nonHaz = Number(data.nonHazardousMt || 0)
+    metricName = 'Total Waste Generated'
+    metricValue = +(haz + nonHaz).toFixed(2)
+    metricUnit = 'MT'
+    values.push({ label: 'Hazardous Waste', value: haz, unit: 'MT' })
+    values.push({ label: 'Non-Hazardous Waste', value: nonHaz, unit: 'MT' })
+  } else if (m === 'SAFETY') {
+    const lti = Number(data.lostTimeInjuries || data.lostTimeIncidents || 0)
+    metricName = 'Lost Time Injuries (LTI)'
+    metricValue = lti
+    metricUnit = 'incidents'
+    values.push({ label: 'Lost Time Incidents', value: lti, unit: '' })
+  } else {
+    Object.entries(data).forEach(([k, v]) => {
+      if (typeof v === 'number' || (typeof v === 'string' && v.trim() && !k.toLowerCase().includes('password'))) {
+        values.push({ label: k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), value: v })
+      }
+    })
+    metricName = `${m} Disclosure`
+    metricValue = values.length
+    metricUnit = 'fields'
+  }
+
+  return { metricName, metricValue, metricUnit, values }
+}
+
+
 
 // GET /api/data-entry?projectId=&periodId=&level=
 export async function GET(req: NextRequest) {
@@ -48,7 +132,7 @@ export async function POST(req: NextRequest) {
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
     const body = await req.json()
-    const {
+    let {
       id: recordId,
       level,
       levelKey,
@@ -59,6 +143,36 @@ export async function POST(req: NextRequest) {
       data = {},
       evidenceId,
     } = body
+
+    // Defensive resolution: fast memory check before DB
+    if (projectId && !verifiedProjectIds.has(projectId)) {
+      const pCheck = await db.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, code: true } })
+      if (pCheck) {
+        verifiedProjectIds.add(projectId)
+        projectMetaCache.set(projectId, pCheck)
+      } else {
+        projectId = undefined
+      }
+    }
+    if (!projectId) {
+      const userProjId = user.scopes.find((s) => s.scopeType === 'PROJECT')?.scopeId
+      projectId = userProjId || (await db.project.findFirst({ where: { code: 'PRJ-ZOJ' }, select: { id: true, name: true, code: true } }))?.id || (await db.project.findFirst({ where: { status: 'ACTIVE' }, select: { id: true, name: true, code: true } }))?.id
+      if (projectId) verifiedProjectIds.add(projectId)
+    }
+
+    if (reportingPeriodId && !verifiedPeriodIds.has(reportingPeriodId)) {
+      const rCheck = await db.reportingPeriod.findUnique({ where: { id: reportingPeriodId }, select: { id: true, periodLabel: true, year: true, submissionDeadline: true } })
+      if (rCheck) {
+        verifiedPeriodIds.add(reportingPeriodId)
+        periodMetaCache.set(reportingPeriodId, rCheck)
+      } else {
+        reportingPeriodId = undefined
+      }
+    }
+    if (!reportingPeriodId) {
+      reportingPeriodId = (await db.reportingPeriod.findFirst({ where: { status: 'OPEN' }, select: { id: true, periodLabel: true, year: true, submissionDeadline: true } }))?.id || (await db.reportingPeriod.findFirst({ select: { id: true, periodLabel: true, year: true, submissionDeadline: true } }))?.id
+      if (reportingPeriodId) verifiedPeriodIds.add(reportingPeriodId)
+    }
 
     if (!level || !projectId || !reportingPeriodId) {
       return NextResponse.json(
@@ -942,17 +1056,29 @@ export async function POST(req: NextRequest) {
     // Auto-sync into db.submission so it immediately appears in Submissions module
     let synchedSubmission: any = null
     try {
-      const proj = await db.project.findUnique({
-        where: { id: projectId },
-        select: { id: true, name: true, code: true },
-      })
-      const per = await db.reportingPeriod.findUnique({
-        where: { id: reportingPeriodId },
-        select: { id: true, periodLabel: true, year: true, submissionDeadline: true },
-      })
+      let proj = projectMetaCache.get(projectId)
+      if (!proj) {
+        proj = (await db.project.findUnique({
+          where: { id: projectId },
+          select: { id: true, name: true, code: true },
+        })) ?? undefined
+        if (proj) projectMetaCache.set(projectId, proj)
+      }
+
+      let per = periodMetaCache.get(reportingPeriodId)
+      if (!per) {
+        per = (await db.reportingPeriod.findUnique({
+          where: { id: reportingPeriodId },
+          select: { id: true, periodLabel: true, year: true, submissionDeadline: true },
+        })) ?? undefined
+        if (per) periodMetaCache.set(reportingPeriodId, per)
+      }
       const periodDeadline: Date | null = per?.submissionDeadline ?? null
 
       const submissionTitle = `${proj?.name || 'Project'} — ${record.levelName} (${per?.periodLabel || 'FY 2026-27'})`
+      const modMetrics = extractModuleMetrics(record.module, data, calculation)
+      const userBuId = user.scopes?.find((s) => s.scopeType === 'BUSINESS_UNIT')?.scopeId || null
+      const userSubId = user.scopes?.find((s) => s.scopeType === 'SUBSIDIARY')?.scopeId || null
 
       // Look for an existing DRAFT submission for the same project + period + module
       const existingDraft = await db.submission.findFirst({
@@ -976,6 +1102,12 @@ export async function POST(req: NextRequest) {
             status: isSubmittingForReview ? 'SUBMITTED' : 'DRAFT',
             submittedAt: isSubmittingForReview ? new Date() : null,
             submittedById: user.id,
+            businessUnitId: userBuId,
+            subsidiaryId: userSubId,
+            metricName: modMetrics.metricName,
+            metricValue: modMetrics.metricValue,
+            metricUnit: modMetrics.metricUnit,
+            values: JSON.stringify(modMetrics.values),
             completionPct: hasErrors ? 50 : 100,
             evidenceCount: evidenceId ? Math.max(1, existingDraft.evidenceCount ?? 0) : (existingDraft.evidenceCount ?? 0),
             validationPassed: hasErrors ? 0 : Math.max(1, existingDraft.validationPassed ?? 0),
@@ -991,6 +1123,8 @@ export async function POST(req: NextRequest) {
           data: {
             projectId,
             reportingPeriodId,
+            businessUnitId: userBuId,
+            subsidiaryId: userSubId,
             module: record.module,
             category: moduleToCategory(record.module),
             title: submissionTitle,
@@ -1000,6 +1134,10 @@ export async function POST(req: NextRequest) {
             dueDate: periodDeadline ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
             submittedAt: isSubmittingForReview ? new Date() : null,
             submittedById: user.id,
+            metricName: modMetrics.metricName,
+            metricValue: modMetrics.metricValue,
+            metricUnit: modMetrics.metricUnit,
+            values: JSON.stringify(modMetrics.values),
             completionPct: hasErrors ? 50 : 100,
             evidenceCount: evidenceId ? 1 : 0,
             validationPassed: hasErrors ? 0 : 1,
@@ -1013,61 +1151,93 @@ export async function POST(req: NextRequest) {
       }
 
       if (isSubmittingForReview && synchedSubmission) {
-        await appendHistory({
-          submissionId: synchedSubmission.id,
-          fromStatus: 'DRAFT',
-          toStatus: 'SUBMITTED',
-          actorId: user.id,
-          actorName: user.name,
-          actorRole: primaryRoleLabel(user),
-          action: 'SUBMIT',
-          comment: `Submitted via Data Entry Workspace — ${record.levelName}`,
-        }).catch(() => {})
+        invalidatePuOverviewCache()
+        invalidatePuSubmissionsCache()
+        invalidatePuNotificationsCache()
+        invalidatePaServerCache()
+
+        // Fast-path non-blocking background telemetry, audit & platform bridge mirroring
+        const subId = synchedSubmission.id
+        const actorName = user.name
+        const actorId = user.id
+        const actorRole = primaryRoleLabel(user)
+        const levName = record.levelName
+        const recModule = record.module
+
+        ;(async () => {
+          try {
+            const { mirrorPuSubmission } = await import('@/lib/bridge/pu-link')
+            await Promise.allSettled([
+              appendHistory({
+                submissionId: subId,
+                fromStatus: 'DRAFT',
+                toStatus: 'SUBMITTED',
+                actorId,
+                actorName,
+                actorRole,
+                action: 'SUBMIT',
+                comment: `Submitted via Data Entry Workspace — ${levName}`,
+              }),
+              appendActivity({
+                projectId,
+                actorId,
+                actorName,
+                actorRole,
+                action: 'SUBMIT',
+                title: `${levName} submitted for Project Admin review`,
+                description: `Source record ${recId.slice(-8)} captured with ${issues.length} issue(s).`,
+                module: recModule,
+                status: 'SUBMITTED',
+              }),
+              appendAudit({
+                actorId,
+                actorName,
+                actorRole,
+                action: 'SUBMIT',
+                entityType: 'DataEntryRecord',
+                entityId: recId,
+                newState: { level, levelName, validationStatus, calculation, status: record.status },
+                reason: 'Source record submitted for Project Admin review',
+              }),
+              mirrorPuSubmission(subId, {
+                phase: 'SUBMITTED',
+                actorId,
+                actorName,
+                actorRole,
+              }),
+            ])
+          } catch (bgErr) {
+            console.warn('[pu-link] data-entry bridge notice:', bgErr)
+          }
+        })()
+      } else {
+        // Draft mode - background append activity/audit without delaying user response
+        Promise.allSettled([
+          appendActivity({
+            projectId,
+            actorId: user.id,
+            actorName: user.name,
+            actorRole: primaryRoleLabel(user),
+            action: 'DATA_ENTRY',
+            title: `${record.levelName} saved as Draft`,
+            description: `Source record ${recId.slice(-8)} captured with ${issues.length} issue(s).`,
+            module: record.module,
+            status: validationStatus,
+          }),
+          appendAudit({
+            actorId: user.id,
+            actorName: user.name,
+            actorRole: primaryRoleLabel(user),
+            action: 'CREATE',
+            entityType: 'DataEntryRecord',
+            entityId: recId,
+            newState: { level, levelName, validationStatus, calculation, status: record.status },
+            reason: 'Source record captured via Data Entry Module',
+          }),
+        ]).catch(() => {})
       }
     } catch (syncErr) {
       console.warn('Submission synchronization notice:', syncErr)
-    }
-
-    // Append activity and audit log for cross-screen integration
-    try {
-      await appendActivity({
-        projectId,
-        actorId: user.id,
-        actorName: user.name,
-        actorRole: primaryRoleLabel(user),
-        action: isSubmittingForReview ? 'SUBMIT' : 'DATA_ENTRY',
-        title: `${record.levelName} ${isSubmittingForReview ? 'submitted for BU review' : 'saved as Draft'}`,
-        description: `Source record ${recId.slice(-8)} captured with ${issues.length} issue(s).`,
-        module: record.module,
-        status: isSubmittingForReview ? 'SUBMITTED' : validationStatus,
-      }).catch(() => {})
-
-      await appendAudit({
-        actorId: user.id,
-        actorName: user.name,
-        actorRole: primaryRoleLabel(user),
-        action: isSubmittingForReview ? 'SUBMIT' : 'CREATE',
-        entityType: 'DataEntryRecord',
-        entityId: recId,
-        newState: { level, levelName, validationStatus, calculation, status: record.status },
-        reason: isSubmittingForReview ? 'Source record submitted for review' : 'Source record captured via Data Entry Module',
-      }).catch(() => {})
-    } catch {}
-
-    // BRIDGE: when the record is submitted for review, mirror the synced
-    // submission into the main platform review chain (Subsidiary → Group).
-    if (isSubmittingForReview && synchedSubmission?.id) {
-      try {
-        const { mirrorPuSubmission } = await import('@/lib/bridge/pu-link')
-        await mirrorPuSubmission(synchedSubmission.id, {
-          phase: 'SUBMITTED',
-          actorId: user.id,
-          actorName: user.name,
-          actorRole: primaryRoleLabel(user),
-        })
-      } catch (bridgeErr) {
-        console.warn('[pu-link] data-entry bridge notice:', bridgeErr)
-      }
     }
 
     return NextResponse.json({
