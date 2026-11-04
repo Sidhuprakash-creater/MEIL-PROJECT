@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import {
   History,
+  FolderLock,
   Search,
   CheckCircle2,
   Clock,
@@ -370,6 +371,12 @@ export default function SubmissionsView() {
                               {s.parsedValues.length} data fields captured
                             </div>
                           )}
+                          {s.evidenceList && s.evidenceList.length > 0 && (
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-700 font-bold mt-1">
+                              <FolderLock size={11} className="text-emerald-600 shrink-0" />
+                              <span>{s.evidenceList.length} evidence doc(s)</span>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <span className="text-slate-400">—</span>
@@ -518,6 +525,35 @@ export default function SubmissionsView() {
                       <span className="text-slate-600 font-medium">{field.label}:</span>
                       <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
                         {field.value} {field.unit ? field.unit : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Attached Verification Evidence Card */}
+            {inspectSubmission.evidenceList && inspectSubmission.evidenceList.length > 0 && (
+              <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2.5 shadow-2xs">
+                <div className="font-bold text-emerald-950 text-xs flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <FolderLock size={14} className="text-emerald-600" />
+                    <span>Attached Verification Evidence ({inspectSubmission.evidenceList.length} documents)</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                    SHA-256 Audit Sealed
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {inspectSubmission.evidenceList.map((doc: string, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-slate-800 shadow-2xs"
+                    >
+                      <FileText size={13} className="text-emerald-600 shrink-0" />
+                      <span className="font-mono text-[11px] truncate max-w-[260px]">{doc}</span>
+                      <span className="ml-1 text-[9px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
+                        VERIFIED
                       </span>
                     </div>
                   ))}

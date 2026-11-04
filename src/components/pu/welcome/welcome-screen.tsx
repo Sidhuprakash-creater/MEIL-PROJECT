@@ -1297,7 +1297,7 @@ function RolePickerScreen({
       }
       return r
     })
-  }, [roles, project?.reportingOwner])
+  }, [roles, project])
 
   const PHASES = useMemo(() => PHASE_DEFS.map(def => ({
     ...def,

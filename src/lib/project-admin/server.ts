@@ -246,7 +246,7 @@ export async function logProjectActivity(entry: {
 
     await db.auditEvent.create({
       data: {
-        eventType: entry.action,
+        action: entry.action,
         description: `${entry.actorName} (${entry.actorRole}) performed ${entry.action} on ${entry.targetType} "${entry.targetLabel}".`,
         severity: entry.severity,
         subsidiaryId: ctx.subsidiaryId,

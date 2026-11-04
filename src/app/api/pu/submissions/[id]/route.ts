@@ -191,11 +191,38 @@ export async function GET(
       take: 100,
     })
 
+    let parsedValues: Array<{ label: string; value: string | number; unit?: string }> = []
+    try {
+      if ((submission as any).values) {
+        const pv = JSON.parse((submission as any).values)
+        if (Array.isArray(pv)) parsedValues = pv
+      }
+    } catch {}
+
+    let evidenceList: string[] = []
+    try {
+      if ((submission as any).evidence) {
+        const pe = JSON.parse((submission as any).evidence)
+        if (Array.isArray(pe)) evidenceList = pe.filter(Boolean)
+      }
+    } catch {}
+
+    const subDate = submission.submittedAt || submission.createdAt
+    const d = new Date(subDate)
+    const datePart = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+
     return NextResponse.json({
       user: { id: user.id, name: user.name },
       submission: {
         ...submissionCompat(submission),
         recordIds,
+        parsedValues,
+        evidenceList,
+        evidenceCount: evidenceList.length || submission.evidenceCount || 0,
+        formattedDateTime: `${datePart} • ${timePart}`,
+        reviewComment: submission.reviewComment || null,
+        reviewedAt: submission.reviewedAt || null,
         history: parseJsonArray(submission.history),
         corrections: parseJsonArray(submission.corrections),
       },

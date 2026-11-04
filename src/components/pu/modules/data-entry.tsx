@@ -1,4 +1,6 @@
 'use client'
+import { LevelReviewModal, FinalSubmitAllModal } from './submission-flow-modals'
+import { LiquidGlassEmissionJourneyWidget } from './liquid-glass-journey'
 /**
  * Data Entry Module — Flagship 4-step workflow screen with Environment Data Reporting Levels.
  * Steps: 1 Enter Data → 2 Attach Evidence → 3 Validate → 4 Submit.
@@ -17,7 +19,7 @@ import { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Zap, Droplet, Recycle, Users, ShieldCheck, Flame, CheckCircle2,
-  AlertTriangle, AlertOctagon, Clock, Link2, Send, Save, FlaskConical,
+  AlertTriangle, AlertOctagon, Clock, Link2, Send, Save, FlaskConical, Compass,
   ChevronRight, ChevronDown, Building2, CalendarClock, Info, Lock, Calculator,
   FileCheck2, Sparkles, TrendingUp, HelpCircle, Layers, Check, ExternalLink,
   Upload, RotateCcw, Download, Eye, FileSpreadsheet, Image as ImageIcon,
@@ -273,6 +275,30 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
   const [csvImportOpen, setCsvImportOpen] = useState(false)
   const [submittingAll, setSubmittingAll] = useState(false)
   const [submitAllSuccess, setSubmitAllSuccess] = useState<any | null>(null)
+  const [reviewModalState, setReviewModalState] = useState<{
+    open: boolean
+    levelKey: LevelKey
+    data: any
+    nextLevel: any
+  } | null>(null)
+  const [finalSubmitModalOpen, setFinalSubmitModalOpen] = useState(false)
+  const [stagedLevels, setStagedLevels] = useState<Record<string, any>>({})
+
+  const handleRequestNextReview = (levelKey: LevelKey, data?: any) => {
+    const currentData = data || formStateRef.current[levelKey] || {}
+    setStagedLevels((prev) => ({
+      ...prev,
+      [levelKey]: { ...currentData, stagedAt: new Date().toISOString() },
+    }))
+    const idx = SUB_MODULES.findIndex((m) => m.key === levelKey)
+    const nextMod = SUB_MODULES[idx + 1] || null
+    setReviewModalState({
+      open: true,
+      levelKey,
+      data: currentData,
+      nextLevel: nextMod,
+    })
+  }
 
   const handleSubmitAll = async () => {
     if (!selectedProjectId || !selectedPeriodId) {
@@ -453,10 +479,8 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
     if (submitted) {
       setStep(4)
       setSubmitResult({ submissionId: result.id, status: 'SUBMITTED' })
-      setActionInfo(`Submitted for Project Admin review. Status: SUBMITTED. Visible in Submissions module.`)
-      toast.success('Submitted for Review!', {
-        description: `${activeSub.label} record #${result.id.slice(-8)} submitted and now visible in Submissions module.`,
-      })
+      setActionInfo(`${activeSub.label} data captured. Opening Review summary...`)
+      handleRequestNextReview(activeLevelKey, formStateRef.current[activeLevelKey])
     } else {
       setStep(2)
       setActionInfo(`Draft saved for ${activeSub.brsrTitle}. Saved as Draft in Submissions module.`)
@@ -657,9 +681,9 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
           <button
             type="button"
             disabled={submittingAll || readOnly}
-            onClick={handleSubmitAll}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700 active:scale-95 transition-all cursor-pointer"
-            title="Submit all site environmental data to Project Admin at once"
+            onClick={() => setFinalSubmitModalOpen(true)}
+            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:opacity-95 active:scale-95 transition-all cursor-pointer"
+            title="Review and submit all site environmental data to Project Admin at once"
           >
             <Send className={`h-3.5 w-3.5 ${submittingAll ? 'animate-bounce' : ''}`} />
             <span>{submittingAll ? 'Submitting All Levels...' : 'Submit All to Project Admin'}</span>
@@ -1013,6 +1037,16 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
           setReviewEvidence={setReviewEvidence}
           isFlipped={isFlipped}
           setIsFlipped={setIsFlipped}
+          levels={SUB_MODULES}
+          allFormData={formStateRef.current}
+          stagedLevels={stagedLevels}
+          existingRecords={existingRecords}
+          onSelectLevel={(k) => {
+            setLocalLevel(k as LevelKey)
+            setDataEntrySubModule(k as LevelKey)
+            setStep(1)
+          }}
+          onOpenFinalReview={() => setFinalSubmitModalOpen(true)}
         />
       </div>
 
@@ -1080,18 +1114,29 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
               Step 3: Validate
             </button>
 
-            <button
-              disabled={readOnly || !saved || submitting || step < 3}
-              onClick={handleSubmit}
-              className="btn-glass-primary flex items-center gap-1.5 rounded-full px-5 py-2 text-xs font-semibold shadow-md disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {submitting ? (
-                <Clock className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Send className="h-3.5 w-3.5" />
-              )}
-              Step 4: Submit for Review
-            </button>
+            {activeLevelKey === 'level9' ? (
+              <button
+                disabled={readOnly || submittingAll}
+                onClick={() => setFinalSubmitModalOpen(true)}
+                className="btn-glass-primary flex items-center gap-2 rounded-full px-5 py-2 text-xs font-extrabold shadow-md bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white hover:opacity-95 transition"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Final Review &amp; Submit All to Project Admin</span>
+              </button>
+            ) : (
+              <button
+                disabled={readOnly || submitting}
+                onClick={() => handleRequestNextReview(activeLevelKey, formStateRef.current[activeLevelKey])}
+                className="btn-glass-primary flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold shadow-md bg-blue-600 text-white hover:bg-blue-700 transition"
+              >
+                {submitting ? (
+                  <Clock className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-3.5 w-3.5" />
+                )}
+                <span>Next: Review {activeSub.label} &amp; Continue</span>
+              </button>
+            )}
           </div>
         </div>
       </motion.div>
@@ -1107,6 +1152,57 @@ export function DataEntryModule({ subModule: subModuleProp }: { subModule: strin
         periods={periods}
         onImported={refreshExistingRecords}
       />
+
+      {/* Level Review & Progression Modal */}
+      {reviewModalState && (
+        <LevelReviewModal
+          open={reviewModalState.open}
+          onClose={() => setReviewModalState(null)}
+          levelKey={reviewModalState.levelKey}
+          levelName={activeSub.brsrTitle}
+          levelNumber={activeSub.level}
+          levelIcon={activeSub.icon}
+          badgeColor={activeSub.badgeColor}
+          data={reviewModalState.data}
+          evidenceList={evidence}
+          projectName={selectedProject?.projectName || 'Site Project'}
+          periodLabel={selectedPeriod?.label || 'FY 2026-27'}
+          nextLevel={reviewModalState.nextLevel}
+          onProceedNext={() => {
+            if (reviewModalState.nextLevel) {
+              setStagedLevels((prev) => ({
+                ...prev,
+                [reviewModalState.levelKey]: {
+                  ...(reviewModalState.data || formStateRef.current[reviewModalState.levelKey] || {}),
+                  stagedAt: new Date().toISOString(),
+                },
+              }))
+              setLocalLevel(reviewModalState.nextLevel.key as LevelKey)
+              setDataEntrySubModule(reviewModalState.nextLevel.key as LevelKey)
+              setStep(1)
+              setSaved(null)
+              toast.info(`Switched to Level ${reviewModalState.nextLevel.level}: ${reviewModalState.nextLevel.label}`)
+            }
+          }}
+          onOpenFinalReview={() => setFinalSubmitModalOpen(true)}
+        />
+      )}
+
+      {/* Final Consolidated Review & Submit All Modal */}
+      <FinalSubmitAllModal
+        open={finalSubmitModalOpen}
+        onClose={() => setFinalSubmitModalOpen(false)}
+        projectName={selectedProject?.projectName || 'Site Project'}
+        periodLabel={selectedPeriod?.label || 'FY 2026-27'}
+        submitting={submittingAll}
+        onSubmitAll={handleSubmitAll}
+        levels={SUB_MODULES}
+        allData={formStateRef.current}
+        evidenceList={evidence}
+        submitterName="Rohit Kumar"
+        submitterRole="Site Data Entry"
+        submitterEmail="rohit@meil-esg.in"
+      />
     </div>
   )
 }
@@ -1118,7 +1214,7 @@ function Stepper({ step }: { step: 1 | 2 | 3 | 4 }) {
   const icons: Record<number, LucideIcon> = {
     1: FileText,
     2: Link2,
-    3: FlaskConical,
+    3: FlaskConical, Compass,
     4: Send,
   }
   return (
@@ -1355,6 +1451,12 @@ interface FlippablePanelProps {
   setReviewEvidence: (ev: EvidenceItem | null) => void
   isFlipped: boolean
   setIsFlipped: (flipped: boolean) => void
+  levels?: LevelConfig[]
+  allFormData?: Record<string, Record<string, any>>
+  stagedLevels?: Record<string, any>
+  existingRecords?: any[]
+  onSelectLevel?: (levelKey: string) => void
+  onOpenFinalReview?: () => void
 }
 
 function FlippableEngineEvidencePanel({
@@ -1372,8 +1474,15 @@ function FlippableEngineEvidencePanel({
   setReviewEvidence,
   isFlipped,
   setIsFlipped,
+  levels = SUB_MODULES,
+  allFormData = {},
+  stagedLevels = {},
+  existingRecords = [],
+  onSelectLevel = () => {},
+  onOpenFinalReview,
 }: FlippablePanelProps) {
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
+  const [panelTab, setPanelTab] = useState<'journey' | 'calculations' | 'vault'>('journey')
 
   const handleStartReview = (ev: EvidenceItem) => {
     setReviewEvidence(ev)
@@ -1407,15 +1516,15 @@ function FlippableEngineEvidencePanel({
           >
             <div>
               {/* Header */}
-              <div className="mb-3.5 flex items-start justify-between">
+              <div className="mb-3 flex items-start justify-between">
                 <div className="flex items-start gap-2.5">
                   <div className="kpi-tile bg-violet-50 text-violet-600 shadow-sm">
                     <FlaskConical className="h-4 w-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Engine Preview</h3>
+                    <h3 className="text-sm font-bold text-slate-900">Engine &amp; Emission Journey</h3>
                     <p className="text-[11px] text-slate-500">
-                      Deterministic calculations &amp; verification checks
+                      Deterministic checks &amp; sequenced emission sources
                     </p>
                   </div>
                 </div>
@@ -1432,31 +1541,93 @@ function FlippableEngineEvidencePanel({
                 )}
               </div>
 
-              {/* Engine Calculation Output */}
-              <CalculationPreview saved={saved} activeSub={activeSub} />
+              {/* iOS Liquid Glass Segmented View Bar (WidgetKit design) */}
+              <div className="mb-3 flex items-center gap-1 rounded-2xl border border-sky-100/80 bg-slate-100/70 p-1 backdrop-blur-md shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setPanelTab('journey')}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-all ${
+                    panelTab === 'journey'
+                      ? 'bg-white text-sky-900 shadow-xs ring-1 ring-sky-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Compass className="h-3.5 w-3.5 text-sky-600" />
+                  <span>Sequence Journey</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelTab('calculations')}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-all ${
+                    panelTab === 'calculations'
+                      ? 'bg-white text-sky-900 shadow-xs ring-1 ring-sky-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FlaskConical className="h-3.5 w-3.5 text-violet-600" />
+                  <span>Calculations</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanelTab('vault')}
+                  className={`flex flex-1 items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-semibold transition-all ${
+                    panelTab === 'vault'
+                      ? 'bg-white text-sky-900 shadow-xs ring-1 ring-sky-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <FileCheck2 className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Vault ({evidence.length})</span>
+                </button>
+              </div>
 
-              {/* Engine Validations */}
-              <ValidationResults saved={saved} validationRun={validationRun} />
+              {/* TAB 1: EMISSION SEQUENCE JOURNEY (WidgetKit Liquid Glass Cards) */}
+              {panelTab === 'journey' && (
+                <LiquidGlassEmissionJourneyWidget
+                  levels={levels}
+                  activeLevelKey={activeSub.key}
+                  allFormData={allFormData}
+                  stagedLevels={stagedLevels}
+                  existingRecords={existingRecords}
+                  evidenceList={evidence}
+                  onSelectLevel={onSelectLevel}
+                  onReviewEvidence={(fileName) => {
+                    const matched = evidence.find((e) => e.fileName === fileName)
+                    if (matched) handleStartReview(matched)
+                  }}
+                  onOpenFinalReview={onOpenFinalReview}
+                />
+              )}
 
-              {/* Evidence Upload Card (Workable upload, store and column list) */}
-              <EvidenceUploadSection
-                projectId={projectId}
-                periodId={periodId}
-                moduleKey={activeSub.moduleKey}
-                evidence={evidence}
-                onUploaded={onEvidenceUploaded}
-                onReview={handleStartReview}
-                selectedEvidenceId={saved?.evidenceId || null}
-                onSelectEvidence={onAttachEvidence}
-              />
+              {/* TAB 2: LIVE ENGINE CALCULATIONS & VALIDATION FEEDBACK */}
+              {panelTab === 'calculations' && (
+                <>
+                  <CalculationPreview saved={saved} activeSub={activeSub} />
+                  <ValidationResults saved={saved} validationRun={validationRun} />
+                </>
+              )}
 
-              {/* Evidence Picker dropdown selector (Step 2) */}
-              <EvidencePicker
-                evidence={evidence}
-                step={step}
-                saved={saved}
-                onPick={onAttachEvidence}
-              />
+              {/* TAB 3: EVIDENCE UPLOAD & VAULT */}
+              {panelTab === 'vault' && (
+                <>
+                  <EvidenceUploadSection
+                    projectId={projectId}
+                    periodId={periodId}
+                    moduleKey={activeSub.moduleKey}
+                    evidence={evidence}
+                    onUploaded={onEvidenceUploaded}
+                    onReview={handleStartReview}
+                    selectedEvidenceId={saved?.evidenceId || null}
+                    onSelectEvidence={onAttachEvidence}
+                  />
+                  <EvidencePicker
+                    evidence={evidence}
+                    step={step}
+                    saved={saved}
+                    onPick={onAttachEvidence}
+                  />
+                </>
+              )}
             </div>
 
             {/* Submit Outcome Banner */}
@@ -2661,12 +2832,16 @@ function FormSaveActions({
   readOnly,
   onSave,
   onSubmitForReview,
+  nextLabel,
+  isFinalLevel,
 }: {
   error: string
   submitting: boolean
   readOnly: boolean
   onSave: () => void
   onSubmitForReview?: () => void
+  nextLabel?: string
+  isFinalLevel?: boolean
 }) {
   return (
     <div className="sm:col-span-2 pt-3">
@@ -2675,36 +2850,38 @@ function FormSaveActions({
           <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600" /> {error}
         </div>
       )}
-      <div className="glass-subtle flex flex-wrap items-center gap-2.5 rounded-2xl px-3 py-2.5">
+      <div className="glass-subtle flex flex-wrap items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5">
         <button
+          type="button"
           onClick={onSave}
           disabled={readOnly || submitting}
-          className="ios-btn-ghost"
+          className="ios-btn-ghost flex items-center gap-1.5"
+          title="Save current progress as draft"
         >
           {submitting ? (
             <Clock className="h-3.5 w-3.5 animate-spin" />
           ) : (
             <Save className="h-3.5 w-3.5" />
           )}
-          Save Draft (Step 1)
+          <span>Save Draft</span>
         </button>
         {onSubmitForReview && (
           <button
+            type="button"
             onClick={onSubmitForReview}
             disabled={readOnly || submitting}
-            className="btn-liquid-blue flex items-center gap-1.5 rounded-full px-5 py-2 text-xs font-semibold shadow-md disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-liquid-blue flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-md hover:shadow-blue-500/30 transition transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {submitting ? (
               <Clock className="h-3.5 w-3.5 animate-spin" />
+            ) : isFinalLevel ? (
+              <Sparkles className="h-3.5 w-3.5" />
             ) : (
-              <Send className="h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5" />
             )}
-            Submit for Review
+            <span>{nextLabel || (isFinalLevel ? 'Final Review & Submit All →' : 'Next: Review & Continue →')}</span>
           </button>
         )}
-        <span className="pl-1 text-[11px] font-medium text-slate-400">
-          Syncs directly to Submissions workflow &amp; Overview dashboard.
-        </span>
       </div>
     </div>
   )
