@@ -41,6 +41,7 @@ export default function CategoriesView() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount data load
     loadCategories();
   }, [viewParams.category]);
 

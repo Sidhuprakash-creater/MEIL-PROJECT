@@ -46,6 +46,7 @@ export default function EvidenceView() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch-on-mount data load
     loadEvidence();
   }, []);
 

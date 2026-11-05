@@ -9,6 +9,7 @@
 import { cookies } from 'next/headers'
 import { db } from '@/lib/pu/db'
 import { verifyPassword as scryptVerify } from '@/lib/password'
+import { getSessionPayload } from '@/lib/session'
 
 export interface SessionUser {
   id: string
@@ -100,21 +101,40 @@ export function portalRoleKey(role: string): { key: string; name: string } {
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE)?.value
-  if (!token) return null
-  const [encoded, sig] = token.split('.')
-  if (!encoded || !sig) return null
-  const userId = Buffer.from(encoded, 'base64').toString()
-  const expectedSig = await sign(userId)
-  if (sig !== expectedSig) return null
+
+  let resolvedUserId: string | null = null
+
+  if (token) {
+    const [encoded, sig] = token.split('.')
+    if (encoded && sig) {
+      const uId = Buffer.from(encoded, 'base64').toString()
+      const expectedSig = await sign(uId)
+      if (sig === expectedSig) {
+        resolvedUserId = uId
+      }
+    }
+  }
+
+  // Fallback to platform-wide session cookie (meil_esg_session)
+  if (!resolvedUserId) {
+    try {
+      const platformSession = await getSessionPayload()
+      if (platformSession?.user?.id) {
+        resolvedUserId = platformSession.user.id
+      }
+    } catch {}
+  }
+
+  if (!resolvedUserId) return null
 
   // Fast path: cached session user
-  const cached = puUserCache.get(userId)
+  const cached = puUserCache.get(resolvedUserId)
   if (cached && cached.expiresAt > Date.now()) {
     return cached.user
   }
 
   const user = await db.user.findUnique({
-    where: { id: userId },
+    where: { id: resolvedUserId },
     include: { project: true, businessUnit: true, subsidiary: true },
   })
   if (!user || user.status !== 'ACTIVE') return null
@@ -136,7 +156,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     roles: [{ id: `role-${role.key}`, key: role.key, name: role.name, phase: 1 }],
     scopes,
   }
-  puUserCache.set(userId, { user: sessionUser, expiresAt: Date.now() + 60000 })
+  puUserCache.set(resolvedUserId, { user: sessionUser, expiresAt: Date.now() + 60000 })
   return sessionUser
 }
 
@@ -186,7 +206,7 @@ export async function requirePermission(permissionKey: string): Promise<SessionU
 }
 
 export async function userHasPermission(userId: string, permissionKey: string): Promise<boolean> {
-  const user = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
+  const user = await db.user.findUnique({ where: { id: resolvedUserId }, select: { role: true } })
   if (!user) return false
   const perms = ROLE_PERMS[user.role] ?? READ_ONLY
   return perms.includes(permissionKey)

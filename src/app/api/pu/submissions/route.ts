@@ -45,8 +45,9 @@ export async function GET(req: NextRequest) {
     200,
   )
 
+  const bypass = searchParams.get('bypass') === 'true' || req.headers.get('x-bypass-cache') === 'true'
   const cacheKey = `${projectId || 'all'}:${periodId || 'all'}:${moduleFilter || 'all'}:${status || 'all'}`
-  const cached = puSubmissionsCache.get(cacheKey)
+  const cached = !bypass ? puSubmissionsCache.get(cacheKey) : null
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.data)
   }
@@ -56,10 +57,12 @@ export async function GET(req: NextRequest) {
   if (periodId) where.reportingPeriodId = periodId
   if (moduleFilter) where.module = moduleFilter
   if (status) {
-    if (status === 'SUBMITTED') {
-      where.status = { in: ['SUBMITTED', 'RESUBMITTED'] }
-    } else if (status === 'APPROVED') {
-      where.status = { in: ['APPROVED', 'BU_APPROVED', 'SUBSIDIARY_APPROVED', 'HQ_REVIEW'] }
+    if (status === 'SUBMITTED' || status === 'PENDING') {
+      where.status = { in: ['SUBMITTED', 'RESUBMITTED', 'PENDING', 'UNDER_REVIEW'] }
+    } else if (status === 'APPROVED' || status === 'ACTIVE') {
+      where.status = { in: ['APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED', 'HQ_REVIEW'] }
+    } else if (status === 'CORRECTION_REQUESTED' || status === 'CHANGES_REQUESTED' || status === 'REJECTED' || status === 'CORRECTION_REQUIRED') {
+      where.status = { in: ['CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'] }
     } else {
       where.status = status
     }
@@ -103,10 +106,38 @@ export async function GET(req: NextRequest) {
     const submissions = rows.map((s) => {
       const history = parseJsonArray(s.history)
       const corrections = parseJsonArray(s.corrections)
+
+      let parsedValues: Array<{ label: string; value: string | number; unit?: string }> = []
+      try {
+        if ((s as any).values) {
+          const pv = JSON.parse((s as any).values)
+          if (Array.isArray(pv)) parsedValues = pv
+        }
+      } catch {}
+
+      let evidenceList: string[] = []
+      try {
+        if ((s as any).evidence) {
+          const pe = JSON.parse((s as any).evidence)
+          if (Array.isArray(pe)) evidenceList = pe.filter(Boolean)
+        }
+      } catch {}
+
+      const subDate = s.submittedAt || s.createdAt
+      const d = new Date(subDate)
+      const datePart = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })
+
       return {
         ...submissionCompat(s),
         history: history.slice(-5).reverse(),
         corrections,
+        parsedValues,
+        evidenceList,
+        evidenceCount: evidenceList.length || s.evidenceCount || 0,
+        formattedDateTime: `${datePart} • ${timePart}`,
+        reviewComment: s.reviewComment || null,
+        reviewedAt: s.reviewedAt || null,
         _count: { corrections: corrections.length },
       }
     })
