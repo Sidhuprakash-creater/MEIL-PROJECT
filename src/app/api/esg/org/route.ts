@@ -82,7 +82,7 @@ const DEFAULT_PROJECT_MANAGERS: Record<string, { name: string; title: string; em
 async function getProjectManagerOverrides(): Promise<Record<string, { name: string; title?: string; email?: string; phone?: string }>> {
   try {
     const s = await db.appSetting.findUnique({ where: { skey: "project_managers" } });
-    if (s?.value) return JSON.parse(s.value);
+    if (s?.svalue) return JSON.parse(s.svalue);
   } catch {
     /* fallback to defaults */
   }
@@ -96,8 +96,8 @@ async function saveProjectManagerOverride(projectId: string, projectCode: string
     if (projectCode) cur[projectCode] = { ...cur[projectCode], ...manager };
     await db.appSetting.upsert({
       where: { skey: "project_managers" },
-      update: { value: JSON.stringify(cur) },
-      create: { skey: "project_managers", value: JSON.stringify(cur), category: "GENERAL", label: "Project Manager Overrides", vtype: "JSON" },
+      update: { svalue: JSON.stringify(cur) },
+      create: { skey: "project_managers", svalue: JSON.stringify(cur), category: "GENERAL", label: "Project Manager Overrides", vtype: "JSON" },
     });
   } catch {
     /* non-blocking */

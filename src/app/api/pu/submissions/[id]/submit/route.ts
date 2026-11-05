@@ -15,10 +15,8 @@ import {
   withProjectCompat,
 } from '@/lib/pu/workflow'
 
-import { invalidatePuOverviewCache } from '@/app/api/pu/overview/route'
-import { invalidatePuSubmissionsCache } from '@/app/api/pu/submissions/route'
-import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 

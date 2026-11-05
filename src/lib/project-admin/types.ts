@@ -48,6 +48,7 @@ export interface PaProjectInfo {
   frequency: string;
   businessUnitId: string;
   businessUnitName: string;
+  reportingFrequency?: string;
   businessUnitCode: string;
   subsidiaryId: string;
   subsidiaryName: string;
@@ -70,6 +71,7 @@ export interface PaKpis {
   evidenceUploaded: number;
   missingEvidence: number;
   overallCompletionPct: number;
+  overallProgress?: number;
 }
 
 export interface PaCategoryProgress {
@@ -87,9 +89,24 @@ export interface PaCategoryProgress {
   lastUpdated: string;
   progressPct: number;
   sections: { code: string; name: string; status: string }[];
+  /* Fields produced by the dashboard aggregation route. */
+  roleName?: string;
+  label?: string;
+  status?: string;
+  completionPercent?: number;
+  assignedUserName?: string;
+  assignedUserEmail?: string;
+  totalMetrics?: number;
+  completedMetrics?: number;
+  pendingMetrics?: number;
+  lastActivity?: string;
+  evidenceCount?: number;
+  defaultAssignee?: string;
+  metricsCount?: number;
 }
 
 export interface PaDashboardAnalytics {
+  historicalTrend?: { period: string; score: number; emissions: number; waterRecycled: number }[];
   completionDistribution: {
     name: string;
     value: number;
@@ -184,6 +201,15 @@ export interface PaCollectionStatusItem {
   metricValue?: number;
   metricUnit?: string;
   updatedAt: string;
+  /* Sequenced level records for the inspection dialog (emission → sources → evidence). */
+  sourceRecords?: Array<{
+    recordId: string;
+    level: number;
+    levelName: string;
+    recordStatus: string;
+    validationStatus: string;
+    items: any[];
+  }>;
 }
 
 export interface PaEvidenceItem {
@@ -372,5 +398,8 @@ export interface PaNotificationItem {
   actionUrl?: string;
   linkView?: PaViewId;
   relatedEntityId?: string;
+  /* Aliases used by the notifications view. */
+  isRead?: boolean;
+  type?: string;
 }
 

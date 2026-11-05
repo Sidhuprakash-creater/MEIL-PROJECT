@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { invalidatePuNotificationsCache } from '@/lib/portal-cache'
 import {
   appendAudit,
   authErrorToStatus,
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
-import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
 
 export const runtime = 'nodejs'
 

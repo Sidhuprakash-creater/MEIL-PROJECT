@@ -65,6 +65,8 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   subModule: SubModule
+  /** Console API surface — '/api/pu' (Project User portal) or '/api/so' (site-ops console). */
+  apiBase?: string
   projectId: string | null
   reportingPeriodId: string | null
   projects: Project[]
@@ -308,7 +310,7 @@ function downloadTemplate(subModule: SubModule) {
    Main dialog component
    ============================================================ */
 export function CsvImportDialog({
-  open, onOpenChange, subModule, projectId, reportingPeriodId, projects, periods, onImported,
+  open, onOpenChange, subModule, apiBase = '/api/pu', projectId, reportingPeriodId, projects, periods, onImported,
 }: Props) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [fileName, setFileName] = useState('')
@@ -409,7 +411,7 @@ export function CsvImportDialog({
     }
     setStep(4); setImporting(true); setOutcomes([]); setImportProgress(0)
 
-    const endpoint = `/api/pu/${subModule}`
+    const endpoint = `${apiBase}/${subModule}`
     const results: ImportOutcome[] = []
     let done = 0
     for (const row of subset) {

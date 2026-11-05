@@ -206,7 +206,7 @@ export async function requirePermission(permissionKey: string): Promise<SessionU
 }
 
 export async function userHasPermission(userId: string, permissionKey: string): Promise<boolean> {
-  const user = await db.user.findUnique({ where: { id: resolvedUserId }, select: { role: true } })
+  const user = await db.user.findUnique({ where: { id: userId }, select: { role: true } })
   if (!user) return false
   const perms = ROLE_PERMS[user.role] ?? READ_ONLY
   return perms.includes(permissionKey)

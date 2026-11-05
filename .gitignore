@@ -52,3 +52,8 @@ prompt
 server.log
 # Skills directory
 /skills/
+# runtime uploads (user evidence files)
+/public/evidence-uploads/
+
+# zcode workspace state
+.zcode/

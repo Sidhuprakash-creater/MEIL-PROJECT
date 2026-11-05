@@ -19,10 +19,8 @@ import {
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
 
-import { invalidatePuOverviewCache } from '@/app/api/pu/overview/route'
-import { invalidatePuSubmissionsCache } from '@/app/api/pu/submissions/route'
-import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -30,6 +28,20 @@ const verifiedProjectIds = new Set<string>()
 const verifiedPeriodIds = new Set<string>()
 const projectMetaCache = new Map<string, { id: string; name: string; code: string }>()
 const periodMetaCache = new Map<string, { id: string; periodLabel: string; year: number; submissionDeadline: Date | null }>()
+
+/* Emission factor master rarely changes — cache it instead of querying on
+   every Level-3 save (route previously re-queried per request). */
+let factorMasterCache: { rows: any[]; expiresAt: number } | null = null
+const FACTOR_MASTER_TTL_MS = 60000
+async function getActiveEmissionFactors() {
+  if (factorMasterCache && factorMasterCache.expiresAt > Date.now()) return factorMasterCache.rows
+  const rows = await db.emissionFactor.findMany({
+    where: { status: 'ACTIVE' },
+    orderBy: { version: 'desc' },
+  })
+  factorMasterCache = { rows, expiresAt: Date.now() + FACTOR_MASTER_TTL_MS }
+  return rows
+}
 
 function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {}, calculation: any = null) {
   const m = String(moduleKey || '').toUpperCase()
@@ -118,7 +130,44 @@ export async function GET(req: NextRequest) {
     const level = levelStr ? Number(levelStr) : undefined
 
     const records = getLevelRecords(projectId, periodId, level)
-    return NextResponse.json({ records, count: records.length })
+
+    /* Reviewer corrections ride along so the Data Entry screen can show WHY a
+       record was sent back — keyed by the record they target. */
+    const correctionsByRecord: Record<string, any[]> = {}
+    try {
+      const scopeSubs = await db.submission.findMany({
+        where: {
+          ...(projectId ? { projectId } : {}),
+          ...(periodId ? { reportingPeriodId: periodId } : {}),
+          status: { in: ['CHANGES_REQUESTED', 'REJECTED', 'CORRECTION_REQUESTED'] },
+        },
+        select: { id: true, corrections: true, reviewComment: true },
+        take: 50,
+        orderBy: { updatedAt: 'desc' },
+      })
+      for (const s of scopeSubs) {
+        let list: any[] = []
+        try {
+          const parsed = typeof s.corrections === 'string' ? JSON.parse(s.corrections) : s.corrections
+          if (Array.isArray(parsed)) list = parsed
+        } catch {}
+        for (const c of list) {
+          if (c?.recordId) {
+            (correctionsByRecord[c.recordId] ||= []).push({
+              field: c.field,
+              issue: c.issue || c.comment,
+              severity: c.severity,
+              comment: c.comment || c.issue,
+              reviewer: c.requesterName,
+              createdAt: c.createdAt,
+              submissionId: s.id,
+            })
+          }
+        }
+      }
+    } catch {}
+
+    return NextResponse.json({ records, count: records.length, correctionsByRecord })
   } catch (e: any) {
     console.error('GET /api/data-entry error', e)
     return NextResponse.json({ error: e?.message || 'Failed to fetch records' }, { status: 500 })
@@ -142,6 +191,7 @@ export async function POST(req: NextRequest) {
       reportingPeriodId,
       data = {},
       evidenceId,
+      evidenceIds,
     } = body
 
     // Defensive resolution: fast memory check before DB
@@ -374,10 +424,7 @@ export async function POST(req: NextRequest) {
 
       case 3: {
         // GHG & Air Quality — Enhanced Calculation Engine with DB Factor Master Lineage
-        const activeFactors = await db.emissionFactor.findMany({
-          where: { status: 'ACTIVE' },
-          orderBy: { version: 'desc' },
-        })
+        const activeFactors = await getActiveEmissionFactors()
 
         const findDbFactor = (sourceStr: string, fuelStr: string, unitStr: string) => {
           const s = (sourceStr || '').toLowerCase()
@@ -932,6 +979,7 @@ export async function POST(req: NextRequest) {
       reportingPeriodId,
       data,
       evidenceId: evidenceId || null,
+      evidenceIds: Array.isArray(evidenceIds) ? evidenceIds.filter(Boolean) : evidenceId ? [evidenceId] : [],
       validationStatus,
       calculationStatus: calculation ? 'COMPUTED' : 'NOT_APPLICABLE',
       calculation,

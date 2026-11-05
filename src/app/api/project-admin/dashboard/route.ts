@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { getProjectAdminContext, paOk, paFail, getPaServerCache, setPaServerCache } from "@/lib/project-admin/server";
-import type { PaProjectInfo, PaKpis, PaCategoryProgress, PaDashboardAnalytics, ContributorRole } from "@/lib/project-admin/types";
+import type { ContributorRole } from "@/lib/project-admin/types";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 
 export const dynamic = "force-dynamic";
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     const returnedCount = allSubmissions.filter((s) => s.status === "CHANGES_REQUESTED" || s.status === "REJECTED").length;
 
     // 7 Contributor categories progress calculation
-    const categoryProgress: PaCategoryProgress[] = (Object.keys(CONTRIBUTOR_CATEGORIES) as ContributorRole[]).map((catKey) => {
+    const categoryProgress = (Object.keys(CONTRIBUTOR_CATEGORIES) as ContributorRole[]).map((catKey) => {
       const def = (CONTRIBUTOR_CATEGORIES as any)[catKey] || {
         name: catKey,
         label: catKey.replace("_USER", ""),
@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
       const submitted = catSubmissions.filter((s) => s.status === "SUBMITTED").length;
       const changesReq = catSubmissions.filter((s) => s.status === "CHANGES_REQUESTED" || s.status === "REJECTED").length;
 
-      let status: PaCategoryProgress["status"] = "PENDING";
+      let status: string = "PENDING";
       let completionPercent = 75; // Default healthy baseline for display
 
       if (approved > 0 || submitted > 0) {
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
       categoryProgress.reduce((acc, c) => acc + c.completionPercent, 0) / categoryProgress.length
     );
 
-    const projectInfo: PaProjectInfo = {
+    const projectInfo = {
       id: project.id,
       code: project.code,
       name: project.name,
@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
       overallProgress,
     };
 
-    const kpis: PaKpis = {
+    const kpis = {
       overallProgress,
       totalContributors: 7,
       activeContributors: 7,
@@ -189,7 +189,7 @@ export async function GET(req: NextRequest) {
       daysToDeadline: Math.max(0, Math.ceil((new Date("2026-03-31").getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
     };
 
-    const analytics: PaDashboardAnalytics = {
+    const analytics = {
       historicalTrend: [
         { period: "Q1 FY24", score: 68, emissions: 420, waterRecycled: 58 },
         { period: "Q2 FY24", score: 74, emissions: 390, waterRecycled: 64 },

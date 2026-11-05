@@ -10,7 +10,8 @@ import {
   invalidatePaServerCache,
 } from "@/lib/project-admin/server";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
-import type { ContributorRole, PaCollectionStatusItem } from "@/lib/project-admin/types";
+import { getLevelRecords } from "@/lib/pu/level-records";
+import type { ContributorRole } from "@/lib/project-admin/types";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
           metricValue: true,
           metricUnit: true,
           reportingPeriodId: true,
+          recordIds: true,
         },
         orderBy: { updatedAt: "desc" },
       }),
@@ -79,6 +81,53 @@ export async function GET(req: NextRequest) {
     ]);
 
     const userMap = new Map(users.map((u) => [u.id, u]));
+
+    /* Sequenced level records + real evidence names for the review dialog. */
+    const allRecords = getLevelRecords(ctx.projectId);
+    const recordById = new Map(allRecords.map((r) => [r.id, r]));
+    const periods = await db.reportingPeriod.findMany({ select: { id: true, periodLabel: true } });
+    const periodLabelById = new Map(periods.map((p) => [p.id, p.periodLabel]));
+    const evidenceIdSet = new Set<string>();
+    for (const s of submissions) {
+      let rids: string[] = [];
+      try { rids = typeof s.recordIds === "string" ? JSON.parse(s.recordIds) : s.recordIds || []; } catch {}
+      for (const rid of rids) {
+        const rec = recordById.get(rid);
+        if (!rec) continue;
+        if (rec.evidenceId) evidenceIdSet.add(rec.evidenceId);
+        for (const it of Array.isArray(rec.data?.items) ? rec.data.items : []) {
+          if (it?.evidenceId) evidenceIdSet.add(it.evidenceId);
+          for (const eid of Array.isArray(it?.evidenceIds) ? it.evidenceIds : []) if (eid) evidenceIdSet.add(eid);
+        }
+      }
+    }
+    const evidenceRows = evidenceIdSet.size
+      ? await db.evidence.findMany({ where: { id: { in: [...evidenceIdSet] } }, select: { id: true, fileName: true, documentType: true, filePath: true } })
+      : [];
+    const evidenceById = new Map(evidenceRows.map((e) => [e.id, e]));
+    const recordsFor = (rawRecordIds: unknown) => {
+      let rids: string[] = [];
+      try { rids = typeof rawRecordIds === "string" ? JSON.parse(rawRecordIds) : rawRecordIds || []; } catch {}
+      return rids
+        .map((rid) => recordById.get(rid))
+        .filter(Boolean)
+        .map((rec) => ({
+          recordId: rec!.id,
+          level: rec!.level,
+          levelName: rec!.levelName,
+          recordStatus: rec!.status,
+          validationStatus: rec!.validationStatus,
+          items: (Array.isArray(rec!.data?.items) ? rec!.data.items : []).map((it: any) => ({
+            ...it,
+            evidenceFileNames: [
+              ...(Array.isArray(it?.evidenceFiles) ? it.evidenceFiles : []),
+              ...((Array.isArray(it?.evidenceIds) ? it.evidenceIds : it?.evidenceId ? [it.evidenceId] : []) as string[])
+                .map((eid) => evidenceById.get(eid)?.fileName)
+                .filter(Boolean),
+            ],
+          })),
+        }));
+    };
     const userByRoleMap = new Map(users.map((u) => [u.role, u]));
     const evidenceBySubMap = new Set(evidenceDocs.map((e) => e.submissionId).filter(Boolean));
 
@@ -97,8 +146,9 @@ export async function GET(req: NextRequest) {
         updatedAt: s.updatedAt,
         metricValue: s.metricValue,
         metricUnit: s.metricUnit,
-        period: s.reportingPeriodId || "Q4 FY 2025-26",
-        hasEvidence: evidenceBySubMap.has(s.id) || idx % 2 === 0,
+        period: periodLabelById.get(s.reportingPeriodId || "") || s.reportingPeriodId || "Q4 FY 2025-26",
+        sourceRecords: recordsFor(s.recordIds),
+        hasEvidence: evidenceBySubMap.has(s.id) || (s.recordIds ? JSON.parse(String(s.recordIds)).length > 0 : false),
       })),
       ...soSubmissions.map((s, idx) => ({
         id: s.id,
@@ -120,7 +170,7 @@ export async function GET(req: NextRequest) {
 
     const categoryKeys = Object.keys(CONTRIBUTOR_CATEGORIES) as ContributorRole[];
 
-    const items: PaCollectionStatusItem[] = allList.map((s, idx) => {
+    const items = allList.map((s, idx) => {
       const catKey = (categoryKeys.find(
         (k) => s.category?.toUpperCase().includes(k.replace("_USER", ""))
       ) || categoryKeys[idx % categoryKeys.length]) as ContributorRole;
@@ -131,7 +181,7 @@ export async function GET(req: NextRequest) {
       const due = s.dueDate ? new Date(s.dueDate) : new Date("2026-03-31T00:00:00.000Z");
       const isOverdue = Boolean(s.overdue || (s.status !== "APPROVED" && s.status !== "SUBMITTED" && due.getTime() < Date.now()));
 
-      let subStatus: PaCollectionStatusItem["submissionStatus"] = "NOT_STARTED";
+      let subStatus: string = "NOT_STARTED";
       if (s.status === "APPROVED" || s.status === "BU_APPROVED") subStatus = "APPROVED";
       else if (s.status === "SUBMITTED") subStatus = "SUBMITTED";
       else if (s.status === "UNDER_REVIEW" || s.status === "ASSIGNED") subStatus = "UNDER_REVIEW";
@@ -154,6 +204,7 @@ export async function GET(req: NextRequest) {
         overdue: isOverdue,
         metricValue: s.metricValue,
         metricUnit: s.metricUnit,
+        sourceRecords: (s as any).sourceRecords || [],
         updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : new Date().toISOString(),
       };
     });

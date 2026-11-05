@@ -12,14 +12,9 @@ import {
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
 import { moduleToCategory } from '@/lib/bridge/pu-link'
+import { puSubmissionsCache, invalidatePuSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
-
-const puSubmissionsCache = new Map<string, { data: any; expiresAt: number }>()
-
-export function invalidatePuSubmissionsCache() {
-  puSubmissionsCache.clear()
-}
 
 // GET /api/submissions?projectId=&periodId=&module=&status=
 // Paginated list (take 50). Includes project, reportingPeriod, history.
@@ -278,6 +273,11 @@ export async function POST(req: NextRequest) {
       orderBy: { updatedAt: 'desc' },
     })
 
+    /* Optional single-round-trip submit: `submitNow: true` creates/updates the
+       submission directly in SUBMITTED state (saves a second /submit call). */
+    const submitNow = (body as any)?.submitNow === true
+    const finalStatus = submitNow ? 'SUBMITTED' : 'DRAFT'
+
     let created
     if (existingDraft) {
       const mergedRecordIds = Array.from(new Set([...parseRecordIds(existingDraft.recordIds), ...records.map((r) => r.id)]))
@@ -291,6 +291,13 @@ export async function POST(req: NextRequest) {
           validationPassed: rollup.validationPassed,
           validationErrors: rollup.validationErrors,
           submittedById: user.id,
+          ...(submitNow
+            ? {
+                status: finalStatus,
+                submittedAt: new Date(),
+                reviewStatus: 'PENDING_REVIEW',
+              }
+            : {}),
         },
         include: {
           project: { select: { id: true, code: true, name: true } },
@@ -305,7 +312,8 @@ export async function POST(req: NextRequest) {
           module: moduleKey,
           category: moduleToCategory(moduleKey),
           title,
-          status: 'DRAFT',
+          status: finalStatus,
+          ...(submitNow ? { submittedAt: new Date(), reviewStatus: 'PENDING_REVIEW' as const } : {}),
           recordIds: JSON.stringify(records.map((r) => r.id)),
           ref: `PU-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
           dueDate: period.submissionDeadline ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
@@ -321,6 +329,24 @@ export async function POST(req: NextRequest) {
         },
       })
     }
+
+    await appendAudit({
+      actorId: user.id,
+      actorName: user.name,
+      actorRole: primaryRoleLabel(user),
+      action: submitNow ? 'SUBMIT' : 'CREATE',
+      entityType: 'Submission',
+      entityId: created.id,
+      newState: {
+        projectId,
+        reportingPeriodId,
+        module: moduleKey,
+        title,
+        recordIds: records.map((r) => r.id),
+        rollup,
+      },
+      reason: submitNow ? 'Submitted for review from Data Entry (single round-trip)' : 'Submission created in DRAFT state',
+    })
 
     await appendAudit({
       actorId: user.id,

@@ -46,7 +46,7 @@ async function findUserByIdentifier(identifier: string) {
     return cached.user;
   }
 
-  let user = null;
+  let user: Awaited<ReturnType<typeof db.user.findUnique>> = null;
   if (raw.includes("@")) {
     user = await db.user.findUnique({
       where: { email: raw.toLowerCase() },

@@ -2,14 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
 import { authErrorToStatus } from '@/lib/pu/workflow'
+import { puNotificationsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
-const puNotificationsCache = new Map<string, { data: any; expiresAt: number }>()
-
-export function invalidatePuNotificationsCache() {
-  puNotificationsCache.clear()
-}
 
 // GET /api/notifications — current user's notifications.
 // Optional ?unreadOnly=true, ?type=, ?take= (default 50, max 200).

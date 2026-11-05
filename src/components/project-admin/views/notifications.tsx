@@ -24,12 +24,12 @@ import {
 } from "@/components/project-admin/ui";
 import { paApiGet, paApiPost, paApiDelete, getCachedPaData } from "@/lib/project-admin/client";
 import { usePaStore } from "@/lib/project-admin/store";
-import type { PaNotification, PaViewId } from "@/lib/project-admin/types";
+import type { PaNotificationItem, PaViewId } from "@/lib/project-admin/types";
 
 export function NotificationsView() {
   const { navigate } = usePaStore();
   const cached = getCachedPaData<any>("/api/project-admin/notifications");
-  const [notifications, setNotifications] = useState<PaNotification[]>(cached?.notifications || []);
+  const [notifications, setNotifications] = useState<PaNotificationItem[]>(cached?.notifications || []);
   const [filterType, setFilterType] = useState<string>("ALL");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,7 +39,7 @@ export function NotificationsView() {
   const loadNotifications = async () => {
     if (!notifications.length) setIsLoading(true);
     try {
-      const res = await paApiGet<{ notifications: PaNotification[] }>(
+      const res = await paApiGet<{ notifications: PaNotificationItem[] }>(
         "/api/project-admin/notifications"
       );
       setNotifications(res.notifications || []);
@@ -266,7 +266,7 @@ export function NotificationsView() {
                       !item.isRead ? "bg-blue-100/70" : "bg-slate-100"
                     }`}
                   >
-                    {getTypeIcon(item.type)}
+                    {getTypeIcon(item.type ?? item.category ?? "SYSTEM")}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">

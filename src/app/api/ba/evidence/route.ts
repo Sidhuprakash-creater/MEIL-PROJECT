@@ -47,9 +47,9 @@ export async function GET(req: NextRequest) {
       uploadedBy: d.uploadedBy,
       status: d.status,
       uploadedAt: d.uploadedAt.toISOString(),
-      fileId: d.fileId,
-      hasFile: !!d.fileId,
-      mimeType: d.mimeType,
+      fileId: null as string | null,
+      hasFile: false,
+      mimeType: '',
     });
 
     const byType = new Map<string, number>();
@@ -173,8 +173,8 @@ function docToResponse(d: EvidenceDoc, projectName: string | null): EvidenceRow 
     uploadedBy: d.uploadedBy,
     status: d.status,
     uploadedAt: d.uploadedAt.toISOString(),
-    fileId: d.fileId,
-    hasFile: !!d.fileId,
-    mimeType: d.mimeType,
+      fileId: null as string | null,
+      hasFile: false,
+      mimeType: '',
   };
 }

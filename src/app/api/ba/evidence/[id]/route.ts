@@ -43,10 +43,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
       uploadedBy: d.uploadedBy,
       status: d.status,
       uploadedAt: d.uploadedAt.toISOString(),
-      fileId: d.fileId,
-      hasFile: !!d.fileId,
-      mimeType: d.mimeType,
-      previewAvailable: !!d.fileId, // real bytes can be downloaded; legacy rows are metadata-only
+      fileId: null as string | null,
+      hasFile: false,
+      mimeType: '',
+      previewAvailable: false, // EvidenceDoc is metadata-only in the unified schema
       contentHash,
     };
     return ok({ doc });

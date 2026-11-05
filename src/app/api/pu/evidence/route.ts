@@ -6,14 +6,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
 
-export const runtime = 'nodejs'
-
-const puEvidenceCache = new Map<string, { data: any; expiresAt: number }>()
-
-export function invalidatePuEvidenceCache() {
-  puEvidenceCache.clear()
-}
-
+import { puEvidenceCache, invalidatePuEvidenceCache } from '@/lib/portal-cache'
 
 // GET /api/evidence?projectId=&periodId=&module=&status=
 // Paginated list including uploader.

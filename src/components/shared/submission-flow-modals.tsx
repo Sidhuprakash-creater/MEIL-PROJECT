@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import { fieldLabel, fmtValue, itemFieldEntries, itemTitle, levelItemsFromFormData } from './field-labels'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -85,7 +86,7 @@ export function LevelReviewModal({
   } else if (levelKey === 'level2') {
     primaryMetricLabel = 'Water Withdrawal / Consumption'
     if (hasItems) {
-      const sumKl = items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0)
+      const sumKl = items.reduce((acc: number, it: any) => acc + (Number(it.quantity || it.waterQuantity || it.consumptionQuantity) || 0), 0)
       primaryMetricVal = `${sumKl.toLocaleString()} kL`
     } else if (data?.quantity) {
       primaryMetricVal = `${Number(data.quantity).toLocaleString()} kL`
@@ -102,7 +103,7 @@ export function LevelReviewModal({
   } else if (levelKey === 'level4') {
     primaryMetricLabel = 'Total Waste Managed'
     if (hasItems) {
-      const sumMt = items.reduce((acc: number, it: any) => acc + (Number(it.quantity) || 0), 0)
+      const sumMt = items.reduce((acc: number, it: any) => acc + (Number(it.quantity || it.quantityGenerated) || 0), 0)
       primaryMetricVal = `${sumMt.toFixed(1)} MT`
     } else {
       primaryMetricVal = 'Disposal & Recycling Verified'
@@ -135,7 +136,7 @@ export function LevelReviewModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 16 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 w-full max-w-xl overflow-hidden rounded-[32px] border border-white/95 bg-white/95 backdrop-blur-2xl shadow-2xl p-6 sm:p-7"
+          className="relative z-10 w-full max-w-xl overflow-hidden rounded-[32px] border border-slate-200/90 bg-white shadow-2xl p-6 sm:p-7"
         >
           {/* Top Caustic Sheen */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/70 to-transparent" />
@@ -302,7 +303,7 @@ export function LevelReviewModal({
                 }}
                 className="btn-liquid-blue flex items-center gap-2 rounded-full px-6 py-2.5 text-xs font-bold text-white shadow-lg hover:shadow-blue-500/30 transition transform hover:scale-[1.02]"
               >
-                <span>Proceed to {nextLevel?.label}</span>
+                <span>Save & Proceed to {nextLevel?.label} →</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             ) : (
@@ -335,7 +336,8 @@ export interface FinalSubmitAllModalProps {
   projectName: string
   periodLabel: string
   submitting: boolean
-  onSubmitAll: () => Promise<void> | void
+  /** Return falsy (e.g. false) to keep the modal open after a failed submit. */
+  onSubmitAll: () => Promise<boolean | void> | boolean | void
   levels: Array<{
     key: string
     level: number
@@ -343,10 +345,23 @@ export interface FinalSubmitAllModalProps {
     icon: LucideIcon
   }>
   allData?: Record<string, any>
+  projectId?: string | null
+  periodId?: string | null
   evidenceList?: any[]
   submitterName?: string
   submitterRole?: string
   submitterEmail?: string
+}
+
+/** A level counts as ready when it has staged items (multi-item levels) or
+ *  any non-empty field (single-item levels). Empty levels are reported as
+ *  "No data yet" instead of the previous hardcoded "Ready". */
+function levelReady(entry: any): boolean {
+  if (!entry || typeof entry !== 'object') return false
+  if (Array.isArray(entry.items)) return entry.items.length > 0
+  return Object.entries(entry).some(([, v]) =>
+    typeof v === 'string' ? v.trim() !== '' : v != null && !(Array.isArray(v) && v.length === 0),
+  )
 }
 
 export function FinalSubmitAllModal({
@@ -358,12 +373,15 @@ export function FinalSubmitAllModal({
   onSubmitAll,
   levels,
   allData = {},
+  projectId,
+  periodId,
   evidenceList = [],
-  submitterName = 'Rohit Kumar',
-  submitterRole = 'Site Data Entry',
-  submitterEmail = 'rohit@meil-esg.in',
+  submitterName,
+  submitterRole,
+  submitterEmail,
 }: FinalSubmitAllModalProps) {
   if (!open) return null
+  const readyCount = levels.filter((lvl) => levelReady(allData?.[lvl.key])).length
 
   return (
     <AnimatePresence>
@@ -391,7 +409,7 @@ export function FinalSubmitAllModal({
           {/* Header */}
           <div className="relative z-10 flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
             <div className="flex items-center gap-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-[#315CFF] via-[#6542F5] to-[#8700E8] text-white shadow-lg shadow-indigo-500/30 ring-2 ring-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-600 via-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 ring-2 ring-white">
                 <Send className="h-6 w-6" />
               </div>
               <div>
@@ -399,8 +417,12 @@ export function FinalSubmitAllModal({
                   <span className="text-[11px] font-black uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full border border-purple-200">
                     Consolidated Site Dossier
                   </span>
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                    6 Categories Ready
+                  <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                    readyCount === levels.length
+                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                      : 'text-amber-700 bg-amber-50 border-amber-200'
+                  }`}>
+                    {readyCount} of {levels.length} Categories Ready
                   </span>
                 </div>
                 <h3 className="mt-1 text-xl font-black text-slate-900 tracking-tight">
@@ -428,11 +450,11 @@ export function FinalSubmitAllModal({
             <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs">
               <div className="flex items-center gap-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white font-bold text-xs">
-                  {submitterName.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                  {(submitterName ?? '?').split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                 </div>
                 <div>
-                  <div className="font-bold text-slate-800">{submitterName}</div>
-                  <div className="text-[11px] text-slate-500 font-mono">{submitterEmail}</div>
+                  <div className="font-bold text-slate-800">{submitterName ?? 'Signed-in user'}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">{submitterEmail ?? '—'}</div>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1 font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200 text-[11px]">
@@ -440,49 +462,105 @@ export function FinalSubmitAllModal({
               </span>
             </div>
 
-            {/* 6 BRSR Levels Grid */}
-            <div>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-                All BRSR Emission Categories Included in Master Dossier:
+            {/* Full per-level review — every source with every input field */}
+            <div className="space-y-3">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                All BRSR Emission Categories in This Dossier — Source by Source:
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                {levels.map((lvl) => {
-                  const Icon = lvl.icon
-                  return (
-                    <div
-                      key={lvl.key}
-                      className="p-3 rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs flex items-center gap-2.5"
-                    >
-                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shrink-0">
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[11px] font-bold text-slate-800 truncate">
+              {levels.map((lvl) => {
+                const Icon = lvl.icon
+                const items = levelItemsFromFormData(allData, lvl.level, projectId, periodId)
+                const ready = items.length > 0
+                return (
+                  <div key={lvl.key} className="rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs overflow-hidden">
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-sky-50/90 border-b border-slate-100">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-blue-700 text-white shrink-0">
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <span className="text-[11.5px] font-bold text-slate-800 truncate">
                           Level {lvl.level}: {lvl.label}
-                        </div>
-                        <div className="text-[10px] text-emerald-600 font-bold flex items-center gap-0.5 mt-0.5">
-                          <CheckCircle2 className="h-3 w-3" /> Ready
-                        </div>
+                        </span>
                       </div>
+                      <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full border shrink-0 ${
+                        ready
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                          : 'text-slate-500 bg-slate-50 border-slate-200'
+                      }`}>
+                        {ready ? `✓ ${items.length} source${items.length === 1 ? '' : 's'}` : 'No data yet'}
+                      </span>
                     </div>
-                  )
-                })}
-              </div>
+                    {ready && (
+                      <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto scroll-elegant">
+                        {items.map((it: any, idx: number) => {
+                          const itemEntries = itemFieldEntries(it)
+                          const evNames: string[] = Array.isArray(it.evidenceFiles) ? it.evidenceFiles : []
+                          return (
+                            <div key={it.id || idx} className="rounded-xl border border-slate-200/90 bg-white/95 p-2.5">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className="flex h-4 w-4 items-center justify-center rounded bg-slate-800 text-white text-[8.5px] font-black shrink-0">
+                                  {idx + 1}
+                                </span>
+                                <span className="text-[11px] font-bold text-slate-900 truncate">{itemTitle(it)}</span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                {itemEntries.map(([k, v]) => {
+                                  const blank = v === null || v === undefined || v === ''
+                                  return (
+                                    <div
+                                      key={k}
+                                      className={`flex justify-between items-center gap-1.5 px-2 py-1 rounded-lg border ${
+                                        blank ? 'bg-slate-50/70 border-slate-200/60' : 'bg-white border-slate-200/80'
+                                      }`}
+                                    >
+                                      <span className="text-[9.5px] font-semibold text-slate-500 truncate">{fieldLabel(k)}</span>
+                                      <span className={`text-[10px] text-right ${blank ? 'text-slate-300 italic' : 'font-mono font-bold text-slate-900'}`}>
+                                        {fmtValue(v)}
+                                      </span>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                              {evNames.length > 0 && (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {evNames.map((f, fi) => (
+                                    <span key={fi} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800">
+                                      <FileText className="h-2.5 w-2.5" /> {f}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             {/* Attached Evidence Summary */}
-            <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4">
-              <div className="flex items-center justify-between text-xs font-bold text-emerald-950 mb-2">
+            <div className={`rounded-2xl border p-4 ${
+              evidenceList.length > 0
+                ? 'border-emerald-200/80 bg-emerald-50/50'
+                : 'border-amber-200/80 bg-amber-50/50'
+            }`}>
+              <div className={`flex items-center justify-between text-xs font-bold mb-2 ${
+                evidenceList.length > 0 ? 'text-emerald-950' : 'text-amber-950'
+              }`}>
                 <span className="flex items-center gap-1.5">
-                  <FileText className="h-4 w-4 text-emerald-600" />
+                  <FileText className={`h-4 w-4 ${evidenceList.length > 0 ? 'text-emerald-600' : 'text-amber-600'}`} />
                   Site Verification Evidence Documents
                 </span>
-                <span className="text-[11px] font-bold text-emerald-700">
-                  Attached to Master Dossier
+                <span className={`text-[11px] font-bold ${evidenceList.length > 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                  {evidenceList.length} document{evidenceList.length === 1 ? '' : 's'} in Evidence Vault
                 </span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                All supporting PDF audit registers, fuel consumption receipts, and compliance certificates will be transmitted directly to Project Admin in this single transaction.
+                {evidenceList.length > 0
+                  ? 'Supporting audit registers, consumption receipts, and compliance certificates from your Evidence Vault are referenced by this dossier for Project Admin review.'
+                  : 'No evidence documents uploaded yet — attach bills, register extracts or certificates from the Vault tab before submitting for review.'}
               </p>
             </div>
           </div>
@@ -500,10 +578,11 @@ export function FinalSubmitAllModal({
 
             <button
               type="button"
-              disabled={submitting}
+              disabled={submitting || readyCount === 0}
+              title={readyCount === 0 ? 'Capture and stage data in at least one level before submitting.' : undefined}
               onClick={async () => {
-                await onSubmitAll()
-                onClose()
+                const ok = await onSubmitAll()
+                if (ok !== false) onClose()
               }}
               className="btn-liquid-blue flex-1 max-w-sm flex items-center justify-center gap-2 rounded-2xl py-3 px-6 text-xs font-extrabold text-white shadow-xl hover:shadow-indigo-500/30 transition transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -511,6 +590,11 @@ export function FinalSubmitAllModal({
                 <>
                   <Clock className="h-4 w-4 animate-spin" />
                   <span>Submitting All Site Data…</span>
+                </>
+              ) : readyCount === 0 ? (
+                <>
+                  <Send className="h-4 w-4" />
+                  <span>No Data to Submit Yet</span>
                 </>
               ) : (
                 <>
@@ -525,3 +609,4 @@ export function FinalSubmitAllModal({
     </AnimatePresence>
   )
 }
+

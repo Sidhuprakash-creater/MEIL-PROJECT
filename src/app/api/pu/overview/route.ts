@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { getPuOverviewCache, setPuOverviewCache, invalidatePuOverviewCache, OVERVIEW_TTL_MS, OVERVIEW_CACHE_CONTROL } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
-
-let overviewCache: { data: any; expiresAt: number } | null = null
-
-export function invalidatePuOverviewCache() {
-  overviewCache = null
-}
 
 // GET /api/overview — computes real KPIs from the database (no hardcoded values).
 // Covers: emissions, energy, water, waste, workforce, safety, BRSR readiness,
@@ -17,8 +12,9 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
-  if (overviewCache && overviewCache.expiresAt > Date.now()) {
-    return NextResponse.json(overviewCache.data)
+  const cached = getPuOverviewCache()
+  if (cached) {
+    return NextResponse.json(cached, { headers: { 'Cache-Control': OVERVIEW_CACHE_CONTROL } })
   }
 
   // Resolve scope: reviewer/exec roles see whole group; project users see their scope.
@@ -47,7 +43,7 @@ export async function GET() {
       include: { reportingYear: true },
     }),
     db.calculationResult.findMany(),
-    db.energyRecord.findMany({ include: { calculationResults: true } }),
+    db.energyRecord.findMany(),
     db.waterRecord.findMany(),
     db.wasteRecord.findMany(),
     db.workforceRecord.findMany(),
@@ -121,6 +117,14 @@ export async function GET() {
   const completion = totalSubs > 0 ? (approvedSubs / totalSubs) * 100 : 0
 
   // Pre-group in memory by reportingPeriodId to eliminate per-period database round-trips
+  const calcByEnergyId = new Map<string, typeof calcResults>()
+  for (const c of calcResults) {
+    if (!c.energyRecordId) continue
+    const list = calcByEnergyId.get(c.energyRecordId) || []
+    list.push(c)
+    calcByEnergyId.set(c.energyRecordId, list)
+  }
+
   const energyByPeriod = new Map<string, typeof energyRecords>()
   for (const e of energyRecords) {
     if (!e.reportingPeriodId) continue
@@ -152,7 +156,7 @@ export async function GET() {
     const pEnergy = energyByPeriod.get(p.id) || []
     const pWater = waterByPeriod.get(p.id) || []
     const pWaste = wasteByPeriod.get(p.id) || []
-    const pCalc = pEnergy.flatMap(e => e.calculationResults || [])
+    const pCalc = pEnergy.flatMap(e => calcByEnergyId.get(e.id) || [])
     monthlyTrends[label] = {
       emissions: pCalc.reduce((s, c) => s + (c.calculatedValue || 0), 0),
       energy: pEnergy.reduce((s, e) => s + (e.normalizedValue || 0), 0),
@@ -166,7 +170,7 @@ export async function GET() {
   // ---- EMISSIONS BY SOURCE (for breakdown chart, computed from energyRecords already fetched) ----
   const emissionsBySource: Record<string, number> = {}
   for (const e of energyRecords) {
-    const em = (e.calculationResults || []).reduce((s, c) => s + (c.calculatedValue || 0), 0)
+    const em = (calcByEnergyId.get(e.id) || []).reduce((s, c) => s + (c.calculatedValue || 0), 0)
     if (em > 0) emissionsBySource[e.source] = (emissionsBySource[e.source] || 0) + em
   }
 
@@ -218,6 +222,6 @@ export async function GET() {
       note: 'All KPIs computed deterministically from approved source records + emission factor version 1. No hardcoded values.',
     },
   }
-  overviewCache = { data: payload, expiresAt: Date.now() + 30000 }
-  return NextResponse.json(payload)
+  setPuOverviewCache(payload)
+  return NextResponse.json(payload, { headers: { 'Cache-Control': OVERVIEW_CACHE_CONTROL } })
 }

@@ -251,7 +251,7 @@ export default function DashboardView() {
               const label = c.label || c.name || def.label || catKey;
               const pct = c.completionPercent !== undefined ? c.completionPercent : (c.progressPct || 0);
               const color = c.accentColor || def.color || "#315CFF";
-              const assignedLead = c.assignedUserName || def.defaultAssignee || "Contributor Lead";
+              const assignedLead = c.assignedUserName || "Contributor Lead";
 
               return (
                 <div
@@ -288,7 +288,7 @@ export default function DashboardView() {
                     </div>
 
                     <div className="mt-2 flex items-center justify-between text-[10px] font-semibold text-[#64748B]">
-                      <span>{c.totalMetrics || def.metricsCount || 10} Disclosures</span>
+                      <span>{c.totalMetrics ?? 10} Disclosures</span>
                       <span className={pct >= 100 ? "text-emerald-600 font-bold" : "text-blue-600 font-bold"}>
                         {pct >= 100 ? "Completed" : "In Progress"}
                       </span>

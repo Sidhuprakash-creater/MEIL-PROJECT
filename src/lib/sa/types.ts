@@ -143,6 +143,9 @@ export interface SubmissionDetail extends SubmissionRow {
   comments: { author: string; role: string; text: string; at: string }[];
   history: { action: string; actor: string; at: string; note?: string }[];
   validationIssues: { ref: string; severity: string; description: string; status: string }[];
+  /* Contributor action availability computed from the workflow state. */
+  canSubmit?: boolean;
+  canResubmit?: boolean;
 }
 
 export interface UnitRow {
@@ -243,6 +246,10 @@ export interface EvidenceRow {
   uploadedBy: string;
   status: string;
   uploadedAt: string;
+  /* Legacy file-storage link (EvidenceDoc is metadata-only in the unified schema). */
+  fileId?: string | null;
+  hasFile?: boolean;
+  mimeType?: string;
 }
 
 export interface MessageRow {

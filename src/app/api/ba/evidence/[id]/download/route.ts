@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { BaError, baHandle, requireBuAdmin } from "@/lib/ba/server";
-import { serveEvidenceBytes } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -22,13 +21,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       ? await db.project.findUnique({ where: { id: d.projectId }, select: { name: true } })
       : null;
 
-    /* Real bytes when the document was uploaded with stored content — legacy
-       seeded rows (no fileId) fall through to the metadata receipt. */
-    if (d.fileId) {
-      const resp = await serveEvidenceBytes(d.fileId, d.name);
-      if (resp) return resp;
-    }
-
+    /* EvidenceDoc is metadata-only in the unified schema — serve the receipt. */
     const lines = [
       "MEIL ESG — BU Evidence document receipt (demo)",
       "==============================================",

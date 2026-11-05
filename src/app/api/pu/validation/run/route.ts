@@ -33,26 +33,34 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { recordType, recordId, periodId, projectId } = body || {}
 
-    // Build the set of (recordType, recordId) tuples to validate
-    const targets: { recordType: string; recordId: string }[] = []
+    // Build the set of (recordType, recordId, record) tuples to validate.
+    // Full rows are fetched ONCE per table (no per-record findUnique N+1).
+    const targets: { recordType: string; recordId: string; record: any }[] = []
     if (recordType && recordId) {
-      targets.push({ recordType, recordId })
+      const table: Record<string, any> = {
+        ENERGY: db.energyRecord, WATER: db.waterRecord, WASTE: db.wasteRecord,
+        PEOPLE: db.workforceRecord, SAFETY: db.safetyRecord,
+      }
+      const row = table[recordType] ? await table[recordType].findUnique({ where: { id: recordId } }) : null
+      if (row) targets.push({ recordType, recordId, record: row })
     } else if (periodId || projectId) {
-      // Sweep all source-record tables for the scope
+      // Sweep all source-record tables for the scope in one parallel batch
       const where = {
         ...(projectId ? { projectId } : {}),
         ...(periodId ? { reportingPeriodId: periodId } : {}),
       }
-      const energies = await db.energyRecord.findMany({ where, select: { id: true } })
-      energies.forEach(r => targets.push({ recordType: 'ENERGY', recordId: r.id }))
-      const waters = await db.waterRecord.findMany({ where, select: { id: true } })
-      waters.forEach(r => targets.push({ recordType: 'WATER', recordId: r.id }))
-      const wastes = await db.wasteRecord.findMany({ where, select: { id: true } })
-      wastes.forEach(r => targets.push({ recordType: 'WASTE', recordId: r.id }))
-      const workforces = await db.workforceRecord.findMany({ where, select: { id: true } })
-      workforces.forEach(r => targets.push({ recordType: 'PEOPLE', recordId: r.id }))
-      const safeties = await db.safetyRecord.findMany({ where, select: { id: true } })
-      safeties.forEach(r => targets.push({ recordType: 'SAFETY', recordId: r.id }))
+      const [energies, waters, wastes, workforces, safeties] = await Promise.all([
+        db.energyRecord.findMany({ where }),
+        db.waterRecord.findMany({ where }),
+        db.wasteRecord.findMany({ where }),
+        db.workforceRecord.findMany({ where }),
+        db.safetyRecord.findMany({ where }),
+      ])
+      energies.forEach(r => targets.push({ recordType: 'ENERGY', recordId: r.id, record: r }))
+      waters.forEach(r => targets.push({ recordType: 'WATER', recordId: r.id, record: r }))
+      wastes.forEach(r => targets.push({ recordType: 'WASTE', recordId: r.id, record: r }))
+      workforces.forEach(r => targets.push({ recordType: 'PEOPLE', recordId: r.id, record: r }))
+      safeties.forEach(r => targets.push({ recordType: 'SAFETY', recordId: r.id, record: r }))
     } else {
       return NextResponse.json({ error: 'Provide {recordType, recordId} or {periodId, projectId}' }, { status: 400 })
     }
@@ -62,15 +70,13 @@ export async function POST(req: NextRequest) {
     let passed = 0
     const perRecord: any[] = []
 
+    const persistJobs: Promise<any>[] = []
+    const statusUpdates: Promise<any>[] = []
+
     for (const t of targets) {
-      let record: any = null
-      if (t.recordType === 'ENERGY') record = await db.energyRecord.findUnique({ where: { id: t.recordId } })
-      if (t.recordType === 'WATER') record = await db.waterRecord.findUnique({ where: { id: t.recordId } })
-      if (t.recordType === 'WASTE') record = await db.wasteRecord.findUnique({ where: { id: t.recordId } })
-      if (t.recordType === 'PEOPLE') record = await db.workforceRecord.findUnique({ where: { id: t.recordId } })
-      if (t.recordType === 'SAFETY') record = await db.safetyRecord.findUnique({ where: { id: t.recordId } })
+      const record = t.record
       if (!record) {
-        perRecord.push({ ...t, status: 'NOT_FOUND' })
+        perRecord.push({ recordType: t.recordType, recordId: t.recordId, status: 'NOT_FOUND' })
         continue
       }
 
@@ -83,19 +89,24 @@ export async function POST(req: NextRequest) {
       if (errorCount === 0) passed += 1
 
       // Reset OPEN validations for this record, then persist fresh ones
-      await db.validationResult.deleteMany({ where: { recordId: t.recordId, recordType: t.recordType, status: 'OPEN' } })
-      await persistValidationResults(t.recordId, t.recordType, issues)
+      persistJobs.push(
+        db.validationResult.deleteMany({ where: { recordId: t.recordId, recordType: t.recordType, status: 'OPEN' } }).then(() =>
+          persistValidationResults(t.recordId, t.recordType, issues),
+        ),
+      )
 
       // Update record's validation status
       const update: any = { validationStatus }
-      if (t.recordType === 'ENERGY') await db.energyRecord.update({ where: { id: t.recordId }, data: update })
-      if (t.recordType === 'WATER') await db.waterRecord.update({ where: { id: t.recordId }, data: update })
-      if (t.recordType === 'WASTE') await db.wasteRecord.update({ where: { id: t.recordId }, data: update })
-      if (t.recordType === 'PEOPLE') await db.workforceRecord.update({ where: { id: t.recordId }, data: update })
-      if (t.recordType === 'SAFETY') await db.safetyRecord.update({ where: { id: t.recordId }, data: update })
+      if (t.recordType === 'ENERGY') statusUpdates.push(db.energyRecord.update({ where: { id: t.recordId }, data: update }))
+      if (t.recordType === 'WATER') statusUpdates.push(db.waterRecord.update({ where: { id: t.recordId }, data: update }))
+      if (t.recordType === 'WASTE') statusUpdates.push(db.wasteRecord.update({ where: { id: t.recordId }, data: update }))
+      if (t.recordType === 'PEOPLE') statusUpdates.push(db.workforceRecord.update({ where: { id: t.recordId }, data: update }))
+      if (t.recordType === 'SAFETY') statusUpdates.push(db.safetyRecord.update({ where: { id: t.recordId }, data: update }))
 
       perRecord.push({ recordType: t.recordType, recordId: t.recordId, validationStatus, errors: errorCount, warnings: warningCount })
     }
+
+    await Promise.all([...persistJobs, ...statusUpdates])
 
     await db.soAuditLog.create({
       data: {

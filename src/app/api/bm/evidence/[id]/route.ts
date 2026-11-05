@@ -51,9 +51,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       uploadedBy: d.uploadedBy,
       status: d.status,
       uploadedAt: d.uploadedAt.toISOString(),
-      fileId: d.fileId,
-      hasFile: !!d.fileId,
-      mimeType: d.mimeType,
+      fileId: null as string | null,
+      hasFile: false,
+      mimeType: '',
       family: family.map((f) => ({
         id: f.id, name: f.name, version: f.version,
         uploadedAt: f.uploadedAt.toISOString(), uploadedBy: f.uploadedBy, status: f.status,

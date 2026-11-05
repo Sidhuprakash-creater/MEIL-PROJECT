@@ -37,6 +37,7 @@ export interface LevelRecord {
   reportingPeriodId: string
   data: Record<string, any>
   evidenceId?: string | null
+  evidenceIds?: string[]
   validationStatus: 'PASSED' | 'WARNING' | 'FAILED' | 'PENDING'
   calculationStatus: 'COMPUTED' | 'NOT_APPLICABLE' | 'PENDING'
   calculation: CalculationPayload | null
@@ -193,12 +194,22 @@ const DEFAULT_RECORDS: LevelRecord[] = [
   },
 ]
 
+/* Parse cache — the store file is ~75KB; re-reading + re-parsing it on every
+   request is the hottest path in the data-entry module. Cached by mtime so
+   external edits are still picked up. */
+let storeCache: { mtimeMs: number; size: number; records: LevelRecord[] } | null = null
+
 function readStore(): LevelRecord[] {
   try {
-    if (fs.existsSync(STORE_PATH)) {
-      const data = fs.readFileSync(STORE_PATH, 'utf-8')
-      const parsed = JSON.parse(data)
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed
+    const stat = fs.statSync(STORE_PATH)
+    if (storeCache && storeCache.mtimeMs === stat.mtimeMs && storeCache.size === stat.size) {
+      return storeCache.records
+    }
+    const data = fs.readFileSync(STORE_PATH, 'utf-8')
+    const parsed = JSON.parse(data)
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      storeCache = { mtimeMs: stat.mtimeMs, size: stat.size, records: parsed }
+      return parsed
     }
   } catch (e) {
     console.error('Failed to read level records store:', e)
@@ -211,9 +222,21 @@ function writeStore(records: LevelRecord[]): void {
   try {
     const dir = path.dirname(STORE_PATH)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
-    fs.writeFileSync(STORE_PATH, JSON.stringify(records, null, 2), 'utf-8')
+    const json = JSON.stringify(records, null, 2)
+    fs.writeFileSync(STORE_PATH, json, 'utf-8')
+    const stat = fs.statSync(STORE_PATH)
+    storeCache = { mtimeMs: stat.mtimeMs, size: stat.size, records }
   } catch (e) {
     console.error('Failed to write level records store:', e)
+  }
+}
+
+function mergeRecord(all: LevelRecord[], fullRecord: LevelRecord): void {
+  const idx = all.findIndex((r) => r.id === fullRecord.id)
+  if (idx >= 0) {
+    all[idx] = { ...fullRecord, updatedAt: new Date().toISOString() }
+  } else {
+    all.unshift(fullRecord)
   }
 }
 
@@ -238,16 +261,70 @@ export function getLevelRecordById(id: string): LevelRecord | null {
   return all.find((r) => r.id === id) || null
 }
 
-export function saveLevelRecord(record: LevelRecord): LevelRecord {
+export function saveLevelRecord(
+  record: Partial<LevelRecord> & {
+    level: number
+    levelKey: string
+    levelName: string
+    module: string
+    projectId: string
+    reportingPeriodId: string
+    data: Record<string, any>
+  }
+): LevelRecord {
+  const fullRecord: LevelRecord = {
+    id: record.id || `rec-${record.levelKey}-${record.projectId}-${Date.now()}`,
+    calculationStatus: record.calculationStatus || 'COMPUTED',
+    calculation: record.calculation || null,
+    issues: record.issues || [],
+    status: record.status || 'SUBMITTED',
+    validationStatus: record.validationStatus || 'PASSED',
+    revisionNumber: record.revisionNumber || 1,
+    enteredBy: record.enteredBy || 'Environmental Data User',
+    enteredAt: record.enteredAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...record,
+  }
   const all = readStore()
-  const idx = all.findIndex((r) => r.id === record.id)
-  if (idx >= 0) {
-    all[idx] = { ...record, updatedAt: new Date().toISOString() }
-  } else {
-    all.unshift(record)
+  mergeRecord(all, fullRecord)
+  writeStore(all)
+  return fullRecord
+}
+
+/** Persist many level records with ONE read + ONE write of the store file
+ *  (submit-all previously did 9 full read+write cycles). */
+export function saveManyLevelRecords(
+  records: Array<Partial<LevelRecord> & {
+    level: number
+    levelKey: string
+    levelName: string
+    module: string
+    projectId: string
+    reportingPeriodId: string
+    data: Record<string, any>
+  }>
+): LevelRecord[] {
+  const all = readStore()
+  const saved: LevelRecord[] = []
+  for (const record of records) {
+    const fullRecord: LevelRecord = {
+      id: record.id || `rec-${record.levelKey}-${record.projectId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      calculationStatus: record.calculationStatus || 'COMPUTED',
+      calculation: record.calculation || null,
+      issues: record.issues || [],
+      status: record.status || 'SUBMITTED',
+      validationStatus: record.validationStatus || 'PASSED',
+      revisionNumber: record.revisionNumber || 1,
+      enteredBy: record.enteredBy || 'Environmental Data User',
+      enteredAt: record.enteredAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...record,
+    }
+    mergeRecord(all, fullRecord)
+    saved.push(fullRecord)
   }
   writeStore(all)
-  return record
+  return saved
 }
 
 export function deleteLevelRecord(id: string): boolean {

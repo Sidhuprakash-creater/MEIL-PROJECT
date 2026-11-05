@@ -3,8 +3,8 @@
  * All data is explicitly marked ILLUSTRATIVE / replaceable (demo: true on users).
  * Mirrors the ESG data control chain: source → evidence → validate → calculate → consolidate → BRSR → report → audit.
  */
-import { PrismaClient } from '../src/generated/pu'
-import bcrypt from 'bcryptjs'
+import { PrismaClient } from '@prisma/client'
+import { hashPassword as bcryptHash } from '../src/lib/password'
 
 const db = new PrismaClient()
 

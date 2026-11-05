@@ -187,13 +187,13 @@ export async function PATCH(req: NextRequest) {
     if (!existing) return paFail("Task not found.", 404);
 
     if (action === "remind") {
-      if (existing.assigneeId) {
+      if (existing.assigneeFilter) {
         await db.notification.create({
           data: {
             ntype: "TASK_REMINDER",
             title: "Task Reminder",
             body: `Reminder: Task '${existing.title}' is due on ${existing.dueDate ? new Date(existing.dueDate).toLocaleDateString("en-IN") : "soon"}. Please submit promptly.`,
-            refId: existing.assigneeId,
+            refId: existing.assigneeFilter,
             subsidiaryId: ctx.subsidiaryId,
             severity: "WARNING",
             linkView: "tasks",

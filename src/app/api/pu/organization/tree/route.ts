@@ -1,14 +1,9 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { getPuTreeCache, setPuTreeCache, invalidatePuTreeCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
-
-let treeCache: { data: any; expiresAt: number } | null = null
-
-export function invalidatePuTreeCache() {
-  treeCache = null
-}
 
 // GET /api/pu/organization/tree — full org hierarchy from the unified ledger.
 // Single tenant: one group (MEIL Group) → subsidiaries → business units → projects.
@@ -16,24 +11,33 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
-  if (treeCache && treeCache.expiresAt > Date.now()) {
-    return NextResponse.json(treeCache.data)
+  const cached = getPuTreeCache()
+  if (cached) {
+    return NextResponse.json(cached)
   }
 
-  const subsidiaries = await db.subsidiary.findMany({
-    orderBy: { code: 'asc' },
-    include: {
-      units: {
-        orderBy: { code: 'asc' },
-        include: {
-          projects: {
-            orderBy: { code: 'asc' },
-            select: { id: true, code: true, name: true, location: true, status: true },
+  const [subsidiaries, periods] = await Promise.all([
+    db.subsidiary.findMany({
+      orderBy: { code: 'asc' },
+      include: {
+        units: {
+          orderBy: { code: 'asc' },
+          include: {
+            projects: {
+              orderBy: { code: 'asc' },
+              select: { id: true, code: true, name: true, location: true, status: true },
+            },
           },
         },
       },
-    },
-  })
+    }),
+    /* Reporting periods ride along so clients don't need the heavy /overview
+       payload just to render the period picker. */
+    db.reportingPeriod.findMany({
+      orderBy: { startDate: 'asc' },
+      select: { id: true, periodLabel: true, year: true, month: true, status: true },
+    }),
+  ])
 
   const groups = [
     {
@@ -51,13 +55,23 @@ export async function GET() {
           code: u.code,
           name: u.name,
           status: u.status,
-          projects: u.projects,
+          /* Alias to the shape every portal client reads (same contract as /api/so). */
+          projects: u.projects.map((p) => ({
+            id: p.id,
+            projectCode: p.code,
+            projectName: p.name,
+            location: p.location,
+            status: p.status,
+          })),
         })),
       })),
     },
   ]
 
-  const payload = { groups }
-  treeCache = { data: payload, expiresAt: Date.now() + 120000 }
+  const payload = {
+    groups,
+    periods: periods.map((p) => ({ id: p.id, label: p.periodLabel, year: p.year, month: p.month, status: p.status })),
+  }
+  setPuTreeCache(payload)
   return NextResponse.json(payload)
 }

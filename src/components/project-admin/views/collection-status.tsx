@@ -22,6 +22,7 @@ import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 import type { PaCollectionStatusItem, ContributorRole } from "@/lib/project-admin/types";
+import { fieldLabel, fmtValue, itemFieldEntries, itemTitle } from "@/components/shared/field-labels";
 
 export default function CollectionStatusView() {
   const { navigate, viewParams } = usePaStore();
@@ -40,6 +41,11 @@ export default function CollectionStatusView() {
   const [correctionNotes, setCorrectionNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  /* Per-source / per-level rejections flagged in the inspection dialog:
+     key = `${recordId}:${itemId | "__level__"}` */
+  const [itemRejections, setItemRejections] = useState<
+    Record<string, { severity: "ERROR" | "WARNING"; reason: string; label: string; recordId: string }>
+  >({});
 
   const loadData = () => {
     if (!items.length) setLoading(true);
@@ -363,10 +369,11 @@ export default function CollectionStatusView() {
         open={Boolean(inspectItem)}
         onClose={() => setInspectItem(null)}
         title={inspectItem?.sectionName || "Submission Inspection"}
-        subtitle={`Reference: ${inspectItem?.sectionCode} • Category: ${inspectItem?.categoryLabel}`}
+        subtitle={`Reference: ${inspectItem?.sectionCode} • ${inspectItem?.period || ""} • ${inspectItem?.categoryLabel || ""}`}
       >
         {inspectItem && (
-          <div className="space-y-5 text-xs">
+          <div className="space-y-4 text-xs">
+            {/* Summary card */}
             <div className="grid grid-cols-2 gap-3.5 p-4 rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm">
               <div>
                 <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Responsible Contributor</span>
@@ -379,8 +386,8 @@ export default function CollectionStatusView() {
                 </div>
               </div>
               <div>
-                <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Evidence Compliance</span>
-                <div className="font-bold text-[#1E293B] mt-0.5">{inspectItem.evidenceStatus}</div>
+                <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Reporting Period</span>
+                <div className="font-bold text-[#1E293B] mt-0.5">{inspectItem.period}</div>
               </div>
               <div>
                 <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Target Due Date</span>
@@ -388,14 +395,232 @@ export default function CollectionStatusView() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/50">
-              <div className="text-[11px] font-bold text-[#315CFF] uppercase tracking-wider mb-1">
-                Data Completeness Assessment
-              </div>
-              <p className="text-slate-600 leading-relaxed text-xs">
-                This metric disclosure was prepared by the authorized {inspectItem.categoryLabel} lead for {inspectItem.period}. Supporting evidence documentation has been indexed in the Evidence Repository.
-              </p>
-            </div>
+            {/* Sequenced: emission level → sources → evidence, one by one */}
+            {(() => {
+              const records: any[] = inspectItem.sourceRecords || [];
+              if (!records.length) {
+                return (
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 text-amber-900">
+                    No per-source records captured yet for this section. Reject with general instructions below if needed.
+                  </div>
+                );
+              }
+              const sorted = [...records].sort((a, b) => (a.level || 0) - (b.level || 0));
+              return (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">
+                      Submitted Data — Emission by Emission
+                    </span>
+                    <span className="text-[9px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
+                      As entered by contributor
+                    </span>
+                  </div>
+                  {sorted.map((rec) => {
+                    const lvlKey = `${rec.recordId}:__level__`;
+                    const lvlRej = itemRejections[lvlKey];
+                    return (
+                      <div key={rec.recordId} className="rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm overflow-hidden">
+                        {/* Level header */}
+                        <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-sky-50/90 border-b border-slate-100">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-blue-700 text-white text-[10px] font-black shrink-0">
+                              {rec.level}
+                            </span>
+                            <span className="text-[11.5px] font-bold text-slate-800 truncate">{rec.levelName}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${
+                              rec.recordStatus === "CORRECTION_REQUESTED"
+                                ? "text-rose-700 bg-rose-50 border-rose-200"
+                                : rec.recordStatus === "ACTIVE" || rec.recordStatus === "APPROVED"
+                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                  : "text-slate-600 bg-slate-50 border-slate-200"
+                            }`}>
+                              {String(rec.recordStatus || "").replace(/_/g, " ")}
+                            </span>
+                            {!lvlRej && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setItemRejections((prev) => ({
+                                    ...prev,
+                                    [lvlKey]: { severity: "ERROR", reason: "", label: `${rec.levelName} — entire emission level`, recordId: rec.recordId },
+                                  }))
+                                }
+                                className="px-2 py-1 rounded-lg text-[10px] font-bold border border-rose-200 text-rose-700 bg-white hover:bg-rose-50 transition"
+                              >
+                                ⚑ Reject entire level
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Level-level rejection panel */}
+                        {lvlRej && (
+                          <div className="mx-3 mt-3 rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] font-black text-rose-800">⚑ Entire level flagged for rejection</span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setItemRejections((prev) => {
+                                    const next = { ...prev };
+                                    delete next[lvlKey];
+                                    return next;
+                                  })
+                                }
+                                className="text-[10px] font-bold text-slate-500 hover:text-slate-700"
+                              >
+                                Unflag
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-slate-600">Severity:</span>
+                              {(["ERROR", "WARNING"] as const).map((sev) => (
+                                <button
+                                  key={sev}
+                                  type="button"
+                                  onClick={() =>
+                                    setItemRejections((prev) => ({ ...prev, [lvlKey]: { ...prev[lvlKey], severity: sev } }))
+                                  }
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                                    lvlRej.severity === sev
+                                      ? sev === "ERROR"
+                                        ? "bg-rose-600 text-white border-rose-600"
+                                        : "bg-amber-500 text-white border-amber-500"
+                                      : "bg-white text-slate-600 border-slate-200"
+                                  }`}
+                                >
+                                  {sev}
+                                </button>
+                              ))}
+                            </div>
+                            <textarea
+                              value={lvlRej.reason}
+                              onChange={(e) =>
+                                setItemRejections((prev) => ({ ...prev, [lvlKey]: { ...prev[lvlKey], reason: e.target.value } }))
+                              }
+                              placeholder="Explain what is wrong across this whole emission level and what must be fixed…"
+                              className="w-full min-h-[52px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-y"
+                            />
+                          </div>
+                        )}
+
+                        {/* Sources with evidence */}
+                        <div className="p-3 space-y-2">
+                          {(rec.items || []).length === 0 && (
+                            <div className="text-[11px] text-slate-500 italic px-1">No per-source items captured in this record.</div>
+                          )}
+                          {(rec.items || []).map((it: any, idx: number) => {
+                            const rKey = `${rec.recordId}:${it.id || idx}`;
+                            const rLabel = `${rec.levelName} · ${itemTitle(it)}`;
+                            const rej = itemRejections[rKey];
+                            const entries = itemFieldEntries(it);
+                            const evNames: string[] = Array.isArray(it.evidenceFileNames) ? it.evidenceFileNames : [];
+                            return (
+                              <div
+                                key={rKey}
+                                className={`rounded-xl border p-2.5 transition-all ${
+                                  rej ? "border-rose-300 bg-rose-50/50" : "border-slate-200/90 bg-gradient-to-b from-white to-slate-50/60"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="flex h-4.5 w-4.5 h-5 w-5 items-center justify-center rounded-md bg-slate-800 text-white text-[9px] font-bold shrink-0">
+                                      {idx + 1}
+                                    </span>
+                                    <span className="text-[11px] font-bold text-slate-900 truncate">{itemTitle(it)}</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setItemRejections((prev) => {
+                                        const next = { ...prev };
+                                        if (next[rKey]) delete next[rKey];
+                                        else next[rKey] = { severity: "ERROR", reason: "", label: rLabel, recordId: rec.recordId };
+                                        return next;
+                                      })
+                                    }
+                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition shrink-0 ${
+                                      rej
+                                        ? "bg-rose-600 text-white border-rose-600"
+                                        : "bg-white text-rose-700 border-rose-200 hover:bg-rose-50"
+                                    }`}
+                                  >
+                                    {rej ? "✓ Flagged" : "⚑ Reject source"}
+                                  </button>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                                  {entries.map(([k, v]) => {
+                                    const blank = v === null || v === undefined || v === "";
+                                    return (
+                                      <div
+                                        key={k}
+                                        className={`flex justify-between items-center gap-1.5 px-2 py-1 rounded-lg border ${
+                                          blank ? "bg-slate-50/70 border-slate-200/60" : "bg-white border-slate-200/80"
+                                        }`}
+                                      >
+                                        <span className="text-[9.5px] font-semibold text-slate-500 truncate">{fieldLabel(k)}</span>
+                                        <span className={`text-[10px] text-right ${blank ? "text-slate-300 italic" : "font-mono font-bold text-slate-900"}`}>
+                                          {fmtValue(v)}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                                {evNames.length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {evNames.map((f, fi) => (
+                                      <span key={fi} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800">
+                                        <FolderLock className="h-2.5 w-2.5" /> {f}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {rej && (
+                                  <div className="mt-2 rounded-xl border border-rose-200 bg-white/90 p-2.5 space-y-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[10px] font-bold text-slate-600">Severity:</span>
+                                      {(["ERROR", "WARNING"] as const).map((sev) => (
+                                        <button
+                                          key={sev}
+                                          type="button"
+                                          onClick={() =>
+                                            setItemRejections((prev) => ({ ...prev, [rKey]: { ...prev[rKey], severity: sev } }))
+                                          }
+                                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                                            rej.severity === sev
+                                              ? sev === "ERROR"
+                                                ? "bg-rose-600 text-white border-rose-600"
+                                                : "bg-amber-500 text-white border-amber-500"
+                                              : "bg-white text-slate-600 border-slate-200"
+                                          }`}
+                                        >
+                                          {sev}
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <textarea
+                                      value={rej.reason}
+                                      onChange={(e) =>
+                                        setItemRejections((prev) => ({ ...prev, [rKey]: { ...prev[rKey], reason: e.target.value } }))
+                                      }
+                                      placeholder={`Explain what is wrong with "${itemTitle(it)}" and what must be fixed…`}
+                                      className="w-full min-h-[52px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-y"
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             {/* Decision Bar */}
             <div className="flex items-center justify-between pt-3 border-t border-slate-200">
@@ -408,20 +633,53 @@ export default function CollectionStatusView() {
                   navigate("evidence");
                 }}
               >
-                Inspect Attached Evidence
+                Evidence Repository
               </PaButton>
 
               <div className="flex items-center gap-2">
                 <PaButton
                   variant="danger"
                   size="sm"
-                  icon={MessageSquare}
-                  onClick={() => {
-                    setInspectItem(null);
-                    openCorrectionModal(inspectItem);
+                  icon={XCircle}
+                  disabled={
+                    actionLoading ||
+                    Object.values(itemRejections).filter((r) => r.reason.trim()).length === 0
+                  }
+                  onClick={async () => {
+                    const items = Object.entries(itemRejections)
+                      .filter(([, r]) => r.reason.trim())
+                      .map(([, r]) => ({
+                        field: r.label,
+                        issue: r.reason.trim(),
+                        severity: r.severity,
+                        comment: r.reason.trim(),
+                        recordId: r.recordId,
+                      }));
+                    if (!items.length) return;
+                    setActionLoading(true);
+                    try {
+                      await paApiPost("/api/project-admin/submissions", {
+                        action: "reject",
+                        submissionId: inspectItem.id,
+                        comments: items[0].comment,
+                        items,
+                      });
+                      setItems((prev) =>
+                        prev.map((i) => (i.id === inspectItem.id ? { ...i, submissionStatus: "RETURNED" } : i))
+                      );
+                      if (inspectItem?.id === inspectItem.id) {
+                        setInspectItem((prev: any) => (prev ? { ...prev, submissionStatus: "RETURNED" } : null));
+                      }
+                      setItemRejections({});
+                      showToast(`Rejection dispatched for ${items.length} flagged item(s).`);
+                    } catch (err: any) {
+                      alert(err.message || "Failed to submit rejection.");
+                    } finally {
+                      setActionLoading(false);
+                    }
                   }}
                 >
-                  Request Correction
+                  {`Submit Rejection (${Object.values(itemRejections).filter((r) => r.reason.trim()).length})`}
                 </PaButton>
                 {inspectItem.submissionStatus !== "APPROVED" && (
                   <PaButton
@@ -431,7 +689,7 @@ export default function CollectionStatusView() {
                     disabled={actionLoading}
                     onClick={() => handleApprove(inspectItem)}
                   >
-                    Approve Submission
+                    Approve
                   </PaButton>
                 )}
               </div>

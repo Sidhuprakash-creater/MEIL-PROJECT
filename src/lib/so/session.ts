@@ -121,6 +121,21 @@ export function permissionsForPlatformRole(role: string): string[] {
   return ROLE_PERMISSIONS[role] ?? [];
 }
 
+/** In-memory session cache keyed by token hash (60s TTL) — the database is a
+ *  remote Supabase instance, so every uncached query costs a round-trip.
+ *  Mirrors the pu portal's puUserCache. */
+const soUserCache = new Map<string, { user: SoSessionUser; expiresAt: number }>()
+const SO_USER_CACHE_TTL_MS = 60000
+
+/** Drop a user's cached session (call after role/scope changes or sign-out). */
+export function clearSoUserCache(userId?: string) {
+  if (userId) {
+    for (const [k, v] of soUserCache) if (v.user.id === userId) soUserCache.delete(k)
+  } else {
+    soUserCache.clear()
+  }
+}
+
 /** Read + verify the platform session cookie and shape the portal user. */
 export async function getCurrentUser(): Promise<SoSessionUser | null> {
   const jar = await cookies();
@@ -129,6 +144,9 @@ export async function getCurrentUser(): Promise<SoSessionUser | null> {
 
   const { createHash } = await import("crypto");
   const tokenHash = createHash("sha256").update(token).digest("hex");
+
+  const cached = soUserCache.get(tokenHash);
+  if (cached && cached.expiresAt > Date.now()) return cached.user;
 
   const session = await db.session.findUnique({
     where: { tokenHash },
@@ -158,7 +176,7 @@ export async function getCurrentUser(): Promise<SoSessionUser | null> {
   }
   scopes.push({ id: `grp-${u.id}`, scopeType: "GROUP", scopeId: "MEIL-GROUP" });
 
-  return {
+  const soUser: SoSessionUser = {
     id: u.id,
     email: u.email,
     name: u.name,
@@ -170,6 +188,8 @@ export async function getCurrentUser(): Promise<SoSessionUser | null> {
     roles: [{ id: key, key, name: meta.name, phase: meta.phase }],
     scopes,
   };
+  soUserCache.set(tokenHash, { user: soUser, expiresAt: Date.now() + SO_USER_CACHE_TTL_MS });
+  return soUser;
 }
 
 export async function requireUser(): Promise<SoSessionUser> {

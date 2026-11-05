@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
       summary: {
         totalDocs: items.length,
         verified: items.filter((i) => i.status === "VERIFIED").length,
-        pendingReview: items.filter((i) => i.status === "PENDING" || i.status === "UNDER_REVIEW").length,
+        pendingReview: items.filter((i) => i.status === "PENDING_REVIEW").length,
         missingRequirements: 1,
       },
     };

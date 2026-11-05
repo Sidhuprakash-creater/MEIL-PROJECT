@@ -2149,7 +2149,7 @@ function InverterModal({
  * MAIN SiteUserOverview Component
  * ============================================================ */
 export function SiteUserOverview() {
-  const { setActiveModule } = useApp()
+  const { setActiveModule, user, selectedProjectId } = useApp()
   const [overview, setOverview] = useState<OverviewData | null>(null)
   const [activities, setActivities] = useState<ActivityItem[]>([])
   const [submissions, setSubmissions] = useState<SubmissionItem[]>([])

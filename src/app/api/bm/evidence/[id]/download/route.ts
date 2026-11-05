@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { ok } from "@/lib/esg/server";
 import { BmError, bmHandle, requireBuManager } from "@/lib/bm/server";
 import { db } from "@/lib/db";
-import { serveEvidenceBytes } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +24,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
       throw new BmError("Access denied — this document belongs to a different business unit.", 403);
     }
 
-    /* Real bytes when stored; receipt fallback for legacy rows. */
-    if (d.fileId) {
-      const resp = await serveEvidenceBytes(d.fileId, d.name);
-      if (resp) return resp;
-    }
+    /* EvidenceDoc is metadata-only in the unified schema — serve the receipt. */
 
     /* Append an access-trail row (audit only — no PII, just the document ref
        and the manager identity). */

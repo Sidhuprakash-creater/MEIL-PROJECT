@@ -1,5 +1,130 @@
 'use client'
 
+/**
+ * iOS LiquidGlass vibrant color tokens for captured emission sources
+ */
+function getLiquidGlassSourceStyle(sourceName: string, levelKey: string) {
+  const s = (sourceName || '').toLowerCase()
+  if (levelKey === 'level1') {
+    if (s.includes('grid')) {
+      return {
+        bg: 'bg-gradient-to-r from-blue-100/95 via-sky-50 to-blue-50/90',
+        border: 'border-blue-300/90 hover:border-blue-400',
+        text: 'text-blue-950',
+        subtext: 'text-blue-700',
+        badge: 'bg-blue-200/90 text-blue-900 border border-blue-300',
+        ghg: 'text-blue-700',
+        icon: Zap,
+      }
+    }
+    if (s.includes('diesel') || s.includes('hsd')) {
+      return {
+        bg: 'bg-gradient-to-r from-amber-100/95 via-orange-50 to-amber-50/90',
+        border: 'border-amber-300/90 hover:border-amber-400',
+        text: 'text-amber-950',
+        subtext: 'text-amber-700',
+        badge: 'bg-amber-200/90 text-amber-900 border border-amber-300',
+        ghg: 'text-amber-700',
+        icon: Fuel,
+      }
+    }
+    if (s.includes('petrol') || s.includes('fuel')) {
+      return {
+        bg: 'bg-gradient-to-r from-orange-100/95 via-rose-50 to-orange-50/90',
+        border: 'border-orange-300/90 hover:border-orange-400',
+        text: 'text-orange-950',
+        subtext: 'text-orange-700',
+        badge: 'bg-orange-200/90 text-orange-900 border border-orange-300',
+        ghg: 'text-orange-700',
+        icon: Fuel,
+      }
+    }
+    if (s.includes('renewable') || s.includes('solar') || s.includes('wind')) {
+      return {
+        bg: 'bg-gradient-to-r from-emerald-100/95 via-teal-50 to-emerald-50/90',
+        border: 'border-emerald-300/90 hover:border-emerald-400',
+        text: 'text-emerald-950',
+        subtext: 'text-emerald-700',
+        badge: 'bg-emerald-200/90 text-emerald-900 border border-emerald-300',
+        ghg: 'text-emerald-700',
+        icon: Sun,
+      }
+    }
+    if (s.includes('gas') || s.includes('lpg') || s.includes('cng') || s.includes('png')) {
+      return {
+        bg: 'bg-gradient-to-r from-yellow-100/95 via-amber-50 to-yellow-50/90',
+        border: 'border-yellow-300/90 hover:border-yellow-400',
+        text: 'text-amber-950',
+        subtext: 'text-amber-700',
+        badge: 'bg-yellow-200/90 text-amber-900 border border-yellow-300',
+        ghg: 'text-amber-700',
+        icon: Flame,
+      }
+    }
+    if (s.includes('coal')) {
+      return {
+        bg: 'bg-gradient-to-r from-slate-200/95 via-zinc-100 to-slate-100/90',
+        border: 'border-slate-300/90 hover:border-slate-400',
+        text: 'text-slate-950',
+        subtext: 'text-slate-700',
+        badge: 'bg-slate-300 text-slate-900 border border-slate-400',
+        ghg: 'text-slate-700',
+        icon: Flame,
+      }
+    }
+    return {
+      bg: 'bg-gradient-to-r from-indigo-100/95 via-sky-50 to-purple-50/90',
+      border: 'border-indigo-300/90 hover:border-indigo-400',
+      text: 'text-indigo-950',
+      subtext: 'text-indigo-700',
+      badge: 'bg-indigo-200/90 text-indigo-900 border border-indigo-300',
+      ghg: 'text-indigo-700',
+      icon: Zap,
+    }
+  }
+  if (levelKey === 'level2') {
+    return {
+      bg: 'bg-gradient-to-r from-cyan-100/95 via-sky-50 to-cyan-50/90',
+      border: 'border-cyan-300/90 hover:border-cyan-400',
+      text: 'text-cyan-950',
+      subtext: 'text-cyan-700',
+      badge: 'bg-cyan-200/90 text-cyan-900 border border-cyan-300',
+      ghg: 'text-cyan-700',
+      icon: Droplets,
+    }
+  }
+  if (levelKey === 'level3') {
+    return {
+      bg: 'bg-gradient-to-r from-emerald-100/95 via-teal-50 to-emerald-50/90',
+      border: 'border-emerald-300/90 hover:border-emerald-400',
+      text: 'text-emerald-950',
+      subtext: 'text-emerald-700',
+      badge: 'bg-emerald-200/90 text-emerald-900 border border-emerald-300',
+      ghg: 'text-emerald-700',
+      icon: CloudFog,
+    }
+  }
+  if (levelKey === 'level4') {
+    return {
+      bg: 'bg-gradient-to-r from-amber-100/95 via-rose-50 to-orange-50/90',
+      border: 'border-amber-300/90 hover:border-amber-400',
+      text: 'text-amber-950',
+      subtext: 'text-amber-700',
+      badge: 'bg-amber-200/90 text-amber-900 border border-amber-300',
+      ghg: 'text-amber-700',
+      icon: Trash2,
+    }
+  }
+  return {
+    bg: 'bg-gradient-to-r from-slate-100/95 via-white to-slate-50/90',
+    border: 'border-slate-300/90 hover:border-slate-400',
+    text: 'text-slate-900',
+    subtext: 'text-slate-600',
+    badge: 'bg-slate-200 text-slate-800 border border-slate-300',
+    ghg: 'text-slate-700',
+    icon: Activity,
+  }
+}
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -73,12 +198,18 @@ interface LiquidGlassJourneyProps {
   }>
   activeLevelKey: string
   allFormData: Record<string, Record<string, any>>
+  projectId?: string | null
+  periodId?: string | null
   stagedLevels?: Record<string, any>
   existingRecords?: any[]
   evidenceList?: any[]
   onSelectLevel: (levelKey: string) => void
   onReviewEvidence?: (fileName: string) => void
   onOpenFinalReview?: () => void
+  onViewItem?: (item: any) => void
+  onToggleCollapse?: () => void
+  isCollapsed?: boolean
+  onSelectSourceItem?: (levelKey: string, sourceName: string) => void
 }
 
 /**
@@ -156,10 +287,10 @@ function extractLevelSources(
       isStaged = true
       let sumKl = 0
       items.forEach((it: any) => {
-        const qty = Number(it.quantity || it.withdrawalQuantity || 0)
+        const qty = Number(it.quantity || it.waterQuantity || it.withdrawalQuantity || it.consumptionQuantity || 0)
         sumKl += qty
         sources.push({
-          name: it.waterSource || it.sourceItem || 'Surface water',
+          name: it.waterSource || it.sourceItem || it.name || 'Surface water',
           quantity: qty ? qty.toLocaleString() : '—',
           unit: it.unit || 'kL',
           subActivity: it.waterCategory || it.treatmentMethod,
@@ -209,10 +340,10 @@ function extractLevelSources(
       isStaged = true
       let sumMt = 0
       items.forEach((it: any) => {
-        const qty = Number(it.quantity || 0)
+        const qty = Number(it.quantity || it.quantityGenerated || 0)
         sumMt += qty
         sources.push({
-          name: it.wasteType || 'Non-hazardous waste',
+          name: it.wasteCategory || it.wasteType || it.sourceItem || 'Non-hazardous waste',
           quantity: qty ? qty.toFixed(2) : '—',
           unit: it.unit || 'MT',
           subActivity: it.disposalMethod || 'Recycled',
@@ -281,12 +412,18 @@ export function LiquidGlassEmissionJourneyWidget({
   levels,
   activeLevelKey,
   allFormData,
+  projectId,
+  periodId,
   stagedLevels = {},
   existingRecords = [],
   evidenceList = [],
   onSelectLevel,
   onReviewEvidence,
   onOpenFinalReview,
+  onViewItem,
+  onToggleCollapse,
+  isCollapsed = false,
+  onSelectSourceItem,
 }: LiquidGlassJourneyProps) {
   const [expandedLevels, setExpandedLevels] = useState<Record<string, boolean>>({
     [activeLevelKey]: true,
@@ -299,7 +436,10 @@ export function LiquidGlassEmissionJourneyWidget({
 
   // Compile the sequential journey for all levels
   const journeyItems: LevelJourneyData[] = levels.map((lvl) => {
-    const rawData = stagedLevels[lvl.key] || allFormData[lvl.key]
+    /* Forms cache payloads under scoped keys l<N>-<project>-<period>; the
+       legacy levelKey fallback keeps older callers working. */
+    const scopedKey = projectId && periodId ? `l${lvl.level}-${projectId}-${periodId}` : lvl.key
+    const rawData = stagedLevels[lvl.key] || allFormData[scopedKey] || allFormData[lvl.key]
     const existingForLevel = existingRecords.filter((r) => r.level === lvl.level || r.levelKey === lvl.key)
     const { sources, totalMetric, totalGhg, isStaged } = extractLevelSources(lvl.key, rawData, existingForLevel)
 
@@ -355,17 +495,31 @@ export function LiquidGlassEmissionJourneyWidget({
           </div>
         </div>
 
-        {/* Progress Pill (WidgetKit Accentable Style) */}
-        <div className="flex items-center gap-2 rounded-full border border-sky-200/80 bg-white/90 px-2.5 py-1 text-[11px] font-semibold shadow-2xs">
-          <span className="flex h-2 w-2 items-center justify-center">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />
-          </span>
-          <span className="text-sky-800">
-            {completedCount} of {totalLevelsCount} Staged
-          </span>
-          <span className="rounded-full bg-sky-100 px-1.5 py-0.2 text-[9px] font-bold text-sky-700">
-            {progressPct}%
-          </span>
+        {/* Progress Pill (WidgetKit Accentable Style) & Collapsible Slider Oval Pill Button */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 rounded-full border border-sky-200/90 bg-white/95 px-2.5 py-1 text-[11px] font-semibold shadow-2xs">
+            <span className="flex h-2 w-2 items-center justify-center">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-sky-500" />
+            </span>
+            <span className="text-sky-800 font-bold">
+              {completedCount} of {totalLevelsCount} Staged
+            </span>
+            <span className="rounded-full bg-sky-100 px-1.5 py-0.2 text-[9px] font-extrabold text-sky-700">
+              {progressPct}%
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleCollapse?.()
+            }}
+            className="flex items-center justify-center w-10 h-7 rounded-full bg-sky-100/95 hover:bg-sky-200 text-sky-800 border border-sky-300 shadow-xs transition-all active:scale-95 cursor-pointer"
+            title="Collapse Journey Panel"
+          >
+            <ChevronRight className="h-4 w-4 stroke-[2.5]" />
+          </button>
         </div>
       </div>
 
@@ -504,37 +658,74 @@ export function LiquidGlassEmissionJourneyWidget({
                           <span>{item.sources.length} Item(s)</span>
                         </div>
 
-                        {item.sources.map((src, sIdx) => (
-                          <div
-                            key={sIdx}
-                            className="flex items-center justify-between rounded-xl border border-white/90 bg-white/90 px-2.5 py-1.5 shadow-2xs text-[11px]"
-                          >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <CornerDownRight className="h-3 w-3 shrink-0 text-slate-400" />
-                              <div className="min-w-0">
-                                <span className="font-semibold text-slate-800 truncate block">
-                                  {src.name}
-                                </span>
-                                {src.subActivity && (
-                                  <span className="text-[10px] text-slate-500 block truncate">
-                                    {src.subActivity}
+                        {item.sources.map((src, sIdx) => {
+                          const style = getLiquidGlassSourceStyle(src.name, item.levelKey)
+                          const IconComp = style.icon
+                          return (
+                            <div
+                              key={sIdx}
+                              onClick={() => {
+                                onSelectLevel(item.levelKey)
+                                onSelectSourceItem?.(item.levelKey, src.name)
+                              }}
+                              className={`group/card flex items-center justify-between rounded-xl border-2 ${style.border} ${style.bg} px-3 py-2 shadow-xs backdrop-blur-md transition-all duration-150 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] text-[11px]`}
+                              title={`Click to open and edit ${src.name} details in left panel`}
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${style.badge} shadow-2xs`}>
+                                  <IconComp className="h-3.5 w-3.5" />
+                                </div>
+                                <div className="min-w-0">
+                                  <span className={`font-extrabold ${style.text} truncate block text-xs group-hover/card:underline`}>
+                                    {src.name}
                                   </span>
+                                  {src.subActivity && (
+                                    <span className={`text-[10px] ${style.subtext} block truncate font-medium`}>
+                                      {src.subActivity}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2.5 shrink-0 ml-2">
+                                <div className="text-right">
+                                  <span className={`font-extrabold ${style.text} text-xs`}>
+                                    {src.quantity} {src.unit}
+                                  </span>
+                                  {src.ghgTco2e && (
+                                    <span className={`text-[10px] font-bold ${style.ghg} block`}>
+                                      {src.ghgTco2e}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {onViewItem && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      onViewItem({
+                                        title: src.name,
+                                        source: src.name,
+                                        quantity: src.quantity,
+                                        unit: src.unit,
+                                        estTco2e: src.ghgTco2e ? Number(String(src.ghgTco2e).replace(/[^0-9.]/g, '')) : undefined,
+                                        levelKey: item.levelKey,
+                                        levelName: item.title,
+                                        reportingPeriod: (item as any).reportingPeriod,
+                                        evidenceName: (item as any).evidenceFiles?.[0],
+                                      })
+                                    }}
+                                    className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-300/80 bg-white/95 text-slate-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-800 transition shadow-2xs cursor-pointer"
+                                    title="View full specification modal"
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </button>
                                 )}
                               </div>
                             </div>
-
-                            <div className="text-right shrink-0 ml-2">
-                              <span className="font-bold text-slate-900">
-                                {src.quantity} {src.unit}
-                              </span>
-                              {src.ghgTco2e && (
-                                <span className="text-[10px] font-semibold text-sky-700 block">
-                                  {src.ghgTco2e}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     ) : (
                       <div className="rounded-xl border border-dashed border-slate-200 bg-white/50 p-2.5 text-center text-[11px] text-slate-400">

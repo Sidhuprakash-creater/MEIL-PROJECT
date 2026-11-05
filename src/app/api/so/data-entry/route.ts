@@ -33,7 +33,44 @@ export async function GET(req: NextRequest) {
     const level = levelStr ? Number(levelStr) : undefined
 
     const records = getLevelRecords(projectId, periodId, level)
-    return NextResponse.json({ records, count: records.length })
+
+    /* Reviewer corrections ride along so the Data Entry screen can show WHY a
+       record was sent back — keyed by the record they target. */
+    const correctionsByRecord: Record<string, any[]> = {}
+    try {
+      const scopeSubs = await db.submission.findMany({
+        where: {
+          ...(projectId ? { projectId } : {}),
+          ...(periodId ? { reportingPeriodId: periodId } : {}),
+          status: { in: ['CHANGES_REQUESTED', 'REJECTED', 'CORRECTION_REQUESTED'] },
+        },
+        select: { id: true, corrections: true },
+        take: 50,
+        orderBy: { updatedAt: 'desc' },
+      })
+      for (const s of scopeSubs) {
+        let list: any[] = []
+        try {
+          const parsed = typeof s.corrections === 'string' ? JSON.parse(s.corrections) : s.corrections
+          if (Array.isArray(parsed)) list = parsed
+        } catch {}
+        for (const c of list) {
+          if (c?.recordId) {
+            (correctionsByRecord[c.recordId] ||= []).push({
+              field: c.field,
+              issue: c.issue || c.comment,
+              severity: c.severity,
+              comment: c.comment || c.issue,
+              reviewer: c.requesterName,
+              createdAt: c.createdAt,
+              submissionId: s.id,
+            })
+          }
+        }
+      }
+    } catch {}
+
+    return NextResponse.json({ records, count: records.length, correctionsByRecord })
   } catch (e: any) {
     console.error('GET /api/data-entry error', e)
     return NextResponse.json({ error: e?.message || 'Failed to fetch records' }, { status: 500 })
@@ -57,6 +94,7 @@ export async function POST(req: NextRequest) {
       reportingPeriodId,
       data = {},
       evidenceId,
+      evidenceIds,
     } = body
 
     if (!level || !projectId || !reportingPeriodId) {
@@ -817,6 +855,7 @@ export async function POST(req: NextRequest) {
       reportingPeriodId,
       data,
       evidenceId: evidenceId || null,
+      evidenceIds: Array.isArray(evidenceIds) ? evidenceIds.filter(Boolean) : evidenceId ? [evidenceId] : [],
       validationStatus,
       calculationStatus: calculation ? 'COMPUTED' : 'NOT_APPLICABLE',
       calculation,
@@ -1018,6 +1057,86 @@ export async function POST(req: NextRequest) {
           action: 'SUBMIT',
           comment: `Submitted via Data Entry Workspace — ${record.levelName}`,
         }).catch(() => {})
+      }
+
+      /* Mirror into the unified db.submission ledger — the Project Admin
+         console reads THAT table, not soSubmission. Without this mirror,
+         site-ops submissions never reach the review queue. */
+      try {
+        const mirrorCategory = ({
+          ENERGY: 'ENERGY', WATER: 'WATER', EMISSIONS: 'EMISSIONS', WASTE: 'WASTE',
+          SAFETY: 'SAFETY', TRAINING: 'WORKFORCE', WORKFORCE: 'WORKFORCE',
+          COMPLIANCE: 'COMPLIANCE', INCIDENTS: 'SAFETY', INITIATIVES: 'CSR',
+        } as Record<string, string>)[record.module] || 'ENVIRONMENT'
+
+        const mirrorValues: Array<{ label: string; value: string | number; unit?: string }> = []
+        const mirrorItems = Array.isArray((data as any)?.items) ? (data as any).items : []
+        for (const it of mirrorItems) {
+          const label =
+            it.energySource || it.waterSource || it.emissionSource || it.wasteCategory ||
+            it.permitConsentType || it.title || 'Source item'
+          const value =
+            it.consumptionQuantity ?? it.waterQuantity ?? it.activityQuantity ?? it.quantityGenerated ?? '—'
+          mirrorValues.push({ label: String(label), value: String(value), unit: it.unit || '' })
+        }
+        if (mirrorValues.length === 0) {
+          const skip = new Set(['items', 'evidenceId', 'evidenceIds', 'viewStep', 'stagedAt'])
+          for (const [k, v] of Object.entries(data || {})) {
+            if (skip.has(k) || v === '' || v === null || v === undefined) continue
+            if (Array.isArray(v) && v.length === 0) continue
+            mirrorValues.push({
+              label: k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()),
+              value: String(v),
+              unit: '',
+            })
+          }
+        }
+
+        const mirrorExisting = await db.submission.findFirst({
+          where: {
+            projectId,
+            reportingPeriodId,
+            module: record.module,
+            status: { in: ['DRAFT', 'SUBMITTED', 'CHANGES_REQUESTED'] },
+          },
+          orderBy: { updatedAt: 'desc' },
+        })
+        const mirrorRecordIds = mirrorExisting
+          ? JSON.stringify(Array.from(new Set([...parseRecordIds(mirrorExisting.recordIds), recId])))
+          : JSON.stringify([recId])
+        const mirrorPayload = {
+          title: submissionTitle,
+          status: (isSubmittingForReview ? 'SUBMITTED' : 'DRAFT') as 'SUBMITTED' | 'DRAFT',
+          recordIds: mirrorRecordIds,
+          submittedAt: isSubmittingForReview ? new Date() : null,
+          submittedById: user.id,
+          metricName: calculation?.resultUnit ? record.levelName : 'Data Points',
+          metricValue: Number(calculation?.calculatedValue) || mirrorItems.length,
+          metricUnit: calculation?.resultUnit || '',
+          values: JSON.stringify(mirrorValues),
+          completionPct: hasErrors ? 50 : 100,
+          evidenceCount: evidenceId ? 1 : 0,
+          validationPassed: hasErrors ? 0 : 1,
+          validationErrors: hasErrors ? issues.length : 0,
+          updatedAt: new Date(),
+        }
+        if (mirrorExisting) {
+          await db.submission.update({ where: { id: mirrorExisting.id }, data: mirrorPayload })
+        } else {
+          await db.submission.create({
+            data: {
+              projectId,
+              reportingPeriodId,
+              module: record.module,
+              category: mirrorCategory,
+              ref: `PU-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`,
+              dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+              ...mirrorPayload,
+            },
+          })
+        }
+      } catch (mirrorErr) {
+        console.warn('Unified submission ledger mirror notice:', mirrorErr)
       }
     } catch (syncErr) {
       console.warn('Submission synchronization notice:', syncErr)

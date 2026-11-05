@@ -1,16 +1,19 @@
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import { db } from "@/lib/db";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Evidence file storage — shared by every console API family.
 
-   Bytes are stored IN the database (EvidenceFile.data — SQLite BLOB today,
-   Postgres bytea on Supabase tomorrow) so the exact same Prisma schema and
-   code run on both engines with zero migration work in application code.
+   Bytes are stored ON DISK (`public/evidence-uploads/`) and indexed by the
+   unified `Evidence` model (fileName + filePath + sha-256 hash), matching the
+   portal's evidence vault. The EvidenceDoc row keeps the per-console
+   repository metadata in sync.
 
    Every console upload endpoint funnels through `storeEvidenceFile()`:
      · size + extension validation (10 MB cap)
-     · EvidenceFile row (bytes) + EvidenceDoc row (repository metadata)
+     · Evidence row (file on disk) + EvidenceDoc row (repository metadata)
      · automatic version bump when the same document name is re-uploaded
        into the same submission (the "family" concept used by reviewers)
      · the linked Submission's evidence[] name list is kept in sync
@@ -117,19 +120,30 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
   });
   const version = (prior?.version ?? 0) + 1;
 
-  const stored = await db.evidenceFile.create({
+  /* Store the bytes on disk (unified Evidence vault location) … */
+  const uploadDir = path.join(process.cwd(), "public", "evidence-uploads");
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  const safeName = name.replace(/[^\w.\-() ]+/g, "_");
+  const storedName = `${Date.now()}-${safeName}`;
+  const filePath = `/evidence-uploads/${storedName}`;
+  fs.writeFileSync(path.join(uploadDir, storedName), buf);
+
+  /* … and index it with the unified Evidence model. */
+  const { createHash } = await import("crypto");
+  const hash = createHash("sha256").update(buf).digest("hex");
+  const stored = await db.evidence.create({
     data: {
-      name,
+      fileName: name,
+      documentType: "REGISTER",
+      filePath,
+      fileSize: buf.byteLength,
       mimeType,
-      sizeBytes: buf.byteLength,
-      data: buf,
-      subsidiaryId,
-      businessUnitId,
-      projectId,
-      submissionId: args.submissionId ?? null,
-      uploadedById: args.uploadedBy.id,
-      uploadedByName: args.uploadedBy.name,
-      uploadedByRole: args.uploadedBy.role,
+      hash,
+      projectId: projectId ?? null,
+      reportingPeriodId: null,
+      module: null,
+      uploaderId: args.uploadedBy.id,
+      status: "UPLOADED",
     },
   });
 
@@ -137,10 +151,8 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
     data: {
       name,
       fileType,
-      mimeType,
       sizeKb: Math.max(1, Math.round(buf.byteLength / 1024)),
       version,
-      fileId: stored.id,
       subsidiaryId,
       businessUnitId,
       projectId,
@@ -148,7 +160,6 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
       submissionRef,
       disclosureRef: args.disclosureRef ?? "",
       uploadedBy: args.uploadedBy.name,
-      uploadedById: args.uploadedBy.id,
       status: "VALID",
     },
   });
@@ -200,22 +211,24 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
 }
 
 /**
- * Serve the real bytes for an EvidenceDoc (or EvidenceFile) id. Returns null
- * when the record has no stored bytes — callers fall back to the metadata
- * receipt so pre-existing demo rows keep working.
+ * Serve the real bytes for an Evidence (vault) id. Returns null when the
+ * record or its file is missing — callers fall back to the metadata receipt
+ * so pre-existing demo rows keep working.
  */
 export async function serveEvidenceBytes(
   fileId: string,
   downloadName: string
 ): Promise<NextResponse | null> {
-  const f = await db.evidenceFile.findUnique({ where: { id: fileId } });
-  if (!f) return null;
+  const f = await db.evidence.findUnique({ where: { id: fileId } });
+  if (!f || !f.filePath) return null;
+  const abs = path.join(process.cwd(), "public", f.filePath.replace(/^\//, ""));
+  if (!fs.existsSync(abs)) return null;
   const safeName = downloadName.replace(/[^\w.\-() ]+/g, "_") || "evidence";
-  const body = new Uint8Array(f.data);
+  const body = new Uint8Array(fs.readFileSync(abs));
   return new NextResponse(body, {
     headers: {
       "Content-Type": f.mimeType || "application/octet-stream",
-      "Content-Length": String(f.sizeBytes),
+      "Content-Length": String(f.fileSize ?? body.byteLength),
       "Content-Disposition": `attachment; filename="${safeName}"`,
       "Cache-Control": "private, no-store",
     },

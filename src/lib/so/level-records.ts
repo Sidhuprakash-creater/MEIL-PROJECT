@@ -37,6 +37,7 @@ export interface LevelRecord {
   reportingPeriodId: string
   data: Record<string, any>
   evidenceId?: string | null
+  evidenceIds?: string[]
   validationStatus: 'PASSED' | 'WARNING' | 'FAILED' | 'PENDING'
   calculationStatus: 'COMPUTED' | 'NOT_APPLICABLE' | 'PENDING'
   calculation: CalculationPayload | null

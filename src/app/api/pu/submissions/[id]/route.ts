@@ -66,66 +66,50 @@ export async function GET(
 
     const recordIds = parseRecordIds(submission.recordIds)
 
-    // --- SOURCE RECORDS (full rows by module) ---
+    // --- SOURCE RECORDS ---
+    /* Prefer the JSON LevelRecords (they carry the per-source items[] the
+       contributor staged), falling back to the Prisma mirrors. */
     let sourceRecords: Record<string, unknown>[] = []
     if (recordIds.length > 0) {
-      switch (submission.module) {
-        case 'ENVIRONMENT':
-          sourceRecords = [
-            ...(await db.energyRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
-            ...(await db.waterRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
-            ...(await db.wasteRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
-            ...(await db.travelRecord.findMany({ where: { id: { in: recordIds } }, include: { calculationResults: true, validationResults: true } })),
-          ]
-          break
-        case 'ENERGY':
-          sourceRecords = await db.energyRecord.findMany({
-            where: { id: { in: recordIds } },
-            include: { calculationResults: true, validationResults: true },
-          })
-          break
-        case 'WATER':
-          sourceRecords = await db.waterRecord.findMany({
-            where: { id: { in: recordIds } },
-            include: { calculationResults: true, validationResults: true },
-          })
-          break
-        case 'WASTE':
-          sourceRecords = await db.wasteRecord.findMany({
-            where: { id: { in: recordIds } },
-            include: { calculationResults: true, validationResults: true },
-          })
-          break
-        case 'PEOPLE':
-          sourceRecords = await db.workforceRecord.findMany({
-            where: { id: { in: recordIds } },
-            include: { validationResults: true },
-          })
-          break
-        case 'SAFETY':
-          sourceRecords = await db.safetyRecord.findMany({
-            where: { id: { in: recordIds } },
-            include: { validationResults: true },
-          })
-          break
-        case 'TRAVEL':
-          sourceRecords = await db.travelRecord.findMany({
-            where: { id: { in: recordIds } },
-            include: { calculationResults: true, validationResults: true },
-          })
-          break
-        default:
-          break
-      }
       const { getLevelRecordById } = await import('@/lib/pu/level-records')
       for (const rid of recordIds) {
-        if (!sourceRecords.some((r) => (r as any).id === rid)) {
-          const lr = getLevelRecordById(rid)
-          if (lr) sourceRecords.push(lr as unknown as Record<string, unknown>)
+        const lr = getLevelRecordById(rid)
+        if (lr) sourceRecords.push(lr as unknown as Record<string, unknown>)
+      }
+      const missing = recordIds.filter((rid) => !sourceRecords.some((r) => (r as { id?: string }).id === rid))
+      if (missing.length > 0) {
+        switch (submission.module) {
+          case 'ENVIRONMENT':
+            sourceRecords.push(
+              ...(await db.energyRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })),
+              ...(await db.waterRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })),
+              ...(await db.wasteRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })),
+              ...(await db.travelRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })),
+            )
+            break
+          case 'ENERGY':
+            sourceRecords.push(...(await db.energyRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })))
+            break
+          case 'WATER':
+            sourceRecords.push(...(await db.waterRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })))
+            break
+          case 'WASTE':
+            sourceRecords.push(...(await db.wasteRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })))
+            break
+          case 'PEOPLE':
+            sourceRecords.push(...(await db.workforceRecord.findMany({ where: { id: { in: missing } }, include: { validationResults: true } })))
+            break
+          case 'SAFETY':
+            sourceRecords.push(...(await db.safetyRecord.findMany({ where: { id: { in: missing } }, include: { validationResults: true } })))
+            break
+          case 'TRAVEL':
+            sourceRecords.push(...(await db.travelRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })))
+            break
+          default:
+            break
         }
       }
     }
-
     // --- EVIDENCE ---
     const evidenceIds = sourceRecords
       .map((r) => (r as { evidenceId?: string | null }).evidenceId)

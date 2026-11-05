@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { ok } from "@/lib/esg/server";
 import { saHandle, requireSubsidiaryAdmin } from "@/lib/sa/server";
-import type { SaBuTaskRow } from "@/lib/sa/types";
+type SaBuTaskRow = Record<string, any>;
 
 export const dynamic = "force-dynamic";
 

@@ -30,13 +30,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const loadNotifications = () => {
     fetch('/api/pu/notifications').then(r => r.json()).then(d => setNotifications(Array.isArray(d) ? d : (d.items ?? d.notifications ?? []))).catch(() => setNotifications([]))
   }
-  /* Initial load + light live poll (8s, paused while hidden) so reviewer
-     decisions and assigned tasks reflect without a page refresh. */
+  /* Initial load + light live poll (45s, paused while hidden, instant refresh
+     on tab re-focus) so reviewer decisions and assigned tasks reflect without
+     a page refresh — without constant background traffic. */
   useEffect(() => {
     loadNotifications()
     const timer = window.setInterval(() => {
       if (!document.hidden) loadNotifications()
-    }, 8000)
+    }, 45000)
     const onVisible = () => {
       if (!document.hidden) loadNotifications()
     }

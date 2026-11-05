@@ -920,7 +920,7 @@ function BusinessUnitSelectorBar({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: EASE, delay: 0.08 }}
-      className="so-glass-ios-liquid so-glass-shimmer rounded-[26px] p-5 md:p-6 relative border border-white/90 shadow-[0_20px_50px_-10px_rgba(2,132,199,0.16)]"
+      className="so-glass-ios-liquid rounded-[26px] p-5 md:p-6 relative border border-slate-200/90 shadow-[0_12px_36px_-10px_rgba(2,132,199,0.08)] bg-white"
     >
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">

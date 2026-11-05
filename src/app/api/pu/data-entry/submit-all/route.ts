@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { db } from '@/lib/pu/db'
-import { getLevelRecords, saveLevelRecord } from '@/lib/pu/level-records'
+import { saveManyLevelRecords } from '@/lib/pu/level-records'
 import { appendActivity, appendAudit, appendHistory, primaryRoleLabel } from '@/lib/pu/workflow'
-import { invalidatePuOverviewCache } from '@/app/api/pu/overview/route'
-import { invalidatePuSubmissionsCache } from '@/app/api/pu/submissions/route'
-import { invalidatePuNotificationsCache } from '@/app/api/pu/notifications/route'
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -16,7 +14,10 @@ interface MetricDetail {
   unit?: string
 }
 
-function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {}): {
+/* Metrics are derived from the ACTUAL submitted record data — never from demo
+   defaults. Per-source items become one metric row each; scalar fallbacks only
+   surface values the user actually entered. */
+function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {}, calculation?: Record<string, any> | null): {
   metricName: string
   metricValue: number
   metricUnit: string
@@ -24,108 +25,88 @@ function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {})
 } {
   const m = String(moduleKey || '').toUpperCase()
   const values: MetricDetail[] = []
+  const items: any[] = Array.isArray(data?.items) ? data.items : []
+
+  const fmt = (v: any) => {
+    const n = Number(v)
+    return Number.isFinite(n) ? n.toLocaleString() : String(v ?? '')
+  }
+
   let metricName = 'Data Points'
   let metricValue = 0
   let metricUnit = ''
 
-  if (m === 'ENERGY') {
-    const grid = Number(data.electricityGridKwh || data.gridKwh || 14200)
-    const diesel = Number(data.dieselDgLiters || data.dgLiters || 480)
-    const solar = Number(data.solarRooftopKwh || data.solarKwh || 5100)
-    const totalGj = +(grid * 0.0036 + diesel * 0.038 + solar * 0.0036).toFixed(2)
-    metricName = 'Total Energy Consumption'
-    metricValue = totalGj
-    metricUnit = 'GJ'
-    values.push({ label: 'Grid Electricity', value: grid.toLocaleString(), unit: 'kWh' })
-    values.push({ label: 'Diesel (DG Sets)', value: diesel.toLocaleString(), unit: 'Liters' })
-    values.push({ label: 'Rooftop Solar', value: solar.toLocaleString(), unit: 'kWh' })
-    values.push({ label: 'Total Energy (Normalized)', value: totalGj.toLocaleString(), unit: 'GJ' })
-  } else if (m === 'WATER') {
-    const gw = Number(data.groundwaterKl || 2500)
-    const sw = Number(data.surfaceWaterKl || 1200)
-    const mun = Number(data.municipalKl || 800)
-    const tnk = Number(data.tankerKl || 400)
-    const rec = Number(data.recycledKl || 1800)
-    const totalKl = +(gw + sw + mun + tnk).toFixed(2)
-    metricName = 'Total Water Withdrawal'
-    metricValue = totalKl
-    metricUnit = 'kL'
-    values.push({ label: 'Groundwater', value: gw.toLocaleString(), unit: 'kL' })
-    values.push({ label: 'Surface Water', value: sw.toLocaleString(), unit: 'kL' })
-    values.push({ label: 'Municipal Supply', value: mun.toLocaleString(), unit: 'kL' })
-    values.push({ label: 'Tankers', value: tnk.toLocaleString(), unit: 'kL' })
-    values.push({ label: 'Recycled / Reused', value: rec.toLocaleString(), unit: 'kL' })
-    values.push({ label: 'Zero Liquid Discharge (ZLD)', value: '100% Compliant', unit: '' })
-  } else if (m === 'EMISSIONS') {
-    const s1 = Number(data.scope1 || 42.8)
-    const s2 = Number(data.scope2 || 118.4)
-    const s3 = Number(data.scope3 || 26.2)
-    const total = +(s1 + s2 + s3).toFixed(2)
-    metricName = 'GHG Footprint (Scope 1+2)'
-    metricValue = +(s1 + s2).toFixed(2)
-    metricUnit = 'tCO2e'
-    values.push({ label: 'Scope 1 (Direct Combustion)', value: s1, unit: 'tCO2e' })
-    values.push({ label: 'Scope 2 (Purchased Electricity)', value: s2, unit: 'tCO2e' })
-    values.push({ label: 'Scope 3 (Value Chain)', value: s3, unit: 'tCO2e' })
-    values.push({ label: 'Total GHG Footprint', value: total, unit: 'tCO2e' })
-  } else if (m === 'WASTE') {
-    const haz = Number(data.hazardousMt || 12.4)
-    const nonHaz = Number(data.nonHazardousMt || 84.6)
-    const rec = Number(data.recycledMt || 62.0)
-    metricName = 'Total Waste Generated'
-    metricValue = +(haz + nonHaz).toFixed(2)
-    metricUnit = 'MT'
-    values.push({ label: 'Hazardous Waste', value: haz, unit: 'MT' })
-    values.push({ label: 'Non-Hazardous Waste', value: nonHaz, unit: 'MT' })
-    values.push({ label: 'Recycled / Diverted', value: rec, unit: 'MT' })
-  } else if (m === 'SAFETY') {
-    const fat = Number(data.fatalities || 0)
-    const lti = Number(data.lostTimeInjuries || data.lostTimeIncidents || 0)
-    const hrs = Number(data.manHoursWorked || 248000)
-    const trn = Number(data.safetyTrainingHours || 1420)
-    metricName = 'Lost Time Injuries (LTI)'
-    metricValue = lti
-    metricUnit = 'incidents'
-    values.push({ label: 'Fatalities', value: fat, unit: '' })
-    values.push({ label: 'Lost Time Incidents', value: lti, unit: '' })
-    values.push({ label: 'Man-Hours Worked', value: hrs.toLocaleString(), unit: 'hrs' })
-    values.push({ label: 'Safety Training', value: trn.toLocaleString(), unit: 'hrs' })
-  } else if (m === 'TRAINING' || m === 'WORKFORCE') {
-    const perm = Number(data.permanentEmployees || 380)
-    const nonPerm = Number(data.contractWorkers || 1240)
-    metricName = 'Total Active Workforce'
-    metricValue = perm + nonPerm
-    metricUnit = 'personnel'
-    values.push({ label: 'Permanent Staff', value: perm.toLocaleString(), unit: '' })
-    values.push({ label: 'Contract Workers', value: nonPerm.toLocaleString(), unit: '' })
-    values.push({ label: 'Total Site Headcount', value: (perm + nonPerm).toLocaleString(), unit: 'personnel' })
-  } else if (m === 'COMPLIANCE') {
-    const activePermits = Number(data.activePermits || 14)
-    metricName = 'Permits & Regulatory Approvals'
-    metricValue = activePermits
-    metricUnit = 'active'
-    values.push({ label: 'Consent to Operate (CTO)', value: 'Active & Verified', unit: '' })
-    values.push({ label: 'Consent to Establish (CTE)', value: 'Active', unit: '' })
-    values.push({ label: 'EIA Clearance', value: 'Compliant', unit: '' })
-    values.push({ label: 'Total Verified Permits', value: activePermits, unit: 'permits' })
-  } else if (m === 'INCIDENTS') {
-    const closed = Number(data.closedCases || 6)
-    metricName = 'Environmental Grievances'
-    metricValue = 0
-    metricUnit = 'open'
-    values.push({ label: 'Open Grievances', value: 0, unit: '' })
-    values.push({ label: 'Resolved & Closed Cases', value: closed, unit: '' })
-    values.push({ label: 'Grievance Resolution Rate', value: 100, unit: '%' })
-  } else {
-    // Initiatives / CSR
-    metricName = 'Energy Conservation Initiatives'
-    metricValue = Number(data.totalInitiatives || 3)
-    metricUnit = 'programs'
-    values.push({ label: 'Solar Rooftop Addition', value: '5.1 MW Capacity', unit: '' })
-    values.push({ label: 'LED Retrofit Phase II', value: '18% Energy Savings', unit: '' })
-    values.push({ label: 'VFD Compressor Upgrades', value: 'Active', unit: '' })
+  for (const it of items) {
+    if (m === 'ENERGY') {
+      metricName = 'Total Energy Consumption'
+      metricUnit = 'GJ'
+      values.push({ label: it.energySource || 'Energy source', value: fmt(it.consumptionQuantity), unit: it.unit || '' })
+      if (Number(it.estTco2e) > 0) {
+        values.push({ label: `${it.energySource || 'Source'} — Est. GHG`, value: Number(it.estTco2e).toFixed(2), unit: 'tCO2e' })
+      }
+      metricValue += Number(it.estGj) || 0
+    } else if (m === 'WATER') {
+      metricName = 'Total Water Withdrawal'
+      metricUnit = 'kL'
+      values.push({ label: it.waterSource || 'Water source', value: fmt(it.waterQuantity), unit: it.unit || 'kL' })
+      if (Number(it.waterReusedRecycled) > 0) {
+        values.push({ label: `${it.waterSource || 'Source'} — Reused/Recycled`, value: fmt(it.waterReusedRecycled), unit: it.unit || 'kL' })
+      }
+      metricValue += Number(it.waterQuantity) || 0
+    } else if (m === 'EMISSIONS') {
+      metricName = 'GHG Footprint (Scope 1+2)'
+      metricUnit = 'tCO2e'
+      const scopeTag = String(it.emissionDataType || '').includes('1')
+        ? 'Scope 1'
+        : String(it.emissionDataType || '').includes('2')
+          ? 'Scope 2'
+          : String(it.emissionDataType || '').includes('3')
+            ? 'Scope 3'
+            : 'Air / Monitoring'
+      values.push({ label: `${scopeTag} — ${it.emissionSource || it.sourceCategory || 'Source'}`, value: Number(it.estTco2e || 0).toFixed(2), unit: 'tCO2e' })
+      if (scopeTag === 'Scope 1' || scopeTag === 'Scope 2') metricValue += Number(it.estTco2e) || 0
+    } else if (m === 'WASTE') {
+      metricName = 'Total Waste Generated'
+      metricUnit = String(it.unit || 'MT')
+      values.push({ label: it.wasteCategory || 'Waste category', value: fmt(it.quantityGenerated), unit: String(it.unit || 'MT') })
+      metricValue += Number(it.quantityGenerated) || 0
+    } else if (m === 'COMPLIANCE') {
+      metricName = 'Permits & Regulatory Approvals'
+      metricUnit = 'permits'
+      values.push({ label: it.permitConsentType || 'Permit', value: it.permitNumber || '—', unit: it.permitStatus || '' })
+      metricValue += 1
+    } else if (m === 'INITIATIVES') {
+      metricName = 'Energy Conservation Initiatives'
+      metricUnit = 'programs'
+      values.push({ label: it.title || it.category || it.initiativeName || 'Initiative', value: it.physicalOutputQuantity || it.output || '—', unit: it.unit || '' })
+      metricValue += 1
+    } else {
+      // SAFETY / TRAINING / INCIDENTS — render item label/value when present
+      const label = it.title || it.trainingName || it.incidentType || it.category || 'Entry'
+      const value = it.value ?? it.count ?? it.quantity ?? it.hours ?? '—'
+      values.push({ label, value: fmt(value), unit: it.unit || '' })
+      metricValue += Number(value) || 0
+    }
   }
 
+  if (items.length === 0) {
+    // Scalar-only levels: surface only the fields the user actually filled.
+    const SKIP = new Set(['items', 'evidenceId', 'evidenceIds', 'viewStep', 'stagedAt', 'evidenceFileName'])
+    for (const [k, v] of Object.entries(data || {})) {
+      if (SKIP.has(k)) continue
+      if (v === '' || v === null || v === undefined) continue
+      if (Array.isArray(v) && v.length === 0) continue
+      const label = k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase())
+      values.push({ label, value: typeof v === 'number' ? fmt(v) : String(v), unit: '' })
+    }
+    if (calculation?.calculatedValue != null) {
+      metricValue = Number(calculation.calculatedValue) || 0
+      metricUnit = calculation.resultUnit || metricUnit
+    }
+  }
+
+  metricValue = +metricValue.toFixed(2)
+  if (!metricUnit) metricUnit = calculation?.resultUnit || ''
   return { metricName, metricValue, metricUnit, values }
 }
 
@@ -203,7 +184,7 @@ export async function POST(req: NextRequest) {
       }),
       db.evidence.findMany({
         where: { projectId: projId },
-        select: { id: true, fileName: true },
+        select: { id: true, fileName: true, documentType: true, filePath: true, hash: true },
       }),
       db.evidenceDoc.findMany({
         where: { projectId: projId },
@@ -216,29 +197,34 @@ export async function POST(req: NextRequest) {
       ...existingDocs.map(d => d.name || d.id),
     ].filter(Boolean)
 
-    if (attachedEvidenceFiles.length === 0) {
-      attachedEvidenceFiles.push('VID 20261026 051852 188.pdf', 'MEIL-BRSR-Annexure-I-FY2026-v11.pdf')
-    }
     const existingMap = new Map(existingSubs.map(s => [s.module, s]))
 
-    // Process all 9 levels concurrently
-    const upsertPromises = BRSR_LEVELS.map(async (lvl) => {
+    /* Persist all 9 level records with ONE read + ONE write of the store file
+       (previously 9 concurrent full read+write cycles). */
+    const recordsToSave = BRSR_LEVELS.map((lvl) => {
       const levelKey = `level${lvl.level}`
       const levelData = allData[levelKey] || allData[lvl.moduleKey.toLowerCase()] || {}
-      const metrics = computeModuleMetrics(lvl.moduleKey, levelData)
-
-      // Save level record in persistent store
-      const rec = saveLevelRecord({
+      return {
         level: lvl.level,
         levelKey,
         levelName: lvl.name,
         module: lvl.moduleKey,
         projectId: projId,
         reportingPeriodId: perId,
-        status: 'SUBMITTED',
-        validationStatus: 'PASSED',
+        status: 'SUBMITTED' as const,
+        validationStatus: 'PASSED' as const,
         data: levelData,
-              })
+      }
+    })
+    const savedRecords = saveManyLevelRecords(recordsToSave)
+    const recByLevel = new Map(savedRecords.map((r) => [r.levelKey, r]))
+
+    // Process all 9 levels — submission upserts run concurrently
+    const upsertPromises = BRSR_LEVELS.map(async (lvl) => {
+      const levelKey = `level${lvl.level}`
+      const rec = recByLevel.get(levelKey)!
+      const levelData = rec.data || {}
+      const metrics = computeModuleMetrics(lvl.moduleKey, levelData, rec.calculation as any)
 
       const submissionTitle = `${project.name} — ${lvl.name} (${(period as any).periodLabel || (period as any).label || 'Q4 FY 2025-26'})`
       const existingSub = existingMap.get(lvl.moduleKey)

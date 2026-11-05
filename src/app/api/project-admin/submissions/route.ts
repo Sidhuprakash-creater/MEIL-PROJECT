@@ -10,11 +10,19 @@ import {
   invalidatePaServerCache,
 } from "@/lib/project-admin/server";
 
-import { invalidatePuSubmissionsCache } from "@/app/api/pu/submissions/route";
-import { invalidatePuOverviewCache } from "@/app/api/pu/overview/route";
-import { invalidatePuNotificationsCache } from "@/app/api/pu/notifications/route";
+import { getLevelRecords, updateLevelRecordStatus, type LevelRecord } from "@/lib/pu/level-records";
+import { invalidatePuSubmissionsCache, invalidatePuOverviewCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const dynamic = "force-dynamic";
+
+function parseJsonArray(raw: unknown): any[] {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -123,12 +131,40 @@ export async function GET(req: NextRequest) {
 
     const userMap = new Map(users.map((u) => [u.id, u]));
 
+    /* Enrichment: load the underlying level records (per-source items the user
+       actually entered) and the real Evidence rows so the admin sees exactly
+       what was captured — not just aggregates. */
+    const allLevelRecords: LevelRecord[] = getLevelRecords();
+    const recordById = new Map(allLevelRecords.map((r) => [r.id, r]));
+
+    const referencedEvidenceIds = new Set<string>();
+    for (const s of submissions) {
+      for (const rid of parseJsonArray(s.recordIds)) {
+        const rec = recordById.get(rid);
+        if (!rec) continue;
+        if (rec.evidenceId) referencedEvidenceIds.add(rec.evidenceId);
+        for (const it of Array.isArray(rec.data?.items) ? rec.data.items : []) {
+          if (it?.evidenceId) referencedEvidenceIds.add(it.evidenceId);
+          for (const eid of Array.isArray(it?.evidenceIds) ? it.evidenceIds : []) {
+            if (eid) referencedEvidenceIds.add(eid);
+          }
+        }
+      }
+    }
+    const evidenceRows = referencedEvidenceIds.size
+      ? await db.evidence.findMany({
+          where: { id: { in: [...referencedEvidenceIds] } },
+          select: { id: true, fileName: true, documentType: true, filePath: true, hash: true, status: true, fileSize: true },
+        })
+      : [];
+    const evidenceById = new Map(evidenceRows.map((e) => [e.id, e]));
+
     // Map site submissions into unified rich display items
     const siteItems = submissions.map((s, idx) => {
       const u = s.submittedById ? userMap.get(s.submittedById) : null;
       const subDate = s.submittedAt || s.createdAt || s.updatedAt;
-      const submitterName = u?.name || "Rohit Kumar";
-      const submitterEmail = u?.email || "rohit@meil-esg.in";
+      const submitterName = u?.name || "Site Contributor";
+      const submitterEmail = u?.email || "";
       const submitterRole = u?.role === "ENV_DATA_USER" ? "Site Data Entry" : (u?.role || "Site Contributor");
       const period = s.reportingPeriod?.periodLabel || s.reportingPeriodId || "Q4 FY 2025-26";
       const refCode = s.ref || `SUB-${ctx.projectCode}-${(s.category || "ENV").slice(0, 4)}-${(idx + 1).toString().padStart(3, "0")}`;
@@ -156,7 +192,7 @@ export async function GET(req: NextRequest) {
         });
       }
 
-      // Safely parse attached evidence
+      // Safely parse attached evidence — real file names only, no fabricated fallbacks
       let evidenceList: string[] = [];
       try {
         if ((s as any).evidence) {
@@ -164,9 +200,56 @@ export async function GET(req: NextRequest) {
           if (Array.isArray(parsed)) evidenceList = parsed.filter(Boolean);
         }
       } catch {}
-      if (evidenceList.length === 0) {
-        evidenceList = ["VID 20261026 051852 188.pdf", "MEIL-BRSR-Annexure-I-FY2026-v11.pdf"];
+
+      /* Per-source items straight from the submitted level records, plus the
+         real Evidence rows they reference. */
+      const sourceRecords: Array<{
+        recordId: string;
+        level: number;
+        levelName: string;
+        recordStatus: string;
+        validationStatus: string;
+        items: any[];
+      }> = [];
+      const evidenceFiles: Array<{
+        id: string;
+        fileName: string;
+        documentType: string;
+        filePath: string;
+        hash: string | null;
+        status: string;
+      }> = [];
+      const seenEvidence = new Set<string>();
+      for (const rid of parseJsonArray(s.recordIds)) {
+        const rec = recordById.get(rid);
+        if (!rec) continue;
+        sourceRecords.push({
+          recordId: rec.id,
+          level: rec.level,
+          levelName: rec.levelName,
+          recordStatus: rec.status,
+          validationStatus: rec.validationStatus,
+          items: Array.isArray(rec.data?.items) ? rec.data.items : [],
+        });
+        const recEvidenceIds = new Set<string>();
+        if (rec.evidenceId) recEvidenceIds.add(rec.evidenceId);
+        for (const it of sourceRecords[sourceRecords.length - 1].items) {
+          if (it?.evidenceId) recEvidenceIds.add(it.evidenceId);
+          for (const eid of Array.isArray(it?.evidenceIds) ? it.evidenceIds : []) {
+            if (eid) recEvidenceIds.add(eid);
+          }
+        }
+        for (const eid of recEvidenceIds) {
+          const ev = evidenceById.get(eid);
+          if (ev && !seenEvidence.has(ev.id)) {
+            seenEvidence.add(ev.id);
+            evidenceFiles.push(ev);
+          }
+        }
       }
+
+      // Corrections previously raised on this submission (per-field review notes)
+      const corrections = parseJsonArray((s as any).corrections);
 
       let reviewStatus = "PENDING_ADMIN_REVIEW";
       if (s.status === "APPROVED" || s.status === "BU_APPROVED") reviewStatus = "APPROVED";
@@ -199,7 +282,10 @@ export async function GET(req: NextRequest) {
         metricUnit: s.metricUnit || "",
         metricValue: s.metricValue != null && s.metricValue > 0 ? `${s.metricValue} ${s.metricUnit || ""}`.trim() : (parsedValues[0]?.value ? `${parsedValues[0].value} ${parsedValues[0].unit || ""}`.trim() : null),
         evidenceList,
-        evidenceCount: evidenceList.length,
+        evidenceFiles,
+        sourceRecords,
+        corrections,
+        evidenceCount: evidenceList.length || evidenceFiles.length,
         buManagerName: "Er. K. Venkataramana (Project Admin)",
         projectName: s.project?.name || ctx.projectName,
         projectCode: s.project?.code || ctx.projectCode,
@@ -343,6 +429,9 @@ export async function POST(req: NextRequest) {
         try {
           const rids = typeof sub.recordIds === "string" ? JSON.parse(sub.recordIds) : sub.recordIds;
           if (Array.isArray(rids)) {
+            /* Flip the JSON-store LevelRecords too — the Data Entry screen
+               reads its record statuses from there, not from the mirrors. */
+            for (const rid of rids) updateLevelRecordStatus(rid, "ACTIVE");
             await Promise.allSettled([
               db.energyRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
               db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
@@ -399,10 +488,35 @@ export async function POST(req: NextRequest) {
           module: true,
           submittedById: true,
           recordIds: true,
+          corrections: true,
         },
       });
 
-      // Update db.submission to CHANGES_REQUESTED
+      // Update db.submission to CHANGES_REQUESTED + persist per-field corrections
+      /* Per-source items flagged in the inspect modal become correction objects
+         with the SAME shape the pu workflow's addCorrections() uses, so the
+         environmental user sees them in the Submissions Corrections tab and
+         (below) directly inside Data Entry. */
+      const fieldIssues = Array.isArray(body.items) ? body.items : [];
+      /* Merge with any previously raised corrections so history is preserved. */
+      let priorCorrections: any[] = [];
+      try {
+        const parsedPrior = typeof sub?.corrections === "string" ? JSON.parse(sub.corrections) : sub?.corrections;
+        if (Array.isArray(parsedPrior)) priorCorrections = parsedPrior;
+      } catch {}
+      const corrections = fieldIssues.slice(0, 50).map((f: any, i: number) => ({
+        id: `cr-pa-${Date.now().toString(36)}-${i}`,
+        submissionId,
+        requesterId: ctx.userId,
+        requesterName: ctx.userName,
+        field: String(f.field || "General Data Review"),
+        issue: String(f.issue || f.comment || rejectionReason),
+        severity: f.severity === "ERROR" ? "ERROR" : "WARNING",
+        comment: String(f.comment || f.issue || ""),
+        recordId: f.recordId ? String(f.recordId) : null,
+        status: "OPEN",
+        createdAt: now.toISOString(),
+      }));
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
@@ -411,6 +525,7 @@ export async function POST(req: NextRequest) {
           reviewComment: rejectionReason,
           reviewedAt: now,
           updatedAt: now,
+          ...(corrections.length ? { corrections: JSON.stringify([...priorCorrections, ...corrections]) } : {}),
         },
       });
 
@@ -423,15 +538,22 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Update underlying records to CORRECTION_REQUESTED
+      // Update underlying records to CORRECTION_REQUESTED (JSON store + mirrors)
       if (sub?.recordIds) {
         try {
           const rids = typeof sub.recordIds === "string" ? JSON.parse(sub.recordIds) : sub.recordIds;
           if (Array.isArray(rids)) {
+            /* Only records touched by a flagged item, or all when the rejection
+               is submission-wide. */
+            const flaggedRecordIds = new Set(corrections.map((c: any) => c.recordId).filter(Boolean));
+            const targetRids = flaggedRecordIds.size
+              ? rids.filter((rid: string) => flaggedRecordIds.has(rid))
+              : rids;
+            for (const rid of targetRids) updateLevelRecordStatus(rid, "CORRECTION_REQUESTED");
             await Promise.allSettled([
-              db.energyRecord.updateMany({ where: { id: { in: rids } }, data: { status: "CORRECTION_REQUESTED" } }),
-              db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: "CORRECTION_REQUESTED" } }),
-              db.wasteRecord.updateMany({ where: { id: { in: rids } }, data: { status: "CORRECTION_REQUESTED" } }),
+              db.energyRecord.updateMany({ where: { id: { in: targetRids } }, data: { status: "CORRECTION_REQUESTED" } }),
+              db.waterRecord.updateMany({ where: { id: { in: targetRids } }, data: { status: "CORRECTION_REQUESTED" } }),
+              db.wasteRecord.updateMany({ where: { id: { in: targetRids } }, data: { status: "CORRECTION_REQUESTED" } }),
             ]);
           }
         } catch {}

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentUser } from '@/lib/so/session'
+import { getSoTreeCache, setSoTreeCache, invalidateSoTreeCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -25,6 +26,13 @@ export const runtime = 'nodejs'
 export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
+
+  /* Remote-DB latency guard: the hierarchy + calendar change rarely — serve
+     from a 120s cache like the pu twin. */
+  const cached = getSoTreeCache()
+  if (cached) {
+    return NextResponse.json(cached)
+  }
 
   const subsidiaries = await db.subsidiary.findMany({
     orderBy: { name: 'asc' },
@@ -84,7 +92,7 @@ export async function GET() {
       })
     : []
 
-  return NextResponse.json({
+  const payload = {
     groups,
     reportingYear: reportingYear
       ? { id: reportingYear.id, year: reportingYear.year, label: reportingYear.label, status: reportingYear.status }
@@ -102,5 +110,7 @@ export async function GET() {
       endDate: p.endDate,
       status: p.status,
     })),
-  })
+  }
+  setSoTreeCache(payload)
+  return NextResponse.json(payload)
 }

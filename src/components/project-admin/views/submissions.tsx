@@ -23,6 +23,59 @@ import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 
+/* ── Per-source item rendering helpers ──────────────────────────────────── */
+const FIELD_LABELS: Record<string, string> = {
+  energySource: "Energy Source", emissionDataType: "GHG Scope", energyActivity: "Energy Activity",
+  consumptionQuantity: "Consumption Quantity", unit: "Unit", meterEquipmentId: "Meter / Equipment ID",
+  openingMeterReading: "Opening Meter Reading", closingMeterReading: "Closing Meter Reading",
+  energyPurchased: "Energy Purchased", energyGenerated: "Energy Generated",
+  renewableEnergyQuantity: "Renewable Energy", reportingPeriod: "Reporting Period",
+  sourceDocument: "Source Document", remarks: "Remarks",
+  waterSource: "Water Source", waterActivity: "Water Activity", waterQuantity: "Water Quantity",
+  meterSourceId: "Meter / Pump ID", openingReading: "Opening Reading", closingReading: "Closing Reading",
+  waterReusedRecycled: "Reused / Recycled", dischargeDestination: "Discharge Destination",
+  treatmentLevel: "Treatment Level", waterQualityResult: "Water Quality Result", testDateLab: "Lab Test / Date",
+  supportingEvidence: "Supporting Evidence",
+  sourceCategory: "Source Category", emissionSource: "Emission Source", fuelEnergyType: "Fuel / Energy Type",
+  equipmentId: "Equipment ID", electricityKwh: "Electricity (kWh)", gridFactorRef: "Grid Factor Ref",
+  activityQuantity: "Activity Quantity", scope3Category: "Scope 3 Category",
+  transportMode: "Transport Mode", cargoWeightTonnes: "Cargo Weight (t)", distanceKm: "Distance (km)",
+  tonneKm: "Tonne-km", logisticsProvider: "Logistics Provider", originDestination: "Origin → Destination",
+  travelMode: "Travel Mode", travelDistanceKm: "Travel Distance (km)", passengerCount: "Passengers",
+  passengerKm: "Passenger-km", pollutantType: "Pollutant", samplingLocation: "Sampling Location",
+  testDate: "Test Date", laboratory: "Laboratory", laboratoryTestMethod: "Lab / Method",
+  testMethod: "Test Method", measuredResult: "Measured Result", testResult: "Test Result",
+  regulatoryBenchmark: "Regulatory Benchmark", complianceStatus: "Compliance",
+  refrigerantType: "Refrigerant", quantityLeakedKg: "Quantity Leaked (kg)", gwpSource: "GWP Source",
+  wasteCategory: "Waste Category", wasteTypeDescription: "Description", quantityGenerated: "Quantity Generated",
+  quantityReused: "Quantity Reused", quantityRecycled: "Quantity Recycled", quantityRecovered: "Quantity Recovered",
+  quantityDisposed: "Quantity Disposed", disposalMethod: "Disposal Method", wasteHandler: "Handler",
+  authorizationReference: "Authorization Ref", transferManifestNumber: "Manifest No.",
+  permitConsentType: "Permit Type", permitNumber: "Permit Number", issuingAuthority: "Issuing Authority",
+  issueDate: "Issue Date", expiryDate: "Expiry Date", permitStatus: "Permit Status",
+  applicableActivity: "Applicable Activity", inspectionDate: "Inspection Date",
+  inspectionFindings: "Inspection Findings", nonComplianceIdentified: "Non-compliance",
+  correctiveAction: "Corrective Action", responsibleOwner: "Responsible Owner", dueDate: "Due Date",
+  closureDate: "Closure Date", factor: "Emission Factor", factorUnit: "Factor Unit", factorSource: "Factor Source",
+  estTco2e: "Est. GHG (tCO₂e)", estGj: "Energy (GJ)",
+  title: "Title", category: "Category", startDate: "Start Date", completionDate: "Completion Date",
+  physicalOutputQuantity: "Physical Output",
+};
+const SKIP_FIELDS = new Set([
+  "evidenceId", "evidenceIds", "evidenceFileName", "evidenceFiles", "id", "status",
+  "viewStep", "stagedAt", "items", "calculationFormula", "calculationTimestamp", "factorVersion", "factorConfigured",
+]);
+const fieldLabel = (k: string) =>
+  FIELD_LABELS[k] || k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
+const itemTitle = (it: any) =>
+  it.energySource || it.waterSource || it.emissionSource || it.wasteCategory ||
+  it.permitConsentType || it.title || it.pollutantType || it.refrigerantType || it.category || "Source item";
+const fmtVal = (v: any) => {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  return Number.isFinite(n) && String(v).trim() !== "" && typeof v !== "boolean" ? n.toLocaleString() : String(v);
+};
+
 export default function SubmissionsView() {
   const { navigate } = usePaStore();
   const cached = getCachedPaData<any>("/api/project-admin/submissions");
@@ -41,6 +94,11 @@ export default function SubmissionsView() {
   const [actionComments, setActionComments] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  /* Per-source-item rejections collected in the inspect modal:
+     key = `${recordId}:${itemId}` → { severity, reason } */
+  const [itemRejections, setItemRejections] = useState<
+    Record<string, { severity: "ERROR" | "WARNING"; reason: string; label: string; recordId: string }>
+  >({});
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -114,12 +172,24 @@ export default function SubmissionsView() {
       alert("Please provide correction instructions or reason for rejection.");
       return;
     }
+    /* Per-source rejections flagged in the inspect modal travel with the
+       decision so the environmental user sees exactly WHICH item failed. */
+    const items = Object.entries(itemRejections)
+      .filter(([, r]) => r.reason.trim())
+      .map(([, r]) => ({
+        field: r.label,
+        issue: r.reason.trim(),
+        severity: r.severity,
+        comment: r.reason.trim(),
+        recordId: r.recordId,
+      }));
     setActionLoading(true);
     try {
       await paApiPost("/api/project-admin/submissions", {
         action: "reject",
         submissionId: sub.id,
         comments: note.trim(),
+        items,
       });
 
       // Optimistic update
@@ -447,7 +517,10 @@ export default function SubmissionsView() {
                         {/* Inspect Details Button */}
                         <button
                           type="button"
-                          onClick={() => setInspectSubmission(s)}
+                          onClick={() => {
+                            setItemRejections({});
+                            setInspectSubmission(s);
+                          }}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                           title="View Submission Details"
                         >
@@ -507,59 +580,277 @@ export default function SubmissionsView() {
               </div>
             </div>
 
-            {/* Submitted Data Fields Breakdown Card */}
-            {inspectSubmission.parsedValues && inspectSubmission.parsedValues.length > 0 && (
-              <div className="p-4 rounded-2xl bg-white/90 border border-slate-200 space-y-3 shadow-sm">
-                <div className="font-bold text-slate-800 text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <Layers size={14} className="text-blue-600" />
-                    <span>Submitted Data Breakdown ({inspectSubmission.parsedValues.length} fields)</span>
+            {/* Per-source Submitted Data — iOS liquid-glass cards, one per captured item */}
+            {(() => {
+              const sourceRecords: any[] = inspectSubmission.sourceRecords || [];
+              const hasItems = sourceRecords.some((r) => (r.items || []).length > 0);
+              if (!sourceRecords.length && !(inspectSubmission.parsedValues || []).length) {
+                return (
+                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/80 text-xs text-amber-900">
+                    No source-record data attached to this submission yet.
                   </div>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Verified Payload
-                  </span>
+                );
+              }
+              return (
+                <div className="space-y-3">
+                  <div className="font-bold text-slate-800 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Layers size={14} className="text-blue-600" />
+                      <span>Submitted Data — Source by Source</span>
+                    </div>
+                    <span className="text-[10px] font-semibold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                      As entered by contributor
+                    </span>
+                  </div>
+                  {hasItems
+                    ? sourceRecords.map((rec) => (
+                        <div key={rec.recordId} className="rounded-2xl bg-white/90 border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-sky-50/90 border-b border-slate-100">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-600 text-white text-[10px] font-black shrink-0">
+                                {rec.level}
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-800 truncate">{rec.levelName}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                rec.recordStatus === "CORRECTION_REQUESTED"
+                                  ? "text-rose-700 bg-rose-50 border-rose-200"
+                                  : rec.recordStatus === "APPROVED" || rec.recordStatus === "ACTIVE"
+                                    ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                    : "text-slate-600 bg-slate-50 border-slate-200"
+                              }`}>
+                                {String(rec.recordStatus || "").replace(/_/g, " ")}
+                              </span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                                rec.validationStatus === "PASSED"
+                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                  : rec.validationStatus === "FAILED"
+                                    ? "text-rose-700 bg-rose-50 border-rose-200"
+                                    : "text-amber-700 bg-amber-50 border-amber-200"
+                              }`}>
+                                {rec.validationStatus || "PENDING"}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-3 space-y-2.5">
+                            {(rec.items || []).length === 0 && (
+                              <div className="text-[11px] text-slate-500 italic px-1">No per-source items captured in this record.</div>
+                            )}
+                            {(rec.items || []).map((it: any, idx: number) => {
+                              const rKey = `${rec.recordId}:${it.id || idx}`;
+                              const rLabel = `${rec.levelName} · ${itemTitle(it)}`;
+                              const rej = itemRejections[rKey];
+                              const isRejected = Boolean(rej);
+                              return (
+                                <div
+                                  key={rKey}
+                                  className={`rounded-2xl border p-3 transition-all ${
+                                    isRejected
+                                      ? "border-rose-300 bg-rose-50/50 shadow-2xs"
+                                      : "border-slate-200/90 bg-gradient-to-b from-white to-slate-50/60 shadow-2xs"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2 mb-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="flex h-5 w-5 items-center justify-center rounded-md bg-slate-800 text-white text-[9px] font-bold shrink-0">
+                                        {idx + 1}
+                                      </span>
+                                      <span className="text-[12px] font-bold text-slate-900 truncate">{itemTitle(it)}</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setItemRejections((prev) => {
+                                          const next = { ...prev };
+                                          if (next[rKey]) delete next[rKey];
+                                          else next[rKey] = { severity: "ERROR", reason: "", label: rLabel, recordId: rec.recordId };
+                                          return next;
+                                        })
+                                      }
+                                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition shrink-0 ${
+                                        isRejected
+                                          ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                                          : "bg-white text-rose-700 border-rose-200 hover:bg-rose-50"
+                                      }`}
+                                    >
+                                      {isRejected ? "✓ Flagged for rejection" : "⚑ Reject this source"}
+                                    </button>
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                    {Object.entries(it)
+                                      .filter(([k, v]) => !SKIP_FIELDS.has(k) && !(v === "" || v === null || v === undefined))
+                                      .map(([k, v]) => (
+                                        <div key={k} className="flex justify-between items-start gap-2 px-2.5 py-1.5 rounded-xl bg-white/90 border border-slate-200/80">
+                                          <span className="text-slate-500 font-medium text-[10.5px] pt-px">{fieldLabel(k)}:</span>
+                                          <span className={`font-mono font-bold text-[11px] text-slate-900 text-right ${
+                                            typeof v === "number" || /^\d+(\.\d+)?$/.test(String(v)) ? "tabular-nums" : ""
+                                          }`}>
+                                            {fmtVal(v)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                  </div>
+                                  {isRejected && (
+                                    <div className="mt-2.5 rounded-xl border border-rose-200 bg-white/90 p-2.5 space-y-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] font-bold text-slate-600">Severity:</span>
+                                        {(["ERROR", "WARNING"] as const).map((sev) => (
+                                          <button
+                                            key={sev}
+                                            type="button"
+                                            onClick={() =>
+                                              setItemRejections((prev) => ({ ...prev, [rKey]: { ...prev[rKey], severity: sev } }))
+                                            }
+                                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                                              rej.severity === sev
+                                                ? sev === "ERROR"
+                                                  ? "bg-rose-600 text-white border-rose-600"
+                                                  : "bg-amber-500 text-white border-amber-500"
+                                                : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
+                                            }`}
+                                          >
+                                            {sev}
+                                          </button>
+                                        ))}
+                                      </div>
+                                      <textarea
+                                        value={rej.reason}
+                                        onChange={(e) =>
+                                          setItemRejections((prev) => ({ ...prev, [rKey]: { ...prev[rKey], reason: e.target.value } }))
+                                        }
+                                        placeholder={`Explain what is wrong with "${itemTitle(it)}" and what the contributor must fix…`}
+                                        className="w-full min-h-[54px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-y"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))
+                    : (inspectSubmission.parsedValues || []).length > 0 && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {inspectSubmission.parsedValues.map((field: any, idx: number) => (
+                            <div key={idx} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+                              <span className="text-slate-600 font-medium">{field.label}:</span>
+                              <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                {field.value} {field.unit ? field.unit : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {inspectSubmission.parsedValues.map((field: any, idx: number) => (
-                    <div key={idx} className="flex justify-between items-center p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
-                      <span className="text-slate-600 font-medium">{field.label}:</span>
-                      <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                        {field.value} {field.unit ? field.unit : ''}
+              );
+            })()}
+
+            {/* Existing per-field corrections raised on this submission */}
+            {(inspectSubmission.corrections || []).length > 0 && (
+              <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200/80 space-y-2">
+                <div className="font-bold text-rose-950 text-xs flex items-center gap-1.5">
+                  <AlertTriangle size={14} className="text-rose-600" />
+                  Corrections Requested ({inspectSubmission.corrections.length})
+                </div>
+                {inspectSubmission.corrections.map((c: any, idx: number) => (
+                  <div key={c.id || idx} className="rounded-xl bg-white/90 border border-rose-200/80 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-800">{c.field || "Field"}</span>
+                      <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded ${
+                        c.severity === "ERROR" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"
+                      }`}>
+                        {c.severity || "WARNING"}
                       </span>
                     </div>
-                  ))}
-                </div>
+                    <div className="text-[11px] text-slate-700 mt-0.5">{c.issue || c.comment}</div>
+                    {c.requesterName && (
+                      <div className="text-[9.5px] text-slate-400 mt-0.5">— {c.requesterName}</div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
 
-            {/* Attached Verification Evidence Card */}
-            {inspectSubmission.evidenceList && inspectSubmission.evidenceList.length > 0 && (
-              <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2.5 shadow-2xs">
-                <div className="font-bold text-emerald-950 text-xs flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <FolderLock size={14} className="text-emerald-600" />
-                    <span>Attached Verification Evidence ({inspectSubmission.evidenceList.length} documents)</span>
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
-                    SHA-256 Audit Sealed
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {inspectSubmission.evidenceList.map((doc: string, idx: number) => (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-slate-800 shadow-2xs"
-                    >
-                      <FileText size={13} className="text-emerald-600 shrink-0" />
-                      <span className="font-mono text-[11px] truncate max-w-[260px]">{doc}</span>
-                      <span className="ml-1 text-[9px] font-extrabold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-md">
-                        VERIFIED
+            {/* Attached Verification Evidence — real vault files with preview */}
+            {(() => {
+              const realFiles: any[] = inspectSubmission.evidenceFiles || [];
+              const nameOnly: string[] = inspectSubmission.evidenceList || [];
+              if (realFiles.length === 0 && nameOnly.length === 0) return null;
+              return (
+                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200/80 space-y-2.5 shadow-2xs">
+                  <div className="font-bold text-emerald-950 text-xs flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <FolderLock size={14} className="text-emerald-600" />
+                      <span>
+                        Attached Verification Evidence ({realFiles.length || nameOnly.length} document
+                        {(realFiles.length || nameOnly.length) === 1 ? "" : "s"})
                       </span>
                     </div>
-                  ))}
+                    <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                      Evidence Vault
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {realFiles.map((ev) => (
+                      <div
+                        key={ev.id}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-emerald-200 shadow-2xs"
+                      >
+                        <FileText size={14} className="text-emerald-600 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] font-bold text-slate-800 truncate max-w-[240px]">{ev.fileName}</span>
+                            <span className="text-[9px] font-extrabold text-sky-700 bg-sky-50 border border-sky-200 px-1.5 py-0.5 rounded-md shrink-0">
+                              {ev.documentType || "DOC"}
+                            </span>
+                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0 ${
+                              ev.status === "VERIFIED"
+                                ? "text-emerald-700 bg-emerald-100"
+                                : "text-amber-700 bg-amber-100"
+                            }`}>
+                              {ev.status || "PENDING"}
+                            </span>
+                          </div>
+                          {ev.hash && (
+                            <div className="text-[9px] font-mono text-slate-400 truncate max-w-[320px]">sha256: {ev.hash}</div>
+                          )}
+                        </div>
+                        {ev.filePath && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <a
+                              href={ev.filePath}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 transition"
+                            >
+                              <Eye size={11} /> View
+                            </a>
+                            <a
+                              href={ev.filePath}
+                              download={ev.fileName}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 transition"
+                            >
+                              ↓ File
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {realFiles.length === 0 &&
+                      nameOnly.map((doc, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-slate-800 shadow-2xs"
+                        >
+                          <FileText size={13} className="text-emerald-600 shrink-0" />
+                          <span className="font-mono text-[11px] truncate max-w-[260px]">{doc}</span>
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             <div>
               <label className="text-[10px] font-bold uppercase text-[#8F9EAF]">
