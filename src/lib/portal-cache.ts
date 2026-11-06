@@ -25,6 +25,26 @@ export function invalidatePuOverviewCache() {
 export const puSubmissionsCache = new Map<string, { data: any; expiresAt: number }>()
 export function invalidatePuSubmissionsCache() {
   puSubmissionsCache.clear()
+  puDataEntryCorrectionsCache.clear()
+}
+
+/* ---- Data-entry corrections (pu, per project+period key) ----
+   Reviewer corrections ride along with every data-entry GET as an extra remote
+   Supabase round trip. Caching them keeps the Data Entry screen instant. Only
+   submission mutations ever write corrections and every writer calls
+   invalidatePuSubmissionsCache (below), so a 60s TTL can never surface stale
+   corrections to the user. */
+export const puDataEntryCorrectionsCache = new Map<
+  string,
+  { data: Record<string, any[]>; expiresAt: number }
+>()
+export const PU_CORRECTIONS_TTL_MS = 60000
+export function getPuCorrectionsCache(key: string) {
+  const hit = puDataEntryCorrectionsCache.get(key)
+  return hit && hit.expiresAt > Date.now() ? hit.data : null
+}
+export function setPuCorrectionsCache(key: string, data: Record<string, any[]>) {
+  puDataEntryCorrectionsCache.set(key, { data, expiresAt: Date.now() + PU_CORRECTIONS_TTL_MS })
 }
 
 /* ---- Notifications (pu, per-user key) ---- */

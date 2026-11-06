@@ -10,13 +10,13 @@ import {
   Send,
   User,
   Plus,
-  RefreshCw,
   FolderLock,
   MessageSquare,
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaCorrectionItem } from "@/lib/project-admin/types";
 
 export default function CorrectionsView() {
@@ -127,7 +127,11 @@ export default function CorrectionsView() {
 
       {/* Review Remarks Cards Grid */}
       <div className="space-y-4">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="glass rounded-2xl p-6">
+            <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading corrections…" />
+          </div>
+        ) : filtered.length === 0 ? (
           <PaGlassCard strong className="p-8 text-center text-[#64748B]">
             No outstanding correction requests found. All contributor disclosures satisfy BU requirements.
           </PaGlassCard>

@@ -44,22 +44,6 @@ export async function GET(req: NextRequest) {
             { projectId: ctx.projectId },
             { businessUnitId: ctx.businessUnitId },
             { subsidiaryId: ctx.subsidiaryId },
-            {
-              category: {
-                in: [
-                  "ENVIRONMENT",
-                  "ENERGY",
-                  "WATER",
-                  "WASTE",
-                  "EMISSIONS",
-                  "SAFETY",
-                  "WORKFORCE",
-                  "PROCUREMENT",
-                  "CSR",
-                  "COMPLIANCE",
-                ],
-              },
-            },
           ],
         },
         select: {
@@ -125,6 +109,13 @@ export async function GET(req: NextRequest) {
         orderBy: { createdAt: "desc" },
       }),
       db.user.findMany({
+        where: {
+          OR: [
+            { projectId: ctx.projectId },
+            { businessUnitId: ctx.businessUnitId },
+            { subsidiaryId: ctx.subsidiaryId },
+          ],
+        },
         select: { id: true, name: true, email: true, role: true },
       }),
     ]);
@@ -133,8 +124,9 @@ export async function GET(req: NextRequest) {
 
     /* Enrichment: load the underlying level records (per-source items the user
        actually entered) and the real Evidence rows so the admin sees exactly
-       what was captured — not just aggregates. */
-    const allLevelRecords: LevelRecord[] = getLevelRecords();
+       what was captured — not just aggregates. Scoped to the admin's project
+       so records from other projects are never pulled in. */
+    const allLevelRecords: LevelRecord[] = getLevelRecords(ctx.projectId);
     const recordById = new Map(allLevelRecords.map((r) => [r.id, r]));
 
     const referencedEvidenceIds = new Set<string>();
@@ -253,6 +245,7 @@ export async function GET(req: NextRequest) {
 
       let reviewStatus = "PENDING_ADMIN_REVIEW";
       if (s.status === "APPROVED" || s.status === "BU_APPROVED") reviewStatus = "APPROVED";
+      else if (s.status === "LOCKED") reviewStatus = "LOCKED";
       else if (s.status === "CHANGES_REQUESTED" || s.status === "REJECTED" || s.status === "CORRECTION_REQUESTED") reviewStatus = "CHANGES_REQUESTED";
       else if (s.status === "DRAFT") reviewStatus = "DRAFT";
       else if (s.status === "SUBMITTED" || s.status === "UNDER_REVIEW") reviewStatus = "PENDING_ADMIN_REVIEW";
@@ -339,7 +332,10 @@ export async function GET(req: NextRequest) {
       summary: {
         total: allItems.length,
         approved: allItems.filter(
-          (i) => i.submissionStatus === "APPROVED" || i.reviewStatus === "APPROVED"
+          (i) =>
+            i.submissionStatus === "APPROVED" ||
+            i.submissionStatus === "LOCKED" ||
+            i.reviewStatus === "APPROVED"
         ).length,
         submitted: allItems.filter(
           (i) =>
@@ -514,6 +510,9 @@ export async function POST(req: NextRequest) {
         severity: f.severity === "ERROR" ? "ERROR" : "WARNING",
         comment: String(f.comment || f.issue || ""),
         recordId: f.recordId ? String(f.recordId) : null,
+        /* Structured target key (rec:<id> | rec:<id>:it:<n>) so the
+           contributor-side review screen can re-mark the exact item red. */
+        target: f.target ? String(f.target) : null,
         status: "OPEN",
         createdAt: now.toISOString(),
       }));

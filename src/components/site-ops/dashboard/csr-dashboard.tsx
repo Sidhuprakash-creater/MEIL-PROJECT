@@ -22,6 +22,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, Tooltip, XAxis, YAxis, Legend,
@@ -693,22 +694,8 @@ export function CsrDashboard() {
 
   if (loading && !overview) {
     return (
-      <div className="space-y-5">
-        <div className="so-glass rounded-[20px] h-[80px] animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-5 lg:grid-cols-[1.5fr_1fr]">
-          <div className="space-y-5">
-            <div className="grid grid-cols-3 gap-3">
-              {[0, 1, 2].map(i => <div key={i} className="so-glass rounded-2xl h-[110px] animate-pulse" />)}
-            </div>
-            <div className="so-glass rounded-[20px] h-[360px] animate-pulse" />
-            <div className="so-glass rounded-[20px] h-[280px] animate-pulse" />
-          </div>
-          <div className="space-y-5">
-            <div className="so-glass rounded-[20px] h-[280px] animate-pulse" />
-            <div className="so-glass rounded-[20px] h-[280px] animate-pulse" />
-            <div className="so-glass rounded-[20px] h-[180px] animate-pulse" />
-          </div>
-        </div>
+      <div className="so-glass rounded-[20px] p-6">
+        <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading CSR data…" />
       </div>
     )
   }

@@ -16,6 +16,12 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { MeilLoader, MeilBoxLoader } from '@/components/shared/meil-loader'
+import {
+  SubmissionReviewWindow,
+  buildReviewModelFromPuDetail,
+  type ReviewModel,
+} from '@/components/shared/submission-review-window'
 import { toast } from 'sonner'
 import {
   ClipboardList, RefreshCw, Filter, AlertOctagon, Inbox, Loader2,
@@ -734,8 +740,8 @@ export function SubmissionsModule() {
           </SheetHeader>
 
           {detailLoading ? (
-            <div className="flex h-64 items-center justify-center text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex h-64 items-center justify-center">
+              <MeilLoader size={68} label="Loading submission details…" />
             </div>
           ) : detail ? (
             <SubmissionDetailPanel
@@ -1245,6 +1251,10 @@ function SubmissionDetailPanel({
       ? (detail as unknown as { corrections: Correction[] }).corrections
       : [])
   const actions = permittedActions(s)
+  /* Full-window mirror review — opens on returned submissions and shows the
+     admin's red marks + clarifications phase by phase (same window the admin used). */
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [mirrorModel, setMirrorModel] = useState<ReviewModel | null>(null)
 
   return (
     <div className="space-y-5 p-5">
@@ -1267,6 +1277,19 @@ function SubmissionDetailPanel({
               <p className="mt-2 text-xs font-semibold text-rose-950 bg-white/90 p-3 rounded-xl border border-rose-200/90 shadow-2xs">
                 "{s.reviewComment || 'Project Admin requested corrections and clarification on the entered figures before sign-off.'}"
               </p>
+              {/* Full-window rejection review — same phase-by-phase layout the admin used */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMirrorModel(buildReviewModelFromPuDetail(detail, s))
+                  setReviewOpen(true)
+                }}
+                className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-black text-white shadow-md transition hover:bg-rose-700 active:scale-[0.99]"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Open Full Rejection Review — see exactly which sources were marked
+              </button>
+
               <div className="mt-2.5 flex items-center justify-between text-[11px]">
                 <span className="text-rose-700">
                   Reviewed by: <strong>{s.currentReviewer?.name || 'Project Admin'}</strong> {s.reviewedAt ? `• ${fmtDateTime(s.reviewedAt)}` : ''}
@@ -1408,6 +1431,14 @@ function SubmissionDetailPanel({
           <CorrectionsList corrections={corrections} />
         </TabsContent>
       </Tabs>
+
+      {/* FULL-WINDOW REJECTION REVIEW (mirror mode — contributor sees the admin's marks) */}
+      <SubmissionReviewWindow
+        open={reviewOpen && !!mirrorModel}
+        onClose={() => setReviewOpen(false)}
+        model={mirrorModel}
+        onDone={() => setReviewOpen(false)}
+      />
 
       {/* ACTION BAR */}
       <div className="sticky bottom-0 -mx-5 flex items-center justify-between gap-2 border-t border-white/60 bg-white/70 px-5 py-3 backdrop-blur-md">
@@ -1717,11 +1748,7 @@ function EmptyBlock({ icon: Icon, text }: { icon: React.ComponentType<{ classNam
 function SubmissionsSkeleton() {
   return (
     <div className="so-glass rounded-2xl p-4">
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-200/60" />
-        ))}
-      </div>
+      <MeilBoxLoader boxHeight="min-h-[300px]" label="Loading submissions…" />
     </div>
   )
 }

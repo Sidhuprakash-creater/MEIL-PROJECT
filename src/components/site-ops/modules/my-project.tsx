@@ -17,6 +17,7 @@
  */
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Building2, MapPin, Plus, Send, Activity as ActivityIcon, Flame, Zap, Droplets,
   Search, ChevronRight, ChevronDown, Pencil, Eye, ArrowUpRight, ArrowDownRight,
@@ -2886,18 +2887,8 @@ function UpcomingDeadlinesCard({ project, periods, allSubs, delay = 0.3, dragHan
  * ============================================================ */
 function MyProjectSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-64 animate-pulse rounded bg-slate-200/60" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="so-glass h-[110px] animate-pulse rounded-2xl" />
-        ))}
-      </div>
-      <div className="so-glass h-[130px] animate-pulse rounded-[24px]" />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.95fr)_minmax(0,1fr)]">
-        <div className="so-glass h-[460px] animate-pulse rounded-[20px]" />
-        <div className="so-glass h-[620px] animate-pulse rounded-[20px]" />
-      </div>
+    <div className="glass rounded-[26px] p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading your project…" />
     </div>
   )
 }

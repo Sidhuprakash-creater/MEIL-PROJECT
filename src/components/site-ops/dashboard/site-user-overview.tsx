@@ -20,6 +20,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Flame, Zap, ArrowUpRight, ArrowDownRight,
   Send, MoreHorizontal, Plus, FileText, Database,
@@ -1081,7 +1082,6 @@ function QuickActionsCard({
     { label: 'Upload Evidence', icon: Upload, module: 'evidence', tone: 'bg-violet-100 text-violet-700 border border-violet-300' },
     { label: 'View Pending Submission', icon: Send, module: 'submissions', tone: 'bg-amber-100 text-amber-800 border border-amber-300' },
     { label: 'Check Validation', icon: ShieldCheck, module: 'submissions', tone: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
-    { label: 'View Reports', icon: FileText, module: 'reports', tone: 'bg-cyan-100 text-cyan-800 border border-cyan-300' },
   ]
 
   return (
@@ -2297,18 +2297,8 @@ export function SiteUserOverview() {
   // Guard: still loading initial data
   if (loading && !overview) {
     return (
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-5 lg:grid-cols-[1fr_minmax(380px,42%)] xl:grid-cols-[1fr_minmax(400px,42%)]">
-          <div className="space-y-5">
-            <div className="so-glass rounded-[24px] h-[420px] animate-pulse" />
-            <div className="so-glass rounded-[24px] h-[420px] animate-pulse" />
-          </div>
-          <div className="space-y-5">
-            <div className="so-glass rounded-[24px] h-[420px] animate-pulse" />
-            <div className="so-glass rounded-[24px] h-[420px] animate-pulse" />
-          </div>
-        </div>
-        <div className="so-glass rounded-[24px] h-[280px] animate-pulse" />
+      <div className="so-glass rounded-[24px] p-6">
+        <MeilBoxLoader boxHeight="min-h-[520px]" label="Loading your site overview…" />
       </div>
     )
   }

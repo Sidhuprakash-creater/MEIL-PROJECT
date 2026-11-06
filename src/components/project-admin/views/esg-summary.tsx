@@ -8,7 +8,6 @@ import {
   Trash2,
   Users,
   ShieldCheck,
-  RefreshCw,
   Calculator,
   ArrowRight,
   TrendingDown,
@@ -29,6 +28,7 @@ import {
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaEsgSummaryData } from "@/lib/project-admin/types";
 
 export default function EsgSummaryView() {
@@ -53,11 +53,8 @@ export default function EsgSummaryView() {
 
   if (loading && !data) {
     return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="flex items-center gap-3 pa-glass px-6 py-4 rounded-2xl">
-          <RefreshCw className="animate-spin text-[#315CFF]" size={20} />
-          <span className="text-sm font-semibold text-[#202938]">Loading Environmental & ESG Summary…</span>
-        </div>
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[360px]" label="Loading Environmental & ESG Summary…" />
       </div>
     );
   }

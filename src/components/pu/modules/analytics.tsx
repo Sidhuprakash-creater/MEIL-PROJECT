@@ -6,12 +6,13 @@
  * Charts use recharts. Project/BU/Subsidiary/Group comparison selectors are
  * UI-only (data from the overview endpoint at group scope).
  */
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Flame, Zap, Droplet, Recycle, Users, ShieldCheck, Building2,
   AlertOctagon, RefreshCw, TrendingUp, TrendingDown, Battery, Leaf,
-  HardHat, Activity, Gauge, Filter
+  HardHat, Activity, Gauge, Filter, Loader2
 } from 'lucide-react'
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
@@ -60,13 +61,41 @@ export function AnalyticsModule() {
   const [error, setError] = useState('')
   const [tab, setTab] = useState<ViewTab>('emissions')
   const [scope, setScope] = useState('GROUP')
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastSync, setLastSync] = useState<Date | null>(null)
 
-  useEffect(() => {
-    fetch('/api/pu/overview')
-      .then(r => r.json())
-      .then(d => { setData(d as OverviewData); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
+    if (opts?.silent) setRefreshing(true)
+    try {
+      const res = await fetch('/api/pu/overview', { cache: 'no-store' })
+      const d = await res.json()
+      if (!res.ok) throw new Error((d as any)?.error ?? `Request failed (${res.status})`)
+      setData(d as OverviewData)
+      setError('')
+      setLastSync(new Date())
+    } catch (e: any) {
+      if (!opts?.silent) setError(e?.message ?? 'Failed to load analytics')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
+
+  useEffect(() => { load() }, [load])
+
+  /* Keep analytics in step with data entry and approvals: re-read the
+     consolidated overview every 30s while the tab is visible. The server
+     already busts its cache on submit/approve/reject, so this picks up the
+     change on the next tick without a page reload. */
+  useEffect(() => {
+    const tick = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        load({ silent: true })
+      }
+    }
+    const timer = window.setInterval(tick, 30_000)
+    return () => window.clearInterval(timer)
+  }, [load])
 
   const trendArr = useMemo(() => {
     if (!data) return []
@@ -74,7 +103,7 @@ export function AnalyticsModule() {
   }, [data])
 
   if (loading) return <AnalyticsSkeleton />
-  if (error) return <ErrorState message={error} onRetry={() => location.reload()} />
+  if (error) return <ErrorState message={error} onRetry={() => load()} />
   if (!data) return <EmptyState />
 
   const k = data.kpis
@@ -87,9 +116,11 @@ export function AnalyticsModule() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-800">ESG Analytics</h1>
             <span className="status-pill status-approved"><Activity className="h-3 w-3" /> Live</span>
+            {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />}
           </div>
           <p className="mt-1 text-sm text-slate-500">
             Group-wide consolidated analytics · {k.orgs} group(s) · {k.projects} project(s) · {data.periods.length} periods
+            {lastSync && <span className="ml-2 text-[11px] text-slate-400">· synced {lastSync.toLocaleTimeString()}</span>}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -106,8 +137,8 @@ export function AnalyticsModule() {
               <option value="PROJECT">Project</option>
             </select>
           </div>
-          <button onClick={() => location.reload()} className="glass-subtle flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white">
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          <button onClick={() => load({ silent: true })} className="glass-subtle flex items-center gap-1.5 rounded-full px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white">
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
           </button>
         </div>
       </div>
@@ -629,16 +660,8 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
 
 function AnalyticsSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-48 animate-pulse rounded bg-slate-200/60" />
-      <div className="h-12 animate-pulse rounded-2xl bg-white/40" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[...Array(4)].map((_, i) => <div key={i} className="glass h-32 animate-pulse rounded-2xl" />)}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="glass h-96 animate-pulse rounded-2xl lg:col-span-2" />
-        <div className="glass h-96 animate-pulse rounded-2xl" />
-      </div>
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Crunching ESG analytics…" />
     </div>
   )
 }

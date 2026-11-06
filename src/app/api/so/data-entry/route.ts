@@ -1066,7 +1066,9 @@ export async function POST(req: NextRequest) {
         const mirrorCategory = ({
           ENERGY: 'ENERGY', WATER: 'WATER', EMISSIONS: 'EMISSIONS', WASTE: 'WASTE',
           SAFETY: 'SAFETY', TRAINING: 'WORKFORCE', WORKFORCE: 'WORKFORCE',
-          COMPLIANCE: 'COMPLIANCE', INCIDENTS: 'SAFETY', INITIATIVES: 'CSR',
+          HR: 'WORKFORCE', PEOPLE: 'WORKFORCE',
+          COMPLIANCE: 'COMPLIANCE', INCIDENTS: 'INCIDENTS', INITIATIVES: 'INITIATIVES',
+          FINANCE: 'FINANCE', PROCUREMENT: 'PROCUREMENT',
         } as Record<string, string>)[record.module] || 'ENVIRONMENT'
 
         const mirrorValues: Array<{ label: string; value: string | number; unit?: string }> = []

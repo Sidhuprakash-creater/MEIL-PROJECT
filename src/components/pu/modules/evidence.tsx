@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { MeilLoader, MeilBoxLoader } from '@/components/shared/meil-loader'
 import { toast } from 'sonner'
 import {
   FileText, Upload, Filter, RefreshCw, AlertOctagon, ShieldCheck, XCircle,
@@ -488,8 +489,8 @@ export function EvidenceModule() {
           </SheetHeader>
 
           {detailLoading ? (
-            <div className="flex h-64 items-center justify-center text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex h-64 items-center justify-center">
+              <MeilLoader size={60} label="Loading document…" />
             </div>
           ) : detail ? (
             <EvidenceDetailPanel detail={detail} gate={gate}
@@ -983,11 +984,14 @@ function FilePreviewPanel({ evidence: e }: { evidence: EvidenceItem }) {
       </div>
 
       {isPdf ? (
+        /* No sandbox attribute: sandboxing blocks the browser's built-in PDF
+           viewer plugin, which rendered these previews blank. The file is
+           served same-origin from our own evidence API, so no sandboxing is
+           needed here. */
         <iframe
-          src={previewUrl}
+          src={`${previewUrl}#toolbar=1&view=FitH`}
           title={e.fileName}
-          className="h-96 w-full border-0 bg-white"
-          sandbox="allow-same-origin allow-scripts"
+          className="h-[70vh] min-h-96 w-full border-0 bg-white"
         />
       ) : isImage ? (
         <img
@@ -1197,12 +1201,8 @@ function UploadForm({
 
 function EvidenceSkeleton() {
   return (
-    <div className="glass rounded-2xl p-4">
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-200/60" />
-        ))}
-      </div>
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[300px]" label="Loading evidence…" />
     </div>
   )
 }

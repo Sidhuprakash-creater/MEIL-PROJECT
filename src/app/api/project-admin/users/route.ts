@@ -36,11 +36,14 @@ export async function GET(req: NextRequest) {
 
     const [users, submissions] = await Promise.all([
       db.user.findMany({
+        /* Users are project-scoped in this screen (submissions lookup and POST
+           create both assume ctx.project scope) — never leak permitted-role
+           contributors from other projects via an unconditional role arm. */
         where: {
           OR: [
             { projectId: ctx.projectId },
             { businessUnitId: ctx.businessUnitId },
-            { role: { in: PERMITTED_ROLES } },
+            { subsidiaryId: ctx.subsidiaryId },
           ],
         },
         select: {

@@ -111,69 +111,79 @@ export async function GET(
       }
     }
     // --- EVIDENCE ---
-    const evidenceIds = sourceRecords
-      .map((r) => (r as { evidenceId?: string | null }).evidenceId)
-      .filter((x): x is string => Boolean(x))
-    const evidence = evidenceIds.length
-      ? await db.evidence.findMany({
-          where: { id: { in: evidenceIds } },
-          include: { uploader: { select: { id: true, name: true, email: true } } },
-        })
-      : []
+    /* Collect evidence both at record level AND per staged item — the itemized
+       levels (1/2/4) attach documents to each source item, so the vault view
+       must gather every evidenceIds[] nested inside data.items[]. */
+    const evidenceIdsSet = new Set<string>()
+    for (const r of sourceRecords) {
+      const rec = r as { evidenceId?: string | null; evidenceIds?: string[] | null; data?: { items?: any[] } }
+      if (rec.evidenceId) evidenceIdsSet.add(rec.evidenceId)
+      if (Array.isArray(rec.evidenceIds)) rec.evidenceIds.filter(Boolean).forEach((x) => evidenceIdsSet.add(x))
+      const items = Array.isArray(rec.data?.items) ? rec.data.items : []
+      for (const it of items) {
+        if (Array.isArray(it?.evidenceIds)) it.evidenceIds.filter(Boolean).forEach((x: string) => evidenceIdsSet.add(x))
+        else if (it?.evidenceId) evidenceIdsSet.add(String(it.evidenceId))
+      }
+    }
+    const evidenceIds = Array.from(evidenceIdsSet)
 
     // --- VALIDATION RESULTS (all of them for the records) ---
-    const validationResults = recordIds.length
-      ? await db.validationResult.findMany({
+    const validationResultsP: Promise<Record<string, unknown>[]> = recordIds.length
+      ? db.validationResult.findMany({
           where: { recordId: { in: recordIds } },
           orderBy: { detectedAt: 'desc' },
         })
-      : []
+      : Promise.resolve([])
 
     // --- CALCULATION RESULTS ---
-    let calculationResults: Record<string, unknown>[] = []
-    if (recordIds.length > 0) {
+    const calcFilter = (() => {
       switch (submission.module ?? '') {
-        case 'ENERGY':
-          calculationResults = await db.calculationResult.findMany({
-            where: { energyRecordId: { in: recordIds } },
-            orderBy: { calculatedAt: 'desc' },
-          })
-          break
-        case 'WATER':
-          calculationResults = await db.calculationResult.findMany({
-            where: { waterRecordId: { in: recordIds } },
-            orderBy: { calculatedAt: 'desc' },
-          })
-          break
-        case 'WASTE':
-          calculationResults = await db.calculationResult.findMany({
-            where: { wasteRecordId: { in: recordIds } },
-            orderBy: { calculatedAt: 'desc' },
-          })
-          break
-        case 'TRAVEL':
-          calculationResults = await db.calculationResult.findMany({
-            where: { travelRecordId: { in: recordIds } },
-            orderBy: { calculatedAt: 'desc' },
-          })
-          break
+        case 'ENERGY': return { energyRecordId: { in: recordIds } }
+        case 'WATER': return { waterRecordId: { in: recordIds } }
+        case 'WASTE': return { wasteRecordId: { in: recordIds } }
+        case 'TRAVEL': return { travelRecordId: { in: recordIds } }
+        default: return null
       }
-    }
+    })()
+    const calculationResultsP: Promise<Record<string, unknown>[]> = calcFilter && recordIds.length
+      ? db.calculationResult.findMany({
+          where: calcFilter as Record<string, unknown>,
+          orderBy: { calculatedAt: 'desc' },
+        })
+      : Promise.resolve([])
 
     // --- BRSR MAPPINGS (answers pointing to these source records) ---
-    const brsrMappings = recordIds.length
-      ? await db.brsrAnswer.findMany({
+    const brsrMappingsP: Promise<Record<string, unknown>[]> = recordIds.length
+      ? db.brsrAnswer.findMany({
           where: { sourceRecordId: { in: recordIds } },
           include: { question: { select: { questionCode: true, questionText: true } } },
         })
-      : []
+      : Promise.resolve([])
 
     // --- AUDIT TRAIL for this submission ---
-    const auditTrail = await db.soAuditLog.findMany({
+    const auditTrailP = db.soAuditLog.findMany({
       where: { entityType: 'Submission', entityId: submission.id },
       orderBy: { createdAt: 'asc' },
       take: 100,
     })
+
+    // Evidence query runs alongside the rest — one parallel batch instead of
+    // five sequential round-trips (this detail endpoint previously dominated
+    // the sheet-open latency).
+    const evidenceP: Promise<Record<string, unknown>[]> = evidenceIds.length
+      ? db.evidence.findMany({
+          where: { id: { in: evidenceIds } },
+          include: { uploader: { select: { id: true, name: true, email: true } } },
+        })
+      : Promise.resolve([])
+
+    const [evidence, validationResults, calculationResults, brsrMappings, auditTrail] = await Promise.all([
+      evidenceP,
+      validationResultsP,
+      calculationResultsP,
+      brsrMappingsP,
+      auditTrailP,
+    ]) as [Record<string, unknown>[], Record<string, unknown>[], Record<string, unknown>[], Record<string, unknown>[], Record<string, unknown>[]]
 
     let parsedValues: Array<{ label: string; value: string | number; unit?: string }> = []
     try {

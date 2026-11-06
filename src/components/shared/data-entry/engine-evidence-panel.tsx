@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CheckCircle2, FlaskConical, Compass, ChevronRight, FileCheck2, Eye } from 'lucide-react'
 import { toast } from 'sonner'
@@ -12,6 +12,23 @@ import { SUB_MODULES, type LevelConfig, type Project, type EvidenceItem, type Sa
 /* ============================================================
    RIGHT PANEL: FLIPPABLE ENGINE & EVIDENCE REVIEW PANEL (180° FLIP)
    ============================================================ */
+
+/** Map a raw API level record onto the SavedRecord shape the engine panel renders. */
+function toSavedRecord(r: any): SavedRecord {
+  return {
+    id: r.id,
+    recordType: 'LEVEL_RECORD',
+    module: r.module,
+    level: Number(r.level ?? 0),
+    issues: Array.isArray(r.issues) ? r.issues : [],
+    calculation: r.calculation ?? null,
+    validationStatus: r.validationStatus || 'PENDING',
+    evidenceId: r.evidenceId ?? null,
+    evidenceIds: Array.isArray(r.evidenceIds) ? r.evidenceIds : undefined,
+    data: r.data,
+    status: r.status,
+  }
+}
 
 export interface FlippablePanelProps {
   saved: SavedRecord | null
@@ -38,6 +55,8 @@ export interface FlippablePanelProps {
   panelCollapsed?: boolean
   onToggleCollapse?: () => void
   onSelectSourceItem?: (levelKey: string, sourceName: string) => void
+  /** Item just added via "+ Add (Draft)" — flashes the matching journey card */
+  flashItem?: { levelKey: string; name: string; ts: number } | null
 }
 
 export function FlippableEngineEvidencePanel({
@@ -65,9 +84,39 @@ export function FlippableEngineEvidencePanel({
   panelCollapsed = false,
   onToggleCollapse,
   onSelectSourceItem,
+  flashItem,
 }: FlippablePanelProps) {
   const [fullscreenOpen, setFullscreenOpen] = useState(false)
   const [panelTab, setPanelTab] = useState<'journey' | 'calculations' | 'vault'>('journey')
+
+  /* ---- Calculations tab data (instant — no save-first dead end) ----
+     Same dual level mapping the form record list uses (level5↔7, level6↔9). */
+  const levelRecords: SavedRecord[] = existingRecords
+    .filter((r: any) => {
+      const lvl = Number(r?.level ?? NaN)
+      switch (activeSub.key) {
+        case 'level5': return lvl === 5 || lvl === 7
+        case 'level6': return lvl === 6 || lvl === 9
+        case 'level7': return lvl === 5 || lvl === 7
+        case 'level9': return lvl === 6 || lvl === 9
+        default: return lvl === Number(String(activeSub.key).replace('level', ''))
+      }
+    })
+    .map(toSavedRecord)
+
+  // Engine Output card: prefer a fresh in-session save, else the newest
+  // saved record of this level that already carries a computation.
+  const calcSaved: SavedRecord | null =
+    (saved?.calculation ? saved : null) ?? levelRecords.find((r) => r.calculation) ?? null
+
+  // Validation panel: fresh save if any, else the newest level record.
+  const validSaved: SavedRecord | null = saved ?? levelRecords[0] ?? null
+
+  // When an item is captured via "+ Add (Draft)", surface the Journey tab so the
+  // floating card lands on the Captured Emission Sources list.
+  useEffect(() => {
+    if (flashItem) setPanelTab('journey')
+  }, [flashItem?.ts])
 
   const handleStartReview = (ev: EvidenceItem) => {
     setReviewEvidence(ev)
@@ -197,14 +246,15 @@ export function FlippableEngineEvidencePanel({
                   onToggleCollapse={onToggleCollapse}
                   isCollapsed={panelCollapsed}
                   onSelectSourceItem={onSelectSourceItem}
+                  flashItem={flashItem}
                 />
               )}
 
               {/* TAB 2: LIVE ENGINE CALCULATIONS & VALIDATION FEEDBACK */}
               {panelTab === 'calculations' && (
                 <>
-                  <CalculationPreview saved={saved} activeSub={activeSub} />
-                  <ValidationResults saved={saved} validationRun={validationRun} />
+                  <CalculationPreview saved={calcSaved} activeSub={activeSub} levelRecords={levelRecords} />
+                  <ValidationResults saved={validSaved} validationRun={validationRun} />
                 </>
               )}
 

@@ -10,13 +10,13 @@ import {
   FolderLock,
   ArrowRight,
   Bell,
-  RefreshCw,
   X,
   FileSpreadsheet,
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaDrawer } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { ContributorRole } from "@/lib/project-admin/types";
 
 export default function CategoriesView() {
@@ -47,11 +47,8 @@ export default function CategoriesView() {
 
   if (loading && categories.length === 0) {
     return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="flex items-center gap-3 pa-glass px-6 py-4 rounded-2xl">
-          <RefreshCw className="animate-spin text-[#315CFF]" size={20} />
-          <span className="text-sm font-semibold text-[#202938]">Loading Contributor Categories…</span>
-        </div>
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[360px]" label="Loading Contributor Categories…" />
       </div>
     );
   }

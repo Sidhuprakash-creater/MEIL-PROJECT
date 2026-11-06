@@ -9,7 +9,6 @@ import {
   Search,
   AlertCircle,
   Bell,
-  RefreshCw,
   X,
   User,
   ShieldAlert,
@@ -17,6 +16,7 @@ import {
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, paApiPatch, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaDialog, PaTabStrip, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaTaskItem, ContributorRole } from "@/lib/project-admin/types";
 
 export default function TasksView() {
@@ -153,6 +153,11 @@ export default function TasksView() {
       </div>
 
       {/* Tasks Table */}
+      {loading ? (
+        <div className="glass rounded-2xl p-6">
+          <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading tasks…" />
+        </div>
+      ) : (
       <PaGlassCard strong className="overflow-x-auto p-0">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -224,6 +229,7 @@ export default function TasksView() {
           </tbody>
         </table>
       </PaGlassCard>
+      )}
 
       {/* ── Create Task Dialog ── */}
       <PaDialog

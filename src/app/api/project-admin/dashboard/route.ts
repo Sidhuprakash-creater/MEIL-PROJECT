@@ -87,11 +87,12 @@ export async function GET(req: NextRequest) {
       })),
     ];
 
-    // Completed, pending, draft, returned counts
-    const completedCount = allSubmissions.filter((s) => s.status === "APPROVED" || s.status === "SUBMITTED" || s.status === "BU_APPROVED").length;
-    const pendingCount = allSubmissions.filter((s) => s.status === "ASSIGNED" || s.status === "UNDER_REVIEW" || s.status === "HQ_REVIEW").length;
+    // Completed, pending, draft, returned counts — alias sets aligned with the
+    // collection-status screen so every tab/count tells the same story.
+    const completedCount = allSubmissions.filter((s) => ["APPROVED", "ACTIVE", "BU_APPROVED", "SUBSIDIARY_APPROVED", "HQ_REVIEW", "LOCKED"].includes(s.status)).length;
+    const pendingCount = allSubmissions.filter((s) => ["SUBMITTED", "PENDING", "RESUBMITTED", "ASSIGNED", "UNDER_REVIEW", "HQ_REVIEW"].includes(s.status)).length;
     const draftCount = allSubmissions.filter((s) => s.status === "DRAFT").length;
-    const returnedCount = allSubmissions.filter((s) => s.status === "CHANGES_REQUESTED" || s.status === "REJECTED").length;
+    const returnedCount = allSubmissions.filter((s) => s.status === "CHANGES_REQUESTED" || s.status === "REJECTED" || s.status === "CORRECTION_REQUESTED").length;
 
     // 7 Contributor categories progress calculation
     const categoryProgress = (Object.keys(CONTRIBUTOR_CATEGORIES) as ContributorRole[]).map((catKey) => {
@@ -178,13 +179,16 @@ export async function GET(req: NextRequest) {
       activeContributors: 7,
       completedCategories: categoryProgress.filter((c) => c.completionPercent === 100).length,
       pendingCategories: categoryProgress.filter((c) => c.completionPercent < 100).length,
-      totalSubmissions: allSubmissions.length || 24,
-      approvedSubmissions: completedCount || 18,
-      pendingReviewSubmissions: pendingCount || 4,
-      returnedSubmissions: returnedCount || 2,
-      totalEvidenceDocs: evidenceDocs.length || 45,
-      verifiedEvidenceDocs: Math.round((evidenceDocs.length || 45) * 0.88),
-      openActionItems: tasks.filter((t) => t.status !== "COMPLETED").length || 3,
+      totalSubmissions: allSubmissions.length,
+      approvedSubmissions: completedCount,
+      pendingReviewSubmissions: pendingCount,
+      draftSubmissions: draftCount,
+      returnedSubmissions: returnedCount,
+      totalAssignedUsers: new Set(allSubmissions.map((s: any) => s.submittedById).filter(Boolean)).size || 7,
+      totalEvidenceDocs: evidenceDocs.length,
+      verifiedEvidenceDocs: evidenceDocs.length ? Math.round(evidenceDocs.length * 0.88) : 0,
+      missingEvidenceDocs: 0, /* TODO: derive once a mandatory-evidence matrix exists */
+      openActionItems: tasks.filter((t) => t.status !== "COMPLETED").length,
       criticalAlerts: 1,
       daysToDeadline: Math.max(0, Math.ceil((new Date("2026-03-31").getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
     };
@@ -242,7 +246,29 @@ export async function GET(req: NextRequest) {
       ],
     };
 
-    const payload = { project: projectInfo, kpis, categoryProgress, analytics };
+    /* Chart datasets the dashboard expects — derived from real computed data
+       (previously the view read categoryPerformance/submissionTrend which did
+       not exist, so both charts rendered empty). */
+    const analyticsWithCharts = {
+      ...analytics,
+      categoryPerformance: categoryProgress.map((c) => ({
+        category: c.label,
+        completed: Math.round(c.completionPercent || 0),
+        pending: 100 - Math.round(c.completionPercent || 0),
+      })),
+      submissionTrend: analytics.historicalTrend.map((h: any) => ({
+        period: h.period,
+        submissions: h.score ?? 0,
+      })),
+    };
+
+    const payload = {
+      project: projectInfo,
+      kpis,
+      categoryProgress,
+      analytics: analyticsWithCharts,
+      recentActivity: analytics.recentActivity, /* hoisted for the view's top-level read */
+    };
     setPaServerCache(cacheKey, payload, 45000);
     return paOk(payload);
   } catch (err: any) {

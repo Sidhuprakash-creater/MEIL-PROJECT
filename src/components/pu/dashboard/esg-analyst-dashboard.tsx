@@ -23,6 +23,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   BarChart3, Activity as ActivityIcon, TrendingUp, TrendingDown,
   Flame, Zap, Droplet, Recycle, Users, ShieldCheck, RefreshCw,
@@ -506,16 +507,8 @@ export function EsgAnalystDashboard() {
  * ============================================================ */
 function AnalystSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-12 animate-pulse rounded-2xl bg-emerald-100/60" />
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {[0, 1, 2, 3, 4, 5].map(i => (
-          <div key={i} className="h-64 animate-pulse rounded-2xl bg-emerald-100/40" style={{ animationDelay: `${i * 0.08}s` }} />
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-4">
-        {[0, 1, 2].map(i => <div key={i} className="h-24 animate-pulse rounded-2xl bg-emerald-100/40" style={{ animationDelay: `${i * 0.08}s` }} />)}
-      </div>
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading analytics…" />
     </div>
   )
 }

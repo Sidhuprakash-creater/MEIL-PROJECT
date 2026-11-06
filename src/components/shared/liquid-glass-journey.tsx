@@ -139,6 +139,7 @@ import {
   ArrowRight,
   ChevronRight,
   ChevronDown,
+  GripVertical,
   Eye,
   FileText,
   Layers,
@@ -210,30 +211,46 @@ interface LiquidGlassJourneyProps {
   onToggleCollapse?: () => void
   isCollapsed?: boolean
   onSelectSourceItem?: (levelKey: string, sourceName: string) => void
+  /** Item just added via "+ Add (Draft)" — briefly pulses the matching captured card */
+  flashItem?: { levelKey: string; name: string; ts: number } | null
 }
 
 /**
- * Extracts and normalizes structured emission sources from formStateRef or existing records
+ * Extracts and normalizes structured emission sources.
+ *
+ * STRICT CAPTURE RULE — only user-intentionally captured items are shown:
+ *   1. `stagedSnapshot` — level explicitly staged via "Save & Proceed" review
+ *   2. `data.items`     — items added individually via "+ Add (Draft)" / Organize
+ *   3. `existingForLevel` — records saved as drafts to the database
+ * Raw in-progress form input (typed but not yet added as a draft) is NEVER shown.
  */
 function extractLevelSources(
   levelKey: string,
-  rawFormData: Record<string, any> | undefined,
+  stagedSnapshot: Record<string, any> | undefined,
+  liveData: Record<string, any> | undefined,
   existingForLevel: any[]
 ): { sources: EmissionSourceItem[]; totalMetric: string; totalGhg: string; isStaged: boolean } {
-  const data = rawFormData || {}
-  const items = Array.isArray(data?.items) ? data.items : []
+  const snapshot = stagedSnapshot || {}
+  const data = liveData || {}
   const sources: EmissionSourceItem[] = []
   let totalMetric = ''
   let totalGhg = ''
   let isStaged = false
 
+  // Shared extractor for itemized draft collections (levels 1 / 2 / 4)
+  const draftItems: any[] = (() => {
+    if (Array.isArray(snapshot.items) && snapshot.items.length > 0) return snapshot.items
+    if (Array.isArray(data.items) && data.items.length > 0) return data.items
+    return []
+  })()
+
   // LEVEL 1: Energy Consumption
   if (levelKey === 'level1') {
-    if (items.length > 0) {
+    if (draftItems.length > 0) {
       isStaged = true
       let sumKwh = 0
       let sumGhg = 0
-      items.forEach((it: any) => {
+      draftItems.forEach((it: any) => {
         const qty = Number(it.consumptionQuantity) || 0
         const ghg = Number(it.estTco2e) || 0
         sumKwh += qty
@@ -250,20 +267,6 @@ function extractLevelSources(
       })
       totalMetric = `${sumKwh.toLocaleString()} kWh`
       totalGhg = `${sumGhg.toFixed(2)} tCO₂e`
-    } else if (data?.consumptionQuantity) {
-      isStaged = true
-      const qty = Number(data.consumptionQuantity) || 0
-      const ghg = Number(data.estTco2e) || (qty * 0.716) / 1000
-      sources.push({
-        name: data.energySource || data.sourceItem || 'Grid electricity',
-        quantity: qty ? qty.toLocaleString() : '—',
-        unit: data.unit || 'kWh',
-        scope: data.emissionScope || 'Scope 2',
-        ghgTco2e: `${ghg.toFixed(2)} tCO₂e`,
-        subActivity: data.energyActivity || 'Operations',
-      })
-      totalMetric = `${qty.toLocaleString()} ${data.unit || 'kWh'}`
-      totalGhg = `${ghg.toFixed(2)} tCO₂e`
     } else if (existingForLevel.length > 0) {
       isStaged = true
       existingForLevel.forEach((rec) => {
@@ -283,10 +286,10 @@ function extractLevelSources(
 
   // LEVEL 2: Water Withdrawal & Consumption
   else if (levelKey === 'level2') {
-    if (items.length > 0) {
+    if (draftItems.length > 0) {
       isStaged = true
       let sumKl = 0
-      items.forEach((it: any) => {
+      draftItems.forEach((it: any) => {
         const qty = Number(it.quantity || it.waterQuantity || it.withdrawalQuantity || it.consumptionQuantity || 0)
         sumKl += qty
         sources.push({
@@ -297,17 +300,6 @@ function extractLevelSources(
         })
       })
       totalMetric = `${sumKl.toLocaleString()} kL`
-    } else if (data?.surfaceWater || data?.groundWater || data?.municipalSupply) {
-      isStaged = true
-      const sw = Number(data.surfaceWater || 0)
-      const gw = Number(data.groundWater || 0)
-      const mun = Number(data.municipalSupply || 0)
-      const stp = Number(data.recycledWater || 0)
-      if (sw) sources.push({ name: 'Surface water', quantity: sw.toLocaleString(), unit: 'kL' })
-      if (gw) sources.push({ name: 'Ground water (borewell)', quantity: gw.toLocaleString(), unit: 'kL' })
-      if (mun) sources.push({ name: 'Municipal / Third-party', quantity: mun.toLocaleString(), unit: 'kL' })
-      if (stp) sources.push({ name: 'Recycled / STP Treated', quantity: stp.toLocaleString(), unit: 'kL' })
-      totalMetric = `${(sw + gw + mun).toLocaleString()} kL`
     } else if (existingForLevel.length > 0) {
       isStaged = true
       totalMetric = 'Water Audit Staged'
@@ -315,12 +307,13 @@ function extractLevelSources(
     }
   }
 
-  // LEVEL 3: GHG & Air Emissions
+  // LEVEL 3: GHG & Air Emissions — single-form level: only an explicitly
+  // staged snapshot ("Save & Proceed") or saved records qualify as captured
   else if (levelKey === 'level3') {
-    const s1 = Number(data?.scope1 || 0)
-    const s2 = Number(data?.scope2 || 0)
-    const s3 = Number(data?.scope3 || 0)
-    if (s1 || s2 || s3 || items.length > 0) {
+    const s1 = Number(snapshot?.scope1 || 0)
+    const s2 = Number(snapshot?.scope2 || 0)
+    const s3 = Number(snapshot?.scope3 || 0)
+    if (s1 || s2 || s3) {
       isStaged = true
       if (s1) sources.push({ name: 'Scope 1 — Direct (DG / Fleet)', quantity: `${s1.toFixed(1)}`, unit: 'tCO₂e', scope: 'Scope 1' })
       if (s2) sources.push({ name: 'Scope 2 — Purchased Electricity', quantity: `${s2.toFixed(1)}`, unit: 'tCO₂e', scope: 'Scope 2' })
@@ -336,10 +329,10 @@ function extractLevelSources(
 
   // LEVEL 4: Waste Management
   else if (levelKey === 'level4') {
-    if (items.length > 0) {
+    if (draftItems.length > 0) {
       isStaged = true
       let sumMt = 0
-      items.forEach((it: any) => {
+      draftItems.forEach((it: any) => {
         const qty = Number(it.quantity || it.quantityGenerated || 0)
         sumMt += qty
         sources.push({
@@ -350,13 +343,6 @@ function extractLevelSources(
         })
       })
       totalMetric = `${sumMt.toFixed(2)} MT`
-    } else if (data?.hazardousWaste || data?.nonHazardousWaste) {
-      isStaged = true
-      const haz = Number(data.hazardousWaste || 0)
-      const nonHaz = Number(data.nonHazardousWaste || 0)
-      if (haz) sources.push({ name: 'Hazardous Waste', quantity: `${haz.toFixed(2)}`, unit: 'MT', subActivity: 'Authorized Co-processing' })
-      if (nonHaz) sources.push({ name: 'Non-Hazardous Scrap', quantity: `${nonHaz.toFixed(2)}`, unit: 'MT', subActivity: 'Segregated & Recycled' })
-      totalMetric = `${(haz + nonHaz).toFixed(2)} MT`
     } else if (existingForLevel.length > 0) {
       isStaged = true
       totalMetric = 'Waste Segregation Logged'
@@ -364,15 +350,15 @@ function extractLevelSources(
     }
   }
 
-  // LEVEL 7: Environmental Permits & Compliance
+  // LEVEL 7: Environmental Permits & Compliance — staged snapshot / saved records only
   else if (levelKey === 'level7') {
-    if (data?.consentType || data?.permitNumber || items.length > 0) {
+    if (snapshot?.consentType || snapshot?.permitNumber) {
       isStaged = true
       sources.push({
-        name: data.consentType || 'Consent to Operate (CTO)',
-        quantity: data.permitNumber || 'SPCB-CTO-2026',
+        name: snapshot.consentType || 'Consent to Operate (CTO)',
+        quantity: snapshot.permitNumber || 'SPCB-CTO-2026',
         unit: 'Valid',
-        subActivity: data.validTill ? `Expires: ${data.validTill}` : 'Zero Non-Compliances',
+        subActivity: snapshot.validTill ? `Expires: ${snapshot.validTill}` : 'Zero Non-Compliances',
       })
       totalMetric = 'Statutory Clearances Valid'
     } else if (existingForLevel.length > 0) {
@@ -382,15 +368,15 @@ function extractLevelSources(
     }
   }
 
-  // LEVEL 9: Environmental Initiatives
+  // LEVEL 9: Environmental Initiatives — staged snapshot / saved records only
   else if (levelKey === 'level9') {
-    if (data?.initiativeName || items.length > 0) {
+    if (snapshot?.initiativeName) {
       isStaged = true
       sources.push({
-        name: data.initiativeName || 'Captive Solar & LED Retrofit',
-        quantity: data.energySavedGj ? `${data.energySavedGj} GJ` : 'Active',
+        name: snapshot.initiativeName || 'Captive Solar & LED Retrofit',
+        quantity: snapshot.energySavedGj ? `${snapshot.energySavedGj} GJ` : 'Active',
         unit: 'Saved',
-        subActivity: data.outcomeType || 'Measured Outcome',
+        subActivity: snapshot.outcomeType || 'Measured Outcome',
       })
       totalMetric = 'Resource Conservation Active'
     } else if (existingForLevel.length > 0) {
@@ -424,6 +410,7 @@ export function LiquidGlassEmissionJourneyWidget({
   onToggleCollapse,
   isCollapsed = false,
   onSelectSourceItem,
+  flashItem,
 }: LiquidGlassJourneyProps) {
   const [expandedLevels, setExpandedLevels] = useState<Record<string, boolean>>({
     [activeLevelKey]: true,
@@ -439,9 +426,10 @@ export function LiquidGlassEmissionJourneyWidget({
     /* Forms cache payloads under scoped keys l<N>-<project>-<period>; the
        legacy levelKey fallback keeps older callers working. */
     const scopedKey = projectId && periodId ? `l${lvl.level}-${projectId}-${periodId}` : lvl.key
-    const rawData = stagedLevels[lvl.key] || allFormData[scopedKey] || allFormData[lvl.key]
+    const stagedSnapshot = stagedLevels[lvl.key]
+    const liveData = allFormData[scopedKey] || allFormData[lvl.key]
     const existingForLevel = existingRecords.filter((r) => r.level === lvl.level || r.levelKey === lvl.key)
-    const { sources, totalMetric, totalGhg, isStaged } = extractLevelSources(lvl.key, rawData, existingForLevel)
+    const { sources, totalMetric, totalGhg, isStaged } = extractLevelSources(lvl.key, stagedSnapshot, liveData, existingForLevel)
 
     // Calculate attached evidence files for this level
     const levelEvidence = evidenceList.filter((ev) => {
@@ -475,7 +463,10 @@ export function LiquidGlassEmissionJourneyWidget({
   const progressPct = Math.round((completedCount / totalLevelsCount) * 100)
 
   return (
-    <div className="relative mb-4 w-full rounded-[24px] border border-white/80 bg-gradient-to-b from-white/95 via-sky-50/40 to-blue-50/30 p-4 shadow-sm backdrop-blur-xl transition-all duration-300">
+    <div
+      data-journey-panel="true"
+      className="relative mb-4 w-full rounded-[24px] border border-white/80 bg-gradient-to-b from-white/95 via-sky-50/40 to-blue-50/30 p-4 shadow-sm backdrop-blur-xl transition-all duration-300"
+    >
       {/* Specular Top Caustic Sheen */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-16 rounded-t-[24px] bg-gradient-to-b from-white/70 via-white/20 to-transparent" />
 
@@ -652,7 +643,11 @@ export function LiquidGlassEmissionJourneyWidget({
                     className="border-t border-slate-100/80 bg-slate-50/50 px-3 pb-3 pt-2"
                   >
                     {item.sources.length > 0 ? (
-                      <div className="space-y-1.5">
+                      <div
+                        className="space-y-1.5"
+                        data-journey-captured-list="true"
+                        data-level-key={item.levelKey}
+                      >
                         <div className="flex items-center justify-between text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                           <span>Captured Emission Sources</span>
                           <span>{item.sources.length} Item(s)</span>
@@ -661,15 +656,42 @@ export function LiquidGlassEmissionJourneyWidget({
                         {item.sources.map((src, sIdx) => {
                           const style = getLiquidGlassSourceStyle(src.name, item.levelKey)
                           const IconComp = style.icon
+                          const isFlash =
+                            !!flashItem &&
+                            flashItem.levelKey === item.levelKey &&
+                            flashItem.name === src.name
                           return (
-                            <div
-                              key={sIdx}
+                            <motion.div
+                              key={`${src.name}-${sIdx}`}
+                              layout
+                              initial={{ opacity: 0, y: 10, scale: 0.96 }}
+                              animate={
+                                isFlash
+                                  ? { opacity: 1, y: 0, scale: [1, 1.07, 1] }
+                                  : { opacity: 1, y: 0, scale: 1 }
+                              }
+                              transition={
+                                isFlash
+                                  ? { duration: 0.9, ease: [0.22, 1, 0.36, 1] }
+                                  : { duration: 0.3, ease: [0.22, 1, 0.36, 1] }
+                              }
+                              draggable
+                              onDragStart={(e) => {
+                                const dt = e as unknown as React.DragEvent
+                                dt.dataTransfer.setData(
+                                  'application/x-brsr-source',
+                                  JSON.stringify({ levelKey: item.levelKey, sourceName: src.name })
+                                )
+                                dt.dataTransfer.effectAllowed = 'copyMove'
+                              }}
                               onClick={() => {
                                 onSelectLevel(item.levelKey)
                                 onSelectSourceItem?.(item.levelKey, src.name)
                               }}
-                              className={`group/card flex items-center justify-between rounded-xl border-2 ${style.border} ${style.bg} px-3 py-2 shadow-xs backdrop-blur-md transition-all duration-150 cursor-pointer hover:shadow-md hover:scale-[1.01] active:scale-[0.99] text-[11px]`}
-                              title={`Click to open and edit ${src.name} details in left panel`}
+                              className={`group/card flex items-center justify-between rounded-xl border-2 ${style.border} ${style.bg} px-3 py-2 shadow-xs backdrop-blur-md transition-all duration-150 cursor-grab active:cursor-grabbing hover:shadow-md hover:scale-[1.01] active:scale-[0.99] text-[11px] ${
+                                isFlash ? 'ring-4 ring-sky-400/70 ring-offset-1' : ''
+                              }`}
+                              title={`Drag to the left panel (or click) to open and edit ${src.name}`}
                             >
                               <div className="flex items-center gap-2 min-w-0">
                                 <div className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${style.badge} shadow-2xs`}>
@@ -722,16 +744,21 @@ export function LiquidGlassEmissionJourneyWidget({
                                     <Eye className="h-3 w-3" />
                                   </button>
                                 )}
+
+                                {/* Drag affordance — drag card into the left panel to edit */}
+                                <GripVertical
+                                  className="h-3.5 w-3.5 shrink-0 text-slate-400/80 opacity-0 group-hover/card:opacity-100 transition-opacity"
+                                />
                               </div>
-                            </div>
+                            </motion.div>
                           )
                         })}
                       </div>
                     ) : (
                       <div className="rounded-xl border border-dashed border-slate-200 bg-white/50 p-2.5 text-center text-[11px] text-slate-400">
                         {isActive
-                          ? 'Fill emission quantities on the left form, then click Next.'
-                          : 'No emission records entered yet for this level.'}
+                          ? 'Fill the form on the left and click "+ Add (Draft)" to capture a source item here.'
+                          : 'No draft or saved source items captured yet for this level.'}
                       </div>
                     )}
 

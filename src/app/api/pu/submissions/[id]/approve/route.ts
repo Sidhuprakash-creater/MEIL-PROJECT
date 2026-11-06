@@ -14,6 +14,8 @@ import {
   withProjectCompat,
 } from '@/lib/pu/workflow'
 import { updateLevelRecordStatus } from '@/lib/pu/level-records'
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
+import { invalidatePaServerCache } from '@/lib/project-admin/server'
 
 export const runtime = 'nodejs'
 
@@ -121,14 +123,17 @@ export async function POST(
           if (Array.isArray(parsed)) rids = parsed
         } catch {}
       }
-      for (const rid of rids) {
-        updateLevelRecordStatus(rid, 'ACTIVE')
+      if (rids.length > 0) {
+        for (const rid of rids) {
+          updateLevelRecordStatus(rid, 'ACTIVE')
+        }
+        /* One batched write per table instead of 5 awaits per record. */
         await Promise.allSettled([
-          db.energyRecord.updateMany({ where: { id: rid }, data: { status: 'ACTIVE' } }),
-          db.waterRecord.updateMany({ where: { id: rid }, data: { status: 'ACTIVE' } }),
-          db.wasteRecord.updateMany({ where: { id: rid }, data: { status: 'ACTIVE' } }),
-          db.safetyRecord.updateMany({ where: { id: rid }, data: { status: 'ACTIVE' } }),
-          db.workforceRecord.updateMany({ where: { id: rid }, data: { status: 'ACTIVE' } }),
+          db.energyRecord.updateMany({ where: { id: { in: rids } }, data: { status: 'ACTIVE' } }),
+          db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: 'ACTIVE' } }),
+          db.wasteRecord.updateMany({ where: { id: { in: rids } }, data: { status: 'ACTIVE' } }),
+          db.safetyRecord.updateMany({ where: { id: { in: rids } }, data: { status: 'ACTIVE' } }),
+          db.workforceRecord.updateMany({ where: { id: { in: rids } }, data: { status: 'ACTIVE' } }),
         ])
       }
     } catch (syncErr) {
@@ -170,6 +175,13 @@ export async function POST(
       module: submission.module,
       status: toStatus,
     })
+
+    /* Keep portal dashboards realtime — bust the overview/submissions caches
+       so Overview, Analytics and Submissions reflect this approval immediately. */
+    invalidatePuOverviewCache()
+    invalidatePuSubmissionsCache()
+    invalidatePuNotificationsCache()
+    invalidatePaServerCache()
 
     return NextResponse.json({
       submission: { ...updated, project: updated?.project ? withProjectCompat(updated.project) : { ...SAFE_PROJECT } },

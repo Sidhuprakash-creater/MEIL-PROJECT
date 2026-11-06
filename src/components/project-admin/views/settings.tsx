@@ -16,7 +16,6 @@ import {
   Eye,
   EyeOff,
   Sparkles,
-  RefreshCw,
   Layers,
   HelpCircle,
 } from "lucide-react";
@@ -27,6 +26,7 @@ import {
   PaStatusBadge,
   PaDialog,
 } from "@/components/project-admin/ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { usePaStore } from "@/lib/project-admin/store";
 
@@ -225,9 +225,8 @@ export function SettingsView() {
 
   if (isLoading) {
     return (
-      <div className="py-24 text-center text-slate-400">
-        <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-2 text-[#315CFF]" />
-        Loading workspace preferences...
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading workspace preferences…" />
       </div>
     );
   }

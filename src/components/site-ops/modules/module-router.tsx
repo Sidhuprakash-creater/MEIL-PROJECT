@@ -5,7 +5,6 @@ import { DataEntryModule } from '@/components/site-ops/modules/data-entry'
 import { EvidenceModule } from '@/components/site-ops/modules/evidence'
 import { SubmissionsModule } from '@/components/site-ops/modules/submissions'
 import { BrsrModule } from '@/components/site-ops/modules/brsr'
-import { ReportsModule } from '@/components/site-ops/modules/reports'
 import { AnalyticsModule } from '@/components/site-ops/modules/analytics'
 import { AuditModule } from '@/components/site-ops/modules/audit'
 import { TeamModule } from '@/components/site-ops/modules/team'
@@ -36,7 +35,6 @@ export function ModuleRouter() {
     case 'evidence': return <EvidenceModule />
     case 'submissions': return <SubmissionsModule />
     case 'brsr': return <BrsrModule />
-    case 'reports': return <ReportsModule />
     case 'analytics': return <AnalyticsModule />
     case 'audit': return <AuditModule />
     case 'team': return <TeamModule />

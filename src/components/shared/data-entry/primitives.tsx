@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion'
 import { FileText, CheckCircle2, AlertTriangle, AlertOctagon, Clock, Link2, Send, Save, Compass, Calculator, Sparkles, Layers, ArrowRight, type LucideIcon } from 'lucide-react'
 import { STEPS, type LevelConfig, type EvidenceItem, type SavedRecord } from './core'
+import { describeLevelRecord } from './states'
 
 /* ============================================================
    STEPPER WIDGET
@@ -84,19 +85,27 @@ export function Stepper({
 
 /* ============================================================
    RIGHT PANEL: CALCULATION PREVIEW
+   Shows the engine output for the current draft when present and always
+   falls back to the level's saved records, so verified calculations and
+   factor lineage display instantly — no "save first" dead end.
    ============================================================ */
 
 export function CalculationPreview({
   saved,
   activeSub,
+  levelRecords = [],
 }: {
   saved: SavedRecord | null
   activeSub: LevelConfig
+  /** All saved records of the ACTIVE level — rendered as the calculation ledger. */
+  levelRecords?: SavedRecord[]
 }) {
   if (!saved || !saved.calculation) {
     return (
       <div className="rounded-xl border border-dashed border-slate-200 bg-white/40 p-4 text-center text-xs text-slate-500">
-        Enter data and click <strong>Save Draft</strong> to preview the verified calculations and factor lineage for {activeSub.brsrTitle}.
+        {levelRecords.length > 0
+          ? 'No live engine run for the current draft yet — the saved records below carry the verified calculations.'
+          : <>Enter data and click <strong>Save Draft</strong> to preview the verified calculations and factor lineage for {activeSub.brsrTitle}.</>}
       </div>
     )
   }
@@ -131,7 +140,7 @@ export function CalculationPreview({
         {c.normalizedValue !== undefined && c.normalizedValue !== null && (
           <Field
             label="Normalized Value"
-            value={`${c.normalizedValue} ${c.normalizedUnit || ''}`}
+            value={`${Number(c.normalizedValue).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${c.normalizedUnit || ''}`}
           />
         )}
       </div>
@@ -140,6 +149,41 @@ export function CalculationPreview({
         <div className="mt-2 rounded-lg bg-white/80 p-2 text-[10px] text-slate-700 ring-1 ring-emerald-200">
           <span className="font-bold text-emerald-900">Methodology:</span>{' '}
           {c.methodologyNote}
+        </div>
+      )}
+
+      {/* Calculation ledger — every saved record of this level with its engine result */}
+      {levelRecords.length > 0 && (
+        <div className="mt-2.5 rounded-lg border border-emerald-100 bg-white/85 overflow-hidden">
+          <div className="flex items-center justify-between border-b border-emerald-100 bg-emerald-50/60 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-emerald-900">
+            <span>Record Calculation Ledger</span>
+            <span>{levelRecords.length} record(s)</span>
+          </div>
+          <div className="max-h-40 overflow-y-auto scroll-elegant divide-y divide-slate-100">
+            {levelRecords.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <span className="min-w-0 flex-1 truncate text-[10px] font-medium text-slate-700" title={describeLevelRecord(r)}>
+                  {describeLevelRecord(r)}
+                </span>
+                <span className="shrink-0 font-mono text-[10px] font-bold text-emerald-900 tabular-nums">
+                  {r.calculation
+                    ? `${Number(r.calculation.calculatedValue).toLocaleString(undefined, { maximumFractionDigits: 2 })} ${r.calculation.resultUnit || ''}`
+                    : '—'}
+                </span>
+                <span
+                  className={`shrink-0 rounded px-1 py-0.5 text-[8.5px] font-extrabold uppercase ${
+                    r.validationStatus === 'PASSED'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : r.validationStatus === 'FAILED'
+                      ? 'bg-rose-100 text-rose-700'
+                      : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {r.validationStatus || 'PENDING'}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </motion.div>
@@ -255,6 +299,12 @@ export interface LevelFormProps {
   onReviewEvidence?: (ev: EvidenceItem) => void
   onViewItem?: (item: any) => void
   selectedSourceToEdit?: { levelKey: string; sourceName: string } | null
+  /** Fired right after an item is added/updated via "+ Add (Draft)" — powers the
+   *  float-to-right-panel flight animation. sourceEl is the Add button element. */
+  onItemStaged?: (
+    payload: { levelKey: string; id: string; name: string; quantity: number; unit: string; estTco2e?: number },
+    sourceEl: HTMLElement | null
+  ) => void
 }
 
 export const inputClass = 'ios-field'

@@ -8,6 +8,7 @@
  */
 import { useEffect, useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Flame, Zap, Droplet, Recycle, Users, ShieldCheck, Building2,
   AlertOctagon, RefreshCw, TrendingUp, TrendingDown, Battery, Leaf,
@@ -629,16 +630,8 @@ function StatBox({ label, value }: { label: string; value: string | number }) {
 
 function AnalyticsSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-48 animate-pulse rounded bg-slate-200/60" />
-      <div className="h-12 animate-pulse rounded-2xl bg-white/40" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[...Array(4)].map((_, i) => <div key={i} className="so-glass h-32 animate-pulse rounded-2xl" />)}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="so-glass h-96 animate-pulse rounded-2xl lg:col-span-2" />
-        <div className="so-glass h-96 animate-pulse rounded-2xl" />
-      </div>
+    <div className="so-glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading analytics…" />
     </div>
   )
 }

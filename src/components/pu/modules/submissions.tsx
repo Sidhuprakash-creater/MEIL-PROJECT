@@ -16,13 +16,19 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
+import { MeilLoader, MeilBoxLoader } from '@/components/shared/meil-loader'
+import {
+  SubmissionReviewWindow,
+  buildReviewModelFromPuDetail,
+  type ReviewModel,
+} from '@/components/shared/submission-review-window'
 import { toast } from 'sonner'
 import {
   ClipboardList, RefreshCw, Filter, AlertOctagon, Inbox, Loader2,
   Send, ShieldCheck, XCircle, Lock, History, ChevronRight, CheckCircle2,
   Clock, AlertTriangle, FileCheck2, Files, ListChecks, Calculator, MessageSquare,
   Building2, CalendarDays, FolderOpen, Layers, Plus, Trash2, Eye, RotateCcw,
-  FileText,
+  FileText, FileSpreadsheet, BookOpen, Printer, Search,
 } from 'lucide-react'
 import { useApp } from '@/lib/pu/auth-context'
 import { fieldLabel, fmtValue, itemFieldEntries, itemTitle } from '@/components/shared/field-labels'
@@ -47,7 +53,10 @@ import {
 import {
   Tabs, TabsContent, TabsList, TabsTrigger,
 } from '@/components/ui/tabs'
-import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, FileDown, CheckSquare, X } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Calendar } from '@/components/ui/calendar'
+import { format as dfnFormat } from 'date-fns'
+import { ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, FileDown, CheckSquare, X, Download, ExternalLink } from 'lucide-react'
 
 // ---------- Types (mirror API response shapes) ----------
 
@@ -192,6 +201,55 @@ const ACTION_LABEL: Record<string, string> = {
   REJECT: 'Request Correction', RESUBMIT: 'Resubmit', LOCK: 'Lock',
 }
 
+// ---------- Report export formats ----------
+
+type ReportFormat = 'pdf' | 'excel' | 'word' | 'html'
+
+const REPORT_FORMATS: Array<{
+  format: ReportFormat
+  label: string
+  desc: string
+  icon: React.ComponentType<{ className?: string }>
+  iconBox: string
+}> = [
+  {
+    format: 'pdf',
+    label: 'PDF Document',
+    desc: 'Branded report with full project, source & evidence tables',
+    icon: FileText,
+    iconBox: 'bg-blue-50 text-blue-600 border-blue-200',
+  },
+  {
+    format: 'excel',
+    label: 'Excel (CSV)',
+    desc: 'Opens in Excel — every section as data rows',
+    icon: FileSpreadsheet,
+    iconBox: 'bg-emerald-50 text-emerald-600 border-emerald-200',
+  },
+  {
+    format: 'word',
+    label: 'Word Document',
+    desc: 'Editable .doc narrative for review notes & letters',
+    icon: BookOpen,
+    iconBox: 'bg-amber-50 text-amber-600 border-amber-200',
+  },
+  {
+    format: 'html',
+    label: 'Print View',
+    desc: 'Opens in browser — Print / Save as PDF with linked evidence',
+    icon: Printer,
+    iconBox: 'bg-indigo-50 text-indigo-600 border-indigo-200',
+  },
+]
+
+// ---------- Calendar helpers (find submissions by submitted date) ----------
+
+const dayKey = (d: Date) => dfnFormat(d, 'yyyy-MM-dd')
+
+function effectiveDateOf(s: SubmissionListItem): Date {
+  return new Date(s.submittedAt || s.updatedAt || s.createdAt)
+}
+
 // ---------- Role helpers ----------
 
 interface RoleGate {
@@ -246,6 +304,46 @@ function statusPillClass(status: string): string {
   }
 }
 
+/** Row accent — colored left rail + subtle tint so each workflow state is
+ *  recognizable at a glance while scanning the table. */
+function statusRowAccent(status: string): string {
+  switch (status) {
+    case 'DRAFT': return 'border-l-4 border-l-slate-300'
+    case 'SUBMITTED':
+    case 'PENDING':
+    case 'RESUBMITTED': return 'border-l-4 border-l-sky-400 bg-sky-50/30'
+    case 'UNDER_REVIEW':
+    case 'HQ_REVIEW': return 'border-l-4 border-l-indigo-400 bg-indigo-50/30'
+    case 'BU_APPROVED':
+    case 'SUBSIDIARY_APPROVED':
+    case 'APPROVED':
+    case 'ACTIVE': return 'border-l-4 border-l-emerald-400 bg-emerald-50/25'
+    case 'LOCKED': return 'border-l-4 border-l-purple-400 bg-purple-50/25'
+    case 'CHANGES_REQUESTED':
+    case 'REJECTED':
+    case 'CORRECTION_REQUESTED': return 'border-l-4 border-l-rose-400 bg-rose-50/30'
+    default: return 'border-l-4 border-l-slate-200'
+  }
+}
+
+/** Module badge colors — one distinct hue per BRSR disclosure level. */
+const MODULE_BADGE: Record<string, string> = {
+  ENERGY: 'bg-amber-50 text-amber-800 border-amber-200',
+  WATER: 'bg-cyan-50 text-cyan-800 border-cyan-200',
+  EMISSIONS: 'bg-emerald-50 text-emerald-800 border-emerald-200',
+  WASTE: 'bg-orange-50 text-orange-800 border-orange-200',
+  SAFETY: 'bg-rose-50 text-rose-800 border-rose-200',
+  PEOPLE: 'bg-fuchsia-50 text-fuchsia-800 border-fuchsia-200',
+  TRAINING: 'bg-pink-50 text-pink-800 border-pink-200',
+  COMPLIANCE: 'bg-violet-50 text-violet-800 border-violet-200',
+  INCIDENTS: 'bg-red-50 text-red-800 border-red-200',
+  INITIATIVES: 'bg-teal-50 text-teal-800 border-teal-200',
+  TRAVEL: 'bg-blue-50 text-blue-800 border-blue-200',
+}
+function moduleBadgeClass(mod: string): string {
+  return MODULE_BADGE[String(mod || '').toUpperCase()] ?? 'bg-slate-50 text-slate-700 border-slate-200'
+}
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -280,7 +378,7 @@ function timeAgo(iso: string | null | undefined): string {
 // ============================================================
 
 export function SubmissionsModule() {
-  const { user } = useApp()
+  const { user, loading: sessionLoading, setActiveModule } = useApp()
   const gate = useRoleGate()
 
   const [items, setItems] = useState<SubmissionListItem[]>([])
@@ -292,7 +390,10 @@ export function SubmissionsModule() {
   const [projects, setProjects] = useState<ProjectOption[]>([])
 
   const [periodId, setPeriodId] = useState<string>('all')
-  const [projectId, setProjectId] = useState<string>('all')
+  /* Project filter is always a concrete project — no "All projects" option.
+     Starts empty and resolves to the first project right after the tree loads. */
+  const [projectId, setProjectId] = useState<string>('')
+  const [projectsReady, setProjectsReady] = useState(false)
   const [moduleKey, setModuleKey] = useState<string>('all')
   const [chipFilter, setChipFilter] = useState<string>('all')
 
@@ -303,10 +404,20 @@ export function SubmissionsModule() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportStep, setReportStep] = useState<'picker' | 'format'>('picker')
+  const [reportSearch, setReportSearch] = useState('')
+  const [reportTarget, setReportTarget] = useState<SubmissionListItem | null>(null)
+  const [reportDownloading, setReportDownloading] = useState<string | null>(null)
+
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detail, setDetail] = useState<SubmissionDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+
+  /* Calendar filter — find submissions by the date they were submitted. */
+  const [calDate, setCalDate] = useState<Date | undefined>(undefined)
+  const [calOpen, setCalOpen] = useState(false)
 
   const [approveTarget, setApproveTarget] = useState<SubmissionListItem | null>(null)
   const [approveComment, setApproveComment] = useState('')
@@ -348,16 +459,20 @@ export function SubmissionsModule() {
           }
         }
         setProjects(out)
+        /* No "All projects" — resolve to the first concrete project. */
+        if (out.length > 0) {
+          setProjectId((prev) => (prev ? prev : out[0].id))
+        }
       })
-      .catch(() => { /* silent */ })
+      .catch(() => { /* silent — list stays user-scoped */ })
+      .finally(() => setProjectsReady(true))
   }, [])
 
-  // ----- list URL builder -----
   // ----- list URL builder -----
   const buildUrl = useCallback(() => {
     const q = new URLSearchParams()
     if (periodId !== 'all') q.set('periodId', periodId)
-    if (projectId !== 'all') q.set('projectId', projectId)
+    if (projectId) q.set('projectId', projectId)
     if (moduleKey !== 'all') q.set('module', moduleKey)
     q.set('take', '100')
     q.set('bypass', 'true')
@@ -385,7 +500,15 @@ export function SubmissionsModule() {
       })
   }, [buildUrl])
 
-  useEffect(() => { fetchList() }, [fetchList])
+  /* Wait for the session AND for the project filter to resolve (no
+     "All projects" — the concrete project is auto-picked) before the first
+     fetch, so the list loads exactly once instead of refetching after
+     the tree arrives. */
+  useEffect(() => {
+    const projectResolved = projectId !== '' || (projectsReady && projects.length === 0)
+    if (sessionLoading || !projectResolved) return
+    fetchList()
+  }, [fetchList, sessionLoading, projectId, projectsReady, projects.length])
 
   // ----- counts per chip -----
   const chipCounts = useMemo(() => {
@@ -401,21 +524,55 @@ export function SubmissionsModule() {
     return m
   }, [items])
 
-  // Filter items by selected chip
+  // ----- calendar day counts (find submissions by submitted date) -----
+  const countsByDay = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const it of items) {
+      const k = dayKey(effectiveDateOf(it))
+      m.set(k, (m.get(k) || 0) + 1)
+    }
+    return m
+  }, [items])
+
+  /** Month to open the calendar on — most recent submission month. */
+  const calDefaultMonth = useMemo(() => {
+    if (calDate) return calDate
+    let best: Date | null = null
+    for (const it of items) {
+      const d = effectiveDateOf(it)
+      if (!best || d > best) best = d
+    }
+    return best ?? new Date()
+  }, [items, calDate])
+
+  const dayTotalFor = (d: Date): number => countsByDay.get(dayKey(d)) ?? 0
+
+  // ----- 1) calendar filter → 2) status chip filter -----
+  const calendarFiltered = useMemo(() => {
+    if (!calDate) return items
+    const k = dayKey(calDate)
+    return items.filter(it => dayKey(effectiveDateOf(it)) === k)
+  }, [items, calDate])
+
   const filteredItems = useMemo(() => {
-    if (chipFilter === 'all') return items
+    if (chipFilter === 'all') return calendarFiltered
     const sf = STATUS_CHIPS.find(c => c.key === chipFilter)
-    if (!sf || !sf.filter) return items
+    if (!sf || !sf.filter) return calendarFiltered
     if (sf.filter === 'SUBMITTED') {
-      return items.filter(it => it.status === 'SUBMITTED' || it.status === 'RESUBMITTED' || it.status === 'PENDING')
+      return calendarFiltered.filter(it => it.status === 'SUBMITTED' || it.status === 'RESUBMITTED' || it.status === 'PENDING')
     }
     if (sf.filter === 'APPROVED') {
-      return items.filter(it =>
+      return calendarFiltered.filter(it =>
         it.status === 'APPROVED' || it.status === 'ACTIVE' || it.status === 'BU_APPROVED' || it.status === 'SUBSIDIARY_APPROVED' || it.status === 'HQ_REVIEW'
       )
     }
-    return items.filter(it => it.status === sf.filter)
-  }, [items, chipFilter])
+    if (sf.filter === 'CHANGES_REQUESTED') {
+      return calendarFiltered.filter(it =>
+        it.status === 'CORRECTION_REQUESTED' || it.status === 'CHANGES_REQUESTED' || it.status === 'REJECTED'
+      )
+    }
+    return calendarFiltered.filter(it => it.status === sf.filter)
+  }, [calendarFiltered, chipFilter])
 
   // ----- sorted + paginated items -----
   const sortedItems = useMemo(() => {
@@ -583,6 +740,8 @@ export function SubmissionsModule() {
         if (gate.canApprove) out.push({ action: 'approve', label: s.status === 'HQ_REVIEW' ? 'Lock' : 'Approve', tone: 'emerald' })
         if (s.status === 'HQ_REVIEW' && gate.canLock) out.push({ action: 'lock', label: 'Lock', tone: 'slate' })
         break
+      case 'CHANGES_REQUESTED':
+      case 'REJECTED':
       case 'CORRECTION_REQUESTED':
         if (gate.canSubmit) out.push({ action: 'resubmit', label: 'Resubmit', tone: 'blue' })
         break
@@ -594,6 +753,71 @@ export function SubmissionsModule() {
   }
 
   const roleLabel = user?.roles?.[0]?.name ?? 'User'
+
+  // ---------- Generate Report (select submission → pick format → download) ----------
+  const reportCandidates = useMemo(() => {
+    const q = reportSearch.trim().toLowerCase()
+    const base = [...items].sort((a, b) =>
+      (b.submittedAt || b.updatedAt || '').localeCompare(a.submittedAt || a.updatedAt || '')
+    )
+    if (!q) return base
+    return base.filter(it =>
+      [it.title, it.project?.projectName, it.reportingPeriod?.periodLabel, it.module, it.status, it.submittedBy]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(q)
+    )
+  }, [items, reportSearch])
+
+  const downloadReport = useCallback(async (format: ReportFormat) => {
+    if (!reportTarget) return
+    const target = reportTarget
+    if (format === 'html') {
+      /* Print view — opens inline in a new tab with clickable evidence links;
+         Save as PDF / Print straight from the browser toolbar in the preview. */
+      window.open(`/api/pu/submissions/${target.id}/report?format=html`, '_blank', 'noopener')
+      toast.success('Print view opened', {
+        description: `Use "Print / Save as PDF" in the preview for ${target.title}.`,
+      })
+      return
+    }
+    setReportDownloading(format)
+    try {
+      const r = await fetch(`/api/pu/submissions/${target.id}/report?format=${format}`)
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        throw new Error(j.error || `Report generation failed (${r.status})`)
+      }
+      const blob = await r.blob()
+      const cd = r.headers.get('content-disposition') || ''
+      const match = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/)
+      const fileName = match
+        ? decodeURIComponent(match[1])
+        : `${target.title.replace(/[^\w.-]+/g, '-')}.${format === 'pdf' ? 'pdf' : format === 'excel' ? 'csv' : 'doc'}`
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+      toast.success('Report downloaded', { description: fileName })
+    } catch (e) {
+      toast.error('Report generation failed', { description: (e as Error).message })
+    } finally {
+      setReportDownloading(null)
+    }
+  }, [reportTarget])
+
+  const closeReportFlow = useCallback(() => {
+    setReportOpen(false)
+    setReportStep('picker')
+    setReportSearch('')
+    setReportTarget(null)
+    setReportDownloading(null)
+  }, [])
 
   // Live KPI values from items & status counts
   const liveKpis = useMemo(() => {
@@ -625,12 +849,20 @@ export function SubmissionsModule() {
             Multi-level review pipeline · DRAFT → Submitted → Project Admin Review → Subsidiary → HQ → Locked. · Signed in as <span className="font-semibold text-slate-700">{roleLabel}</span>
           </p>
         </div>
-        <button
-          onClick={fetchList}
-          className="glass-subtle flex items-center gap-1.5 self-start rounded-full px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white md:self-auto"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
-        </button>
+        <div className="flex items-center gap-2 self-start md:self-auto">
+          <button
+            onClick={() => { setReportOpen(true); setReportStep('picker'); setReportTarget(null); setReportSearch('') }}
+            className="btn-glass-primary flex items-center gap-1.5 self-start rounded-full px-4 py-2 text-xs font-semibold shadow-sm md:self-auto"
+          >
+            <FileText className="h-3.5 w-3.5" /> Generate Report
+          </button>
+          <button
+            onClick={fetchList}
+            className="glass-subtle flex items-center gap-1.5 self-start rounded-full px-4 py-2 text-xs font-semibold text-slate-600 transition hover:bg-white md:self-auto"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </button>
+        </div>
       </div>
 
       {gate.canApprove && (
@@ -679,16 +911,80 @@ export function SubmissionsModule() {
             )
           })}
         </div>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:flex-wrap">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
             <Filter className="h-3.5 w-3.5" /> Filters:
           </div>
           <FilterSelect label="Project" value={projectId} onChange={setProjectId}
-            options={[{ value: 'all', label: 'All projects' }, ...projects.map(p => ({ value: p.id, label: p.name }))]} />
+            options={projects.map(p => ({ value: p.id, label: p.name }))} />
           <FilterSelect label="Period" value={periodId} onChange={setPeriodId}
             options={[{ value: 'all', label: 'All periods' }, ...periods.map(p => ({ value: p.id, label: p.label }))]} />
           <FilterSelect label="Module" value={moduleKey} onChange={setModuleKey}
             options={[{ value: 'all', label: 'All modules' }, ...MODULE_OPTIONS.map(m => ({ value: m.value, label: m.label }))]} />
+          {/* Calendar — find submissions by submitted date */}
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Submitted Date</Label>
+            <Popover open={calOpen} onOpenChange={setCalOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={`glass-subtle flex w-full min-w-[160px] items-center justify-between gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                    calDate ? 'text-blue-700 ring-1 ring-blue-200' : 'text-slate-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <CalendarDays className={`h-3.5 w-3.5 shrink-0 ${calDate ? 'text-blue-600' : 'text-slate-400'}`} />
+                    <span className="truncate">
+                      {calDate
+                        ? dfnFormat(calDate, 'dd MMM yyyy')
+                        : 'Calendar'}
+                    </span>
+                  </span>
+                  {calDate ? (
+                    <span className="flex items-center gap-1.5">
+                      <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700">
+                        {dayTotalFor(calDate)}
+                      </span>
+                      <X
+                        className="h-3 w-3 text-slate-400 hover:text-rose-500"
+                        onClick={(e) => { e.stopPropagation(); setCalDate(undefined) }}
+                      />
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] font-bold text-slate-500">
+                      {items.length}
+                    </span>
+                  )}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-3">
+                <Calendar
+                  mode="single"
+                  selected={calDate}
+                  onSelect={(d) => setCalDate(d)}
+                  defaultMonth={calDefaultMonth}
+                  className="w-fit"
+                  classNames={{ day_button: 'h-7 w-7 text-[11px]' }}
+                />
+                <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 pt-2">
+                  <span className="text-[10px] font-semibold text-slate-500">
+                    {calDate
+                      ? `${dayTotalFor(calDate)} submission${dayTotalFor(calDate) === 1 ? '' : 's'} on ${dfnFormat(calDate, 'dd MMM yyyy')}`
+                      : `${items.length} submissions · click a date to filter`}
+                  </span>
+                  {calDate && (
+                    <button
+                      type="button"
+                      onClick={() => { setCalDate(undefined); setCalOpen(false) }}
+                      className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600 transition hover:bg-slate-200"
+                    >
+                      <X className="h-3 w-3" /> Clear
+                    </button>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </div>
 
@@ -711,6 +1007,12 @@ export function SubmissionsModule() {
             setRejectTarget(it)
             setRejectFields([{ field: '', issue: '', severity: 'WARNING', comment: '' }])
             setRejectGeneral('')
+          }}
+          onGenerateReport={(it) => {
+            setReportTarget(it)
+            setReportStep('format')
+            setReportOpen(true)
+            setReportSearch('')
           }}
           selectedIds={selectedIds}
           toggleSelect={toggleSelect}
@@ -755,8 +1057,8 @@ export function SubmissionsModule() {
           </SheetHeader>
 
           {detailLoading ? (
-            <div className="flex h-64 items-center justify-center text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex h-72 items-center justify-center">
+              <MeilLoader size={68} label="Loading submission details…" />
             </div>
           ) : detail ? (
             <SubmissionDetailPanel
@@ -771,6 +1073,10 @@ export function SubmissionsModule() {
                 setRejectGeneral('')
               }}
               onRefresh={refreshDetail}
+              onOpenDataEntry={() => {
+                setDetailOpen(false)
+                setActiveModule('data-entry')
+              }}
             />
           ) : null}
         </SheetContent>
@@ -929,6 +1235,151 @@ export function SubmissionsModule() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* GENERATE REPORT DIALOG — step 1: pick the submission, step 2: pick the format */}
+      <Dialog open={reportOpen} onOpenChange={(o) => { if (!o) closeReportFlow() }}>
+        <DialogContent className="glass-strong max-w-2xl rounded-2xl">
+          {reportStep === 'picker' ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-slate-800">
+                  <FileText className="h-4 w-4 text-blue-600" /> Generate Submission Report
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  <span className="font-bold text-blue-700">Step 1 of 2 —</span> select the submission to report on. The report contains the project details, reporting period, captured data, individual source records (incl. emission sources), evidence vault, validation, calculations, history & corrections.
+                </DialogDescription>
+              </DialogHeader>
+
+              {/* Search + selectable submission cards */}
+              <div className="glass-subtle flex items-center gap-2 rounded-xl px-3 py-2">
+                <Search className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <Input
+                  value={reportSearch}
+                  onChange={(e) => setReportSearch(e.target.value)}
+                  placeholder="Search by title, project, period, module or status…"
+                  className="h-7 border-0 bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
+                />
+                {reportSearch && (
+                  <button onClick={() => setReportSearch('')} className="text-slate-400 transition hover:text-slate-600">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-[46vh] space-y-1.5 overflow-y-auto scroll-elegant pr-1">
+                {reportCandidates.length === 0 ? (
+                  <div className="flex h-24 flex-col items-center justify-center gap-1 text-slate-400">
+                    <Inbox className="h-5 w-5" />
+                    <span className="text-xs font-semibold">No submissions match the search</span>
+                  </div>
+                ) : (
+                  reportCandidates.map((s) => {
+                    const isSel = reportTarget?.id === s.id
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setReportTarget(isSel ? null : s)}
+                        className={`flex w-full items-center gap-3 rounded-xl border p-3 text-left transition ${
+                          isSel
+                            ? 'border-blue-300 bg-blue-50/60 ring-2 ring-blue-200 shadow-sm'
+                            : 'border-white/70 bg-white/60 hover:border-blue-200 hover:bg-white'
+                        }`}
+                      >
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-50 to-sky-100 text-blue-600`}>
+                          <Building2 className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="truncate text-sm font-semibold text-slate-800">{s.project.projectName}</span>
+                            <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-bold tracking-wide ${moduleBadgeClass(s.module)}`}>
+                              {s.module}
+                            </span>
+                            <span className={`status-pill ${statusPillClass(s.status)}`}>
+                              {PIPELINE_LABEL[s.status] ?? s.status}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 truncate text-[11px] text-slate-500">
+                            {s.title} · {s.reportingPeriod?.periodLabel} · {fmtDate(s.submittedAt)} · {s.evidenceCount} evidence
+                          </div>
+                        </div>
+                        <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full transition ${isSel ? 'bg-blue-600 text-white' : 'bg-slate-100 text-transparent'}`}>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button variant="ghost" onClick={closeReportFlow} className="text-slate-600">Cancel</Button>
+                <Button
+                  onClick={() => setReportStep('format')}
+                  disabled={!reportTarget}
+                  className="btn-glass-primary rounded-full"
+                >
+                  <FileText className="h-3.5 w-3.5" /> Generate Report
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2 text-slate-800">
+                  <FileDown className="h-4 w-4 text-blue-600" /> Choose Export Format
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  <span className="font-bold text-blue-700">Step 2 of 2 —</span> download your preferred format for{' '}
+                  <span className="font-semibold text-slate-700">{reportTarget?.project.projectName}</span>{' '}
+                  <span className={`status-pill ${statusPillClass(reportTarget?.status ?? '')}`}>{PIPELINE_LABEL[reportTarget?.status ?? ''] ?? reportTarget?.status}</span>{' '}
+                  <span className="text-slate-500">({reportTarget?.module} · {reportTarget?.reportingPeriod?.periodLabel})</span>
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                {REPORT_FORMATS.map((f) => {
+                  const Icon = f.icon
+                  const busy = reportDownloading === f.format
+                  return (
+                    <button
+                      key={f.format}
+                      type="button"
+                      disabled={reportDownloading !== null}
+                      onClick={() => downloadReport(f.format)}
+                      className="group flex flex-col items-start gap-2 rounded-xl border border-white/70 bg-white/70 p-3.5 text-left transition hover:border-blue-200 hover:bg-white hover:shadow-sm disabled:cursor-wait disabled:opacity-60"
+                    >
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-xl border ${f.iconBox}`}>
+                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-slate-800">
+                          {busy ? 'Preparing…' : f.label}
+                        </div>
+                        <div className="mt-0.5 text-[11px] leading-snug text-slate-500">{f.desc}</div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => { if (reportDownloading === null) { setReportStep('picker') } }}
+                  disabled={reportDownloading !== null}
+                  className="text-slate-600"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" /> Back
+                </Button>
+                <Button onClick={closeReportFlow} className="btn-glass-primary rounded-full">
+                  Done
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -995,6 +1446,7 @@ function FilterSelect({
 
 function SubmissionsTable({
   items, pagedItems, permittedActions, onOpen, onAction, onApprove, onReject,
+  onGenerateReport,
   selectedIds, toggleSelect, toggleSelectAll, clearSelection,
   sortKey, sortDir, toggleSort,
   page, pageSize, totalPages, safePage, setPage, setPageSize, totalItems,
@@ -1007,6 +1459,7 @@ function SubmissionsTable({
   onAction: (s: SubmissionListItem, action: 'submit' | 'review' | 'approve' | 'reject' | 'resubmit' | 'lock') => void
   onApprove: (s: SubmissionListItem) => void
   onReject: (s: SubmissionListItem) => void
+  onGenerateReport: (s: SubmissionListItem) => void
   selectedIds: Set<string>
   toggleSelect: (id: string) => void
   toggleSelectAll: () => void
@@ -1077,7 +1530,8 @@ function SubmissionsTable({
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: Math.min(i * 0.04, 0.32), duration: 0.32 }}
-                className={`group cursor-pointer border-b border-white/40 transition hover:bg-white/60 ${isSelected ? 'bg-blue-50/40' : ''}`}
+                title="Click to view submission details"
+                className={`group cursor-pointer border-b border-white/40 transition hover:bg-white/60 ${statusRowAccent(s.status)} ${isSelected ? 'bg-blue-50/40' : ''}`}
                 onClick={() => onOpen(s.id)}
               >
                 <TableCell className="px-3 py-3" onClick={(e) => { e.stopPropagation(); toggleSelect(s.id) }}>
@@ -1114,7 +1568,9 @@ function SubmissionsTable({
                 </TableCell>
                 <TableCell className="py-3 text-xs text-slate-600">{s.reportingPeriod.periodLabel}</TableCell>
                 <TableCell className="py-3 text-xs text-slate-600">
-                  <span className="status-pill status-submitted">{s.module}</span>
+                  <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9.5px] font-bold tracking-wide ${moduleBadgeClass(s.module)}`}>
+                    {s.module}
+                  </span>
                 </TableCell>
                 <TableCell className="py-3">
                   <div className="w-24">
@@ -1143,10 +1599,13 @@ function SubmissionsTable({
                 <TableCell className="py-3 text-xs text-slate-600 font-mono">{s.formattedDateTime || fmtDateTime(s.submittedAt)}</TableCell>
                 <TableCell className="py-3 text-xs text-slate-600">
                   {(() => {
-                    // history is newest-first; currentReviewer may be null for approved/locked
+                    // history is newest-first; currentReviewer may be null for approved/locked.
+                    // A SUBMIT/CREATE tail action is the contributor's own echo, not a reviewer —
+                    // show '—' rather than falling back to the contributor's name.
                     const lastAction = s.history && s.history.length > 0 ? s.history[0] : null
+                    const isContributorEcho = lastAction ? (lastAction.action === 'SUBMIT' || lastAction.action === 'CREATE') : false
                     const reviewer = s.currentReviewer
-                      ?? (lastAction ? { name: lastAction.actorName, email: lastAction.actorRole } : null)
+                      ?? (lastAction && !isContributorEcho ? { name: lastAction.actorName, email: lastAction.actorRole } : null)
                     return reviewer ? (
                       <div>
                         <div className="font-medium text-slate-700">{reviewer.name}</div>
@@ -1162,6 +1621,13 @@ function SubmissionsTable({
                 </TableCell>
                 <TableCell className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-end gap-1">
+                    <button
+                      onClick={() => onGenerateReport(s)}
+                      title="Generate report for this submission"
+                      className="flex items-center gap-1 rounded-full bg-slate-50 px-2.5 py-1.5 text-[10px] font-semibold text-slate-600 transition hover:bg-blue-50 hover:text-blue-700"
+                    >
+                      <FileText className="h-3 w-3" /> Report
+                    </button>
                     {actions.length === 0 ? (
                       <button
                         onClick={() => onOpen(s.id)}
@@ -1250,7 +1716,7 @@ const TONE_ICON: Record<'blue' | 'emerald' | 'rose' | 'amber' | 'slate', React.R
 // ---------- Detail panel ----------
 
 function SubmissionDetailPanel({
-  detail, gate, permittedActions, onAction, onApprove, onReject, onRefresh,
+  detail, gate, permittedActions, onAction, onApprove, onReject, onRefresh, onOpenDataEntry,
 }: {
   detail: SubmissionDetail
   gate: RoleGate
@@ -1259,8 +1725,23 @@ function SubmissionDetailPanel({
   onApprove: (s: SubmissionListItem) => void
   onReject: (s: SubmissionListItem) => void
   onRefresh: () => void
+  /** Navigate to the Data Entry module in-app (single-route app — no /pu URL exists). */
+  onOpenDataEntry?: () => void
 }) {
   const s = detail.submission
+  /* Evidence document currently open in the inline preview dialog — set when
+     the user clicks any evidence chip (record items / Evidence tab). */
+  const [previewEvidence, setPreviewEvidence] = useState<EvidenceBrief | null>(null)
+  /* Full-window mirror review — opens on returned submissions and shows the
+     admin's red marks + clarifications phase by phase (same window the admin used). */
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const [mirrorModel, setMirrorModel] = useState<ReviewModel | null>(null)
+
+  /* Resolve a display-name (e.g. from a staged item's evidenceFiles[]) to a
+     downloadable evidence row. Exact match first, then substring containment. */
+  const findEvidenceByName = (name: string): EvidenceBrief | undefined =>
+    detail.evidence.find(e => e.fileName === name) ||
+    detail.evidence.find(e => e.fileName.includes(name) || name.includes(e.fileName))
   const corrections = (detail.submission as unknown as { corrections?: Correction[] }).corrections
     ?? (Array.isArray((detail as unknown as { corrections?: Correction[] }).corrections)
       ? (detail as unknown as { corrections: Correction[] }).corrections
@@ -1288,16 +1769,39 @@ function SubmissionDetailPanel({
               <p className="mt-2 text-xs font-semibold text-rose-950 bg-white/90 p-3 rounded-xl border border-rose-200/90 shadow-2xs">
                 "{s.reviewComment || 'Project Admin requested corrections and clarification on the entered figures before sign-off.'}"
               </p>
+              {/* Full-window rejection review — same phase-by-phase layout the admin used */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMirrorModel(buildReviewModelFromPuDetail(detail, s))
+                  setReviewOpen(true)
+                }}
+                className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-black text-white shadow-md transition hover:bg-rose-700 active:scale-[0.99]"
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Open Full Rejection Review — see exactly which sources were marked
+              </button>
+
               <div className="mt-2.5 flex items-center justify-between text-[11px]">
                 <span className="text-rose-700">
                   Reviewed by: <strong>{s.currentReviewer?.name || 'Project Admin'}</strong> {s.reviewedAt ? `• ${fmtDateTime(s.reviewedAt)}` : ''}
                 </span>
-                <a
-                  href="/pu?tab=data-entry"
-                  className="inline-flex items-center gap-1 font-bold text-rose-800 hover:text-rose-950 underline"
-                >
-                  Open in Data Entry to Revise &rarr;
-                </a>
+                {onOpenDataEntry ? (
+                  <button
+                    type="button"
+                    onClick={onOpenDataEntry}
+                    className="inline-flex items-center gap-1 font-bold text-rose-800 hover:text-rose-950 underline"
+                  >
+                    Open in Data Entry to Revise &rarr;
+                  </button>
+                ) : (
+                  <a
+                    href="/pu?tab=data-entry"
+                    className="inline-flex items-center gap-1 font-bold text-rose-800 hover:text-rose-950 underline"
+                  >
+                    Open in Data Entry to Revise &rarr;
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -1383,18 +1887,28 @@ function SubmissionDetailPanel({
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {s.evidenceList.map((doc, idx) => (
-              <div
-                key={idx}
-                className="flex items-center gap-1.5 rounded-xl border border-emerald-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs"
-              >
-                <FileText className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span className="font-mono text-[11px] truncate max-w-[280px]">{doc}</span>
-                <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
-                  VERIFIED
-                </span>
-              </div>
-            ))}
+            {s.evidenceList.map((doc, idx) => {
+              const ev = findEvidenceByName(doc)
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    if (ev) setPreviewEvidence(ev)
+                    else toast.info('Preview unavailable', { description: `${doc} is not registered in the Evidence Vault for this submission yet.` })
+                  }}
+                  className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs transition hover:border-emerald-400 hover:bg-emerald-50/60 hover:shadow-xs"
+                  title="Click to preview this evidence document"
+                >
+                  <FileText className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <span className="font-mono text-[11px] truncate max-w-[280px]">{doc}</span>
+                  <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
+                    VERIFIED
+                  </span>
+                  <Eye className="h-3 w-3 text-emerald-500 shrink-0" />
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
@@ -1411,10 +1925,14 @@ function SubmissionDetailPanel({
         </TabsList>
 
         <TabsContent value="records" className="mt-3">
-          <RecordGrid records={detail.sourceRecords} module={s.module} corrections={corrections} />
+          <RecordGrid records={detail.sourceRecords} module={s.module} corrections={corrections} onOpenEvidence={(name) => {
+            const ev = findEvidenceByName(name)
+            if (ev) setPreviewEvidence(ev)
+            else toast.info('Preview unavailable', { description: `${name} is not registered in the Evidence Vault for this submission yet.` })
+          }} />
         </TabsContent>
         <TabsContent value="evidence" className="mt-3">
-          <EvidenceList evidence={detail.evidence} />
+          <EvidenceList evidence={detail.evidence} onOpen={setPreviewEvidence} />
         </TabsContent>
         <TabsContent value="validation" className="mt-3">
           <ValidationList results={detail.validationResults} />
@@ -1429,6 +1947,41 @@ function SubmissionDetailPanel({
           <CorrectionsList corrections={corrections} />
         </TabsContent>
       </Tabs>
+
+      {/* INLINE EVIDENCE PREVIEW DIALOG (PDF / image rendered in place) */}
+      <Dialog open={!!previewEvidence} onOpenChange={(o) => { if (!o) setPreviewEvidence(null) }}>
+        <DialogContent className="glass-strong max-w-4xl rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800">
+              <FileText className="h-4 w-4 text-emerald-600" />
+              <span className="truncate">{previewEvidence?.fileName ?? 'Evidence Document'}</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {previewEvidence ? `${previewEvidence.documentType || 'Document'} · ${previewEvidence.status} · uploaded ${fmtDate(previewEvidence.createdAt)}${previewEvidence.uploader ? ` by ${previewEvidence.uploader.name}` : ''}` : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {previewEvidence && <EvidenceFilePreview evidence={previewEvidence} />}
+          <DialogFooter>
+            {previewEvidence && (
+              <a
+                href={`/api/pu/evidence/${previewEvidence.id}/file?download=true`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+              >
+                <Download className="h-3.5 w-3.5" /> Download
+              </a>
+            )}
+            <Button variant="ghost" onClick={() => setPreviewEvidence(null)} className="text-slate-600">Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* FULL-WINDOW REJECTION REVIEW (mirror mode — contributor sees the admin's marks) */}
+      <SubmissionReviewWindow
+        open={reviewOpen && !!mirrorModel}
+        onClose={() => setReviewOpen(false)}
+        model={mirrorModel}
+        onDone={() => setReviewOpen(false)}
+      />
 
       {/* ACTION BAR */}
       <div className="sticky bottom-0 -mx-5 flex items-center justify-between gap-2 border-t border-white/60 bg-white/70 px-5 py-3 backdrop-blur-md">
@@ -1538,7 +2091,7 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function RecordGrid({ records, module: mod, corrections = [] }: { records: SourceRecordRow[]; module: string; corrections?: Correction[] }) {
+function RecordGrid({ records, module: mod, corrections = [], onOpenEvidence }: { records: SourceRecordRow[]; module: string; corrections?: Correction[]; onOpenEvidence?: (fileName: string) => void }) {
   if (records.length === 0) return <EmptyBlock icon={ListChecks} text="No source records attached." />
   return (
     <div className="space-y-3">
@@ -1627,9 +2180,15 @@ function RecordGrid({ records, module: mod, corrections = [] }: { records: Sourc
                     {evNames.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {evNames.map((f, fi) => (
-                          <span key={fi} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800">
-                            <FolderOpen className="h-2.5 w-2.5" /> {f}
-                          </span>
+                          <button
+                            key={fi}
+                            type="button"
+                            onClick={() => onOpenEvidence?.(f)}
+                            className="inline-flex cursor-pointer items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800 transition hover:bg-emerald-100 hover:border-emerald-400"
+                            title={`Click to preview ${f}`}
+                          >
+                            <FolderOpen className="h-2.5 w-2.5" /> {f} <Eye className="h-2.5 w-2.5 text-emerald-500" />
+                          </button>
                         ))}
                       </div>
                     )}
@@ -1654,7 +2213,7 @@ function RecordGrid({ records, module: mod, corrections = [] }: { records: Sourc
   )
 }
 
-function EvidenceList({ evidence }: { evidence: EvidenceBrief[] }) {
+function EvidenceList({ evidence, onOpen }: { evidence: EvidenceBrief[]; onOpen?: (e: EvidenceBrief) => void }) {
   if (evidence.length === 0) return <EmptyBlock icon={Files} text="No evidence documents attached to this submission's source records." />
   return (
     <div className="space-y-1.5">
@@ -1664,7 +2223,9 @@ function EvidenceList({ evidence }: { evidence: EvidenceBrief[] }) {
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: Math.min(i * 0.04, 0.32) }}
-          className="flex items-center gap-3 rounded-xl bg-white/40 px-3 py-2"
+          onClick={() => onOpen?.(e)}
+          className="flex cursor-pointer items-center gap-3 rounded-xl bg-white/40 px-3 py-2 transition hover:bg-white/70 hover:shadow-2xs"
+          title={`Click to preview ${e.fileName}`}
         >
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
             <FileCheck2 className="h-3.5 w-3.5" />
@@ -1674,8 +2235,37 @@ function EvidenceList({ evidence }: { evidence: EvidenceBrief[] }) {
             <div className="text-[10px] text-slate-400">{e.uploader?.name ?? '—'} · {fmtDate(e.createdAt)}</div>
           </div>
           <span className={`status-pill ${statusPillClass(e.status)}`}>{e.status}</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] font-bold text-blue-700 transition hover:bg-blue-100">
+            <Eye className="h-3 w-3" /> View
+          </span>
         </motion.div>
       ))}
+    </div>
+  )
+}
+
+/* Renders an evidence file inline: iframe for PDFs (browser-native viewer),
+   <img> for images, download fallback otherwise. */
+function EvidenceFilePreview({ evidence }: { evidence: EvidenceBrief }) {
+  const previewUrl = `/api/pu/evidence/${evidence.id}/file`
+  const downloadUrl = `${previewUrl}?download=true`
+  const name = (evidence.fileName || '').toLowerCase()
+  const isPdf = name.endsWith('.pdf')
+  const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(name)
+
+  if (isPdf) {
+    return <iframe src={previewUrl} title={evidence.fileName} className="h-[62vh] w-full rounded-xl border border-slate-200 bg-white" />
+  }
+  if (isImage) {
+    return <img src={previewUrl} alt={evidence.fileName} className="max-h-[62vh] w-full rounded-xl border border-slate-200 bg-white object-contain p-2" />
+  }
+  return (
+    <div className="flex h-40 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white/60 text-slate-500">
+      <FileText className="h-8 w-8" />
+      <span className="text-xs">No inline preview for this file type.</span>
+      <a href={downloadUrl} className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 underline">
+        <Download className="h-3.5 w-3.5" /> Download to view
+      </a>
     </div>
   )
 }
@@ -1815,11 +2405,7 @@ function EmptyBlock({ icon: Icon, text }: { icon: React.ComponentType<{ classNam
 function SubmissionsSkeleton() {
   return (
     <div className="glass rounded-2xl p-4">
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-200/60" />
-        ))}
-      </div>
+      <MeilBoxLoader boxHeight="min-h-[300px]" label="Loading submissions…" />
     </div>
   )
 }

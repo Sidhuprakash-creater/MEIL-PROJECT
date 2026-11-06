@@ -10,7 +10,6 @@ import {
   Eye,
   ShieldAlert,
   Clock,
-  RefreshCw,
   Building2,
   Leaf,
   Users,
@@ -25,6 +24,7 @@ import {
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaCircularProgress, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaConsolidatedReport, ContributorRole } from "@/lib/project-admin/types";
 
 export default function ConsolidatedReportView() {
@@ -68,11 +68,8 @@ export default function ConsolidatedReportView() {
 
   if (loading && !report) {
     return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="flex items-center gap-3 pa-glass px-6 py-4 rounded-2xl">
-          <RefreshCw className="animate-spin text-[#315CFF]" size={20} />
-          <span className="text-sm font-semibold text-[#202938]">Assembling Consolidated Project Report…</span>
-        </div>
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[360px]" label="Assembling Consolidated Project Report…" />
       </div>
     );
   }
@@ -111,10 +108,10 @@ export default function ConsolidatedReportView() {
             </PaButton>
             <PaButton
               icon={Send}
-              disabled={report?.status === "SUBMITTED" || report?.status === "APPROVED"}
+              disabled={["SUBMITTED", "APPROVED", "COMPLETED"].includes(String(report?.status))}
               onClick={() => setSubmitDialogOpen(true)}
             >
-              {report?.status === "SUBMITTED" ? "Submitted to BU Manager" : "Submit to BU Manager"}
+              {["SUBMITTED", "COMPLETED"].includes(String(report?.status)) ? "Submitted to BU Manager" : "Submit to BU Manager"}
             </PaButton>
           </div>
         }

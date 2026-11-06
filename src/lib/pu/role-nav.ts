@@ -33,7 +33,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
     { key: 'analytics', label: 'Analytics', icon: TrendingUp },
     { key: 'team', label: 'Team', icon: Users },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
   ],
 
   // Finance & Resource Data Contributor — 8 dedicated tabs matching reference screenshot
@@ -71,7 +70,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
     { key: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
@@ -86,7 +84,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
     { key: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
@@ -102,7 +99,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
     { key: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
@@ -118,7 +114,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
     { key: 'brsr', label: 'BRSR Governance', icon: FileCheck2 },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
@@ -133,7 +128,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'ana-governance', label: 'Governance Analytics', icon: Scale },
     { key: 'ana-variance', label: 'Variance & Anomalies', icon: AlertTriangle },
     { key: 'ana-quality', label: 'Data Quality', icon: ShieldCheck },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'audit', label: 'Audit', icon: History },
   ],
 
@@ -145,7 +139,6 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'my-project', label: 'My Project', icon: Building2 },
     { key: 'evidence', label: 'Evidence Vault', icon: Link2, badgeTone: 'blue' },
     { key: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { key: 'reports', label: 'Reports', icon: FileBarChart },
     { key: 'team', label: 'Team', icon: Users },
     { key: 'audit', label: 'Audit & Trace', icon: History },
   ],

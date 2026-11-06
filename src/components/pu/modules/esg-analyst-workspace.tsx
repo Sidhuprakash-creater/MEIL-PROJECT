@@ -24,6 +24,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Database, Gauge, Leaf, Zap, Users, Scale, AlertTriangle,
   ShieldCheck, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle,
@@ -358,18 +359,8 @@ function SectionCard({
 /** Loading skeleton. */
 function WorkspaceSkeleton({ tiles = 4 }: { tiles?: number }) {
   return (
-    <div className="space-y-5">
-      <div className="glass rounded-[20px] h-16 animate-pulse" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {Array.from({ length: tiles }).map((_, i) => (
-          <div key={i} className="glass rounded-2xl h-[100px] animate-pulse" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="glass rounded-[20px] h-[300px] animate-pulse" />
-        <div className="glass rounded-[20px] h-[300px] animate-pulse" />
-      </div>
-      <div className="glass rounded-[20px] h-[240px] animate-pulse" />
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading analyst workspace…" />
     </div>
   )
 }
@@ -432,17 +423,7 @@ function ActivityFeedCard({
     >
       <div className="relative max-h-[280px] overflow-y-auto scroll-elegant pr-1">
         {loading && activities.length === 0 ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex gap-3 animate-pulse">
-                <div className="h-9 w-9 rounded-full bg-slate-200/70" />
-                <div className="flex-1 space-y-2 py-1">
-                  <div className="h-2.5 w-2/3 rounded bg-slate-200/70" />
-                  <div className="h-2 w-5/6 rounded bg-slate-200/50" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <MeilBoxLoader boxHeight="min-h-[120px]" label="Loading activity…" />
         ) : activities.length === 0 ? (
           <div className="py-8 text-center">
             <ActivityIcon className="mx-auto h-7 w-7 text-slate-300" />

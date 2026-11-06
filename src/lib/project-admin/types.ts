@@ -190,6 +190,8 @@ export interface PaCollectionStatusItem {
   categoryLabel: string;
   assignedUserId: string;
   assignedUserName: string;
+  assignedUserEmail?: string;
+  assignedUserDbRole?: string;
   sectionCode: string;
   sectionName: string;
   period: string;
@@ -201,13 +203,38 @@ export interface PaCollectionStatusItem {
   metricValue?: number;
   metricUnit?: string;
   updatedAt: string;
-  /* Sequenced level records for the inspection dialog (emission → sources → evidence). */
+  /* Full-window review screen: project card + reviewer context. */
+  project?: {
+    name: string;
+    code: string;
+    location: string;
+    ptype: string;
+    capacityMw: number | null;
+    status: string;
+    businessUnitName: string;
+  } | null;
+  parsedValues?: Array<{ label: string; value: string | number; unit?: string }>;
+  corrections?: any[];
+  reviewComment?: string | null;
+  reviewStatus?: string;
+  completionPct?: number | null;
+  revisionNumber?: number | null;
+  /* Sequenced level records for the review window (emission → sources → evidence). */
   sourceRecords?: Array<{
     recordId: string;
     level: number;
     levelName: string;
     recordStatus: string;
     validationStatus: string;
+    calculation?: {
+      calculatedValue?: number;
+      resultUnit?: string;
+      scope?: string | null;
+      methodologyNote?: string | null;
+      factorVersion?: number | null;
+    } | null;
+    fields?: Array<{ k: string; v: unknown }>;
+    evidence?: Array<{ id: string; fileName: string; documentType: string | null }>;
     items: any[];
   }>;
 }

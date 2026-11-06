@@ -5,7 +5,6 @@ import { DataEntryModule } from '@/components/pu/modules/data-entry'
 import { EvidenceModule } from '@/components/pu/modules/evidence'
 import { SubmissionsModule } from '@/components/pu/modules/submissions'
 import { BrsrModule } from '@/components/pu/modules/brsr'
-import { ReportsModule } from '@/components/pu/modules/reports'
 import { AnalyticsModule } from '@/components/pu/modules/analytics'
 import { AuditModule } from '@/components/pu/modules/audit'
 import { TeamModule } from '@/components/pu/modules/team'
@@ -36,7 +35,6 @@ export function ModuleRouter() {
     case 'evidence': return <EvidenceModule />
     case 'submissions': return <SubmissionsModule />
     case 'brsr': return <BrsrModule />
-    case 'reports': return <ReportsModule />
     case 'analytics': return <AnalyticsModule />
     case 'audit': return <AuditModule />
     case 'team': return <TeamModule />

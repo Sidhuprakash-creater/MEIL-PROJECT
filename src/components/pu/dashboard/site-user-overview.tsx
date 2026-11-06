@@ -20,6 +20,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Flame, Zap, ArrowUpRight, ArrowDownRight,
   Send, MoreHorizontal, Plus, FileText, Database,
@@ -488,11 +489,7 @@ function RecentActivitiesCard({
 
       <div className="max-h-[520px] overflow-y-auto scroll-elegant pr-1">
         {loading && activities.length === 0 ? (
-          <div className="space-y-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-14 rounded-xl bg-slate-100 animate-pulse" />
-            ))}
-          </div>
+          <MeilBoxLoader boxHeight="min-h-[120px]" label="Loading activity…" />
         ) : activities.length === 0 ? (
           <div className="py-8 text-center text-[12px] text-slate-600 font-medium">
             No recent activity recorded for this site yet.
@@ -545,6 +542,7 @@ function SiteEsgAnalyticsCard({
   onOpenWasteModal,
   onOpenInverterModal,
   onOpenFactorsModal,
+  onRefreshTelemetry,
 }: {
   data: OverviewData
   onOpenWaterModal: () => void
@@ -552,6 +550,8 @@ function SiteEsgAnalyticsCard({
   onOpenWasteModal: () => void
   onOpenInverterModal: () => void
   onOpenFactorsModal: () => void
+  /** Refetches live overview + submissions data; resolves when both finish. */
+  onRefreshTelemetry?: () => void | Promise<void>
 }) {
   const [showScope3, setShowScope3] = useState(false)
   const [energyUnit, setEnergyUnit] = useState<'GJ' | 'MWh'>('GJ')
@@ -666,8 +666,8 @@ function SiteEsgAnalyticsCard({
                 </button>
                 <button
                   onClick={() => {
-                    toast.success('Site ESG Telemetry refreshed from gateway')
                     setActiveMenu(null)
+                    void onRefreshTelemetry?.()
                   }}
                   className="w-full text-left px-3 py-2 rounded-lg text-[12px] font-semibold text-slate-800 hover:bg-sky-50 hover:text-sky-700 flex items-center gap-2"
                 >
@@ -1081,7 +1081,6 @@ function QuickActionsCard({
     { label: 'Upload Evidence', icon: Upload, module: 'evidence', tone: 'bg-violet-100 text-violet-700 border border-violet-300' },
     { label: 'View Pending Submission', icon: Send, module: 'submissions', tone: 'bg-amber-100 text-amber-800 border border-amber-300' },
     { label: 'Check Validation', icon: ShieldCheck, module: 'submissions', tone: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
-    { label: 'View Reports', icon: FileText, module: 'reports', tone: 'bg-cyan-100 text-cyan-800 border border-cyan-300' },
   ]
 
   return (
@@ -1183,11 +1182,7 @@ function ActiveSubmissionsCard({
       </header>
 
       {loading && submissions.length === 0 ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-11 rounded-xl bg-slate-100 animate-pulse" />
-          ))}
-        </div>
+        <MeilBoxLoader boxHeight="min-h-[120px]" label="Loading submissions…" />
       ) : submissions.length === 0 ? (
         <div className="py-10 text-center">
           <FileText className="mx-auto h-8 w-8 text-slate-400" />
@@ -1494,7 +1489,7 @@ function AllUsersModal({
                 </button>
                 <button
                   onClick={() => {
-                    toast.success(`Ping sent to ${u.name} on Site Channel`)
+                    toast.info('Demo action — coming soon')
                   }}
                   className="px-2.5 py-1 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-800 text-[11px] font-bold transition-colors"
                 >
@@ -1574,7 +1569,7 @@ function UserProfileModal({
           </button>
           <button
             onClick={() => {
-              toast.success(`Task assigned to ${user.name}`)
+              toast.info('Demo action — coming soon')
               onClose()
             }}
             className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-bold transition-all shadow-xs flex items-center justify-center gap-1.5"
@@ -1589,17 +1584,19 @@ function UserProfileModal({
 
 /** Quick Log Site ESG Data Modal */
 function QuickLogModal({
-  isOpen, onClose, initialMetric, onSaveRecord,
+  isOpen, onClose, initialMetric, onSaveRecord, periods = [],
 }: {
   isOpen: boolean
   onClose: () => void
   initialMetric?: string
   onSaveRecord: (record: any) => void
+  /** Real reporting periods from the overview payload — value is the period ID. */
+  periods?: { id: string; label: string; year: number; month: number | null; status: string }[]
 }) {
   const [metric, setMetric] = useState(initialMetric || 'Grid Electricity')
   const [value, setValue] = useState('1250')
   const [notes, setNotes] = useState('Daily generation meter reading')
-  const [period, setPeriod] = useState('June 2026')
+  const [period, setPeriod] = useState('')
 
   /* Adopt a newly requested metric — render-time adjustment (the sanctioned
      alternative to setState-in-effect). */
@@ -1607,6 +1604,16 @@ function QuickLogModal({
   if (lastInitialMetric !== initialMetric) {
     setLastInitialMetric(initialMetric)
     if (initialMetric) setMetric(initialMetric)
+  }
+
+  /* Default the selected period to the latest OPEN period, else the first
+     available — mirrors the Data Entry module's period defaulting. */
+  const [lastPeriods, setLastPeriods] = useState(periods)
+  if (lastPeriods !== periods) {
+    setLastPeriods(periods)
+    const openPeriods = (periods || []).filter(p => p.status === 'OPEN')
+    const defaultPeriod = openPeriods[openPeriods.length - 1] || (periods || [])[0] || null
+    setPeriod(defaultPeriod?.id ?? '')
   }
 
   // Live emission estimation — computed before the early return to keep hook order stable
@@ -1674,9 +1681,9 @@ function QuickLogModal({
                 onChange={e => setPeriod(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500"
               >
-                <option value="June 2026">June 2026</option>
-                <option value="May 2026">May 2026</option>
-                <option value="April 2026">April 2026</option>
+                {periods.map(p => (
+                  <option key={p.id} value={p.id}>{p.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -1707,7 +1714,14 @@ function QuickLogModal({
           </button>
           <button
             onClick={() => {
-              onSaveRecord({ metric, value, period, notes, emissions: emissionCalc })
+              onSaveRecord({
+                metric,
+                value,
+                periodId: period,
+                periodLabel: periods.find(p => p.id === period)?.label ?? '',
+                notes,
+                emissions: emissionCalc,
+              })
               toast.success(`Logged ${value} for ${metric} (${emissionCalc} tCO₂e)`)
               onClose()
             }}
@@ -1784,7 +1798,7 @@ function AddSectionModal({
           </button>
           <button
             onClick={() => {
-              toast.success('Site ESG sections updated successfully')
+              toast.info('Section preferences updated for this session')
               onClose()
             }}
             className="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-[12px] font-bold transition-all shadow-xs"
@@ -2224,15 +2238,17 @@ export function SiteUserOverview() {
     return () => { mountedRef.current = false }
   }, [])
 
-  /* ---- polling: activity every 30s, overview every 60s ---- */
+  /* ---- polling: activity every 30s, overview + submissions every 60s ---- */
   useEffect(() => {
     const activityTimer = setInterval(fetchActivities, 30_000)
     const overviewTimer = setInterval(fetchOverview, 60_000)
+    const submissionsTimer = setInterval(fetchSubmissions, 60_000)
     return () => {
       clearInterval(activityTimer)
       clearInterval(overviewTimer)
+      clearInterval(submissionsTimer)
     }
-  }, [fetchActivities, fetchOverview])
+  }, [fetchActivities, fetchOverview, fetchSubmissions])
 
   const handleSaveQuickRecord = async (record: any) => {
     try {
@@ -2245,8 +2261,9 @@ export function SiteUserOverview() {
 
       const userProjId = (user as any)?.scopes?.find((s: any) => s.scopeType === 'PROJECT')?.scopeId || (user as any)?.projectId
       const projectId = userProjId || selectedProjectId || 'cmvt5836n00167kss0csnb7il'
-      const activePeriodObj = overview?.periods?.find((p: any) => p.label === record.period) || overview?.periods?.[0]
-      const reportingPeriodId = activePeriodObj?.id || 'cmvt6acpg00047kxwgjmt06r8' 
+      /* The Quick Log modal submits the selected period's ID directly — no
+         label→id lookup that could miss and silently post to the wrong period. */
+      const reportingPeriodId = record.periodId || overview?.periods?.[0]?.id || 'cmvt6acpg00047kxwgjmt06r8'
 
       const dataPayload = isWater
         ? {
@@ -2254,7 +2271,7 @@ export function SiteUserOverview() {
             waterActivity: 'Cooling / Cleaning',
             waterQuantity: Number(record.value) || 10,
             unit: 'kL',
-            reportingPeriod: record.period,
+            reportingPeriod: record.periodLabel || record.periodId,
             remarks: record.notes || 'Quick Log entry',
           }
         : {
@@ -2262,7 +2279,7 @@ export function SiteUserOverview() {
             energyActivity: 'Site Auxiliary',
             consumptionQuantity: Number(record.value) || 100,
             unit: metricStr.includes('diesel') ? 'litres' : 'kWh',
-            reportingPeriod: record.period,
+            reportingPeriod: record.periodLabel || record.periodId,
             remarks: record.notes || 'Quick Log entry',
           }
 
@@ -2299,18 +2316,8 @@ export function SiteUserOverview() {
   // Guard: still loading initial data
   if (loading && !overview) {
     return (
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-5 lg:grid-cols-[1fr_minmax(380px,42%)] xl:grid-cols-[1fr_minmax(400px,42%)]">
-          <div className="space-y-5">
-            <div className="glass rounded-[24px] h-[420px] animate-pulse" />
-            <div className="glass rounded-[24px] h-[420px] animate-pulse" />
-          </div>
-          <div className="space-y-5">
-            <div className="glass rounded-[24px] h-[420px] animate-pulse" />
-            <div className="glass rounded-[24px] h-[420px] animate-pulse" />
-          </div>
-        </div>
-        <div className="glass rounded-[24px] h-[280px] animate-pulse" />
+      <div className="glass rounded-[24px] p-6">
+        <MeilBoxLoader boxHeight="min-h-[520px]" label="Loading your site overview…" />
       </div>
     )
   }
@@ -2408,6 +2415,10 @@ export function SiteUserOverview() {
             onOpenWasteModal={() => setIsWasteModalOpen(true)}
             onOpenInverterModal={() => setIsInverterModalOpen(true)}
             onOpenFactorsModal={() => setIsBaselineModalOpen(true)}
+            onRefreshTelemetry={async () => {
+              await Promise.all([fetchOverview(), fetchSubmissions()])
+              toast.success('Site ESG Telemetry refreshed from gateway')
+            }}
           />
           <QuickActionsCard
             onAction={m => setActiveModule(m)}
@@ -2453,6 +2464,7 @@ export function SiteUserOverview() {
         onClose={() => setIsQuickLogOpen(false)}
         initialMetric={quickLogMetric}
         onSaveRecord={handleSaveQuickRecord}
+        periods={safeOverview.periods}
       />
 
       <AddSectionModal

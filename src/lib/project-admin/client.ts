@@ -42,6 +42,13 @@ export async function paApiGet<T>(
     });
   }
 
+  /* bypassCache must reach the SERVER cache too, not just the in-memory one:
+     append ?bypass=true (URL-safe even when the endpoint already has a query
+     string). PA routes read `bypass === "true"` or the x-bypass-cache header. */
+  if (options?.bypassCache) {
+    url.searchParams.set("bypass", "true");
+  }
+
   const cacheKey = url.toString();
   const now = Date.now();
 

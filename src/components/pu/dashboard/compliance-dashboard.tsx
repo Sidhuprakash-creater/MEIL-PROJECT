@@ -23,6 +23,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   PieChart, Pie, Cell,
   ResponsiveContainer, Tooltip, Legend,
@@ -445,17 +446,7 @@ function RecentGovernanceActivities({
       </header>
       <div className="relative flex-1 max-h-[280px] overflow-y-auto scroll-elegant pr-1">
         {loading && activities.length === 0 ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex gap-3 animate-pulse">
-                <div className="h-7 w-7 rounded-full bg-slate-200/70" />
-                <div className="flex-1 space-y-2 py-1">
-                  <div className="h-3 w-2/3 rounded bg-slate-200/70" />
-                  <div className="h-2.5 w-5/6 rounded bg-slate-200/50" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <MeilBoxLoader boxHeight="min-h-[120px]" label="Loading activity…" />
         ) : activities.length === 0 ? (
           <div className="py-8 text-center">
             <AlertCircle className="mx-auto h-8 w-8 text-slate-300" />
@@ -645,21 +636,8 @@ export function ComplianceDashboard() {
 
   if (loading && !overview) {
     return (
-      <div className="space-y-5">
-        <div className="glass rounded-[20px] h-[80px] animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 lg:grid-cols-[1fr_0.6fr_0.4fr]">
-          <div className="space-y-5">
-            <div className="grid grid-cols-3 gap-3">
-              {[0, 1, 2].map(i => <div key={i} className="glass rounded-2xl h-[110px] animate-pulse" />)}
-            </div>
-            <div className="glass rounded-[20px] h-[340px] animate-pulse" />
-          </div>
-          <div className="space-y-5">
-            <div className="glass rounded-[20px] h-[280px] animate-pulse" />
-            <div className="glass rounded-[20px] h-[260px] animate-pulse" />
-          </div>
-          <div className="glass rounded-[20px] h-[500px] animate-pulse" />
-        </div>
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading compliance dashboard…" />
       </div>
     )
   }

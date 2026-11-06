@@ -49,7 +49,12 @@ export async function GET(req: NextRequest) {
     ]);
 
     const taskItems = tasks.map((t, idx) => {
-      const u = users.find((usr) => usr.name === t.assigneeLabel) || users[idx % (users.length || 1)];
+      /* Assignee may be stored as a user id (older correction flow) or a name —
+         resolve both before falling back to a round-robin user. */
+      const u =
+        users.find((usr) => usr.name === t.assigneeLabel) ||
+        users.find((usr) => usr.id === t.assigneeLabel) ||
+        users[idx % (users.length || 1)];
       const catKey = (Object.keys(CONTRIBUTOR_CATEGORIES).find(
         (k) => t.category?.toUpperCase().includes(k.replace("_USER", ""))
       ) || "ENV_DATA_USER") as ContributorRole;
@@ -133,6 +138,9 @@ export async function POST(req: NextRequest) {
         category,
         assigneeType: "USER",
         assigneeLabel: assignedUser.name,
+        /* Precise scope handle so contributor surfaces (/api/pu/action-items)
+           can list this task for the right person, not just by name. */
+        assigneeFilter: assignedUserId,
         priority: priority || "MEDIUM",
         status: "PENDING",
         startDate: new Date(),

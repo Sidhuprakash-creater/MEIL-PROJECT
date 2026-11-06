@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Users, MessageSquare, Pencil, Trash2, Send, X, Circle, MoreVertical,
 } from 'lucide-react'
@@ -507,30 +508,8 @@ function MessageRow({ msg, member }: MessageRowProps) {
 // ============================================================
 function TeamSkeleton() {
   return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="h-8 w-8 animate-pulse rounded-lg bg-slate-200/70" />
-        <div className="h-4 w-44 animate-pulse rounded-md bg-slate-200/70" />
-      </div>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className="glass rounded-2xl p-3.5">
-            <div className="flex items-center gap-2.5">
-              <div className="h-11 w-11 animate-pulse rounded-full bg-slate-200/70" />
-              <div className="flex-1 space-y-1.5">
-                <div className="h-3 w-3/4 animate-pulse rounded bg-slate-200/70" />
-                <div className="h-2.5 w-2/3 animate-pulse rounded bg-slate-200/70" />
-              </div>
-            </div>
-            <div className="mt-3 h-4 w-1/3 animate-pulse rounded-full bg-slate-200/70" />
-            <div className="mt-2.5 h-7 w-full animate-pulse rounded-lg bg-slate-200/70" />
-          </div>
-        ))}
-      </div>
-      <div className="glass rounded-2xl p-4">
-        <div className="h-10 w-full animate-pulse rounded-lg bg-slate-200/70" />
-        <div className="mt-3 h-40 w-full animate-pulse rounded-xl bg-slate-200/70" />
-      </div>
-    </section>
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading team…" />
+    </div>
   )
 }

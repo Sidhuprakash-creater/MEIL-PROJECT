@@ -17,6 +17,7 @@
  */
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Building2, MapPin, Plus, Send, Activity as ActivityIcon, Flame, Zap, Droplets,
   Search, ChevronRight, ChevronDown, Pencil, Eye, ArrowUpRight, ArrowDownRight,
@@ -2866,18 +2867,8 @@ function UpcomingDeadlinesCard({ project, periods, allSubs, delay = 0.3, dragHan
  * ============================================================ */
 function MyProjectSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-64 animate-pulse rounded bg-slate-200/60" />
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="glass h-[110px] animate-pulse rounded-2xl" />
-        ))}
-      </div>
-      <div className="glass h-[130px] animate-pulse rounded-[24px]" />
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1.95fr)_minmax(0,1fr)]">
-        <div className="glass h-[460px] animate-pulse rounded-[20px]" />
-        <div className="glass h-[620px] animate-pulse rounded-[20px]" />
-      </div>
+    <div className="glass rounded-[26px] p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading your project…" />
     </div>
   )
 }
@@ -3116,6 +3107,26 @@ export function MyProjectModule() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {/* Compact project switcher (replaces the removed BU / registry cards) */}
+          <div className="glass-subtle flex items-center gap-2 rounded-full py-1.5 pl-3.5 pr-2.5 text-xs shadow-sm">
+            <Building2 className="h-3.5 w-3.5 shrink-0 text-sky-600" />
+            <select
+              value={effectiveSelectedId ?? ''}
+              onChange={(e) => {
+                setSelectedProjectId(e.target.value)
+                try { setAppProjectId(e.target.value) } catch {}
+              }}
+              className="max-w-[260px] cursor-pointer appearance-none bg-transparent text-[13px] font-bold text-slate-800 outline-none"
+              aria-label="Select project"
+            >
+              {allProjects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.projectCode} — {p.projectName}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          </div>
           {selectedProject && (
             <button
               onClick={() => setPreviewProjectId(selectedProject.id)}
@@ -3128,71 +3139,23 @@ export function MyProjectModule() {
       </motion.div>
 
       {/* ====================================================== */}
-      {/* BUSINESS UNIT CHOOSER & ASSIGNED PROJECTS SELECTOR     */}
+      {/* PROJECT DETAILS — full-width, fills the window.         */}
+      {/* (BU chooser + Project Registry removed by request;      */}
+      {/*  project switching lives in the compact header picker.) */}
       {/* ====================================================== */}
-      <BusinessUnitSelectorBar
-        businessUnits={uniqueBUs}
-        activeBu={buFilter}
-        onSelectBu={handleSelectBusinessUnit}
-        projects={allProjects}
-        selectedProjectId={effectiveSelectedId}
-        onSelectProject={(id) => {
-          setSelectedProjectId(id)
-          try {
-            setAppProjectId(id)
-          } catch {}
-        }}
+      <ProjectDetailsPanel
+        key={selectedProject?.id ?? 'none'}
+        project={selectedProject}
+        onUpdateProject={handleUpdateProject}
+        onOpenPreview={() => selectedProject && setPreviewProjectId(selectedProject.id)}
+        kpis={k}
+        subs={projectSubs}
+        activities={projectActivity.length > 0 ? projectActivity : globalActivity.filter(a => a.projectId === selectedProject?.id)}
+        evidence={projectEvidence}
+        periods={overview.periods}
+        currentPeriodLabel={currentPeriodLabel}
+        isExpanded
       />
-
-      {/* ====================================================== */}
-      {/* ROW 2: Registry LEFT | Details RIGHT                    */}
-      {/* ====================================================== */}
-      <div className={`grid grid-cols-1 gap-6 transition-all duration-300 items-stretch ${
-        isDetailsExpanded
-          ? 'grid-cols-1'
-          : 'lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]'
-      }`}>
-        {!isDetailsExpanded && (
-          <ProjectRegistryCard
-            projects={filteredProjects}
-            submissions={allSubs}
-            selectedId={effectiveSelectedId}
-            onSelect={setSelectedProjectId}
-            onOpenPreview={(id) => setPreviewProjectId(id)}
-            search={search}
-            setSearch={setSearch}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
-            buFilter={buFilter}
-            setBuFilter={setBuFilter}
-            periodFilter={periodFilter}
-            setPeriodFilter={setPeriodFilter}
-            typeFilter={typeFilter}
-            setTypeFilter={setTypeFilter}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            periods={overview.periods}
-            uniqueBUs={uniqueBUs}
-            uniqueTypes={uniqueTypes}
-            currentPeriodLabel={currentPeriodLabel}
-          />
-        )}
-
-        <ProjectDetailsPanel
-          key={selectedProject?.id ?? 'none'}
-          project={selectedProject}
-          onUpdateProject={handleUpdateProject}
-          onOpenPreview={() => selectedProject && setPreviewProjectId(selectedProject.id)}
-          kpis={k}
-          subs={projectSubs}
-          activities={projectActivity.length > 0 ? projectActivity : globalActivity.filter(a => a.projectId === selectedProject?.id)}
-          evidence={projectEvidence}
-          periods={overview.periods}
-          currentPeriodLabel={currentPeriodLabel}
-          isExpanded={isDetailsExpanded}
-          onToggleExpand={() => setIsDetailsExpanded(!isDetailsExpanded)}
-        />
-      </div>
 
       {/* ====================================================== */}
       {/* PROJECT PREVIEW MODAL                                   */}

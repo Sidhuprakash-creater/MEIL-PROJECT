@@ -17,6 +17,7 @@
  */
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import { toast } from 'sonner'
 import {
   History, Search, AlertOctagon, RefreshCw, Loader2, GitBranch, ShieldCheck,
@@ -843,24 +844,16 @@ function actionPill(action: string): string {
 // ============================================================
 function LogSkeleton() {
   return (
-    <div className="space-y-1.5">
-      {[...Array(8)].map((_, i) => (
-        <div key={i} className="h-14 animate-pulse rounded-xl bg-white/40" />
-      ))}
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[300px]" label="Loading audit log…" />
     </div>
   )
 }
 
 function TraceSkeleton() {
   return (
-    <div className="space-y-2">
-      <div className="h-16 animate-pulse rounded-xl bg-white/50" />
-      {[...Array(5)].map((_, i) => (
-        <div key={i} className="flex items-center gap-2">
-          <div className="h-5 w-5 animate-pulse rounded-full bg-white/50" />
-          <div className="h-10 flex-1 animate-pulse rounded-xl bg-white/40" />
-        </div>
-      ))}
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading trace…" />
     </div>
   )
 }

@@ -1,6 +1,7 @@
 'use client'
 
 import { FileText, AlertOctagon } from 'lucide-react'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import { type Project } from './core'
 
 /* ============================================================
@@ -58,15 +59,8 @@ export function describeLevelRecord(r: any): string {
 
 export function DataEntrySkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-64 animate-pulse rounded bg-slate-200/60" />
-      <div className="glass h-16 animate-pulse rounded-2xl" />
-      <div className="glass h-24 animate-pulse rounded-2xl" />
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="glass h-96 animate-pulse rounded-2xl lg:col-span-2" />
-        <div className="glass h-96 animate-pulse rounded-2xl lg:col-span-1" />
-      </div>
-      <div className="glass h-16 animate-pulse rounded-2xl" />
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Preparing Site Data Entry…" />
     </div>
   )
 }

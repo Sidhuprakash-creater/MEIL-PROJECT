@@ -16,7 +16,6 @@ import {
   Calendar,
   Sparkles,
   FileCheck2,
-  RefreshCw,
   Eye,
   Check,
 } from "lucide-react";
@@ -38,6 +37,7 @@ import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, getCachedPaData } from "@/lib/project-admin/client";
 import type { PaProjectInfo, PaKpis, PaCategoryProgress, PaDashboardAnalytics, PaActivityItem, ContributorRole } from "@/lib/project-admin/types";
 import { PaGlassCard, PaKpiCard, PaButton, PaStatusBadge, PaCircularProgress } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 
 export default function DashboardView() {
   const { navigate, financialYear } = usePaStore();
@@ -66,11 +66,8 @@ export default function DashboardView() {
 
   if (loading && !data) {
     return (
-      <div className="flex h-96 items-center justify-center">
-        <div className="flex items-center gap-3 pa-glass px-6 py-4 rounded-2xl">
-          <RefreshCw className="animate-spin text-[#315CFF]" size={20} />
-          <span className="text-sm font-semibold text-[#202938]">Loading Project Command Center…</span>
-        </div>
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[360px]" label="Loading Project Command Center…" />
       </div>
     );
   }
@@ -87,7 +84,7 @@ export default function DashboardView() {
               <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-100 text-blue-700">
                 {project?.code || "PRJ-ZOJ"}
               </span>
-              <PaStatusBadge status={project?.reportingStatus || "ON_TRACK"} />
+              <PaStatusBadge status={project?.status || project?.reportingStatus || "ON_TRACK"} />
               <span className="text-xs font-semibold text-[#64748B]">
                 Site Operational Command · {financialYear}
               </span>
@@ -108,7 +105,7 @@ export default function DashboardView() {
               <div className="text-[11px] font-bold uppercase text-[#8F9EAF]">Reporting Deadline</div>
               <div className="text-sm font-extrabold text-[#E35D6A] flex items-center gap-1.5 justify-end mt-0.5">
                 <Calendar size={14} />
-                <span>{project?.reportingDeadline || "31 Mar 2026"}</span>
+                <span>{project?.deadline || project?.reportingDeadline || "31 Mar 2026"}</span>
               </div>
             </div>
 
@@ -138,7 +135,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Assigned Users"
-          value={kpis?.totalAssignedUsers || 9}
+          value={kpis?.totalAssignedUsers ?? 0}
           label="Active site team"
           icon={Users}
           accentColor="#6542F5"
@@ -146,7 +143,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Completed Submissions"
-          value={kpis?.completedSubmissions || 4}
+          value={kpis?.approvedSubmissions ?? 0}
           label="Ready for consolidation"
           icon={CheckCircle2}
           accentColor="#16A67A"
@@ -154,7 +151,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Pending Submissions"
-          value={kpis?.pendingSubmissions || 3}
+          value={kpis?.pendingReviewSubmissions ?? 0}
           label="In preparation"
           icon={Clock}
           accentColor="#347DEB"
@@ -162,7 +159,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Draft Submissions"
-          value={kpis?.draftSubmissions || 2}
+          value={kpis?.draftSubmissions ?? 0}
           label="Saved by contributors"
           icon={FileEdit}
           accentColor="#E9A23B"
@@ -170,7 +167,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Returned for Correction"
-          value={kpis?.returnedForCorrection || 1}
+          value={kpis?.returnedSubmissions ?? 0}
           label="Requires contributor action"
           icon={AlertTriangle}
           accentColor="#E35D6A"
@@ -178,7 +175,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Evidence Uploaded"
-          value={kpis?.evidenceUploaded || 6}
+          value={kpis?.totalEvidenceDocs ?? 0}
           label="Audit-ready files"
           icon={FolderLock}
           accentColor="#06B6D4"
@@ -186,7 +183,7 @@ export default function DashboardView() {
         />
         <PaKpiCard
           title="Missing Evidence"
-          value={kpis?.missingEvidence || 2}
+          value={kpis?.missingEvidenceDocs ?? 0}
           label="Mandatory compliance gaps"
           icon={FileQuestion}
           accentColor="#EC4899"
@@ -204,7 +201,7 @@ export default function DashboardView() {
           </div>
 
           <div className="my-6">
-            <PaCircularProgress percentage={kpis?.overallCompletionPct || 65} size={150} strokeWidth={12} />
+            <PaCircularProgress percentage={Math.round(kpis?.overallProgress ?? 0)} size={150} strokeWidth={12} />
           </div>
 
           <div className="w-full space-y-2 text-xs">
@@ -214,7 +211,7 @@ export default function DashboardView() {
             </div>
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50/80">
               <span className="text-[#64748B]">Missing Evidence Files</span>
-              <span className="font-bold text-rose-500">{kpis?.missingEvidence || 2} items</span>
+              <span className="font-bold text-rose-500">{kpis?.missingEvidenceDocs ?? 0} items</span>
             </div>
             <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50/80">
               <span className="text-[#64748B]">BU Manager Review Cycle</span>

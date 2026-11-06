@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Droplet, CheckCircle2, AlertTriangle, Save, Building2, Layers, Check, Eye, Plus, Trash2, Edit3, ArrowLeft, Waves, CloudRain, RefreshCw, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { EmissionFactorInfoIcon } from '../../emission-factor-info'
@@ -130,8 +130,11 @@ export function Level2WaterForm({
   onEvidenceUploaded,
   onReviewEvidence,
   onViewItem,
+  selectedSourceToEdit,
+  onItemStaged,
 }: LevelFormProps) {
   const apiBase = useApiBase()
+  const addBtnRef = useRef<HTMLButtonElement>(null)
 
   const key = `l2-${projectId}-${periodId}`
   const initial = formStateRef.current[key] || {}
@@ -195,6 +198,14 @@ export function Level2WaterForm({
   const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Automatically open and load source item when clicked/dropped from Emission Sequence Journey
+  useEffect(() => {
+    if (selectedSourceToEdit?.levelKey === 'level2' && selectedSourceToEdit.sourceName) {
+      setViewStep('ENTRY')
+      handleSelectSource(selectedSourceToEdit.sourceName)
+    }
+  }, [selectedSourceToEdit])
 
   // Handle source chip click
   const handleSelectSource = (src: string) => {
@@ -285,6 +296,18 @@ export function Level2WaterForm({
 
     setStagedItems(updated)
     setEditingItemId(null)
+
+    // Float the captured item card over to the right-panel journey list
+    onItemStaged?.(
+      {
+        levelKey: 'level2',
+        id: itemPayload.id,
+        name: waterSource,
+        quantity: qNum,
+        unit,
+      },
+      addBtnRef.current
+    )
   }
 
   const handleEditStagedItem = (item: StagedWaterItem) => {
@@ -862,6 +885,7 @@ onOcrApply={(f) => {
           <div className="sm:col-span-2 pt-1">
             <button
               type="button"
+              ref={addBtnRef}
               onClick={handleAddOrUpdateItem}
               disabled={readOnly}
               className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-cyan-600 via-blue-600 to-cyan-700 py-3.5 px-6 text-sm font-bold text-white shadow-lg shadow-cyan-500/25 ring-1 ring-white/30 backdrop-blur-md transition-all hover:shadow-xl hover:shadow-cyan-500/35 hover:scale-[1.008] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer group"

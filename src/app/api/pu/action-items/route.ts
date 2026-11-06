@@ -53,6 +53,37 @@ export async function GET() {
     }
   }
 
+  // 3. Tasks assigned to THIS contributor by the Project Admin (task assignment
+  //    surface). Scope = explicit assigneeFilter (user id) or, for legacy rows,
+  //    assignee-label name match. Open corrective-action correction tasks here
+  //    as well so nothing assigned in the Command Center is invisible.
+  if (dataEntryRoles.includes(roleKey)) {
+    const assigned = await db.task.findMany({
+      where: {
+        AND: [
+          {
+            OR: [
+              { assigneeFilter: user.id },
+              { assigneeLabel: user.name },
+            ],
+          },
+          { status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+        ],
+      },
+      orderBy: { dueDate: 'asc' },
+      take: 8,
+    })
+    for (const t of assigned) {
+      tasks.push({
+        id: `task-${t.id}`, type: 'ASSIGNED_TASK', title: t.title,
+        description: t.description || `Assigned by Project Admin — ${t.category || 'reporting'} task.`,
+        severity: t.priority === 'HIGH' || t.priority === 'CRITICAL' ? 'critical' : t.priority === 'LOW' ? 'info' : 'warning',
+        module: 'tasks', entityId: t.id, status: t.status,
+        dueDate: (t.dueDate as Date | null)?.toISOString(),
+      })
+    }
+  }
+
   // Sort by severity (critical first, then warning, then info)
   const sevOrder = { critical: 0, warning: 1, info: 2 }
   tasks.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity])

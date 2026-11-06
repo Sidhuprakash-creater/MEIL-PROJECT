@@ -10,7 +10,9 @@ import {
   invalidatePaServerCache,
 } from "@/lib/project-admin/server";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
-import { getLevelRecords } from "@/lib/pu/level-records";
+import { getLevelRecords, updateLevelRecordStatus } from "@/lib/pu/level-records";
+import { parseJsonArray } from "@/lib/pu/workflow";
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from "@/lib/portal-cache";
 import type { ContributorRole } from "@/lib/project-admin/types";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +22,12 @@ export async function GET(req: NextRequest) {
     const ctx = await getProjectAdminContext();
     if (!ctx) return paFail("Project Admin context not resolved.", 401);
 
+    /* Same bypass contract as the submissions route: ?bypass=true or the
+       x-bypass-cache header skips the 45s server cache (client sets bypass=true
+       when it needs guaranteed-fresh data after a mutation). */
+    const bypassCache = req.nextUrl.searchParams.get("bypass") === "true" || req.headers.get("x-bypass-cache") === "true";
     const cacheKey = `collection-status:${ctx.projectId}`;
-    const cached = getPaServerCache<any>(cacheKey);
+    const cached = !bypassCache ? getPaServerCache<any>(cacheKey) : null;
     if (cached) {
       return paOk(cached);
     }
@@ -37,7 +43,9 @@ export async function GET(req: NextRequest) {
         },
         select: {
           id: true,
+          projectId: true,
           category: true,
+          module: true,
           title: true,
           status: true,
           submittedById: true,
@@ -49,6 +57,10 @@ export async function GET(req: NextRequest) {
           metricUnit: true,
           reportingPeriodId: true,
           recordIds: true,
+          values: true,
+          corrections: true,
+          reviewComment: true,
+          completionPct: true,
         },
         orderBy: { updatedAt: "desc" },
       }),
@@ -62,6 +74,8 @@ export async function GET(req: NextRequest) {
           submittedBy: true,
           submittedAt: true,
           updatedAt: true,
+          recordIds: true,
+          reportingPeriodId: true,
         },
         orderBy: { updatedAt: "desc" },
       }),
@@ -79,6 +93,20 @@ export async function GET(req: NextRequest) {
         select: { id: true, submissionId: true, name: true },
       }),
     ]);
+
+    /* Project cards for the full-window review (id → project info). */
+    const projectIds = [...new Set(submissions.map((s) => (s as any).projectId).filter(Boolean))];
+    const projects = projectIds.length
+      ? await db.project.findMany({
+          where: { id: { in: projectIds } },
+          select: {
+            id: true, code: true, name: true, location: true, ptype: true,
+            capacityMw: true, status: true,
+            businessUnit: { select: { name: true } },
+          },
+        })
+      : [];
+    const projectById = new Map(projects.map((p) => [p.id, p]));
 
     const userMap = new Map(users.map((u) => [u.id, u]));
 
@@ -105,31 +133,70 @@ export async function GET(req: NextRequest) {
       ? await db.evidence.findMany({ where: { id: { in: [...evidenceIdSet] } }, select: { id: true, fileName: true, documentType: true, filePath: true } })
       : [];
     const evidenceById = new Map(evidenceRows.map((e) => [e.id, e]));
+    const toEvidenceRef = (eid: string) => {
+      const e = evidenceById.get(eid);
+      return {
+        id: eid,
+        fileName: e?.fileName || eid,
+        documentType: e?.documentType || null,
+      };
+    };
     const recordsFor = (rawRecordIds: unknown) => {
       let rids: string[] = [];
       try { rids = typeof rawRecordIds === "string" ? JSON.parse(rawRecordIds) : rawRecordIds || []; } catch {}
       return rids
         .map((rid) => recordById.get(rid))
         .filter(Boolean)
-        .map((rec) => ({
-          recordId: rec!.id,
-          level: rec!.level,
-          levelName: rec!.levelName,
-          recordStatus: rec!.status,
-          validationStatus: rec!.validationStatus,
-          items: (Array.isArray(rec!.data?.items) ? rec!.data.items : []).map((it: any) => ({
-            ...it,
-            evidenceFileNames: [
-              ...(Array.isArray(it?.evidenceFiles) ? it.evidenceFiles : []),
-              ...((Array.isArray(it?.evidenceIds) ? it.evidenceIds : it?.evidenceId ? [it.evidenceId] : []) as string[])
-                .map((eid) => evidenceById.get(eid)?.fileName)
-                .filter(Boolean),
-            ],
-          })),
-        }));
+        .map((rec) => {
+          const recItems = Array.isArray(rec!.data?.items) ? rec!.data.items : [];
+          const recEvidenceIds = [
+            ...(rec!.evidenceId ? [rec!.evidenceId] : []),
+            ...((Array.isArray(rec!.evidenceIds) ? rec!.evidenceIds : []) as string[]),
+          ].filter(Boolean) as string[];
+          return {
+            recordId: rec!.id,
+            level: rec!.level,
+            levelName: rec!.levelName,
+            recordStatus: rec!.status,
+            validationStatus: rec!.validationStatus,
+            calculation: rec!.calculation || null,
+            createdAt: rec!.enteredAt ?? null,
+            updatedAt: rec!.updatedAt,
+            /* Flat form fields for records without staged items (forms, declarations). */
+            fields:
+              recItems.length === 0
+                ? Object.entries(rec!.data || {})
+                    .filter(([k]) => k !== "items")
+                    .map(([k, v]) => ({ k, v: v as any }))
+                : [],
+            /* Record-level evidence vault refs (same shape as item evidence). */
+            evidence: [...new Set(recEvidenceIds)].map(toEvidenceRef),
+            items: recItems.map((it: any) => ({
+              ...it,
+              evidenceFileNames: [
+                ...(Array.isArray(it?.evidenceFiles) ? it.evidenceFiles : []),
+                ...((Array.isArray(it?.evidenceIds) ? it.evidenceIds : it?.evidenceId ? [it.evidenceId] : []) as string[])
+                  .map((eid) => evidenceById.get(eid)?.fileName)
+                  .filter(Boolean),
+              ],
+              /* Clickable evidence resolution (id → file preview/download). */
+              evidence: (
+                [...new Set([
+                  ...((Array.isArray(it?.evidenceIds) ? it.evidenceIds : []) as string[]),
+                  ...(it?.evidenceId ? [it.evidenceId] : []),
+                ])] as string[]
+              )
+                .filter(Boolean)
+                .map(toEvidenceRef),
+            })),
+          };
+        });
     };
     const userByRoleMap = new Map(users.map((u) => [u.role, u]));
     const evidenceBySubMap = new Set(evidenceDocs.map((e) => e.submissionId).filter(Boolean));
+    /* Ids already present in the standard submissions list — used to skip
+       duplicated soSubmissions without an O(n²) `.some()` scan. */
+    const mirroredIds = new Set(submissions.map((m) => m.id));
 
     // Combine standard and SO submissions
     const allList = [
@@ -148,45 +215,90 @@ export async function GET(req: NextRequest) {
         metricUnit: s.metricUnit,
         period: periodLabelById.get(s.reportingPeriodId || "") || s.reportingPeriodId || "Q4 FY 2025-26",
         sourceRecords: recordsFor(s.recordIds),
-        hasEvidence: evidenceBySubMap.has(s.id) || (s.recordIds ? JSON.parse(String(s.recordIds)).length > 0 : false),
+        hasEvidence: evidenceBySubMap.has(s.id) || (s.recordIds ? parseJsonArray(s.recordIds).length > 0 : false),
       })),
-      ...soSubmissions.map((s, idx) => ({
-        id: s.id,
-        category: s.module,
-        title: s.title || `${s.module} Data Package (Site Operations)`,
-        status: s.status,
-        submittedById: s.submittedBy,
-        responsibleName: s.submittedBy || "Site Operations Team",
-        dueDate: null,
-        overdue: false,
-        submittedAt: s.submittedAt,
-        updatedAt: s.updatedAt,
-        metricValue: null,
-        metricUnit: null,
-        period: "Q4 FY 2025-26",
-        hasEvidence: true,
-      })),
+      /* Site-ops submissions — enriched with their LevelRecords (via recordIds)
+         and the real reporting period, so the review window shows full
+         per-source details for HR / EHS / Finance / Procurement / CSR /
+         Compliance submissions exactly like the environment user's. */
+      ...soSubmissions
+        .filter((s) => !mirroredIds.has(s.id))
+        .map((s) => ({
+          id: s.id,
+          category: s.module,
+          title: s.title || `${s.module} Data Package (Site Operations)`,
+          status: s.status,
+          submittedById: s.submittedBy,
+          responsibleName: s.submittedBy || "Site Operations Team",
+          dueDate: null,
+          overdue: false,
+          submittedAt: s.submittedAt,
+          updatedAt: s.updatedAt,
+          metricValue: null,
+          metricUnit: null,
+          period: periodLabelById.get(s.reportingPeriodId || "") || "—",
+          sourceRecords: recordsFor(s.recordIds),
+          hasEvidence: true,
+        })),
     ];
 
-    const categoryKeys = Object.keys(CONTRIBUTOR_CATEGORIES) as ContributorRole[];
+    /* Explicit category/module → contributor-role mapping. The previous
+       substring + row-index fallback mis-assigned whole categories (e.g. an
+       ENERGY submission labeled "Finance") because 'ENVIRONMENT' never
+       contains 'ENV_DATA' and unmatched rows fell through to idx % length. */
+    const CATEGORY_ROLE_MAP: Array<[string, ContributorRole]> = [
+      ["WORKFORCE", "HR_USER"], ["TRAINING", "HR_USER"], ["PEOPLE", "HR_USER"],
+      ["INCIDENTS", "EHS_USER"], ["SAFETY", "EHS_USER"],
+      ["FINANCE", "FIN_RESOURCE_USER"],
+      ["PROCUREMENT", "PROCUREMENT_USER"],
+      ["CSR", "CSR_USER"],
+      ["COMPLIANCE", "COMPLIANCE_USER"],
+      ["ENERGY", "ENV_DATA_USER"], ["WATER", "ENV_DATA_USER"],
+      ["EMISSIONS", "ENV_DATA_USER"], ["WASTE", "ENV_DATA_USER"],
+      ["ENVIRONMENT", "ENV_DATA_USER"], ["INITIATIVES", "ENV_DATA_USER"],
+    ];
+    const resolveCatKey = (category?: string | null): ContributorRole => {
+      const c = String(category || "").toUpperCase();
+      const hit = CATEGORY_ROLE_MAP.find(([k]) => c.includes(k));
+      return hit ? hit[1] : "ENV_DATA_USER";
+    };
 
-    const items = allList.map((s, idx) => {
-      const catKey = (categoryKeys.find(
-        (k) => s.category?.toUpperCase().includes(k.replace("_USER", ""))
-      ) || categoryKeys[idx % categoryKeys.length]) as ContributorRole;
+    const items = allList.map((s) => {
+      const catKey = resolveCatKey(s.category);
 
       const def = (CONTRIBUTOR_CATEGORIES as any)[catKey];
       const u = s.submittedById ? userMap.get(s.submittedById) : userByRoleMap.get(catKey);
 
       const due = s.dueDate ? new Date(s.dueDate) : new Date("2026-03-31T00:00:00.000Z");
-      const isOverdue = Boolean(s.overdue || (s.status !== "APPROVED" && s.status !== "SUBMITTED" && due.getTime() < Date.now()));
+      /* Terminal / in-review states can never be "overdue" — only unworked
+         (NOT_STARTED / DRAFT) or returned rows age past their due date. */
+      const OVERDUE_EXEMPT = new Set([
+        "APPROVED", "SUBMITTED", "BU_APPROVED", "SUBSIDIARY_APPROVED", "HQ_REVIEW", "LOCKED",
+      ]);
+      const isOverdue = Boolean(s.overdue || (!OVERDUE_EXEMPT.has(s.status) && due.getTime() < Date.now()));
 
       let subStatus: string = "NOT_STARTED";
-      if (s.status === "APPROVED" || s.status === "BU_APPROVED") subStatus = "APPROVED";
+      if (s.status === "APPROVED" || s.status === "BU_APPROVED" || s.status === "LOCKED") subStatus = "APPROVED";
       else if (s.status === "SUBMITTED") subStatus = "SUBMITTED";
-      else if (s.status === "UNDER_REVIEW" || s.status === "ASSIGNED") subStatus = "UNDER_REVIEW";
+      else if (s.status === "UNDER_REVIEW" || s.status === "ASSIGNED" || s.status === "RESUBMITTED") subStatus = "UNDER_REVIEW";
       else if (s.status === "CHANGES_REQUESTED" || s.status === "REJECTED") subStatus = "RETURNED";
       else if (s.status === "DRAFT") subStatus = "DRAFT";
+
+      /* Review-window extras: parsed values, existing reviewer corrections and
+         the general review comment — so the full-window view shows the exact
+         rejection marks the contributor sees. */
+      let correctionsArr: any[] = [];
+      let parsedValues: any[] = [];
+      try {
+        const c = typeof (s as any).corrections === "string" ? JSON.parse((s as any).corrections || "[]") : (s as any).corrections;
+        if (Array.isArray(c)) correctionsArr = c;
+      } catch {}
+      try {
+        const pv = typeof (s as any).values === "string" ? JSON.parse((s as any).values || "[]") : (s as any).values;
+        if (Array.isArray(pv)) parsedValues = pv;
+      } catch {}
+
+      const proj = projectById.get((s as any).projectId) || null;
 
       return {
         id: s.id,
@@ -194,7 +306,9 @@ export async function GET(req: NextRequest) {
         categoryLabel: def?.label || s.category,
         assignedUserId: u?.id || s.submittedById || "",
         assignedUserName: u?.name || s.responsibleName || def?.defaultAssignee || "Site Contributor",
-        sectionCode: `${catKey.slice(0, 3)}-0${(idx % 4) + 1}`,
+        assignedUserEmail: u?.email || "",
+        assignedUserDbRole: u?.role || "",
+        sectionCode: `${catKey.slice(0, 3)}-01`,
         sectionName: s.title || `${def?.label || 'General'} Metric Disclosure`,
         period: s.period,
         submissionStatus: subStatus,
@@ -205,6 +319,23 @@ export async function GET(req: NextRequest) {
         metricValue: s.metricValue,
         metricUnit: s.metricUnit,
         sourceRecords: (s as any).sourceRecords || [],
+        parsedValues,
+        corrections: correctionsArr,
+        reviewComment: (s as any).reviewComment || null,
+        reviewStatus: (s as any).status || "",
+        completionPct: (s as any).completionPct ?? null,
+        revisionNumber: (s as any).revisionNumber ?? null,
+        project: proj
+          ? {
+              name: proj.name,
+              code: proj.code,
+              location: proj.location || "",
+              ptype: proj.ptype || "",
+              capacityMw: proj.capacityMw ?? null,
+              status: proj.status || "",
+              businessUnitName: (proj as any).businessUnit?.name || "",
+            }
+          : null,
         updatedAt: s.updatedAt ? new Date(s.updatedAt).toISOString() : new Date().toISOString(),
       };
     });
@@ -240,6 +371,11 @@ export async function POST(req: NextRequest) {
     if (!submissionId) return paFail("submissionId is required.", 400);
 
     invalidatePaServerCache(); // Invalidate server cache on mutation
+    /* Bust the PU portal caches too so contributors see approve/reject
+       decisions without waiting for the client/server TTLs. */
+    invalidatePuOverviewCache();
+    invalidatePuSubmissionsCache();
+    invalidatePuNotificationsCache();
 
     if (action === "approve") {
       const sub = await db.submission.findUnique({
@@ -268,7 +404,9 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Sync underlying records to ACTIVE
+      // Sync underlying records to ACTIVE — both the Prisma mirrors (env
+      // levels) AND the JSON LevelRecords every module stores (so HR / EHS /
+      // Finance / Procurement / CSR / Compliance records activate too).
       if (sub?.recordIds) {
         try {
           const rids = typeof sub.recordIds === "string" ? JSON.parse(sub.recordIds) : sub.recordIds;
@@ -278,6 +416,9 @@ export async function POST(req: NextRequest) {
               db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
               db.wasteRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
             ]);
+            for (const rid of rids) {
+              try { updateLevelRecordStatus(String(rid), "ACTIVE"); } catch {}
+            }
           }
         } catch {}
       }
@@ -328,6 +469,11 @@ export async function POST(req: NextRequest) {
 
       // 2. Automatically create a corrective task for the contributor
       const taskRef = `CORR-${ctx.projectCode}-${Date.now().toString().slice(-4)}`;
+      /* Resolve the contributor's name so the Task Assignments table shows a
+         human label (assigneeLabel is matched by name on the tasks screen). */
+      const assignee = assignedUserId
+        ? await db.user.findUnique({ where: { id: assignedUserId }, select: { name: true } })
+        : null;
       await db.task.create({
         data: {
           ref: taskRef,
@@ -335,7 +481,7 @@ export async function POST(req: NextRequest) {
           description: comments || "Project Admin requested clarification and evidence re-submission.",
           category: category || "ENVIRONMENT",
           assigneeType: "USER",
-          assigneeLabel: assignedUserId || "Contributor",
+          assigneeLabel: assignee?.name || assignedUserId || "Contributor",
           businessUnitId: ctx.businessUnitId,
           subsidiaryId: ctx.subsidiaryId,
           priority: "HIGH",
@@ -373,6 +519,38 @@ export async function POST(req: NextRequest) {
         { submissionId, status: "CHANGES_REQUESTED", taskRef },
         "Correction request dispatched to contributor lead."
       );
+    }
+
+    if (action === "remind") {
+      const sub = await db.submission.findUnique({
+        where: { id: submissionId },
+        select: { id: true, title: true, submittedById: true },
+      });
+
+      // Notify the contributor (mirror of the approve-branch notification shape)
+      await db.notification.create({
+        data: {
+          ntype: "DEADLINE",
+          title: `Reminder: ${sub?.title || "Site ESG Record"}`,
+          body: `Project Admin ${ctx.userName} reminded you to complete and submit the pending data for ${ctx.projectName}.`,
+          severity: "WARNING",
+          linkView: "submissions",
+          refId: sub?.submittedById || submissionId,
+          subsidiaryId: ctx.subsidiaryId,
+        },
+      });
+
+      await logProjectActivity({
+        actorName: ctx.userName,
+        actorRole: "Project Admin",
+        action: "REMINDER_SENT",
+        targetType: "Submission",
+        targetLabel: sub?.title || submissionId,
+        category: "Compliance",
+        severity: "INFO",
+      });
+
+      return paOk({ submissionId }, "Reminder sent to contributor successfully.");
     }
 
     return paFail("Unknown action requested.", 400);

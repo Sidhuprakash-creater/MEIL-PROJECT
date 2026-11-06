@@ -15,6 +15,7 @@
  */
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import { toast } from 'sonner'
 import {
   FileCheck2, ChevronDown, ChevronRight, Sparkles, AlertOctagon, AlertTriangle,
@@ -914,11 +915,8 @@ function PreviewBody({ preview }: { preview: PreviewResponse }) {
 // ============================================================
 function BrsrSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-64 animate-pulse rounded bg-slate-200/60" />
-      <div className="so-glass h-48 animate-pulse rounded-2xl" />
-      <div className="so-glass h-96 animate-pulse rounded-2xl" />
-      <div className="so-glass h-40 animate-pulse rounded-2xl" />
+    <div className="so-glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading BRSR data…" />
     </div>
   )
 }

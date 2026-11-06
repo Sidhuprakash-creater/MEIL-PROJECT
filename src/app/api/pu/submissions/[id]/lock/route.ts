@@ -12,6 +12,7 @@ import {
   SAFE_PROJECT,
   withProjectCompat,
 } from '@/lib/pu/workflow'
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -118,6 +119,12 @@ export async function POST(
       module: submission.module,
       status: toStatus,
     })
+
+    /* Keep portal dashboards realtime — bust the overview/submissions caches
+       so Overview, Analytics and Submissions reflect this lock immediately. */
+    invalidatePuOverviewCache()
+    invalidatePuSubmissionsCache()
+    invalidatePuNotificationsCache()
 
     return NextResponse.json({
       submission: { ...updated, project: updated?.project ? withProjectCompat(updated.project) : { ...SAFE_PROJECT } },

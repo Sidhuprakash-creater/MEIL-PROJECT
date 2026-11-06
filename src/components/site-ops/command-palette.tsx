@@ -63,7 +63,6 @@ const MODULES: ModuleEntry[] = [
   { key: 'data-entry', label: 'Data Entry',   icon: FileText,         shortcut: 'G D', desc: 'Capture source data + run engines' },
   { key: 'evidence',   label: 'Evidence',     icon: Link2,            shortcut: 'G E', desc: 'Evidence vault + verification' },
   { key: 'submissions',label: 'Submissions',  icon: Send,             shortcut: 'G S', desc: 'Workflow + approval chain' },
-  { key: 'reports',    label: 'Reports',       icon: FileBarChart,     shortcut: 'G R', desc: 'Generate + download reports' },
   { key: 'analytics',  label: 'Analytics',     icon: TrendingUp,       shortcut: 'G A', desc: 'Cross-cutting ESG analytics' },
   { key: 'audit',      label: 'Audit & Trace', icon: History,          shortcut: 'G T', desc: 'Traceability tree across the chain' },
   { key: 'brsr',       label: 'BRSR',          icon: FileCheck2,        shortcut: 'G B', desc: 'BRSR engine + readiness' },

@@ -20,7 +20,7 @@ import {
 } from '@/lib/pu/workflow'
 
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
-import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache, getPuCorrectionsCache, setPuCorrectionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -49,6 +49,39 @@ function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {},
   let metricName = 'Data Points'
   let metricValue = 0
   let metricUnit = ''
+
+  // Itemized multi-source captures (levels 1/2/4 staged draft items) take
+  // priority — one metric row per captured source, mirroring exactly what the
+  // contributor staged on the left panel form.
+  const stagedItems: any[] = Array.isArray(data?.items) ? data.items : []
+  if (stagedItems.length > 0 && (m === 'ENERGY' || m === 'WATER' || m === 'WASTE')) {
+    let sumQty = 0
+    let sumTco2 = 0
+    for (const it of stagedItems) {
+      const name = it.energySource || it.waterSource || it.wasteCategory || 'Source item'
+      const qty = Number(it.consumptionQuantity || it.waterQuantity || it.quantityGenerated || 0)
+      const unit = it.unit || (m === 'ENERGY' ? 'kWh' : m === 'WATER' ? 'kL' : 'MT')
+      const tco2 = Number(it.estTco2e || 0)
+      sumQty += qty
+      sumTco2 += tco2
+      values.push({ label: name, value: qty.toLocaleString(), unit })
+    }
+    if (m === 'ENERGY') {
+      metricName = 'Total Energy Consumption'
+      metricValue = sumQty
+      metricUnit = 'kWh'
+      values.push({ label: 'Total Estimated GHG', value: sumTco2.toFixed(2), unit: 'tCO2e' })
+    } else if (m === 'WATER') {
+      metricName = 'Total Water Withdrawal'
+      metricValue = sumQty
+      metricUnit = 'kL'
+    } else {
+      metricName = 'Total Waste Generated'
+      metricValue = sumQty
+      metricUnit = 'MT'
+    }
+    return { metricName, metricValue, metricUnit, values }
+  }
 
   if (m === 'ENERGY') {
     const grid = Number(data.electricityGridKwh || data.gridKwh || 0)
@@ -132,38 +165,47 @@ export async function GET(req: NextRequest) {
     const records = getLevelRecords(projectId, periodId, level)
 
     /* Reviewer corrections ride along so the Data Entry screen can show WHY a
-       record was sent back — keyed by the record they target. */
+       record was sent back — keyed by the record they target. Served from a
+       short-TTL cache (cleared on every submission mutation) so the screen
+       loads without the ~1s remote round trip. */
     const correctionsByRecord: Record<string, any[]> = {}
     try {
-      const scopeSubs = await db.submission.findMany({
-        where: {
-          ...(projectId ? { projectId } : {}),
-          ...(periodId ? { reportingPeriodId: periodId } : {}),
-          status: { in: ['CHANGES_REQUESTED', 'REJECTED', 'CORRECTION_REQUESTED'] },
-        },
-        select: { id: true, corrections: true, reviewComment: true },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      })
-      for (const s of scopeSubs) {
-        let list: any[] = []
-        try {
-          const parsed = typeof s.corrections === 'string' ? JSON.parse(s.corrections) : s.corrections
-          if (Array.isArray(parsed)) list = parsed
-        } catch {}
-        for (const c of list) {
-          if (c?.recordId) {
-            (correctionsByRecord[c.recordId] ||= []).push({
-              field: c.field,
-              issue: c.issue || c.comment,
-              severity: c.severity,
-              comment: c.comment || c.issue,
-              reviewer: c.requesterName,
-              createdAt: c.createdAt,
-              submissionId: s.id,
-            })
+      const corrKey = `${projectId ?? ''}|${periodId ?? ''}`
+      const cachedCorrections = getPuCorrectionsCache(corrKey)
+      if (cachedCorrections) {
+        Object.assign(correctionsByRecord, cachedCorrections)
+      } else {
+        const scopeSubs = await db.submission.findMany({
+          where: {
+            ...(projectId ? { projectId } : {}),
+            ...(periodId ? { reportingPeriodId: periodId } : {}),
+            status: { in: ['CHANGES_REQUESTED', 'REJECTED', 'CORRECTION_REQUESTED'] },
+          },
+          select: { id: true, corrections: true, reviewComment: true },
+          take: 50,
+          orderBy: { updatedAt: 'desc' },
+        })
+        for (const s of scopeSubs) {
+          let list: any[] = []
+          try {
+            const parsed = typeof s.corrections === 'string' ? JSON.parse(s.corrections) : s.corrections
+            if (Array.isArray(parsed)) list = parsed
+          } catch {}
+          for (const c of list) {
+            if (c?.recordId) {
+              (correctionsByRecord[c.recordId] ||= []).push({
+                field: c.field,
+                issue: c.issue || c.comment,
+                severity: c.severity,
+                comment: c.comment || c.issue,
+                reviewer: c.requesterName,
+                createdAt: c.createdAt,
+                submissionId: s.id,
+              })
+            }
           }
         }
+        setPuCorrectionsCache(corrKey, correctionsByRecord)
       }
     } catch {}
 
@@ -1128,18 +1170,34 @@ export async function POST(req: NextRequest) {
       const userBuId = user.scopes?.find((s) => s.scopeType === 'BUSINESS_UNIT')?.scopeId || null
       const userSubId = user.scopes?.find((s) => s.scopeType === 'SUBSIDIARY')?.scopeId || null
 
-      // Look for an existing DRAFT submission for the same project + period + module
+      // Evidence names attached to the staged items — persisted on the ledger's
+      // evidence JSON column so the Submissions module shows the real documents.
+      const evidenceNames: string[] = Array.from(new Set(
+        (Array.isArray(data.items) ? data.items : []).flatMap((it: any) =>
+          Array.isArray(it?.evidenceFiles) ? it.evidenceFiles.filter(Boolean) : []
+        ) as string[],
+      ))
+      const allEvidenceIds: string[] = Array.isArray(evidenceIds) && evidenceIds.length
+        ? evidenceIds.filter(Boolean)
+        : evidenceId
+          ? [evidenceId]
+          : []
+
+      // Look for an existing open submission (DRAFT or one rejected by Project
+      // Admin) for the same project + period + module. A rejected submission is
+      // updated in place on resubmit — never duplicated.
       const existingDraft = await db.submission.findFirst({
         where: {
           projectId,
           reportingPeriodId,
           module: record.module,
-          status: 'DRAFT',
+          status: { in: ['DRAFT', 'CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'] },
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ status: 'desc' }, { updatedAt: 'desc' }],
       })
 
       if (existingDraft) {
+        const wasRejected = ['CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'].includes(existingDraft.status)
         const existingRecordIds = parseRecordIds(existingDraft.recordIds)
         if (!existingRecordIds.includes(recId)) existingRecordIds.push(recId)
         synchedSubmission = await db.submission.update({
@@ -1147,8 +1205,9 @@ export async function POST(req: NextRequest) {
           data: {
             title: submissionTitle,
             recordIds: JSON.stringify(existingRecordIds),
-            status: isSubmittingForReview ? 'SUBMITTED' : 'DRAFT',
-            submittedAt: isSubmittingForReview ? new Date() : null,
+            status: isSubmittingForReview ? 'SUBMITTED' : existingDraft.status,
+            submittedAt: isSubmittingForReview ? new Date() : existingDraft.submittedAt,
+            ...(isSubmittingForReview ? { reviewComment: null, reviewedAt: null } : {}),
             submittedById: user.id,
             businessUnitId: userBuId,
             subsidiaryId: userSubId,
@@ -1156,8 +1215,9 @@ export async function POST(req: NextRequest) {
             metricValue: modMetrics.metricValue,
             metricUnit: modMetrics.metricUnit,
             values: JSON.stringify(modMetrics.values),
+            evidence: evidenceNames.length ? JSON.stringify(evidenceNames) : undefined,
             completionPct: hasErrors ? 50 : 100,
-            evidenceCount: evidenceId ? Math.max(1, existingDraft.evidenceCount ?? 0) : (existingDraft.evidenceCount ?? 0),
+            evidenceCount: allEvidenceIds.length || evidenceNames.length || existingDraft.evidenceCount || 0,
             validationPassed: hasErrors ? 0 : Math.max(1, existingDraft.validationPassed ?? 0),
             validationErrors: hasErrors ? issues.length : 0,
           },
@@ -1166,6 +1226,20 @@ export async function POST(req: NextRequest) {
             reportingPeriod: { select: { id: true, periodLabel: true, year: true } },
           },
         })
+        if (isSubmittingForReview) {
+          await appendHistory({
+            submissionId: existingDraft.id,
+            fromStatus: existingDraft.status,
+            toStatus: 'SUBMITTED',
+            actorId: user.id,
+            actorName: user.name,
+            actorRole: primaryRoleLabel(user),
+            action: wasRejected ? 'RESUBMIT' : 'SUBMIT',
+            comment: wasRejected
+              ? `Revised ${record.levelName} data resubmitted from Data Entry after correction request.`
+              : `${record.levelName} submitted for Project Admin review from Data Entry.`,
+          }).catch(() => {})
+        }
       } else {
         synchedSubmission = await db.submission.create({
           data: {
@@ -1186,8 +1260,9 @@ export async function POST(req: NextRequest) {
             metricValue: modMetrics.metricValue,
             metricUnit: modMetrics.metricUnit,
             values: JSON.stringify(modMetrics.values),
+            evidence: evidenceNames.length ? JSON.stringify(evidenceNames) : undefined,
             completionPct: hasErrors ? 50 : 100,
-            evidenceCount: evidenceId ? 1 : 0,
+            evidenceCount: allEvidenceIds.length || evidenceNames.length,
             validationPassed: hasErrors ? 0 : 1,
             validationErrors: hasErrors ? issues.length : 0,
           },
@@ -1196,6 +1271,18 @@ export async function POST(req: NextRequest) {
             reportingPeriod: { select: { id: true, periodLabel: true, year: true } },
           },
         })
+        if (isSubmittingForReview) {
+          await appendHistory({
+            submissionId: synchedSubmission.id,
+            fromStatus: 'DRAFT',
+            toStatus: 'SUBMITTED',
+            actorId: user.id,
+            actorName: user.name,
+            actorRole: primaryRoleLabel(user),
+            action: 'SUBMIT',
+            comment: `${record.levelName} submitted for Project Admin review from Data Entry.`,
+          }).catch(() => {})
+        }
       }
 
       if (isSubmittingForReview && synchedSubmission) {
@@ -1315,6 +1402,12 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const ok = deleteLevelRecord(id)
+    if (ok) {
+      /* Keep PA submissions list and PU dashboards consistent after deletion. */
+      invalidatePaServerCache()
+      invalidatePuSubmissionsCache()
+      invalidatePuOverviewCache()
+    }
     return NextResponse.json({ success: ok })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Failed to delete' }, { status: 500 })

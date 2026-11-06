@@ -42,7 +42,7 @@ export interface SessionUser {
 
 export type ModuleKey =
   | 'overview' | 'my-project' | 'data-entry' | 'evidence'
-  | 'submissions' | 'reports' | 'analytics' | 'audit' | 'brsr' | 'team'
+  | 'submissions' | 'analytics' | 'audit' | 'brsr' | 'team'
   | 'hr-workforce' | 'hr-training' | 'hr-wellbeing' | 'hr-rights'
   | 'ehs-ops' | 'ehs-incidents' | 'ehs-inspections' | 'ehs-corrective' | 'ehs-environmental' | 'ehs-training'
   | 'proc-suppliers' | 'proc-assessments' | 'proc-sourcing' | 'proc-transactions' | 'proc-valuechain'

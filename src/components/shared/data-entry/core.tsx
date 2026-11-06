@@ -201,6 +201,7 @@ export interface SavedRecord {
   derivedLtifr?: number | null
   validationStatus?: string
   evidenceId?: string | null
+  evidenceIds?: string[]
   data?: Record<string, any>
   status?: string
 }

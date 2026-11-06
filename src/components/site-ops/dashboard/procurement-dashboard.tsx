@@ -18,6 +18,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, Tooltip, XAxis, YAxis, Legend,
@@ -664,14 +665,8 @@ export function ProcurementDashboard() {
 
   if (loading && !overview) {
     return (
-      <div className="space-y-5">
-        <div className="so-glass rounded-[20px] h-[100px] animate-pulse" />
-        <div className="so-glass rounded-[20px] h-[320px] animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="so-glass rounded-[20px] h-[320px] animate-pulse" />
-          <div className="so-glass rounded-[20px] h-[320px] animate-pulse" />
-        </div>
-        <div className="so-glass rounded-[20px] h-[260px] animate-pulse" />
+      <div className="so-glass rounded-[20px] p-6">
+        <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading procurement data…" />
       </div>
     )
   }

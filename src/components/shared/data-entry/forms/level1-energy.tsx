@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Zap, Flame, CheckCircle2, AlertTriangle, Save, Info, Calculator, Sparkles, Layers, Eye, Plus, Trash2, Edit3, ArrowLeft, Sun, Fuel, Wind, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -195,8 +195,10 @@ export function Level1EnergyForm({
   onReviewEvidence,
   onViewItem,
   selectedSourceToEdit,
+  onItemStaged,
 }: LevelFormProps) {
   const apiBase = useApiBase()
+  const addBtnRef = useRef<HTMLButtonElement>(null)
 
   const key = `l1-${projectId}-${periodId}`
   const initial = formStateRef.current[key] || {}
@@ -416,6 +418,19 @@ export function Level1EnergyForm({
       {
         description: `${Number(consumptionQuantity).toLocaleString()} ${unit} · ${estTco2e.toFixed(2)} tCO₂e. Choose second source item or click Next to organize.`,
       }
+    )
+
+    // Float the captured item card over to the right-panel journey list
+    onItemStaged?.(
+      {
+        levelKey: 'level1',
+        id: newItem.id,
+        name: effectiveSource,
+        quantity: Number(consumptionQuantity),
+        unit,
+        estTco2e,
+      },
+      addBtnRef.current
     )
 
     setEditingItemId(null)
@@ -1027,6 +1042,7 @@ onOcrApply={(f) => {
           <div className="sm:col-span-2 pt-1">
             <button
               type="button"
+              ref={addBtnRef}
               onClick={handleAddOrUpdateItem}
               disabled={readOnly}
               className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 py-3.5 px-6 text-sm font-bold text-white shadow-lg shadow-blue-500/25 ring-1 ring-white/30 backdrop-blur-md transition-all hover:shadow-xl hover:shadow-blue-500/35 hover:scale-[1.008] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer group"

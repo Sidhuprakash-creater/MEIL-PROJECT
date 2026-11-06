@@ -10,7 +10,6 @@ import {
   AlertCircle,
   MoreVertical,
   Shield,
-  RefreshCw,
   Mail,
   UserCheck,
   UserX,
@@ -19,6 +18,7 @@ import {
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, paApiPatch, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaDialog, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaUserItem, ContributorRole } from "@/lib/project-admin/types";
 
 export default function UsersView() {
@@ -166,6 +166,11 @@ export default function UsersView() {
       </PaGlassCard>
 
       {/* User Table */}
+      {loading ? (
+        <div className="glass rounded-2xl p-6">
+          <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading users…" />
+        </div>
+      ) : (
       <PaGlassCard strong className="overflow-x-auto p-0">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -214,6 +219,18 @@ export default function UsersView() {
                     <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
+                        onClick={() => handleToggleStatus(u)}
+                        className={`p-1.5 rounded-lg transition-colors ${
+                          u.status === "ACTIVE"
+                            ? "text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                            : "text-emerald-600 hover:bg-emerald-50"
+                        }`}
+                        title={u.status === "ACTIVE" ? "Deactivate user" : "Activate user"}
+                      >
+                        {u.status === "ACTIVE" ? <UserX size={15} /> : <UserCheck size={15} />}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => handleRemind(u.id, u.name)}
                         className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                         title="Send Reminder"
@@ -228,6 +245,7 @@ export default function UsersView() {
           </tbody>
         </table>
       </PaGlassCard>
+      )}
 
       {/* ── Invite Contributor Modal ── */}
       <PaDialog

@@ -14,6 +14,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { MeilLoader, MeilBoxLoader } from '@/components/shared/meil-loader'
 import { toast } from 'sonner'
 import {
   FileText, Upload, Filter, RefreshCw, AlertOctagon, ShieldCheck, XCircle,
@@ -488,8 +489,8 @@ export function EvidenceModule() {
           </SheetHeader>
 
           {detailLoading ? (
-            <div className="flex h-64 items-center justify-center text-slate-400">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex h-64 items-center justify-center">
+              <MeilLoader size={60} label="Loading document…" />
             </div>
           ) : detail ? (
             <EvidenceDetailPanel detail={detail} gate={gate}
@@ -1198,11 +1199,7 @@ function UploadForm({
 function EvidenceSkeleton() {
   return (
     <div className="so-glass rounded-2xl p-4">
-      <div className="space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-200/60" />
-        ))}
-      </div>
+      <MeilBoxLoader boxHeight="min-h-[300px]" label="Loading evidence…" />
     </div>
   )
 }

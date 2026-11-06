@@ -18,6 +18,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   BarChart, Bar, PieChart, Pie, Cell,
   ResponsiveContainer, Tooltip, XAxis, YAxis, Legend,
@@ -533,17 +534,7 @@ function RecentProcurementActivities({
       </header>
       <div className="relative max-h-[320px] overflow-y-auto scroll-elegant pr-1">
         {loading && activities.length === 0 ? (
-          <div className="space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex gap-3 animate-pulse">
-                <div className="h-9 w-9 rounded-full bg-slate-200/70" />
-                <div className="flex-1 space-y-2 py-1">
-                  <div className="h-3 w-2/3 rounded bg-slate-200/70" />
-                  <div className="h-2.5 w-5/6 rounded bg-slate-200/50" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <MeilBoxLoader boxHeight="min-h-[120px]" label="Loading activity…" />
         ) : activities.length === 0 ? (
           <div className="py-10 text-center">
             <AlertCircle className="mx-auto h-8 w-8 text-slate-300" />
@@ -664,14 +655,8 @@ export function ProcurementDashboard() {
 
   if (loading && !overview) {
     return (
-      <div className="space-y-5">
-        <div className="glass rounded-[20px] h-[100px] animate-pulse" />
-        <div className="glass rounded-[20px] h-[320px] animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-1 gap-5 lg:grid-cols-2">
-          <div className="glass rounded-[20px] h-[320px] animate-pulse" />
-          <div className="glass rounded-[20px] h-[320px] animate-pulse" />
-        </div>
-        <div className="glass rounded-[20px] h-[260px] animate-pulse" />
+      <div className="glass rounded-2xl p-6">
+        <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading procurement dashboard…" />
       </div>
     )
   }

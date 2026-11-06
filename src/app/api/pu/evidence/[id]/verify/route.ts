@@ -7,6 +7,7 @@ import {
   authErrorToStatus,
   primaryRoleLabel,
 } from '@/lib/pu/workflow'
+import { invalidatePuEvidenceCache, invalidatePuOverviewCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -99,6 +100,10 @@ export async function POST(
         status: 'VERIFIED',
       })
     }
+
+    /* Keep the Evidence vault and portal dashboards in sync immediately. */
+    invalidatePuEvidenceCache()
+    invalidatePuOverviewCache()
 
     return NextResponse.json({ evidence: updated })
   } catch (e) {

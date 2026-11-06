@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser, userHasPermission } from '@/lib/pu/session'
+import { invalidatePaServerCache } from '@/lib/project-admin/server'
 
 export const runtime = 'nodejs'
 
@@ -133,6 +134,10 @@ export async function POST(req: NextRequest) {
         reason: `${reportType} report v${nextVersion} generated for ${safeScope}`,
       },
     })
+
+    /* The PA submissions list shows reports — bust its server cache so the
+       new report appears without waiting for the TTL. */
+    invalidatePaServerCache()
 
     return NextResponse.json({ report, content })
   } catch (e: any) {

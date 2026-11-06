@@ -1,6 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+/**
+ * Data Collection Status — centralized submission monitoring & sign-off.
+ *
+ * • Suspicion + snapshot free: rows open a FULL-WINDOW review screen
+ *   (submission-review-window) that walks the submitted data phase by phase:
+ *   contributor → project → captured summary → emission level → its sources →
+ *   its evidence (tagged per source), all read-only and clickable.
+ * • Admin marks any source / level / data card red (multi-select), optionally
+ *   writes a per-mark clarification, then submits one consolidated rejection.
+ * • Evidence opens INLINE in the same window (data shrinks left, preview on
+ *   the right) — no secondary screen jump.
+ */
+
+import React, { useState, useEffect, useMemo } from "react";
 import {
   FileSpreadsheet,
   Search,
@@ -14,7 +27,6 @@ import {
   FileQuestion,
   Filter,
   Check,
-  XCircle,
   MessageSquare,
   Sparkles,
 } from "lucide-react";
@@ -22,7 +34,12 @@ import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 import type { PaCollectionStatusItem, ContributorRole } from "@/lib/project-admin/types";
-import { fieldLabel, fmtValue, itemFieldEntries, itemTitle } from "@/components/shared/field-labels";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
+import {
+  SubmissionReviewWindow,
+  buildReviewModelFromPa,
+  type RejectPayloadItem,
+} from "@/components/shared/submission-review-window";
 
 export default function CollectionStatusView() {
   const { navigate, viewParams } = usePaStore();
@@ -34,18 +51,13 @@ export default function CollectionStatusView() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("ALL");
 
-  // Detail inspection & decision modal
+  // Full-window review screen (replaces the old small inspection dialog)
   const [inspectItem, setInspectItem] = useState<PaCollectionStatusItem | null>(null);
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
   const [targetItem, setTargetItem] = useState<PaCollectionStatusItem | null>(null);
   const [correctionNotes, setCorrectionNotes] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  /* Per-source / per-level rejections flagged in the inspection dialog:
-     key = `${recordId}:${itemId | "__level__"}` */
-  const [itemRejections, setItemRejections] = useState<
-    Record<string, { severity: "ERROR" | "WARNING"; reason: string; label: string; recordId: string }>
-  >({});
 
   const loadData = () => {
     if (!items.length) setLoading(true);
@@ -67,6 +79,22 @@ export default function CollectionStatusView() {
     setTimeout(() => setToastMsg(null), 3500);
   };
 
+  /* Stable review model — rebuilt only when the inspected item changes so the
+     full-window review never re-mounts (or loses its rejection marks) while
+     the parent re-renders. */
+  const reviewModel = useMemo(
+    () =>
+      inspectItem
+        ? buildReviewModelFromPa({ ...inspectItem, submissionStatus: inspectItem.submissionStatus })
+        : null,
+    [inspectItem],
+  );
+
+  const patchItemStatus = (id: string, submissionStatus: PaCollectionStatusItem["submissionStatus"]) => {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, submissionStatus } : i)));
+    setInspectItem((prev) => (prev && prev.id === id ? { ...prev, submissionStatus } : prev));
+  };
+
   const handleApprove = async (item: PaCollectionStatusItem) => {
     setActionLoading(true);
     try {
@@ -75,17 +103,38 @@ export default function CollectionStatusView() {
         submissionId: item.id,
         category: item.category,
       });
-
-      // Update state immediately
-      setItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, submissionStatus: "APPROVED" } : i))
-      );
-      if (inspectItem?.id === item.id) {
-        setInspectItem((prev) => (prev ? { ...prev, submissionStatus: "APPROVED" } : null));
-      }
+      patchItemStatus(item.id, "APPROVED");
       showToast(`Approved ${item.sectionName} submitted by ${item.assignedUserName}.`);
+      return true;
     } catch (err: any) {
-      alert(err.message || "Approval failed.");
+      showToast(err.message || "Approval failed.");
+      return false;
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  /** Consolidated rejection dispatched from the full-window review. */
+  const submitRejection = async (
+    markedItems: RejectPayloadItem[],
+    generalNote: string,
+  ) => {
+    if (!inspectItem || !markedItems.length) return;
+    setActionLoading(true);
+    try {
+      await paApiPost("/api/project-admin/submissions", {
+        action: "reject",
+        submissionId: inspectItem.id,
+        comments:
+          generalNote ||
+          `Marked ${markedItems.length} item(s) for correction — ${markedItems[0].issue}`,
+        items: markedItems,
+      });
+      patchItemStatus(inspectItem.id, "RETURNED");
+      showToast(`Rejection dispatched for ${markedItems.length} marked item(s). ${inspectItem.assignedUserName} has been notified.`);
+      setInspectItem(null);
+    } catch (err: any) {
+      showToast(err.message || "Failed to submit rejection.");
     } finally {
       setActionLoading(false);
     }
@@ -111,17 +160,11 @@ export default function CollectionStatusView() {
         comments: correctionNotes,
       });
 
-      setItems((prev) =>
-        prev.map((i) => (i.id === targetItem.id ? { ...i, submissionStatus: "RETURNED" } : i))
-      );
-      if (inspectItem?.id === targetItem.id) {
-        setInspectItem((prev) => (prev ? { ...prev, submissionStatus: "RETURNED" } : null));
-      }
-
+      patchItemStatus(targetItem.id, "RETURNED");
       setCorrectionModalOpen(false);
       showToast(`Correction request dispatched to ${targetItem.assignedUserName}.`);
     } catch (err: any) {
-      alert(err.message || "Failed to submit correction request.");
+      showToast(err.message || "Failed to submit correction request.");
     } finally {
       setActionLoading(false);
     }
@@ -135,7 +178,7 @@ export default function CollectionStatusView() {
       });
       showToast(`Reminder notification dispatched to ${name}.`);
     } catch (err: any) {
-      alert(err.message || "Failed to send reminder");
+      showToast(err.message || "Failed to send reminder");
     }
   };
 
@@ -268,9 +311,8 @@ export default function CollectionStatusView() {
             <tbody>
               {loading && items.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-12 text-center text-slate-400">
-                    <RefreshCw className="animate-spin text-[#315CFF] mx-auto mb-2" size={20} />
-                    Loading disclosures…
+                  <td colSpan={8} className="p-8">
+                    <MeilBoxLoader boxHeight="min-h-[180px]" label="Loading disclosures…" />
                   </td>
                 </tr>
               ) : filteredItems.length === 0 ? (
@@ -283,8 +325,15 @@ export default function CollectionStatusView() {
                 filteredItems.map((item) => (
                   <tr key={item.id} className="transition-colors hover:bg-blue-50/30">
                     <td className="p-4 pl-6">
-                      <div className="font-bold text-[#1E293B] text-xs sm:text-sm">{item.sectionName}</div>
-                      <div className="text-[11px] text-[#64748B] font-mono mt-0.5">{item.sectionCode}</div>
+                      <button
+                        type="button"
+                        onClick={() => setInspectItem(item)}
+                        className="text-left"
+                        title="Open the full review window"
+                      >
+                        <div className="font-bold text-[#1E293B] text-xs sm:text-sm hover:text-[#315CFF] transition-colors">{item.sectionName}</div>
+                        <div className="text-[11px] text-[#64748B] font-mono mt-0.5">{item.sectionCode}</div>
+                      </button>
                     </td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 rounded-xl bg-indigo-50/80 border border-indigo-200/50 text-indigo-700 font-bold text-[11px]">
@@ -318,7 +367,7 @@ export default function CollectionStatusView() {
                           type="button"
                           onClick={() => setInspectItem(item)}
                           className="p-1.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                          title="View Details & Audit"
+                          title="View Details & Audit (full window)"
                         >
                           <Eye size={16} />
                         </button>
@@ -364,339 +413,21 @@ export default function CollectionStatusView() {
         </div>
       </PaGlassCard>
 
-      {/* ── Submission Inspection & Sign-off Dialog ── */}
-      <PaDialog
-        open={Boolean(inspectItem)}
-        onClose={() => setInspectItem(null)}
-        title={inspectItem?.sectionName || "Submission Inspection"}
-        subtitle={`Reference: ${inspectItem?.sectionCode} • ${inspectItem?.period || ""} • ${inspectItem?.categoryLabel || ""}`}
-      >
-        {inspectItem && (
-          <div className="space-y-4 text-xs">
-            {/* Summary card */}
-            <div className="grid grid-cols-2 gap-3.5 p-4 rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Responsible Contributor</span>
-                <div className="font-bold text-[#1E293B] text-sm mt-0.5">{inspectItem.assignedUserName}</div>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Submission Status</span>
-                <div className="mt-0.5">
-                  <PaStatusBadge status={inspectItem.submissionStatus} />
-                </div>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Reporting Period</span>
-                <div className="font-bold text-[#1E293B] mt-0.5">{inspectItem.period}</div>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-[#8F9EAF]">Target Due Date</span>
-                <div className="font-bold text-[#1E293B] mt-0.5">{new Date(inspectItem.dueDate).toLocaleDateString()}</div>
-              </div>
-            </div>
-
-            {/* Sequenced: emission level → sources → evidence, one by one */}
-            {(() => {
-              const records: any[] = inspectItem.sourceRecords || [];
-              if (!records.length) {
-                return (
-                  <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-200/70 text-amber-900">
-                    No per-source records captured yet for this section. Reject with general instructions below if needed.
-                  </div>
-                );
-              }
-              const sorted = [...records].sort((a, b) => (a.level || 0) - (b.level || 0));
-              return (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-600">
-                      Submitted Data — Emission by Emission
-                    </span>
-                    <span className="text-[9px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-full border border-sky-200">
-                      As entered by contributor
-                    </span>
-                  </div>
-                  {sorted.map((rec) => {
-                    const lvlKey = `${rec.recordId}:__level__`;
-                    const lvlRej = itemRejections[lvlKey];
-                    return (
-                      <div key={rec.recordId} className="rounded-2xl bg-white/90 border border-slate-200/80 shadow-sm overflow-hidden">
-                        {/* Level header */}
-                        <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-sky-50/90 border-b border-slate-100">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-gradient-to-br from-sky-600 to-blue-700 text-white text-[10px] font-black shrink-0">
-                              {rec.level}
-                            </span>
-                            <span className="text-[11.5px] font-bold text-slate-800 truncate">{rec.levelName}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded border ${
-                              rec.recordStatus === "CORRECTION_REQUESTED"
-                                ? "text-rose-700 bg-rose-50 border-rose-200"
-                                : rec.recordStatus === "ACTIVE" || rec.recordStatus === "APPROVED"
-                                  ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                                  : "text-slate-600 bg-slate-50 border-slate-200"
-                            }`}>
-                              {String(rec.recordStatus || "").replace(/_/g, " ")}
-                            </span>
-                            {!lvlRej && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setItemRejections((prev) => ({
-                                    ...prev,
-                                    [lvlKey]: { severity: "ERROR", reason: "", label: `${rec.levelName} — entire emission level`, recordId: rec.recordId },
-                                  }))
-                                }
-                                className="px-2 py-1 rounded-lg text-[10px] font-bold border border-rose-200 text-rose-700 bg-white hover:bg-rose-50 transition"
-                              >
-                                ⚑ Reject entire level
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Level-level rejection panel */}
-                        {lvlRej && (
-                          <div className="mx-3 mt-3 rounded-xl border border-rose-200 bg-rose-50/60 p-3 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-black text-rose-800">⚑ Entire level flagged for rejection</span>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setItemRejections((prev) => {
-                                    const next = { ...prev };
-                                    delete next[lvlKey];
-                                    return next;
-                                  })
-                                }
-                                className="text-[10px] font-bold text-slate-500 hover:text-slate-700"
-                              >
-                                Unflag
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-slate-600">Severity:</span>
-                              {(["ERROR", "WARNING"] as const).map((sev) => (
-                                <button
-                                  key={sev}
-                                  type="button"
-                                  onClick={() =>
-                                    setItemRejections((prev) => ({ ...prev, [lvlKey]: { ...prev[lvlKey], severity: sev } }))
-                                  }
-                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
-                                    lvlRej.severity === sev
-                                      ? sev === "ERROR"
-                                        ? "bg-rose-600 text-white border-rose-600"
-                                        : "bg-amber-500 text-white border-amber-500"
-                                      : "bg-white text-slate-600 border-slate-200"
-                                  }`}
-                                >
-                                  {sev}
-                                </button>
-                              ))}
-                            </div>
-                            <textarea
-                              value={lvlRej.reason}
-                              onChange={(e) =>
-                                setItemRejections((prev) => ({ ...prev, [lvlKey]: { ...prev[lvlKey], reason: e.target.value } }))
-                              }
-                              placeholder="Explain what is wrong across this whole emission level and what must be fixed…"
-                              className="w-full min-h-[52px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-y"
-                            />
-                          </div>
-                        )}
-
-                        {/* Sources with evidence */}
-                        <div className="p-3 space-y-2">
-                          {(rec.items || []).length === 0 && (
-                            <div className="text-[11px] text-slate-500 italic px-1">No per-source items captured in this record.</div>
-                          )}
-                          {(rec.items || []).map((it: any, idx: number) => {
-                            const rKey = `${rec.recordId}:${it.id || idx}`;
-                            const rLabel = `${rec.levelName} · ${itemTitle(it)}`;
-                            const rej = itemRejections[rKey];
-                            const entries = itemFieldEntries(it);
-                            const evNames: string[] = Array.isArray(it.evidenceFileNames) ? it.evidenceFileNames : [];
-                            return (
-                              <div
-                                key={rKey}
-                                className={`rounded-xl border p-2.5 transition-all ${
-                                  rej ? "border-rose-300 bg-rose-50/50" : "border-slate-200/90 bg-gradient-to-b from-white to-slate-50/60"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-2 mb-1.5">
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <span className="flex h-4.5 w-4.5 h-5 w-5 items-center justify-center rounded-md bg-slate-800 text-white text-[9px] font-bold shrink-0">
-                                      {idx + 1}
-                                    </span>
-                                    <span className="text-[11px] font-bold text-slate-900 truncate">{itemTitle(it)}</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setItemRejections((prev) => {
-                                        const next = { ...prev };
-                                        if (next[rKey]) delete next[rKey];
-                                        else next[rKey] = { severity: "ERROR", reason: "", label: rLabel, recordId: rec.recordId };
-                                        return next;
-                                      })
-                                    }
-                                    className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition shrink-0 ${
-                                      rej
-                                        ? "bg-rose-600 text-white border-rose-600"
-                                        : "bg-white text-rose-700 border-rose-200 hover:bg-rose-50"
-                                    }`}
-                                  >
-                                    {rej ? "✓ Flagged" : "⚑ Reject source"}
-                                  </button>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                                  {entries.map(([k, v]) => {
-                                    const blank = v === null || v === undefined || v === "";
-                                    return (
-                                      <div
-                                        key={k}
-                                        className={`flex justify-between items-center gap-1.5 px-2 py-1 rounded-lg border ${
-                                          blank ? "bg-slate-50/70 border-slate-200/60" : "bg-white border-slate-200/80"
-                                        }`}
-                                      >
-                                        <span className="text-[9.5px] font-semibold text-slate-500 truncate">{fieldLabel(k)}</span>
-                                        <span className={`text-[10px] text-right ${blank ? "text-slate-300 italic" : "font-mono font-bold text-slate-900"}`}>
-                                          {fmtValue(v)}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                                {evNames.length > 0 && (
-                                  <div className="mt-1.5 flex flex-wrap gap-1">
-                                    {evNames.map((f, fi) => (
-                                      <span key={fi} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800">
-                                        <FolderLock className="h-2.5 w-2.5" /> {f}
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                                {rej && (
-                                  <div className="mt-2 rounded-xl border border-rose-200 bg-white/90 p-2.5 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[10px] font-bold text-slate-600">Severity:</span>
-                                      {(["ERROR", "WARNING"] as const).map((sev) => (
-                                        <button
-                                          key={sev}
-                                          type="button"
-                                          onClick={() =>
-                                            setItemRejections((prev) => ({ ...prev, [rKey]: { ...prev[rKey], severity: sev } }))
-                                          }
-                                          className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
-                                            rej.severity === sev
-                                              ? sev === "ERROR"
-                                                ? "bg-rose-600 text-white border-rose-600"
-                                                : "bg-amber-500 text-white border-amber-500"
-                                              : "bg-white text-slate-600 border-slate-200"
-                                          }`}
-                                        >
-                                          {sev}
-                                        </button>
-                                      ))}
-                                    </div>
-                                    <textarea
-                                      value={rej.reason}
-                                      onChange={(e) =>
-                                        setItemRejections((prev) => ({ ...prev, [rKey]: { ...prev[rKey], reason: e.target.value } }))
-                                      }
-                                      placeholder={`Explain what is wrong with "${itemTitle(it)}" and what must be fixed…`}
-                                      className="w-full min-h-[52px] rounded-xl border border-rose-200 bg-white px-3 py-2 text-[11px] font-medium text-slate-800 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 resize-y"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-
-            {/* Decision Bar */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-200">
-              <PaButton
-                variant="secondary"
-                size="sm"
-                icon={FolderLock}
-                onClick={() => {
-                  setInspectItem(null);
-                  navigate("evidence");
-                }}
-              >
-                Evidence Repository
-              </PaButton>
-
-              <div className="flex items-center gap-2">
-                <PaButton
-                  variant="danger"
-                  size="sm"
-                  icon={XCircle}
-                  disabled={
-                    actionLoading ||
-                    Object.values(itemRejections).filter((r) => r.reason.trim()).length === 0
-                  }
-                  onClick={async () => {
-                    const items = Object.entries(itemRejections)
-                      .filter(([, r]) => r.reason.trim())
-                      .map(([, r]) => ({
-                        field: r.label,
-                        issue: r.reason.trim(),
-                        severity: r.severity,
-                        comment: r.reason.trim(),
-                        recordId: r.recordId,
-                      }));
-                    if (!items.length) return;
-                    setActionLoading(true);
-                    try {
-                      await paApiPost("/api/project-admin/submissions", {
-                        action: "reject",
-                        submissionId: inspectItem.id,
-                        comments: items[0].comment,
-                        items,
-                      });
-                      setItems((prev) =>
-                        prev.map((i) => (i.id === inspectItem.id ? { ...i, submissionStatus: "RETURNED" } : i))
-                      );
-                      if (inspectItem?.id === inspectItem.id) {
-                        setInspectItem((prev: any) => (prev ? { ...prev, submissionStatus: "RETURNED" } : null));
-                      }
-                      setItemRejections({});
-                      showToast(`Rejection dispatched for ${items.length} flagged item(s).`);
-                    } catch (err: any) {
-                      alert(err.message || "Failed to submit rejection.");
-                    } finally {
-                      setActionLoading(false);
-                    }
-                  }}
-                >
-                  {`Submit Rejection (${Object.values(itemRejections).filter((r) => r.reason.trim()).length})`}
-                </PaButton>
-                {inspectItem.submissionStatus !== "APPROVED" && (
-                  <PaButton
-                    variant="primary"
-                    size="sm"
-                    icon={Check}
-                    disabled={actionLoading}
-                    onClick={() => handleApprove(inspectItem)}
-                  >
-                    Approve
-                  </PaButton>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-      </PaDialog>
+      {/* ── FULL-WINDOW SUBMISSION REVIEW (phase-by-phase + mark-to-reject + split evidence) ── */}
+      {inspectItem ? (
+        <SubmissionReviewWindow
+          open
+          model={reviewModel}
+          loading={false}
+          pending={actionLoading}
+          onApprove={async () => {
+            const ok = await handleApprove(inspectItem);
+            if (ok) setInspectItem(null);
+          }}
+          onReject={(marked, generalNote) => submitRejection(marked, generalNote)}
+          onClose={() => setInspectItem(null)}
+        />
+      ) : null}
 
       {/* ── Request Correction Dialog ── */}
       <PaDialog

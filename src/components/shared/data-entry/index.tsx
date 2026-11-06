@@ -16,8 +16,8 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { FileText, CheckCircle2, Clock, Send, Save, ChevronRight, ChevronLeft, ChevronDown, Building2, CalendarClock, Lock, X, AlertOctagon } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { FileText, CheckCircle2, Clock, Send, Save, ChevronRight, ChevronLeft, ChevronDown, Building2, CalendarClock, Lock, X, AlertOctagon, Plus, MoveLeft } from 'lucide-react'
 import { toast } from 'sonner'
 import { CsvImportDialog, ImportCsvButton } from '../csv-import-dialog'
 import { FlippableEngineEvidencePanel } from './engine-evidence-panel'
@@ -93,6 +93,63 @@ export function DataEntryModule({
     toast.info(`Loaded ${sourceName} details in left panel`)
     const el = document.getElementById('level-form-container')
     el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  /* ---- Captured-item flight animation (left "+ Add (Draft)" → right journey panel)
+          and drag-and-drop opening of captured cards in the left panel ---- */
+  const [flight, setFlight] = useState<null | {
+    id: number
+    name: string
+    quantity: number
+    unit: string
+    estTco2e?: number
+    from: DOMRect
+    to: DOMRect
+  }>(null)
+  const [flashItem, setFlashItem] = useState<{ levelKey: string; name: string; ts: number } | null>(null)
+  const [dragOverForm, setDragOverForm] = useState(false)
+  const flightTimerRef = useRef<number | null>(null)
+
+  // Fired by level forms right after an item is captured via "+ Add (Draft)"
+  const handleItemStaged = (
+    payload: { levelKey: string; id: string; name: string; quantity: number; unit: string; estTco2e?: number },
+    sourceEl: HTMLElement | null
+  ) => {
+    const ts = Date.now()
+    setFlashItem({ levelKey: payload.levelKey, name: payload.name, ts })
+    window.setTimeout(() => setFlashItem((f) => (f && f.ts === ts ? null : f)), 2600)
+
+    // Small delay so the journey panel tab (auto-switched by flashItem) renders first
+    window.setTimeout(() => {
+      const targetEl =
+        (document.querySelector(
+          '[data-journey-captured-list="true"][data-level-key="' + payload.levelKey + '"]'
+        ) as HTMLElement | null) || (document.querySelector('[data-journey-panel]') as HTMLElement | null)
+      if (!sourceEl || !targetEl) return
+      const from = sourceEl.getBoundingClientRect()
+      const to = targetEl.getBoundingClientRect()
+      if (!from.width || !to.width) return
+      const { levelKey: _lk, id: _id, ...flightInfo } = payload
+      setFlight({ id: Date.now(), ...flightInfo, from, to })
+      if (flightTimerRef.current) window.clearTimeout(flightTimerRef.current)
+      flightTimerRef.current = window.setTimeout(() => setFlight(null), 1050)
+    }, 90)
+  }
+
+  // Accept captured cards dragged from the journey panel — opens them for editing
+  const handleFormDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOverForm(false)
+    try {
+      const raw = e.dataTransfer.getData('application/x-brsr-source')
+      if (!raw) return
+      const parsed = JSON.parse(raw)
+      if (parsed?.levelKey && parsed?.sourceName) {
+        handleSelectSourceItem(parsed.levelKey, parsed.sourceName)
+      }
+    } catch {
+      // ignore malformed drop payloads
+    }
   }
   const [saved, setSaved] = useState<SavedRecord | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -254,6 +311,10 @@ export function DataEntryModule({
   }, [activeLevelKey, selectedProjectId, selectedPeriodId])
 
   // ---- 3. Fetch existing records for active level + project + period
+  /* Records fetch is scoped to project + period only. The endpoint returns
+     every level's records and the list is filtered client-side, so switching
+     level tabs never re-hits the network — the journey panel and the record
+     table render instantly from the already-loaded snapshot. */
   const refreshExistingRecords = useCallback(async () => {
     if (!selectedProjectId || !selectedPeriodId) {
       setExistingRecords([])
@@ -276,7 +337,7 @@ export function DataEntryModule({
       setExistingRecords([])
       setRecordCorrections({})
     }
-  }, [apiBase, selectedProjectId, selectedPeriodId, activeSub.level])
+  }, [apiBase, selectedProjectId, selectedPeriodId])
 
   useEffect(() => {
     refreshExistingRecords()
@@ -317,6 +378,9 @@ export function DataEntryModule({
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) || null
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId) || null
+  /* Closed-period guard — every write path (form save/submit, CSV import,
+     Submit All) is disabled while the selected period is not OPEN. */
+  const periodOpen = (selectedPeriod?.status ?? 'OPEN') === 'OPEN'
 
   if (loading) return <DataEntrySkeleton />
   if (error) return <ErrorState message={error} onRetry={() => location.reload()} />
@@ -347,11 +411,51 @@ export function DataEntryModule({
     setActionError('')
     setSubmitting(true)
     try {
-      setSaved((prev) => (prev ? { ...prev, evidenceId } : prev))
+      setSaved((prev) => (prev ? { ...prev, evidenceId, evidenceIds: evidenceId ? [evidenceId] : [] } : prev))
       setStep(3)
       toast.info('Evidence document linked', {
         description: evidenceId ? 'Document attached to verification trail.' : 'No document attached.',
       })
+
+      /* Persist the attachment — the local state above only mirrors the UI.
+         Re-POST the same record with the evidence fields; the route resolves
+         the body `id` back to the existing record (saveLevelRecord merges by
+         id), so no duplicate record is created. Payload mirrors what the level
+         form POSTed on save (saved.data is the previously persisted payload). */
+      if (saved.id) {
+        try {
+          const res = await fetch(`${apiBase}/data-entry`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: saved.id,
+              level: saved.level,
+              levelKey: activeSub.key,
+              levelName: activeSub.brsrTitle || activeSub.label,
+              module: saved.module || activeSub.moduleKey,
+              projectId: selectedProjectId,
+              reportingPeriodId: selectedPeriodId,
+              data: {
+                ...(saved.data || formStateRef.current[activeLevelKey] || {}),
+                evidenceId,
+                evidenceIds: evidenceId ? [evidenceId] : [],
+              },
+              evidenceId: evidenceId ?? undefined,
+              evidenceIds: evidenceId ? [evidenceId] : [],
+              submitForReview: false,
+            }),
+          })
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}))
+            throw new Error(d.error || 'Failed to persist evidence attachment')
+          }
+          refreshExistingRecords()
+        } catch (e: any) {
+          toast.error('Evidence link not saved', {
+            description: e?.message || 'The attachment could not be persisted to the record.',
+          })
+        }
+      }
     } finally {
       setSubmitting(false)
     }
@@ -419,8 +523,11 @@ export function DataEntryModule({
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">
               Site Data Entry
             </h1>
-            <span className="status-pill status-submitted">
-              <Clock className="h-3 w-3" /> Open Period
+            <span
+              className={`status-pill ${periodOpen ? 'status-approved' : 'status-missing'}`}
+              title={periodOpen ? undefined : 'Reporting period is closed'}
+            >
+              <Clock className="h-3 w-3" /> {periodOpen ? 'Open Period' : 'Closed Period'}
             </span>
             <span className="rounded-full bg-blue-100/80 px-2.5 py-0.5 text-[11px] font-bold text-blue-800">
               {SUB_MODULES.length} BRSR Levels
@@ -474,18 +581,24 @@ export function DataEntryModule({
 
           {/* Bulk CSV Import Button */}
           <ImportCsvButton
-            disabled={readOnly}
-            disabledReason="Your role does not permit data entry"
+            disabled={readOnly || !periodOpen || !(activeLevelKey === 'level1' || activeLevelKey === 'level2' || activeLevelKey === 'level4')}
+            disabledReason={
+              readOnly
+                ? 'Your role does not permit data entry'
+                : !periodOpen
+                ? 'Reporting period is closed'
+                : 'CSV import supports Energy, Water and Waste levels'
+            }
             onClick={() => setCsvImportOpen(true)}
           />
 
           {/* Submit All to Project Admin Button */}
           <button
             type="button"
-            disabled={submittingAll || readOnly}
+            disabled={submittingAll || readOnly || !periodOpen}
             onClick={() => setFinalSubmitModalOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:opacity-95 active:scale-95 transition-all cursor-pointer"
-            title="Review and submit all site environmental data to Project Admin at once"
+            className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:opacity-95 active:scale-95 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+            title={periodOpen ? 'Review and submit all site environmental data to Project Admin at once' : 'Reporting period is closed'}
           >
             <Send className={`h-3.5 w-3.5 ${submittingAll ? 'animate-bounce' : ''}`} />
             <span>{submittingAll ? 'Submitting All Levels...' : 'Submit All to Project Admin'}</span>
@@ -526,7 +639,7 @@ export function DataEntryModule({
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, delay: 0.05 }}
+        transition={{ duration: 0.18, delay: 0.02 }}
         className="glass-nav flex items-center gap-1.5 overflow-x-auto scroll-elegant rounded-2xl p-1.5 shadow-sm border border-white/60"
       >
         {SUB_MODULES.map((m) => {
@@ -570,20 +683,45 @@ export function DataEntryModule({
         step={step}
         onStepClick={(s) => {
           setStep(s)
-          if (s === 2 && panelCollapsed) setPanelCollapsed(false)
+          /* When the journey panel is collapsed it stays collapsed — the
+             step tracker must never auto-reopen the sequence journey item
+             panel. It only comes back via the "Expand Journey" restore tab. */
           if (s === 5) setFinalSubmitModalOpen(true)
         }}
       />
 
       {/* MAIN TWO-COLUMN WORKSPACE GRID */}
       <div className="grid items-start gap-4 lg:grid-cols-3">
-        {/* LEFT COLUMN: THE LEVEL FORM PANEL (2 COLS) */}
+        {/* LEFT COLUMN: THE LEVEL FORM PANEL (2 COLS) — drop target for captured journey cards */}
         <motion.section
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-          className={`glass  rounded-[22px] p-5 transition-all duration-300 ${panelCollapsed ? "lg:col-span-3 w-full" : "lg:col-span-2"}`}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: 0.04 }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
+            if (!dragOverForm) setDragOverForm(true)
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverForm(false)
+          }}
+          onDrop={handleFormDrop}
+          className={`glass relative rounded-[22px] p-5 transition-all duration-300 ${
+            panelCollapsed ? 'lg:col-span-3 w-full' : 'lg:col-span-2'
+          } ${dragOverForm ? 'ring-4 ring-sky-400/60 ring-offset-2 ring-offset-white' : ''}`}
         >
+          {/* Drop hint while dragging a captured item card over the form panel */}
+          {dragOverForm && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="pointer-events-none absolute inset-x-4 top-3 z-30 flex items-center justify-center gap-2 rounded-2xl border border-dashed border-sky-400 bg-sky-50/95 px-4 py-2.5 text-xs font-bold text-sky-800 shadow-lg backdrop-blur-md"
+            >
+              <MoveLeft className="h-4 w-4" />
+              Drop the captured item card here to open it for editing
+            </motion.div>
+          )}
+
           {/* Level Header Banner */}
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-white/60 pb-3">
             <div className="flex items-center gap-3">
@@ -635,29 +773,28 @@ export function DataEntryModule({
               </div>
             )}
 
-            <AnimatePresence mode="wait">
-              <motion.div
-                /* Remount per project+period+level: staged items live in per-form
-                   state keyed by scope, so switching project or period can never
-                   carry unsaved items into another scope's save payload. */
-                key={`${selectedProjectId ?? ''}:${selectedPeriodId ?? ''}:${activeLevelKey}`}
-                initial={{ opacity: 0, x: 10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.22 }}
-              >
+            <motion.div
+              /* Remount per project+period+level: staged items live in per-form
+                 state keyed by scope, so switching project or period can never
+                 carry unsaved items into another scope's save payload. */
+              key={`${selectedProjectId ?? ''}:${selectedPeriodId ?? ''}:${activeLevelKey}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.12 }}
+            >
                 {activeLevelKey === 'level1' && (
                   <Level1EnergyForm
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                     onEvidenceUploaded={refreshEvidence}
                     onReviewEvidence={handleReviewEvidence}
                     onViewItem={setSelectedDetailItem}
                     selectedSourceToEdit={selectedSourceToEdit}
+                    onItemStaged={handleItemStaged}
                   />
                 )}
                 {activeLevelKey === 'level2' && (
@@ -665,12 +802,14 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                     onEvidenceUploaded={refreshEvidence}
                     onReviewEvidence={handleReviewEvidence}
                     onViewItem={setSelectedDetailItem}
+                    selectedSourceToEdit={selectedSourceToEdit}
+                    onItemStaged={handleItemStaged}
                   />
                 )}
                 {activeLevelKey === 'level3' && (
@@ -678,7 +817,7 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                     onEvidenceUploaded={refreshEvidence}
@@ -691,12 +830,14 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                     onEvidenceUploaded={refreshEvidence}
                     onReviewEvidence={handleReviewEvidence}
                     onViewItem={setSelectedDetailItem}
+                    selectedSourceToEdit={selectedSourceToEdit}
+                    onItemStaged={handleItemStaged}
                   />
                 )}
                 {activeLevelKey === 'level5' && (
@@ -704,7 +845,7 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                   />
@@ -714,7 +855,7 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                   />
@@ -724,7 +865,7 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                     onEvidenceUploaded={refreshEvidence}
@@ -736,7 +877,7 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                   />
@@ -746,7 +887,7 @@ export function DataEntryModule({
                     projectId={selectedProjectId!}
                     periodId={selectedPeriodId!}
                     evidence={evidence}
-                    readOnly={readOnly}
+                    readOnly={readOnly || !periodOpen}
                     formStateRef={formStateRef}
                     onSaved={handleSaved}
                     onEvidenceUploaded={refreshEvidence}
@@ -754,7 +895,6 @@ export function DataEntryModule({
                   />
                 )}
               </motion.div>
-            </AnimatePresence>
           </div>
 
           {/* Existing Level Records Table */}
@@ -764,7 +904,7 @@ export function DataEntryModule({
                 Existing Records · {activeSub.label} · {selectedPeriod?.label}
               </h4>
               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                {existingRecords.length} record(s)
+                {activeLevelRecords.length} record(s)
               </span>
             </div>
 
@@ -860,7 +1000,11 @@ export function DataEntryModule({
           </div>
         </motion.section>
 
-        {/* RIGHT COLUMN: FLIPPABLE ENGINE & EVIDENCE REVIEW PANEL (1 COL) */}
+        {/* RIGHT COLUMN: FLIPPABLE ENGINE & EVIDENCE REVIEW PANEL (1 COL)
+            Rendered only when expanded — collapsing must remove the whole
+            panel (and its sequence journey list) from the layout, not just
+            shrink it. The floating "Expand Journey" tab below brings it back. */}
+        {!panelCollapsed && (
         <FlippableEngineEvidencePanel
           saved={saved}
           activeSub={activeSub}
@@ -890,8 +1034,40 @@ export function DataEntryModule({
           onToggleCollapse={() => setPanelCollapsed(true)}
           onViewItem={setSelectedDetailItem}
           onSelectSourceItem={handleSelectSourceItem}
+          flashItem={flashItem}
         />
+        )}
       </div>
+
+      {/* FLOATING CAPTURED-ITEM CARD: flies from the "+ Add (Draft)" button to the
+          right-panel Captured Emission Sources list */}
+      {flight && (
+        <motion.div
+          key={flight.id}
+          initial={{ x: flight.from.left, y: flight.from.top, opacity: 0, scale: 0.8 }}
+          animate={{
+            x: flight.to.left + flight.to.width / 2 - 110,
+            y: flight.to.top + flight.to.height / 2 - 24,
+            opacity: [0, 1, 1, 0.1],
+            scale: [0.8, 1, 1, 0.45],
+          }}
+          transition={{ duration: 0.95, times: [0, 0.12, 0.72, 1], ease: [0.22, 1, 0.36, 1] }}
+          className="pointer-events-none fixed left-0 top-0 z-[80]"
+        >
+          <div className="flex w-[220px] items-center gap-2.5 rounded-2xl border border-blue-300/80 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 px-3.5 py-2.5 shadow-2xl shadow-blue-500/40 ring-2 ring-white/60">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white/20">
+              <Plus className="h-4 w-4 stroke-[2.5] text-white" />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-xs font-extrabold text-white">{flight.name}</div>
+              <div className="font-mono text-[10px] font-bold text-blue-100">
+                {flight.quantity.toLocaleString()} {flight.unit}
+                {flight.estTco2e ? ` · ${flight.estTco2e.toFixed(2)} tCO₂e` : ''}
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
 
       {/* Floating Restore Tab when Journey Panel is Collapsed */}
       {panelCollapsed && (
@@ -921,7 +1097,7 @@ export function DataEntryModule({
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: 0.06 }}
         className="glass-nav sticky bottom-3 z-20 rounded-2xl p-3 shadow-lg"
       >
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -937,7 +1113,8 @@ export function DataEntryModule({
                   type="button"
                   onClick={() => {
                     setStep(n)
-                    if (n === 2 && panelCollapsed) setPanelCollapsed(false)
+                    /* Collapsed stays collapsed — no auto-reopen of the
+                       sequence journey item panel from the stepper. */
                     if (n === 5) setFinalSubmitModalOpen(true)
                   }}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl transition cursor-pointer active:scale-95 ${
@@ -973,9 +1150,10 @@ export function DataEntryModule({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              disabled={readOnly || submittingAll}
+              disabled={readOnly || submittingAll || !periodOpen}
               onClick={() => setFinalSubmitModalOpen(true)}
-              className="btn-liquid-blue flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-md hover:shadow-blue-500/25 transition active:scale-95 cursor-pointer"
+              className="btn-liquid-blue flex items-center gap-2 rounded-full px-5 py-2 text-xs font-bold text-white shadow-md hover:shadow-blue-500/25 transition active:scale-95 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+              title={periodOpen ? undefined : 'Reporting period is closed'}
             >
               <Send className="h-3.5 w-3.5" />
               <span>Submit to Project Admin</span>

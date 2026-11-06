@@ -292,10 +292,13 @@ export function EvidenceReviewBackface({
         </p>
         <button
           onClick={onFlipBack}
-          className="mt-4 btn-glass flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-semibold text-blue-600"
+          className="group mt-4 flex items-center gap-1.5 rounded-full border border-blue-200 bg-gradient-to-r from-white to-blue-50 px-4 py-1.5 text-xs font-bold text-blue-800 shadow-xs transition-all hover:bg-blue-600 hover:text-white hover:shadow-md active:scale-95 cursor-pointer"
+          title="Flip card back 180° to the Calculations tab"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
-          <span>Flip Back to Calculations</span>
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition group-hover:bg-white/25 group-hover:text-white">
+            <RotateCcw className="h-2.5 w-2.5 transition-transform group-hover:-rotate-90" />
+          </span>
+          <span>Back to Calculations</span>
         </button>
       </div>
     )
@@ -313,14 +316,16 @@ export function EvidenceReviewBackface({
   return (
     <div className="flex flex-col h-full space-y-3">
       {/* Top Bar with Flip Back, Expand Fullscreen & Download */}
-      <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
+      <div className="flex items-center justify-between gap-2 border-b border-blue-100 pb-2.5">
         <button
           onClick={onFlipBack}
-          className="group flex items-center gap-1.5 rounded-full border border-blue-200 bg-white/95 px-3 py-1.5 text-xs font-bold text-blue-700 shadow-xs hover:bg-blue-600 hover:text-white transition"
-          title="Flip card back 180° to calculations preview"
+          className="group flex items-center gap-1.5 rounded-full border border-blue-200 bg-gradient-to-r from-white to-blue-50 px-2 py-1.5 pr-3 text-xs font-bold text-blue-800 shadow-xs transition-all hover:bg-blue-600 hover:text-white hover:shadow-md active:scale-95 cursor-pointer"
+          title="Flip card back 180° to the Calculations tab"
         >
-          <RotateCcw className="h-3.5 w-3.5 transition-transform group-hover:-rotate-90" />
-          <span>Flip Back (180°)</span>
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 text-blue-700 transition group-hover:bg-white/25 group-hover:text-white">
+            <RotateCcw className="h-2.5 w-2.5 transition-transform group-hover:-rotate-90" />
+          </span>
+          <span>Back to Calculations</span>
         </button>
 
         <div className="flex items-center gap-1.5">
@@ -328,7 +333,7 @@ export function EvidenceReviewBackface({
             <button
               type="button"
               onClick={onExpandFullscreen}
-              className="flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+              className="flex h-[30px] items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 active:scale-95 transition cursor-pointer"
               title="Expand full screen preview"
             >
               <Maximize2 className="h-3.5 w-3.5 text-blue-600" />
@@ -339,7 +344,7 @@ export function EvidenceReviewBackface({
           <a
             href={downloadUrl}
             download={evidence.fileName}
-            className="flex items-center gap-1 rounded-full bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 transition"
+            className="flex h-[30px] items-center gap-1 rounded-full bg-blue-600 px-3 text-xs font-bold text-white shadow-xs hover:bg-blue-700 active:scale-95 transition"
             title="Download original file"
           >
             <Download className="h-3.5 w-3.5" />

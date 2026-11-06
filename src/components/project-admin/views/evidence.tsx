@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileQuestion,
-  RefreshCw,
   ExternalLink,
   ShieldCheck,
   Calendar,
@@ -20,6 +19,7 @@ import {
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaDrawer, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaEvidenceItem, ContributorRole } from "@/lib/project-admin/types";
 
 export default function EvidenceView() {
@@ -132,6 +132,11 @@ export default function EvidenceView() {
       </PaGlassCard>
 
       {/* Document Grid / Table */}
+      {loading ? (
+        <div className="glass rounded-2xl p-6">
+          <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading evidence…" />
+        </div>
+      ) : (
       <PaGlassCard strong className="overflow-x-auto p-0">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -208,6 +213,7 @@ export default function EvidenceView() {
           </tbody>
         </table>
       </PaGlassCard>
+      )}
 
       {/* ── Document Preview Drawer ── */}
       <PaDrawer

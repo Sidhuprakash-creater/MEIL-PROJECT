@@ -24,6 +24,7 @@
  */
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Database, Gauge, Leaf, Zap, Users, Scale, AlertTriangle,
   ShieldCheck, ArrowUpRight, ArrowDownRight, RefreshCw, AlertCircle,
@@ -358,18 +359,8 @@ function SectionCard({
 /** Loading skeleton. */
 function WorkspaceSkeleton({ tiles = 4 }: { tiles?: number }) {
   return (
-    <div className="space-y-5">
-      <div className="so-glass rounded-[20px] h-16 animate-pulse" />
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {Array.from({ length: tiles }).map((_, i) => (
-          <div key={i} className="so-glass rounded-2xl h-[100px] animate-pulse" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        <div className="so-glass rounded-[20px] h-[300px] animate-pulse" />
-        <div className="so-glass rounded-[20px] h-[300px] animate-pulse" />
-      </div>
-      <div className="so-glass rounded-[20px] h-[240px] animate-pulse" />
+    <div className="so-glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading workspace…" />
     </div>
   )
 }

@@ -22,6 +22,7 @@ import {
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
 
 /* ── Per-source item rendering helpers ──────────────────────────────────── */
 const FIELD_LABELS: Record<string, string> = {
@@ -372,6 +373,11 @@ export default function SubmissionsView() {
       </div>
 
       {/* Main Submissions Table */}
+      {loading ? (
+        <div className="glass rounded-2xl p-6">
+          <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading submissions…" />
+        </div>
+      ) : (
       <PaGlassCard strong className="overflow-x-auto p-0">
         <table className="w-full text-left border-collapse text-xs">
           <thead>
@@ -535,6 +541,7 @@ export default function SubmissionsView() {
           </tbody>
         </table>
       </PaGlassCard>
+      )}
 
       {/* Inspect Submission Details Modal */}
       <PaDialog

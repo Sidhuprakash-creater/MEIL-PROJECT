@@ -22,12 +22,22 @@ import {
   PaPageHeader,
   PaStatusBadge,
 } from "@/components/project-admin/ui";
-import { paApiGet, paApiPost, paApiDelete, getCachedPaData } from "@/lib/project-admin/client";
+import { MeilBoxLoader } from "@/components/shared/meil-loader";
+import { paApiGet, paApiPatch, paApiDelete, getCachedPaData } from "@/lib/project-admin/client";
 import { usePaStore } from "@/lib/project-admin/store";
 import type { PaNotificationItem, PaViewId } from "@/lib/project-admin/types";
 
+/* Normalize the API row (read/category/linkView) into the aliases the view
+   renders (isRead/type) — previously these never matched, so the unread
+   filter, counts and action links were all dead. */
+const normalizeNotification = (n: any): PaNotificationItem => ({
+  ...n,
+  isRead: n.read ?? n.isRead ?? false,
+  type: n.type ?? n.category ?? "SYSTEM",
+});
+
 export function NotificationsView() {
-  const { navigate } = usePaStore();
+  const { navigate, setUnreadNotificationsCount } = usePaStore();
   const cached = getCachedPaData<any>("/api/project-admin/notifications");
   const [notifications, setNotifications] = useState<PaNotificationItem[]>(cached?.notifications || []);
   const [filterType, setFilterType] = useState<string>("ALL");
@@ -42,7 +52,9 @@ export function NotificationsView() {
       const res = await paApiGet<{ notifications: PaNotificationItem[] }>(
         "/api/project-admin/notifications"
       );
-      setNotifications(res.notifications || []);
+      const list = (res.notifications || []).map(normalizeNotification);
+      setNotifications(list);
+      setUnreadNotificationsCount(list.filter((n) => !n.isRead).length);
     } catch (err) {
       console.error("Failed to load notifications:", err);
     } finally {
@@ -56,10 +68,12 @@ export function NotificationsView() {
 
   const markAsRead = async (id: string) => {
     try {
-      await paApiPost(`/api/project-admin/notifications`, { id, action: "read" });
+      /* The route implements GET + PATCH only — POST returned 405 before. */
+      await paApiPatch(`/api/project-admin/notifications`, { id });
       setNotifications((prev) =>
         prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
       );
+      setUnreadNotificationsCount(Math.max(0, unreadCount - 1));
     } catch (err) {
       console.error("Failed to mark as read:", err);
     }
@@ -68,8 +82,9 @@ export function NotificationsView() {
   const markAllAsRead = async () => {
     startTransition(async () => {
       try {
-        await paApiPost(`/api/project-admin/notifications`, { action: "mark_all_read" });
+        await paApiPatch(`/api/project-admin/notifications`, { markAllRead: true });
         setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+        setUnreadNotificationsCount(0);
       } catch (err) {
         console.error("Failed to mark all as read:", err);
       }
@@ -237,9 +252,8 @@ export function NotificationsView() {
       {/* Notifications list */}
       <div className="space-y-3">
         {isLoading ? (
-          <div className="py-12 text-center text-slate-400 text-sm">
-            <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-[#315CFF]" />
-            Loading project alerts...
+          <div className="glass rounded-2xl p-6">
+            <MeilBoxLoader boxHeight="min-h-[240px]" label="Loading project alerts…" />
           </div>
         ) : filtered.length === 0 ? (
           <PaGlassCard className="p-12 text-center">
@@ -287,14 +301,13 @@ export function NotificationsView() {
                     </p>
                     <div className="flex items-center gap-4 text-[11px] text-slate-400">
                       <span>{new Date(item.createdAt).toLocaleString()}</span>
-                      {item.actionUrl && (
+                      {(item.linkView || item.actionUrl) && (
                         <button
                           onClick={() => {
                             if (!item.isRead) markAsRead(item.id);
-                            if (item.actionUrl?.startsWith("#")) {
-                              const viewId = item.actionUrl.replace("#", "") as PaViewId;
-                              navigate(viewId);
-                            }
+                            /* linkView comes from the API (actionUrl is a legacy alias). */
+                            const target = item.linkView ?? (item.actionUrl?.startsWith("#") ? item.actionUrl.replace("#", "") : null);
+                            if (target) navigate(target as PaViewId);
                           }}
                           className="text-[#315CFF] font-semibold flex items-center gap-1 hover:underline"
                         >

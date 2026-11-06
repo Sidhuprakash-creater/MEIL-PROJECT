@@ -101,8 +101,44 @@ function FinStepper({
   )
 }
 
+/** Flatten a finance dataset section into scalar review fields so the Project
+ *  Admin review window shows the contributor's real entries. */
+const flattenFinanceRecord = (label: string, obj: unknown, out: Record<string, unknown>) => {
+  if (!obj || typeof obj !== 'object') return
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v === null || v === undefined || k === 'id' || k === 'common') continue
+    if (Array.isArray(v)) {
+      if (v.length > 0) out[`${label} · ${k} (count)`] = v.length
+      continue
+    }
+    if (typeof v === 'object') {
+      flattenFinanceRecord(`${label} ${k}`, v, out)
+      continue
+    }
+    out[`${label} · ${k}`] = v
+  }
+}
+
 export function FinanceWorkspace() {
-  const { activeModule, setActiveModule } = useApp()
+  const { activeModule, setActiveModule, selectedProjectId } = useApp()
+
+  /* Most recent OPEN reporting period (mirrors the PU data-entry default) —
+     replaces the previously hardcoded period/project IDs. */
+  const [periodId, setPeriodId] = useState('')
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/so/organization/tree')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((tr) => {
+        if (cancelled || !tr) return
+        const periods: any[] = tr?.periods || []
+        const open = periods.filter((p) => p.status === 'OPEN')
+        const pick = open[open.length - 1] || periods[periods.length - 1]
+        if (pick?.id) setPeriodId(pick.id)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   // State management
   const [assignments, setAssignments] = useState<FinanceAssignment[]>([])
@@ -348,6 +384,26 @@ export function FinanceWorkspace() {
     }
   }
 
+  /* Build the level-9 finance payload from the contributor's REAL workspace
+     data (previously hardcoded demo values with hardcoded project/period). */
+  const buildFinanceData = (remarks: string): Record<string, unknown> => {
+    const flat: Record<string, unknown> = {}
+    flattenFinanceRecord('Financial summary', financialData, flat)
+    flattenFinanceRecord('Intensity metrics', intensityMetrics, flat)
+    flattenFinanceRecord('CSR disclosure', csrData, flat)
+    return {
+      activityInitiativeName: 'Resource Efficiency & Environmental Capital Expenditure',
+      baselineValue: financialData.previousTurnover || undefined,
+      reportingPeriodValue: financialData.turnover || undefined,
+      outputUnit: financialData.turnoverUnit ? `INR ${financialData.turnoverUnit}` : 'INR Crores',
+      totalExpenditure: financialData.totalExpenditure || undefined,
+      capEx: financialData.capEx || undefined,
+      opEx: financialData.opEx || undefined,
+      ...flat,
+      remarks,
+    }
+  }
+
   // Submit record for review
   const handleSubmitForReview = async () => {
     const res = financeStore.validateRecord(financialData, expenditures, documents)
@@ -367,15 +423,9 @@ export function FinanceWorkspace() {
           levelKey: 'level9',
           levelName: 'BRSR Finance & Resource Expenditures',
           module: 'FINANCE',
-          projectId: 'cmv0skx6l0071e9cgt6sn5w7i',
-          reportingPeriodId: 'cmv0skxfn009he9cgg61xsb4c',
-          data: {
-            activityInitiativeName: 'Resource Efficiency & Environmental Capital Expenditure',
-            baselineValue: financialData.turnover || 1450,
-            reportingPeriodValue: financialData.environmentalSpend || 120,
-            outputUnit: 'INR Crores',
-            remarks: 'Submitted from Finance Contributor Workspace',
-          },
+          projectId: selectedProjectId || undefined,
+          reportingPeriodId: periodId || undefined,
+          data: buildFinanceData('Submitted from Finance Contributor Workspace — live workspace dataset attached.'),
           submitForReview: true,
         }),
       }).catch((e) => console.warn('Finance data-entry post warning:', e))
@@ -398,15 +448,9 @@ export function FinanceWorkspace() {
           levelKey: 'level9',
           levelName: 'BRSR Finance & Resource Expenditures (Resubmitted)',
           module: 'FINANCE',
-          projectId: 'cmv0skx6l0071e9cgt6sn5w7i',
-          reportingPeriodId: 'cmv0skxfn009he9cgg61xsb4c',
-          data: {
-            activityInitiativeName: 'Resource Efficiency & Environmental Capital Expenditure',
-            baselineValue: financialData.turnover || 1450,
-            reportingPeriodValue: financialData.environmentalSpend || 120,
-            outputUnit: 'INR Crores',
-            remarks: 'Resubmitted after addressing reviewer remarks',
-          },
+          projectId: selectedProjectId || undefined,
+          reportingPeriodId: periodId || undefined,
+          data: buildFinanceData('Resubmitted after addressing reviewer remarks.'),
           submitForReview: true,
         }),
       }).catch(() => {})

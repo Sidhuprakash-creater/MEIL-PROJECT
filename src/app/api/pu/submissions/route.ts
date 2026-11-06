@@ -348,24 +348,6 @@ export async function POST(req: NextRequest) {
       reason: submitNow ? 'Submitted for review from Data Entry (single round-trip)' : 'Submission created in DRAFT state',
     })
 
-    await appendAudit({
-      actorId: user.id,
-      actorName: user.name,
-      actorRole: primaryRoleLabel(user),
-      action: 'CREATE',
-      entityType: 'Submission',
-      entityId: created.id,
-      newState: {
-        projectId,
-        reportingPeriodId,
-        module: moduleKey,
-        title,
-        recordIds: records.map((r) => r.id),
-        rollup,
-      },
-      reason: 'Submission created in DRAFT state',
-    })
-
     invalidatePuSubmissionsCache()
     return NextResponse.json({ submission: created, rollup }, { status: 201 })
   } catch (e) {

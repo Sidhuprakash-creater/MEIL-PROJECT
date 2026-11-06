@@ -1,5 +1,5 @@
 'use client'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   CheckCircle2, AlertTriangle, AlertCircle, ShieldAlert,
@@ -10,6 +10,7 @@ import {
   type ContributorRoleKey,
   type ValidationItem
 } from '@/lib/so/contributor-store'
+import { useApp } from '@/components/site-ops/context'
 
 interface CommonValidationModalProps {
   isOpen: boolean
@@ -17,6 +18,24 @@ interface CommonValidationModalProps {
   roleKey: ContributorRoleKey
   levelName: string
   onSubmitSuccess?: () => void
+}
+
+/** Flatten one workspace dataset section into scalar review fields so the
+ *  Project Admin review window shows the contributor's real entries. */
+const flattenRecord = (label: string, obj: unknown, out: Record<string, unknown>) => {
+  if (!obj || typeof obj !== 'object') return
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    if (v === null || v === undefined || k === 'id' || k === 'common') continue
+    if (Array.isArray(v)) {
+      if (v.length > 0) out[`${label} · ${k} (count)`] = v.length
+      continue
+    }
+    if (typeof v === 'object') {
+      flattenRecord(`${label} ${k}`, v, out)
+      continue
+    }
+    out[`${label} · ${k}`] = v
+  }
 }
 
 export function CommonValidationModal({
@@ -28,75 +47,154 @@ export function CommonValidationModal({
 }: CommonValidationModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionSuccess, setSubmissionSuccess] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const { selectedProjectId } = useApp()
+  /* Most recent OPEN reporting period (mirrors the PU data-entry default). */
+  const [periodId, setPeriodId] = useState('')
+
+  useEffect(() => {
+    if (!isOpen) return
+    let cancelled = false
+    fetch('/api/so/organization/tree')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((tr) => {
+        if (cancelled || !tr) return
+        const periods: any[] = tr?.periods || []
+        const open = periods.filter((p) => p.status === 'OPEN')
+        const pick = open[open.length - 1] || periods[periods.length - 1]
+        if (pick?.id) setPeriodId(pick.id)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isOpen])
 
   const validationResult = contributorStore.validateRole(roleKey)
+
+  /* Build the submission payload from the contributor's REAL workspace data
+     (previously this sent a hardcoded demo payload, so nothing the user
+     entered ever reached the Project Admin). */
+  const buildRolePayload = (): { module: string; level: number; data: Record<string, unknown> } => {
+    const flat: Record<string, unknown> = {}
+    const F = (obj: unknown, label: string) => flattenRecord(label, obj, flat)
+
+    if (roleKey === 'HR_USER') {
+      const hr = contributorStore.getHrData()
+      F(hr.workforceProfile, 'Workforce profile')
+      F(hr.diversity, 'Diversity')
+      F(hr.turnover, 'Hiring & turnover')
+      F(hr.training, 'Training & development')
+      F(hr.reviews, 'Performance reviews')
+      F(hr.benefits, 'Employee benefits')
+      F(hr.wages, 'Wages & remuneration')
+      F(hr.grievances, 'Grievances & human rights')
+      F(hr.safetyCoord, 'Safety coordination')
+      return {
+        module: 'HR',
+        level: 6,
+        data: {
+          trainingProgramme: 'Health, Safety & ESG Capability Development',
+          participants: Number((hr.training as any)?.participantsCompleting ?? 0) || undefined,
+          duration: Number((hr.training as any)?.durationHours ?? 0) || undefined,
+          durationUnit: 'Hours',
+          ...flat,
+          remarks: 'Submitted from HR Contributor Workspace — live workspace dataset attached.',
+        },
+      }
+    }
+    if (roleKey === 'EHS_USER') {
+      const ehs = contributorStore.getEhsData()
+      F(ehs.energy, 'Energy consumption')
+      F(ehs.water, 'Water management')
+      F(ehs.ghg, 'GHG emissions')
+      F(ehs.waste, 'Waste management')
+      F(ehs.safety, 'Safety incidents')
+      F(ehs.permits, 'Compliance permits')
+      F(ehs.incidents, 'Environmental incidents')
+      F(ehs.initiatives, 'Sustainability initiatives')
+      return {
+        module: 'SAFETY',
+        level: 5,
+        data: {
+          incidentType: 'Workspace Safety & Environment Submission',
+          severity: 'Reported',
+          personHoursWorked: Number((ehs.safety as any)?.personHoursWorked ?? (ehs.safety as any)?.totalPersonHours ?? 0) || undefined,
+          lostTimeInjuries: Number((ehs.safety as any)?.lostTimeInjuries ?? (ehs.safety as any)?.lti ?? 0),
+          ...flat,
+          remarks: 'Submitted from EHS Contributor Workspace — live workspace dataset attached.',
+        },
+      }
+    }
+    if (roleKey === 'PROCUREMENT_USER') {
+      const sc = contributorStore.getScData()
+      F(sc.supplierMaster, 'Supplier master')
+      F(sc.spend, 'Procurement spend')
+      F(sc.assessment, 'Supplier ESG assessment')
+      F(sc.certifications, 'Supplier certifications')
+      F(sc.codeOfConduct, 'Code of conduct')
+      F(sc.audits, 'Supplier audits')
+      F(sc.valueChain, 'Value chain')
+      return {
+        module: 'PROCUREMENT',
+        level: 9,
+        data: {
+          activityInitiativeName: 'Sustainable Procurement & Supplier ESG Program',
+          ...flat,
+          remarks: 'Submitted from Procurement Contributor Workspace — live workspace dataset attached.',
+        },
+      }
+    }
+    if (roleKey === 'CSR_USER') {
+      const csr = contributorStore.getCsrData()
+      F(csr.projectMaster, 'CSR project master')
+      F(csr.activities, 'Activities & beneficiaries')
+      F(csr.expenditure, 'Expenditure references')
+      F(csr.outcomes, 'Project outcomes')
+      F(csr.grievances, 'Community grievances')
+      F(csr.sia, 'Social impact assessment')
+      F(csr.rr, 'Rehabilitation & resettlement')
+      return {
+        module: 'CSR',
+        level: 8,
+        data: {
+          dateReported: new Date().toISOString().slice(0, 10),
+          description: String((csr.projectMaster as any)?.projectName ?? 'CSR Community Programme Submission'),
+          impactSeverity: 'Positive Impact',
+          currentStatus: String((csr.projectMaster as any)?.status ?? 'Active'),
+          ...flat,
+          remarks: 'Submitted from CSR Contributor Workspace — live workspace dataset attached.',
+        },
+      }
+    }
+    // COMPLIANCE_USER
+    const gov = contributorStore.getGovData()
+    F(gov.policies, 'Policy register')
+    F(gov.implementation, 'Policy implementation')
+    F(gov.ethics, 'Business ethics')
+    F(gov.whistleblower, 'Whistleblower & grievances')
+    F(gov.compliance, 'Regulatory compliance')
+    F(gov.humanRights, 'Human rights')
+    F(gov.oversight, 'Governance oversight')
+    return {
+      module: 'COMPLIANCE',
+      level: 7,
+      data: {
+        permitNumber: String((gov.compliance as any)?.permitNumber ?? (gov.compliance as any)?.consentNumber ?? 'GOV-COMPLIANCE-REGISTER'),
+        authority: String((gov.compliance as any)?.authority ?? 'Regulatory Authority'),
+        complianceStatus: String((gov.compliance as any)?.status ?? 'Fully Compliant'),
+        ...flat,
+        remarks: 'Submitted from Governance & Compliance Contributor Workspace — live workspace dataset attached.',
+      },
+    }
+  }
 
   const handleConfirmSubmit = async () => {
     if (!validationResult.passed) return
 
     setIsSubmitting(true)
+    setSubmitError('')
     try {
-      const moduleMap: Record<ContributorRoleKey, { module: string; level: number; data: any }> = {
-        HR_USER: {
-          module: 'HR',
-          level: 6,
-          data: {
-            trainingProgramme: 'Enterprise Safety & Compliance Induction',
-            participants: 120,
-            duration: 4,
-            durationUnit: 'Hours',
-            remarks: 'Submitted from HR Contributor Workspace',
-          },
-        },
-        EHS_USER: {
-          module: 'SAFETY',
-          level: 5,
-          data: {
-            incidentType: 'Hazard Observation',
-            severity: 'Near Miss',
-            personHoursWorked: 154000,
-            lostTimeInjuries: 0,
-            correctiveAction: 'Safety barricading reinforced',
-            remarks: 'Submitted from EHS Contributor Workspace',
-          },
-        },
-        PROCUREMENT_USER: {
-          module: 'PROCUREMENT',
-          level: 9,
-          data: {
-            activityInitiativeName: 'Local Vendor Sourcing & Low-Carbon Procurement',
-            baselineValue: 100,
-            reportingPeriodValue: 75,
-            outputUnit: 'Percent',
-            remarks: 'Submitted from Procurement Contributor Workspace',
-          },
-        },
-        CSR_USER: {
-          module: 'CSR',
-          level: 8,
-          data: {
-            dateReported: new Date().toISOString().slice(0, 10),
-            description: 'Community Drinking Water & Education Project Milestone',
-            impactSeverity: 'Positive Impact',
-            currentStatus: 'Active',
-            remarks: 'Submitted from CSR Contributor Workspace',
-          },
-        },
-        COMPLIANCE_USER: {
-          module: 'COMPLIANCE',
-          level: 7,
-          data: {
-            permitNumber: 'CTE-SPCB-2026-9041',
-            expiryDate: '2027-12-31',
-            authority: 'State Pollution Control Board',
-            complianceStatus: 'Fully Compliant',
-            remarks: 'Submitted from Governance & Compliance Contributor Workspace',
-          },
-        },
-      }
-
-      const cfg = moduleMap[roleKey] || moduleMap.HR_USER
-      await fetch('/api/so/data-entry', {
+      const cfg = buildRolePayload()
+      const res = await fetch('/api/so/data-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,12 +202,16 @@ export function CommonValidationModal({
           levelKey: `level${cfg.level}`,
           levelName,
           module: cfg.module,
-          projectId: 'cmv0skx6l0071e9cgt6sn5w7i',
-          reportingPeriodId: 'cmv0skxfn009he9cgg61xsb4c',
+          projectId: selectedProjectId || undefined,
+          reportingPeriodId: periodId || undefined,
           data: cfg.data,
           submitForReview: true,
         }),
-      }).catch((e) => console.warn('POST /api/data-entry err', e))
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `Submission failed (${res.status})`)
+      }
 
       // Add activity event
       contributorStore.addActivity({
@@ -132,9 +234,9 @@ export function CommonValidationModal({
       setIsSubmitting(false)
       setSubmissionSuccess(true)
       onSubmitSuccess?.()
-    } catch {
+    } catch (e) {
       setIsSubmitting(false)
-      setSubmissionSuccess(true)
+      setSubmitError(e instanceof Error ? e.message : 'Submission failed. Please try again.')
     }
   }
 
@@ -205,6 +307,13 @@ export function CommonValidationModal({
           </div>
         ) : (
           <div className="mt-4 space-y-4 text-xs">
+            {/* Submission error (real API failure) */}
+            {submitError && (
+              <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3 text-xs font-semibold text-rose-800">
+                {submitError}
+              </div>
+            )}
+
             {/* Summary Banner */}
             <div className={`rounded-xl p-3.5 border ${
               validationResult.passed

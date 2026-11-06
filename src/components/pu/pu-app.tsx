@@ -26,6 +26,7 @@ import { EsgAnalystDashboard } from "@/components/pu/dashboard/esg-analyst-dashb
 import { FinanceDashboard } from "@/components/pu/dashboard/finance-dashboard";
 import { ModuleRouter } from "@/components/pu/modules/module-router";
 import { ErrorBoundary } from "@/components/pu/error-boundary";
+import { MeilLoader } from "@/components/shared/meil-loader";
 import "./pu.css";
 
 /* Per-role dashboard mapping — each role gets a UNIQUE dashboard
@@ -84,9 +85,8 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
             style={{ width: 360, height: 360, top: "20%", left: "30%", background: "radial-gradient(circle, rgba(125,181,255,0.5), transparent 70%)" }}
           />
         </div>
-        <div className="glass-strong relative z-10 flex items-center gap-3 rounded-2xl px-6 py-4">
-          <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-blue-500" />
-          <span className="text-sm font-medium text-slate-600">Loading MEIL ESG…</span>
+        <div className="glass-strong relative z-10 flex items-center justify-center rounded-2xl px-6 py-4">
+          <MeilLoader size={90} label="Loading MEIL ESG…" />
         </div>
       </div>
     );
@@ -120,11 +120,16 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
 
 
   return (
-    <AppShell>
-      <ErrorBoundary label={activeModule}>
-        {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
-      </ErrorBoundary>
-    </AppShell>
+    <>
+      {/* Floating exit button — fixed top-right via .pu-exit-btn so it is
+          always reachable above the AppShell header. */}
+      {onExit && <ExitPortalButton onExit={onExit} />}
+      <AppShell>
+        <ErrorBoundary label={activeModule}>
+          {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
+        </ErrorBoundary>
+      </AppShell>
+    </>
   );
 }
 

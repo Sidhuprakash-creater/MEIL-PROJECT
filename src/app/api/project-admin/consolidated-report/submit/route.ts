@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
         scopeName: ctx.projectName,
         generatedBy: ctx.userId,
         generatedByName: ctx.userName,
-        status: "COMPLETED",
+        status: "SUBMITTED",
         fileName: `${ctx.projectCode}_Consolidated_Report_FY24-25.pdf`,
         fileType: "PDF",
         version: 1,

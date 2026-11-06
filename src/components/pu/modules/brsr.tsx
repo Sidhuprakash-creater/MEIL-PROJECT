@@ -15,6 +15,7 @@
  */
 import { useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeilBoxLoader, MeilLoader } from '@/components/shared/meil-loader'
 import { toast } from 'sonner'
 import {
   FileCheck2, ChevronDown, ChevronRight, Sparkles, AlertOctagon, AlertTriangle,
@@ -463,8 +464,8 @@ export function BrsrModule() {
             </DialogDescription>
           </DialogHeader>
           {loadingPreview ? (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-slate-500">
-              <Loader2 className="h-4 w-4 animate-spin" /> Resolving indicators from source data…
+            <div className="py-8">
+              <MeilLoader size={60} label="Resolving indicators…" />
             </div>
           ) : preview ? (
             <PreviewBody preview={preview} />
@@ -914,11 +915,8 @@ function PreviewBody({ preview }: { preview: PreviewResponse }) {
 // ============================================================
 function BrsrSkeleton() {
   return (
-    <div className="space-y-5">
-      <div className="h-8 w-64 animate-pulse rounded bg-slate-200/60" />
-      <div className="glass h-48 animate-pulse rounded-2xl" />
-      <div className="glass h-96 animate-pulse rounded-2xl" />
-      <div className="glass h-40 animate-pulse rounded-2xl" />
+    <div className="glass rounded-2xl p-6">
+      <MeilBoxLoader boxHeight="min-h-[420px]" label="Loading BRSR module…" />
     </div>
   )
 }
