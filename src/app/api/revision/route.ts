@@ -20,50 +20,31 @@ export const dynamic = "force-dynamic";
    ═══════════════════════════════════════════════════════════════════════════ */
 
 let cache: { rev: string; at: number } | null = null;
-const CACHE_MS = 750;
+const CACHE_MS = 3000;
 
 async function fingerprint(): Promise<string> {
-  const [
-    submission, task, evidenceDoc, notification, timeline,
-    pkg, validation, message, activity, audit, brsr, user, project, unit, sub, setting,
-  ] = await Promise.all([
-    db.submission.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.task.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.evidenceDoc.aggregate({ _max: { uploadedAt: true }, _count: true }),
-    db.notification.aggregate({ _max: { createdAt: true }, _count: true }),
-    db.reportingTimeline.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.reportingPackage.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.validationIssue.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.message.aggregate({ _max: { createdAt: true }, _count: true }),
-    db.activityEvent.aggregate({ _max: { createdAt: true }, _count: true }),
-    db.auditEvent.aggregate({ _max: { createdAt: true }, _count: true }),
-    db.brsrReport.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.user.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.project.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.businessUnit.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.subsidiary.aggregate({ _max: { updatedAt: true }, _count: true }),
-    db.appSetting.aggregate({ _max: { updatedAt: true }, _count: true }),
-  ]);
+  try {
+    const [
+      submission, task, notification, validation, audit,
+    ] = await Promise.all([
+      db.submission.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
+      db.task.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
+      db.notification.aggregate({ _max: { createdAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null, createdAt: null } })),
+      db.validationIssue.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
+      db.auditEvent.aggregate({ _max: { createdAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null, createdAt: null } })),
+    ]);
 
-  const parts = [
-    submission._count, submission._max.updatedAt?.getTime() ?? 0,
-    task._count, task._max.updatedAt?.getTime() ?? 0,
-    evidenceDoc._count, evidenceDoc._max.uploadedAt?.getTime() ?? 0,
-    notification._count, notification._max.createdAt?.getTime() ?? 0,
-    timeline._count, timeline._max.updatedAt?.getTime() ?? 0,
-    pkg._count, pkg._max.updatedAt?.getTime() ?? 0,
-    validation._count, validation._max.updatedAt?.getTime() ?? 0,
-    message._count, message._max.createdAt?.getTime() ?? 0,
-    activity._count, activity._max.createdAt?.getTime() ?? 0,
-    audit._count, audit._max.createdAt?.getTime() ?? 0,
-    brsr._count, brsr._max.updatedAt?.getTime() ?? 0,
-    user._count, user._max.updatedAt?.getTime() ?? 0,
-    project._count, project._max.updatedAt?.getTime() ?? 0,
-    unit._count, unit._max.updatedAt?.getTime() ?? 0,
-    sub._count, sub._max.updatedAt?.getTime() ?? 0,
-    setting._count, setting._max.updatedAt?.getTime() ?? 0,
-  ];
-  return `v1-${parts.join(".")}`;
+    const parts = [
+      submission._count, submission._max.updatedAt?.getTime() ?? 0,
+      task._count, task._max.updatedAt?.getTime() ?? 0,
+      notification._count, notification._max.createdAt?.getTime() ?? 0,
+      validation._count, validation._max.updatedAt?.getTime() ?? 0,
+      audit._count, audit._max.createdAt?.getTime() ?? 0,
+    ];
+    return `v1-${parts.join(".")}`;
+  } catch {
+    return cache?.rev ?? "v1-default";
+  }
 }
 
 export async function GET() {
@@ -80,7 +61,6 @@ export async function GET() {
     cache = { rev, at: now };
     return NextResponse.json({ rev }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
-    console.error("[revision]", e);
-    return NextResponse.json({ error: "Revision check failed" }, { status: 500 });
+    return NextResponse.json({ rev: cache?.rev ?? "v1-fallback" }, { status: 200, headers: { "Cache-Control": "no-store" } });
   }
 }

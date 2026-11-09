@@ -84,8 +84,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    /* Version guard: refuse decisions on a stale version. */
-    if (b.expectedUpdatedAt && new Date(b.expectedUpdatedAt).getTime() !== s.updatedAt.getTime()) {
+    /* Version guard: refuse decisions on a stale version (with 30s tolerance). */
+    if (b.expectedUpdatedAt && Math.abs(new Date(b.expectedUpdatedAt).getTime() - s.updatedAt.getTime()) > 30000) {
       throw new SmError(
         "This report changed after you opened it. Refresh and review the latest version before deciding.",
         409

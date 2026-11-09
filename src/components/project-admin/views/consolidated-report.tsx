@@ -215,7 +215,7 @@ export default function ConsolidatedReportView() {
   const newApprovals = contributorGroups
     .flatMap(g => g.submissions)
     .filter(s => !s.inConsolidatedReport).length;
-  const priorVersionSubmitted = ["SUBMITTED", "APPROVED", "COMPLETED"].includes(String(report?.status));
+  const priorVersionSubmitted = ["SUBMITTED", "APPROVED", "COMPLETED", "BU_APPROVED"].includes(String(report?.status));
   const canSubmit = hasApprovedData;
 
   const tabs = [
