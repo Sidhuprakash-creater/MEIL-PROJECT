@@ -111,6 +111,10 @@ export function moduleToCategory(module: string | null | undefined): string {
     case "TRAVEL": return "EMISSIONS";
     case "EMISSIONS": return "EMISSIONS";
     case "COMPLIANCE": return "COMPLIANCE";
+    case "FINANCE": return "FINANCE";
+    case "WORKFORCE": case "HR": return "WORKFORCE";
+    case "CSR": return "CSR";
+    case "PROCUREMENT": return "PROCUREMENT";
     case "INITIATIVES": return "CSR";
     default: return "ENVIRONMENT";
   }

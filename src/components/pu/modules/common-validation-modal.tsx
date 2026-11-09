@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { toast } from 'sonner'
 import {
   CheckCircle2, AlertTriangle, AlertCircle, ShieldAlert,
   Send, RefreshCw, X, ArrowRight, ShieldCheck, Sparkles, FileText
@@ -16,6 +17,7 @@ interface CommonValidationModalProps {
   onClose: () => void
   roleKey: ContributorRoleKey
   levelName: string
+  hrData?: any
   onSubmitSuccess?: () => void
 }
 
@@ -24,6 +26,7 @@ export function CommonValidationModal({
   onClose,
   roleKey,
   levelName,
+  hrData,
   onSubmitSuccess
 }: CommonValidationModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -38,13 +41,26 @@ export function CommonValidationModal({
     try {
       const moduleMap: Record<ContributorRoleKey, { module: string; level: number; data: any }> = {
         HR_USER: {
-          module: 'HR',
+          module: 'WORKFORCE',
           level: 6,
-          data: {
-            trainingProgramme: 'Enterprise Safety & Compliance Induction',
-            participants: 120,
-            duration: 4,
-            durationUnit: 'Hours',
+          /* REAL multi-level HR package — no mocks. Everything the contributor
+             entered across the four pillars (workforce, learning, compensation,
+             grievances) plus statutory POSH & audit references. */
+          data: hrData ? {
+            workforceCensus: hrData.workforceProfile,
+            diversity: hrData.diversity,
+            hiringTurnover: hrData.turnover,
+            trainingLog: hrData.training,
+            performanceReviews: hrData.reviews,
+            statutoryBenefits: hrData.benefits,
+            wagesRemuneration: hrData.wages,
+            grievanceRegister: hrData.grievances,
+            safetyCoordination: hrData.safetyCoord,
+            contractorVerification: hrData.contractor,
+            poshStatutory: hrData.posh,
+            auditReferences: hrData.auditRefs,
+            remarks: 'Submitted from HR Contributor Workspace — consolidated multi-level package.',
+          } : {
             remarks: 'Submitted from HR Contributor Workspace',
           },
         },
@@ -96,7 +112,7 @@ export function CommonValidationModal({
       }
 
       const cfg = moduleMap[roleKey] || moduleMap.HR_USER
-      await fetch('/api/pu/data-entry', {
+      const post = await fetch('/api/pu/data-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -104,12 +120,19 @@ export function CommonValidationModal({
           levelKey: `level${cfg.level}`,
           levelName,
           module: cfg.module,
-          projectId: 'cmv0skx6l0071e9cgt6sn5w7i',
-          reportingPeriodId: 'cmv0skxfn009he9cgg61xsb4c',
           data: cfg.data,
           submitForReview: true,
         }),
-      }).catch((e) => console.warn('POST /api/data-entry err', e))
+      }).catch((e) => {
+        console.warn('POST /api/data-entry err', e)
+        return null
+      })
+      if (!post || !post.ok) {
+        const err = post ? await post.json().catch(() => ({})) : {}
+        toast.error?.('Submission failed', { description: (err as any)?.error || 'The Project Admin ledger rejected the submission.' })
+        setIsSubmitting(false)
+        return
+      }
 
       // Add activity event
       contributorStore.addActivity({

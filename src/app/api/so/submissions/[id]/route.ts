@@ -125,9 +125,20 @@ export async function GET(
     }
 
     // --- EVIDENCE ---
-    const evidenceIds = sourceRecords
-      .map((r) => (r as { evidenceId?: string | null }).evidenceId)
-      .filter((x): x is string => Boolean(x))
+    /* Collect evidence at record level (evidenceId + evidenceIds[]) AND per
+       staged item — the contributor may attach documents to individual source
+       items, and every attached document must surface in the Evidence tab. */
+    const evidenceIdSet = new Set<string>()
+    for (const r of sourceRecords as Array<Record<string, unknown>>) {
+      const rec = r as { evidenceId?: string | null; evidenceIds?: unknown; data?: { items?: Array<Record<string, unknown>> } }
+      if (rec.evidenceId) evidenceIdSet.add(String(rec.evidenceId))
+      if (Array.isArray(rec.evidenceIds)) for (const eid of rec.evidenceIds) if (eid) evidenceIdSet.add(String(eid))
+      for (const it of Array.isArray(rec.data?.items) ? rec.data.items : []) {
+        if (it?.evidenceId) evidenceIdSet.add(String(it.evidenceId))
+        if (Array.isArray(it?.evidenceIds)) for (const eid of it.evidenceIds) if (eid) evidenceIdSet.add(String(eid))
+      }
+    }
+    const evidenceIds = [...evidenceIdSet]
     const evidence = evidenceIds.length
       ? await db.evidence.findMany({
           where: { id: { in: evidenceIds } },

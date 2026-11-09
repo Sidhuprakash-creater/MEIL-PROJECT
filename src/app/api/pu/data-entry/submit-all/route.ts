@@ -122,6 +122,24 @@ const BRSR_LEVELS = [
   { level: 9, moduleKey: 'INITIATIVES', category: 'CSR', name: 'Level 9 — Energy & Environmental Initiatives' },
 ]
 
+/* UI level ↔ internal store level aliases — ONE DIRECTION ONLY: the visible
+   Level 5 (Permits) stages under `l7-…` and visible Level 6 (Initiatives)
+   under `l9-…`, so internal levels 7/9 probe the UI keys. The reverse must
+   NOT be probed: legacy levels 5 (Safety) / 6 (Training) have no UI form
+   anymore, and aliasing them to the l7/l9 keys duplicated the same data into
+   fake TRAINING/SAFETY submissions. */
+const LEVEL_ALIASES: Record<number, number[]> = { 7: [5], 9: [6] }
+
+function entryHasData(entry: any): boolean {
+  if (!entry || typeof entry !== 'object') return false
+  if (Array.isArray(entry.items) && entry.items.length > 0) return true
+  return Object.entries(entry).some(([k, v]) =>
+    k === 'viewStep' ? false :
+    typeof v === 'string' ? v.trim() !== '' :
+    v != null && !(Array.isArray(v) && v.length === 0),
+  )
+}
+
 export async function POST(req: NextRequest) {
   try {
     const user = await getCurrentUser()
@@ -173,37 +191,39 @@ export async function POST(req: NextRequest) {
     const submittedList: any[] = []
     const consolidatedHighlights: MetricDetail[] = []
 
-    // 3. Batch fetch for existing submissions and attached project evidence
-    const [existingSubs, existingEvidence, existingDocs] = await Promise.all([
-      db.submission.findMany({
-        where: {
-          projectId: projId,
-          reportingPeriodId: perId,
-          module: { in: [...BRSR_LEVELS.map(l => l.moduleKey), 'ALL_LEVELS'] },
-        },
-      }),
-      db.evidence.findMany({
-        where: { projectId: projId },
-        select: { id: true, fileName: true, documentType: true, filePath: true, hash: true },
-      }),
-      db.evidenceDoc.findMany({
-        where: { projectId: projId },
-        select: { id: true, name: true },
-      }),
-    ])
-
-    const attachedEvidenceFiles: string[] = [
-      ...existingEvidence.map(e => e.fileName || e.id),
-      ...existingDocs.map(d => d.name || d.id),
-    ].filter(Boolean)
+    // 3. Batch fetch for existing submissions (evidence is resolved per record below)
+    const existingSubs = await db.submission.findMany({
+      where: {
+        projectId: projId,
+        reportingPeriodId: perId,
+        module: { in: [...BRSR_LEVELS.map(l => l.moduleKey), 'ALL_LEVELS'] },
+      },
+    })
 
     const existingMap = new Map(existingSubs.map(s => [s.module, s]))
 
-    /* Persist all 9 level records with ONE read + ONE write of the store file
-       (previously 9 concurrent full read+write cycles). */
+    /* Persist every FILLED level with ONE read + ONE write of the store file.
+       Forms stage data under scoped keys `l{n}-{projectId}-{periodId}` (with
+       legacy aliases for UI levels 5/6 → level7/level9); levels the user did
+       not fill are skipped entirely — final submission does NOT require all
+       levels to be filled. */
+    const resolveLevelData = (lvl: { level: number; moduleKey: string }): Record<string, any> => {
+      const candidates = [lvl.level, ...(LEVEL_ALIASES[lvl.level] ?? [])]
+      for (const n of candidates) {
+        const scoped = allData[`l${n}-${projId}-${perId}`]
+        if (entryHasData(scoped)) return scoped
+      }
+      for (const n of candidates) {
+        const unscoped = allData[`level${n}`]
+        if (entryHasData(unscoped)) return unscoped
+      }
+      const byModule = allData[lvl.moduleKey.toLowerCase()]
+      return entryHasData(byModule) ? byModule : {}
+    }
+
     const recordsToSave = BRSR_LEVELS.map((lvl) => {
       const levelKey = `level${lvl.level}`
-      const levelData = allData[levelKey] || allData[lvl.moduleKey.toLowerCase()] || {}
+      const levelData = resolveLevelData(lvl)
       return {
         level: lvl.level,
         levelKey,
@@ -215,16 +235,40 @@ export async function POST(req: NextRequest) {
         validationStatus: 'PASSED' as const,
         data: levelData,
       }
-    })
+    }).filter((r) => entryHasData(r.data))
     const savedRecords = saveManyLevelRecords(recordsToSave)
     const recByLevel = new Map(savedRecords.map((r) => [r.levelKey, r]))
 
-    // Process all 9 levels — submission upserts run concurrently
-    const upsertPromises = BRSR_LEVELS.map(async (lvl) => {
+    /* Evidence for a submission = ONLY what the user actually attached to that
+       level's record (record-level evidenceId/evidenceIds + per-item ids),
+       resolved to vault file names. The whole vault is never stamped on every
+       submission anymore. */
+    const evidenceIdsFor = (rec: any): string[] => {
+      const ids = new Set<string>()
+      if (rec?.evidenceId) ids.add(String(rec.evidenceId))
+      for (const eid of Array.isArray(rec?.evidenceIds) ? rec.evidenceIds : []) if (eid) ids.add(String(eid))
+      for (const it of Array.isArray(rec?.data?.items) ? rec.data.items : []) {
+        if (it?.evidenceId) ids.add(String(it.evidenceId))
+        for (const eid of Array.isArray(it?.evidenceIds) ? it.evidenceIds : []) if (eid) ids.add(String(eid))
+      }
+      return [...ids]
+    }
+    const allEvidenceIds = Array.from(new Set(savedRecords.flatMap(evidenceIdsFor)))
+    const evidenceRows = allEvidenceIds.length
+      ? await db.evidence.findMany({ where: { id: { in: allEvidenceIds } }, select: { id: true, fileName: true } })
+      : []
+    const evidenceNameById = new Map(evidenceRows.map((e) => [e.id, e.fileName || e.id]))
+    const evidenceNamesFor = (rec: any): string[] =>
+      Array.from(new Set(evidenceIdsFor(rec).map((id) => evidenceNameById.get(id)).filter(Boolean))) as string[]
+
+    // Process only the levels that actually carried data — upserts run concurrently
+    const filledLevels = BRSR_LEVELS.filter((lvl) => recByLevel.has(`level${lvl.level}`))
+    const upsertPromises = filledLevels.map(async (lvl) => {
       const levelKey = `level${lvl.level}`
       const rec = recByLevel.get(levelKey)!
       const levelData = rec.data || {}
       const metrics = computeModuleMetrics(lvl.moduleKey, levelData, rec.calculation as any)
+      const levelEvidence = evidenceNamesFor(rec)
 
       const submissionTitle = `${project.name} — ${lvl.name} (${(period as any).periodLabel || (period as any).label || 'Q4 FY 2025-26'})`
       const existingSub = existingMap.get(lvl.moduleKey)
@@ -246,8 +290,8 @@ export async function POST(req: NextRequest) {
             metricUnit: metrics.metricUnit,
             values: JSON.stringify(metrics.values),
             recordIds: JSON.stringify([rec.id]),
-            evidence: JSON.stringify(attachedEvidenceFiles),
-            evidenceCount: attachedEvidenceFiles.length,
+            evidence: JSON.stringify(levelEvidence),
+            evidenceCount: levelEvidence.length,
             completionPct: 100,
             validationPassed: 1,
             validationErrors: 0,
@@ -274,8 +318,8 @@ export async function POST(req: NextRequest) {
             metricUnit: metrics.metricUnit,
             values: JSON.stringify(metrics.values),
             recordIds: JSON.stringify([rec.id]),
-            evidence: JSON.stringify(attachedEvidenceFiles),
-            evidenceCount: attachedEvidenceFiles.length,
+            evidence: JSON.stringify(levelEvidence),
+            evidenceCount: levelEvidence.length,
             completionPct: 100,
             validationPassed: 1,
             validationErrors: 0,
@@ -304,9 +348,19 @@ export async function POST(req: NextRequest) {
       consolidatedHighlights.push(r.highlight)
     })
 
+    if (submittedList.length === 0) {
+      return NextResponse.json({ error: 'No level data found to submit — capture data in at least one level first.' }, { status: 400 })
+    }
+
     // 4. Create Master Consolidated Disclosure Dossier for the Project Admin
     const dossierTitle = `${project.name} — Complete Site ESG Disclosure Package (${(period as any).periodLabel || (period as any).label || 'FY 2025-26'})`
     const existingDossier = existingMap.get('ALL_LEVELS')
+
+    /* The dossier links EVERY saved level record so the PU detail modal and the
+       PA review window can render all per-source items + evidence, and the
+       collection-status Evidence column reads COMPLETE. */
+    const dossierRecordIds = savedRecords.map((r) => r.id)
+    const dossierEvidence = Array.from(new Set(savedRecords.flatMap(evidenceNamesFor)))
 
     const dossierData = {
       title: dossierTitle,
@@ -320,13 +374,14 @@ export async function POST(req: NextRequest) {
       businessUnitId: buId,
       subsidiaryId: subId,
       metricName: 'Consolidated Site Disclosures',
-      metricValue: BRSR_LEVELS.length,
+      metricValue: submittedList.length,
       metricUnit: 'Levels Completed',
       values: JSON.stringify(consolidatedHighlights),
-      evidence: JSON.stringify(attachedEvidenceFiles),
-      evidenceCount: attachedEvidenceFiles.length,
-      completionPct: 100,
-      validationPassed: BRSR_LEVELS.length,
+      recordIds: JSON.stringify(dossierRecordIds),
+      evidence: JSON.stringify(dossierEvidence),
+      evidenceCount: dossierEvidence.length,
+      completionPct: Math.round((submittedList.length / BRSR_LEVELS.length) * 100),
+      validationPassed: submittedList.length,
       validationErrors: 0,
       updatedAt: now,
     }
@@ -353,8 +408,8 @@ export async function POST(req: NextRequest) {
       db.notification.create({
         data: {
           ntype: 'SUBMISSION',
-          title: `Full Site ESG Package Submitted: ${project.name}`,
-          body: `${user.name} (${roleLabel}) submitted all 9 BRSR Environmental disclosure levels for ${project.name} (${(period as any).periodLabel || (period as any).label || 'Q4'}). Ready for Project Admin review & approval.`,
+          title: `Site ESG Package Submitted: ${project.name}`,
+          body: `${user.name} (${roleLabel}) submitted ${submittedList.length} of ${BRSR_LEVELS.length} BRSR Environmental disclosure levels for ${project.name} (${(period as any).periodLabel || (period as any).label || 'Q4'}). Ready for Project Admin review & approval.`,
           severity: 'INFO',
           linkView: 'submissions',
           refId: masterDossier.id,
@@ -367,8 +422,8 @@ export async function POST(req: NextRequest) {
         actorName: user.name,
         actorRole: roleLabel,
         action: 'SUBMIT',
-        title: `All 9 Site Levels Submitted to Project Admin`,
-        description: `Complete disclosure package submitted for ${project.name} (${(period as any).periodLabel || (period as any).label}).`,
+        title: `${submittedList.length} Site Level(s) Submitted to Project Admin`,
+        description: `Disclosure package submitted for ${project.name} (${(period as any).periodLabel || (period as any).label}).`,
         module: 'ALL_LEVELS',
         status: 'SUBMITTED',
       }),
@@ -379,16 +434,16 @@ export async function POST(req: NextRequest) {
         action: 'SUBMIT',
         entityType: 'SubmissionPackage',
         entityId: masterDossier.id,
-        newState: { levelsSubmitted: BRSR_LEVELS.length, project: project.name, status: 'SUBMITTED' },
-        reason: 'Full site data package submitted to Project Admin at once',
+        newState: { levelsSubmitted: submittedList.length, project: project.name, status: 'SUBMITTED' },
+        reason: 'Site data package submitted to Project Admin at once',
       }),
     ]).catch(() => {})
 
     return NextResponse.json({
       ok: true,
-      message: `All ${BRSR_LEVELS.length} environmental levels submitted successfully to Project Admin!`,
+      message: `${submittedList.length} of ${BRSR_LEVELS.length} environmental levels submitted successfully to Project Admin!`,
       dossierId: masterDossier.id,
-      submittedCount: submittedList.length + 1,
+      submittedCount: submittedList.length,
       items: submittedList,
       timestamp: now.toISOString(),
       contributor: {

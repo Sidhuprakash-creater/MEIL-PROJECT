@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { fieldLabel, fmtValue, itemFieldEntries, itemTitle, levelItemsFromFormData } from './field-labels'
+import { fieldLabel, fmtValue, itemFieldEntries, itemTitle, levelEntryFromFormData, levelItemsFromFormData } from './field-labels'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X,
@@ -136,7 +136,7 @@ export function LevelReviewModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 16 }}
           transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 w-full max-w-xl overflow-hidden rounded-[32px] border border-slate-200/90 bg-white shadow-2xl p-6 sm:p-7"
+          className="relative z-10 flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-[32px] border border-slate-200/90 bg-white shadow-2xl p-6 sm:p-7"
         >
           {/* Top Caustic Sheen */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-white/70 to-transparent" />
@@ -178,7 +178,7 @@ export function LevelReviewModal({
           </div>
 
           {/* Data Summary Card */}
-          <div className="relative z-10 mt-5 space-y-4">
+          <div className="relative z-10 mt-5 flex-1 min-h-0 space-y-4 overflow-y-auto scroll-elegant pr-1">
             <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50/80 via-blue-50/40 to-white/90 p-4 shadow-xs">
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 {primaryMetricLabel}
@@ -285,7 +285,7 @@ export function LevelReviewModal({
           </div>
 
           {/* Modal Action Buttons */}
-          <div className="relative z-10 mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="relative z-10 mt-6 flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <button
               type="button"
               onClick={onClose}
@@ -381,7 +381,12 @@ export function FinalSubmitAllModal({
   submitterEmail,
 }: FinalSubmitAllModalProps) {
   if (!open) return null
-  const readyCount = levels.filter((lvl) => levelReady(allData?.[lvl.key])).length
+  /* Ready = the level has staged data (alias-aware: UI Level 5 stores under
+     l7-…, UI Level 6 under l9-…). Filling EVERY level is NOT mandatory — one
+     or more filled levels is enough for the final consolidated submission. */
+  const levelEntry = (lvl: { level: number }) =>
+    levelEntryFromFormData(allData, lvl.level, projectId, periodId)
+  const readyCount = levels.filter((lvl) => levelReady(levelEntry(lvl))).length
 
   return (
     <AnimatePresence>
@@ -401,7 +406,7 @@ export function FinalSubmitAllModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 16 }}
           transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-          className="relative z-10 w-full max-w-2xl overflow-hidden rounded-[36px] border border-white/95 bg-white/95 backdrop-blur-2xl shadow-2xl p-6 sm:p-8"
+          className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[36px] border border-white/95 bg-white/95 backdrop-blur-2xl shadow-2xl p-6 sm:p-8"
         >
           {/* Top Sheen */}
           <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-white/80 to-transparent" />
@@ -444,8 +449,8 @@ export function FinalSubmitAllModal({
             </button>
           </div>
 
-          {/* Body Content */}
-          <div className="relative z-10 mt-5 space-y-4">
+          {/* Body Content — scrolls inside the modal card */}
+          <div className="relative z-10 mt-5 flex-1 min-h-0 space-y-4 overflow-y-auto scroll-elegant pr-1">
             {/* Submitter Scope Identity */}
             <div className="flex items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs">
               <div className="flex items-center gap-2.5">
@@ -467,10 +472,13 @@ export function FinalSubmitAllModal({
               <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 All BRSR Emission Categories in This Dossier — Source by Source:
               </div>
+              <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2 text-[11px] font-medium text-blue-800">
+                Filling all levels is not mandatory — you can submit the dossier with whichever levels you have completed. Empty levels are marked &quot;No data yet&quot; and skipped.
+              </div>
               {levels.map((lvl) => {
                 const Icon = lvl.icon
                 const items = levelItemsFromFormData(allData, lvl.level, projectId, periodId)
-                const ready = items.length > 0
+                const ready = levelReady(levelEntry(lvl))
                 return (
                   <div key={lvl.key} className="rounded-2xl bg-white/90 border border-slate-200/80 shadow-2xs overflow-hidden">
                     <div className="flex items-center justify-between gap-2 px-3.5 py-2.5 bg-gradient-to-r from-sky-50/90 via-blue-50/60 to-sky-50/90 border-b border-slate-100">
@@ -566,7 +574,7 @@ export function FinalSubmitAllModal({
           </div>
 
           {/* Action Footer */}
-          <div className="relative z-10 mt-6 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="relative z-10 mt-6 flex shrink-0 items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <button
               type="button"
               disabled={submitting}
@@ -579,7 +587,7 @@ export function FinalSubmitAllModal({
             <button
               type="button"
               disabled={submitting || readyCount === 0}
-              title={readyCount === 0 ? 'Capture and stage data in at least one level before submitting.' : undefined}
+              title={readyCount === 0 ? 'Capture and stage data in at least one level before submitting.' : `Submitting ${readyCount} of ${levels.length} completed level(s) — incomplete levels are skipped.`}
               onClick={async () => {
                 const ok = await onSubmitAll()
                 if (ok !== false) onClose()
@@ -599,7 +607,7 @@ export function FinalSubmitAllModal({
               ) : (
                 <>
                   <Send className="h-4 w-4" />
-                  <span>Confirm &amp; Submit All to Project Admin</span>
+                  <span>Confirm &amp; Submit {readyCount} Level{readyCount === 1 ? '' : 's'} to Project Admin</span>
                 </>
               )}
             </button>
@@ -610,3 +618,130 @@ export function FinalSubmitAllModal({
   )
 }
 
+
+/* =====================================================================
+   3. SUBMIT-ALL SUCCESS CONFIRMATION MODAL (iOS LIQUID GLASS)
+   Shown ONLY after the submitted data has been verified against the
+   submissions ledger — confirms to the environment user that every level
+   reached the Project Admin workspace with full detail + evidence.
+   ===================================================================== */
+export interface SubmitAllSuccessModalProps {
+  open: boolean
+  onClose: () => void
+  projectName: string
+  periodLabel: string
+  submittedCount: number
+  totalLevels: number
+  items?: Array<{ name?: string; metric?: string }>
+  contributorName?: string
+  contributorEmail?: string
+}
+
+export function SubmitAllSuccessModal({
+  open,
+  onClose,
+  projectName,
+  periodLabel,
+  submittedCount,
+  totalLevels,
+  items = [],
+  contributorName,
+  contributorEmail,
+}: SubmitAllSuccessModalProps) {
+  if (!open) return null
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        {/* Backdrop */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-md"
+        />
+
+        {/* Liquid Glass Card */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.9, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 12 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="relative z-10 flex max-h-[88vh] w-full max-w-lg flex-col overflow-hidden rounded-[36px] border border-white/95 bg-white/95 shadow-2xl backdrop-blur-2xl"
+        >
+          {/* Top caustic sheen */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-emerald-100/60 via-white/40 to-transparent" />
+
+          {/* Header — verified tick */}
+          <div className="relative z-10 flex flex-col items-center gap-3 px-8 pt-8 text-center">
+            <motion.div
+              initial={{ scale: 0, rotate: -30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', damping: 12, stiffness: 200, delay: 0.15 }}
+              className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-500 via-teal-500 to-emerald-600 shadow-lg shadow-emerald-500/40 ring-4 ring-white"
+            >
+              <CheckCircle2 className="h-8 w-8 text-white" />
+            </motion.div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-700">
+                Verified • Delivered to Project Admin
+              </span>
+              <h3 className="mt-1 text-xl font-black tracking-tight text-slate-900">
+                Data Submitted Successfully!
+              </h3>
+              <p className="mt-1 text-xs font-medium text-slate-500">
+                {submittedCount} of {totalLevels} levels • {projectName} • <span className="font-semibold text-slate-700">{periodLabel}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Body — submitted level receipts */}
+          <div className="relative z-10 mt-5 min-h-0 flex-1 overflow-y-auto px-6 scroll-elegant">
+            <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50/80 via-teal-50/40 to-white/90 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                Verified against Submissions Ledger
+              </div>
+              <div className="mt-2 space-y-1.5">
+                {items.map((it, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="flex min-w-0 items-center gap-1.5 font-semibold text-slate-800">
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      <span className="truncate">{it.name || `Level item ${i + 1}`}</span>
+                    </span>
+                    {it.metric && (
+                      <span className="shrink-0 font-mono text-[10.5px] font-bold text-slate-600">{it.metric}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 border-t border-emerald-100 pt-2.5 text-[11px] leading-relaxed text-slate-600">
+                All captured source items and attached evidence documents were included with this dossier. The Project Admin workspace has been notified and the data is now <span className="font-bold text-emerald-700">Pending Admin Review</span>.
+              </div>
+            </div>
+
+            {contributorName && (
+              <div className="mt-3 flex items-center justify-between rounded-2xl border border-slate-200/70 bg-white/70 px-4 py-2.5 text-[11px]">
+                <span className="font-bold text-slate-800">{contributorName}</span>
+                <span className="font-mono text-slate-500">{contributorEmail}</span>
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-bold text-emerald-700">
+                  <CheckCircle2 className="h-3 w-3" /> SUBMITTED
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="relative z-10 mt-5 flex shrink-0 justify-center border-t border-slate-100 px-6 pb-6 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="btn-liquid-blue flex items-center gap-2 rounded-full bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 px-10 py-3 text-xs font-extrabold text-white shadow-lg shadow-emerald-500/30 transition transform hover:scale-[1.02]"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Done</span>
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  )
+}

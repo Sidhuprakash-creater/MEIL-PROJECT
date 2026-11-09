@@ -19,6 +19,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, activeModule, setActiveModule, logout } = useApp()
   const [profileOpen, setProfileOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
+  /* Close any open header dropdown on Escape; outside clicks use a document
+     mousedown listener (a `fixed inset-0` overlay inside the glass header does
+     not cover the viewport: backdrop-filter creates a containing block). */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setProfileOpen(false); setNotifOpen(false) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  useEffect(() => {
+    if (!profileOpen && !notifOpen) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t?.closest('[data-menu-root]')) { setProfileOpen(false); setNotifOpen(false) }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [profileOpen, notifOpen])
   const [notifFilter, setNotifFilter] = useState<'all' | 'ERROR' | 'WARNING' | 'INFO'>('all')
   const [search, setSearch] = useState('')
   const [searchTriggered, setSearchTriggered] = useState(false)
@@ -126,6 +145,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <AnimatePresence>
               {notifOpen && (
+                <>
+                <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
                 <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}
                   className="so-glass-strong absolute right-0 top-12 z-50 w-80 rounded-2xl p-2">
                   <div className="mb-2 flex items-center justify-between border-b border-slate-200/50 px-2 pb-2">
@@ -175,6 +196,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     ))}
                   </div>
                 </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
@@ -185,7 +207,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           {/* Profile */}
-          <div className="relative">
+          <div className="relative" data-menu-root>
             <button onClick={() => { setProfileOpen(v => !v); setNotifOpen(false) }} className="so-glass-subtle flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition hover:ring-2 hover:ring-blue-100">
               <div className={`flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br ${tint} text-[10px] font-bold text-white`}>
                 {user?.name?.split(' ').map(n => n[0]).join('') ?? 'U'}
@@ -198,6 +220,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <AnimatePresence>
               {profileOpen && (
+                <>
+                <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
                 <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}
                   className="so-glass-strong absolute right-0 top-12 z-50 w-64 rounded-2xl p-2">
                   <div className="border-b border-slate-200/60 px-3 py-2.5">
@@ -213,6 +237,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"><LogOut className="h-3.5 w-3.5" /> Sign out</button>
                   </div>
                 </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
@@ -244,7 +269,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Role-aware nav items */}
-          <nav className="flex-1 space-y-0.5 overflow-y-auto scroll-elegant px-2">
+          <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto scroll-elegant px-2">
             {navItems.map((item) => {
               const Icon = item.icon
               const active = activeModule === item.key

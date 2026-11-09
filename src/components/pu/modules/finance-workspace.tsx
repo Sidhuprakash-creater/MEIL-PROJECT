@@ -14,7 +14,7 @@
  * - Screen 7: Reports & Exports (Filterable reports, working CSV/JSON export)
  * - Screen 8: Activity Log (Filterable audit trail)
  */
-import React, { useState, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, Link2, Send, FileBarChart, History, CheckCircle2,
@@ -38,68 +38,182 @@ import {
   type CsrDisclosureData,
   type CommonMetadata
 } from '@/lib/pu/finance-store'
+/* ENV-user systems extracted into the finance workspace (exact same stack):
+   real evidence vault (upload/view/download), consolidated final review modal
+   and the submit success confirmation. */
+import { EvidenceUploadSection, FullscreenEvidenceModal } from '@/components/shared/data-entry/evidence'
+import type { EvidenceItem } from '@/components/shared/data-entry/core'
+import { FinalSubmitAllModal, SubmitAllSuccessModal } from '@/components/shared/submission-flow-modals'
+import { toast } from 'sonner'
 
-/* ── Stepper (module-level so it is not recreated during render) ─────────── */
-function FinanceStepper({
-  currentStep,
-  onStep,
+/* -------------------------------------------------------------------------- */
+/* RIGHT-SIDE JOURNEY & EVIDENCE PANEL — the ENV user's data-entry right rail: */
+/* live draft status, captured-record stats, the REAL evidence vault (view +   */
+/* download via /api/pu/evidence) and the Save → Submit action rail.           */
+/* -------------------------------------------------------------------------- */
+function FinJourneyPanel({
+  statusPill,
+  statusTone,
+  stats,
+  evidence,
+  validationResult,
+  onSaveDraft,
+  onSubmit,
+  onUploadFiles,
+  onViewEvidence,
+  onViewSubmissions,
+  onReviewEvidence,
 }: {
-  currentStep: number
-  onStep: (moduleKey: 'fin-data' | 'fin-expenditure' | 'fin-evidence' | 'fin-submissions', levelKey: string) => void
+  statusPill: string
+  statusTone: 'draft' | 'submitted' | 'approved' | 'warning'
+  stats: Array<{ label: string; value: string; sub?: string }>
+  evidence: EvidenceItem[]
+  validationResult: { readyForSubmission: boolean; blockingErrors: string[]; warnings: string[] }
+  onSaveDraft: () => void
+  onSubmit: () => void
+  onUploadFiles: (files: File[]) => Promise<void>
+  onViewEvidence: () => void
+  onViewSubmissions: () => void
+  onReviewEvidence: (ev: EvidenceItem) => void
 }) {
-  const steps = [
-    { num: 1, label: 'L0 Common & Entity', levelKey: 'l0', moduleKey: 'fin-data' as const },
-    { num: 2, label: 'L1 Financial Summary', levelKey: 'l1', moduleKey: 'fin-data' as const },
-    { num: 3, label: 'L2 Resource Spend', levelKey: 'l2', moduleKey: 'fin-expenditure' as const },
-    { num: 4, label: 'L3 Intensity Metrics', levelKey: 'l3', moduleKey: 'fin-data' as const },
-    { num: 5, label: 'L4 CSR Disclosures', levelKey: 'l4', moduleKey: 'fin-data' as const },
-    { num: 6, label: 'L5 Evidence Vault', levelKey: 'l5', moduleKey: 'fin-evidence' as const },
-    { num: 7, label: 'L6 Validation Check', levelKey: 'l6', moduleKey: 'fin-data' as const },
-    { num: 8, label: 'L7 Review & Submit', levelKey: 'l7', moduleKey: 'fin-submissions' as const },
-  ]
+  const [railUploading, setRailUploading] = React.useState(false)
+  const toneCls =
+    statusTone === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    : statusTone === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : statusTone === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200'
+    : 'bg-slate-50 text-slate-600 border-slate-200'
 
   return (
-    <div className="relative mb-6 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-sm backdrop-blur-md">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {steps.map((st, idx) => {
-          const isCurrent = currentStep === st.num
-          const isDone = currentStep > st.num
+    <div className="space-y-4">
+      {/* Draft / Submission status */}
+      <div className="rounded-[22px] border border-white/60 bg-white/70 p-4 shadow-lg shadow-sky-500/5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Record Status</span>
+          <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${toneCls}`}>{statusPill}</span>
+        </div>
 
-          return (
-            <React.Fragment key={st.num}>
+        {/* Captured-record stats */}
+        <div className="mt-3 space-y-2">
+          {stats.map(s => (
+            <div key={s.label} className="flex items-center justify-between rounded-xl bg-slate-50/80 px-3 py-2">
+              <span className="text-[11px] font-semibold text-slate-500">{s.label}</span>
+              <span className="text-right">
+                <span className="text-sm font-black text-slate-900">{s.value}</span>
+                {s.sub && <span className="ml-1 text-[10px] font-medium text-slate-400">{s.sub}</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Validation rail */}
+        <div className={`mt-3 rounded-xl border px-3 py-2 text-[11px] font-semibold ${
+          validationResult.readyForSubmission
+            ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
+            : 'border-amber-200 bg-amber-50/70 text-amber-800'
+        }`}>
+          {validationResult.readyForSubmission
+            ? '✓ All validation checks passed — ready to submit'
+            : `${validationResult.blockingErrors.length} blocking · ${validationResult.warnings.length} warning(s)`}
+        </div>
+
+        {/* Action rail — Save → Submit for Review (opens the consolidated review) */}
+        <div className="mt-3 space-y-2">
+          <button
+            onClick={onSaveDraft}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            <span>Save as Draft</span>
+          </button>
+          <button
+            onClick={onSubmit}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 transition hover:from-blue-700 hover:to-indigo-700"
+          >
+            <Send className="h-3.5 w-3.5" />
+            <span>Submit for Review</span>
+          </button>
+          <button
+            onClick={onViewSubmissions}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:text-blue-700"
+          >
+            <span>View My Submissions</span>
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Real Evidence Vault (ENV-style: view + download against /api/pu/evidence) */}
+      <div className="rounded-[22px] border border-white/60 bg-white/70 p-4 shadow-lg shadow-sky-500/5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Evidence Vault</span>
+          <button
+            onClick={onViewEvidence}
+            className="text-[10px] font-bold text-blue-600 hover:text-blue-700"
+          >
+            View all ({evidence.length})
+          </button>
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          {evidence.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] font-medium text-slate-400">
+              No evidence uploaded yet — use the Evidence &amp; Documents tab
+            </div>
+          )}
+          {evidence.slice(0, 4).map(ev => (
+            <div key={ev.id} className="flex items-center gap-2 rounded-xl bg-slate-50/80 px-2.5 py-2">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                <FileText className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[11px] font-bold text-slate-800">{ev.fileName}</div>
+                <div className="truncate text-[10px] font-medium text-slate-400">{ev.documentType}{ev.fileSize ? ` · ${ev.fileSize}` : ''}</div>
+              </div>
               <button
-                type="button"
-                onClick={() => onStep(st.moduleKey, st.levelKey)}
-                className="flex items-center gap-2 text-left transition hover:opacity-90"
+                onClick={() => onReviewEvidence(ev)}
+                title="View document"
+                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
               >
-                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all shadow-xs ${
-                  isCurrent
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-4 ring-blue-100'
-                    : isDone
-                    ? 'bg-blue-600 text-white'
-                    : 'border border-slate-200 bg-white text-slate-400'
-                }`}>
-                  {isDone ? <Check className="h-3.5 w-3.5" /> : st.num}
-                </div>
-                <div>
-                  <div className={`text-[11px] font-bold ${isCurrent ? 'text-blue-900' : isDone ? 'text-slate-800' : 'text-slate-400'}`}>
-                    {st.label}
-                  </div>
-                </div>
+                <Eye className="h-3.5 w-3.5" />
               </button>
-              {idx < steps.length - 1 && (
-                <div className="hidden h-0.5 w-6 bg-slate-200 xl:block" />
-              )}
-            </React.Fragment>
-          )
-        })}
+              <a
+                href={`/api/pu/evidence/${encodeURIComponent(ev.id)}/file?download=true`}
+                title="Download document"
+                className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"
+              >
+                <Download className="h-3.5 w-3.5" />
+              </a>
+            </div>
+          ))}
+        </div>
+
+        {/* Direct inline upload — files go straight into the vault (no redirect) */}
+        <label
+          className="mt-3 flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
+          title="Upload evidence directly into the vault"
+        >
+          <Upload className="h-3.5 w-3.5" />
+          <span>{railUploading ? 'Uploading…' : 'Upload Evidence Directly'}</span>
+          <input
+            type="file"
+            multiple
+            className="hidden"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xls,.csv,.doc,.docx"
+            disabled={railUploading}
+            onChange={(e) => {
+              const files = Array.from(e.target.files || [])
+              e.target.value = ''
+              if (files.length > 0) void onUploadFiles(files)
+            }}
+          />
+        </label>
       </div>
     </div>
   )
 }
 
 export function FinanceWorkspace() {
-  const { activeModule, setActiveModule } = useApp()
+  const { activeModule, setActiveModule, selectedProjectId, user } = useApp()
 
   // State management (store-backed fields are lazily initialised on mount —
   // the module remounts per active module so this is always fresh)
@@ -113,16 +227,134 @@ export function FinanceWorkspace() {
   const [activities, setActivities] = useState<ActivityEvent[]>(() => financeStore.getActivities())
   const [validationResult, setValidationResult] = useState<ValidationChecklistResult>(financeStore.validateRecord())
 
-  // Internal tab state for Financial Data Entry (fin-data)
-  const [activeFinanceLevel, setActiveFinanceLevel] = useState<'l0' | 'l1' | 'l3' | 'l4' | 'l6' | 'l7'>('l1')
+  // Internal tab state for Financial Data Entry (fin-data) — persisted across
+  // module remounts (the shell remounts this component when the sidebar switches
+  // modules, e.g. fin-expenditure → fin-evidence → fin-data Continue chain).
+  const [activeFinanceLevel, setActiveFinanceLevelState] = useState<'l0' | 'l1' | 'l3' | 'l4' | 'l6' | 'l7'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const v = sessionStorage.getItem('fin-active-level')
+        if (v === 'l0' || v === 'l1' || v === 'l3' || v === 'l4' || v === 'l6' || v === 'l7') return v
+      } catch {}
+    }
+    return 'l1'
+  })
+  const setActiveFinanceLevel = (v: 'l0' | 'l1' | 'l3' | 'l4' | 'l6' | 'l7') => {
+    setActiveFinanceLevelState(v)
+    try { sessionStorage.setItem('fin-active-level', v) } catch {}
+  }
+
+  /* ── Real systems extracted from the ENV user ─────────────────────────── */
+  /* Real evidence vault (same /api/pu/evidence stack the ENV data entry uses). */
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>([])
+  const [reviewEvidence, setReviewEvidence] = useState<EvidenceItem | null>(null)
+  /* Real My Submissions ledger (db.submission mirrors) instead of demo store rows. */
+  const [apiSubmissions, setApiSubmissions] = useState<SubmissionRecord[] | any[]>([])
+  const [apiSubmissionsLoading, setApiSubmissionsLoading] = useState(false)
+  /* Consolidated final review → Submit to Project Admin → success popup. */
+  const [showFinalReview, setShowFinalReview] = useState(false)
+  const [submittingAll, setSubmittingAll] = useState(false)
+  const [showSubmitSuccess, setShowSubmitSuccess] = useState(false)
+  const [lastSubmittedCount, setLastSubmittedCount] = useState(0)
+
+  const refreshEvidence = async () => {
+    try {
+      const res = await fetch(`/api/pu/evidence?projectId=${encodeURIComponent(selectedProjectId || '')}`)
+      const d = await res.json().catch(() => null)
+      setEvidenceItems(Array.isArray(d?.items) ? d.items : [])
+    } catch {
+      setEvidenceItems([])
+    }
+  }
+
+  /* Direct rail upload — same /api/pu/evidence POST the ENV uploader uses.
+     module=FINANCE ties the file to this workspace's dossier. */
+  const handleRailUpload = async (files: File[]) => {
+    for (const file of files) {
+      const fd = new FormData()
+      fd.append('file', file)
+      fd.append('documentType', 'SUPPORTING')
+      fd.append('module', 'FINANCE')
+      if (selectedProjectId) fd.append('projectId', selectedProjectId)
+      try {
+        const res = await fetch('/api/pu/evidence', { method: 'POST', body: fd })
+        if (!res.ok) throw new Error(`Upload failed for ${file.name}`)
+      } catch (e: any) {
+        toast.error('Evidence upload failed', { description: e?.message || 'Please retry.' })
+        return
+      }
+    }
+    await refreshEvidence()
+    financeStore.logActivity('Evidence uploaded', `${files.length} file(s) uploaded directly from the journey rail`, 'saved', financialData.common?.entityId || 'MEIL-SOL-GJT')
+    refreshData()
+    toast.success(`${files.length} evidence file(s) uploaded & attached to the dossier`)
+  }
+
+  /* Realtime assignments — PA-assigned tasks + corrections from /api/pu/action-items. */
+  const [actionItems, setActionItems] = useState<any[]>([])
+  const fetchActionItems = async () => {
+    try {
+      const res = await fetch('/api/pu/action-items')
+      const d = await res.json().catch(() => null)
+      setActionItems(Array.isArray(d?.tasks) ? d.tasks : [])
+    } catch {
+      /* keep last known assignments */
+    }
+  }
+
+  /* Realtime activity feed — real backend Activity rows, polled every 15s. */
+  const [realActivities, setRealActivities] = useState<any[]>([])
+  const fetchRealActivities = async () => {
+    try {
+      const res = await fetch('/api/pu/activity?take=50&bypass=true')
+      const d = await res.json().catch(() => null)
+      setRealActivities(Array.isArray(d?.items) ? d.items : [])
+    } catch {
+      /* keep the last known feed */
+    }
+  }
+
+  const refreshApiSubmissions = async () => {
+    setApiSubmissionsLoading(true)
+    try {
+      const res = await fetch('/api/pu/submissions?take=100&bypass=true')
+      const d = await res.json().catch(() => null)
+      const rows: any[] = Array.isArray(d?.items) ? d.items : []
+      /* "My Submissions" = this contributor's own ledger rows; fall back to
+         the full list when the submitter id is unavailable on every row. */
+      const mine = user?.id ? rows.filter((r) => r.submittedById === user.id) : []
+      setApiSubmissions(mine.length > 0 ? mine : rows)
+    } catch {
+      setApiSubmissions([])
+    } finally {
+      setApiSubmissionsLoading(false)
+    }
+  }
+
+  /* Load the real vault + ledger on mount (module remounts per active module). */
+  /* eslint-disable react-hooks/set-state-in-effect -- ENV-pattern mount hydration */
+  useEffect(() => {
+    refreshEvidence()
+    refreshApiSubmissions()
+    fetchRealActivities()
+    fetchActionItems()
+    /* Realtime: poll activity + assignments every 15s */
+    const iv = setInterval(() => {
+      fetchRealActivities()
+      fetchActionItems()
+    }, 15000)
+    return () => clearInterval(iv)
+  }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // UI state
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [showAddExpenditureModal, setShowAddExpenditureModal] = useState(false)
+  const [editingExpId, setEditingExpId] = useState<string | null>(null)
   const [showUploadDocModal, setShowUploadDocModal] = useState(false)
   const [selectedDocForHistory, setSelectedDocForHistory] = useState<EvidenceDocumentItem | null>(null)
-  const [selectedSubmission, setSelectedSubmission] = useState<SubmissionRecord | null>(null)
+  const [selectedSubmission, setSelectedSubmission] = useState<any>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [buFilter, setBuFilter] = useState<string>('all')
 
@@ -244,11 +476,51 @@ export function FinanceWorkspace() {
     }
   }
 
-  // Add expenditure item with all 13 fields
+  // Add / update expenditure item with all 13 fields
+  const resetExpenditureForm = () => {
+    setEditingExpId(null)
+    setNewExpCategory('Pollution Control')
+    setNewExpProjectName('')
+    setNewExpDesc('')
+    setNewExpAmount(0)
+    setNewExpCurrency('INR (₹)')
+    setNewExpSource('CapEx')
+    setNewExpPeriod('FY 2026-27')
+    setNewExpCostCentre('CC-SOL-GJT-01')
+    setNewExpVendor('')
+    setNewExpInvoiceRef('')
+    setNewExpDataSource('Invoice')
+    setNewExpEvidenceLink('CapEx_Projects.xlsx')
+    setNewExpRemarks('')
+  }
+
   const handleAddExpenditure = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newExpDesc || newExpAmount <= 0) {
       showToast('Please enter a valid description and positive expenditure amount.')
+      return
+    }
+    if (editingExpId) {
+      /* Update the existing captured record in place */
+      financeStore.updateExpenditure(editingExpId, {
+        category: newExpCategory,
+        projectName: newExpProjectName || `${newExpCategory} Enhancement`,
+        description: newExpDesc,
+        amount: Number(newExpAmount),
+        currency: newExpCurrency,
+        source: newExpSource,
+        accountingPeriod: newExpPeriod,
+        costCentre: newExpCostCentre,
+        vendorRef: newExpVendor || 'Approved Contractor',
+        invoiceRef: newExpInvoiceRef || `INV-${Date.now().toString().slice(-5)}`,
+        dataSource: newExpDataSource,
+        supportingDocument: newExpEvidenceLink || 'CapEx_Projects.xlsx',
+        remarks: newExpRemarks || 'Standard ledger recorded expense',
+      })
+      setShowAddExpenditureModal(false)
+      resetExpenditureForm()
+      refreshData()
+      showToast('Expenditure record updated')
       return
     }
     const item: Omit<ResourceExpenditureItem, 'id' | 'dateAdded'> = {
@@ -269,14 +541,9 @@ export function FinanceWorkspace() {
     }
     financeStore.addExpenditure(item)
     setShowAddExpenditureModal(false)
-    setNewExpProjectName('')
-    setNewExpDesc('')
-    setNewExpAmount(0)
-    setNewExpVendor('')
-    setNewExpInvoiceRef('')
-    setNewExpRemarks('')
+    resetExpenditureForm()
     refreshData()
-    showToast(`Added ₹ ${item.amount.toFixed(2)} Cr under ${item.category}`)
+    showToast(`Added ₹ ${item.amount.toFixed(2)} Cr under ${item.category} — saved as Draft`)
   }
 
   // Delete expenditure item
@@ -333,17 +600,20 @@ export function FinanceWorkspace() {
   }
 
   // Submit record for review
-  const handleSubmitForReview = async () => {
-    const res = financeStore.validateRecord(financialData, expenditures, documents)
-    if (!res.readyForSubmission) {
-      showToast(`Cannot submit: ${res.blockingErrors.join('; ')}`)
-      return
-    }
-    financeStore.submitRecordForReview(financialData.common?.entityId || 'MEIL-SOL-GJT')
-
-    // Also post to backend /api/data-entry so it shows in SubmissionsModule and Reviewer queue
+  /* Final consolidated submit — called by the FinalSubmitAllModal's
+     "Submit to Project Admin" button. Returns true only when the backend
+     accepted the submission AND the mirror reached the Project Admin ledger. */
+  const handleFinalSubmit = async (): Promise<boolean> => {
+    setSubmittingAll(true)
     try {
-      await fetch('/api/pu/data-entry', {
+      const res = financeStore.validateRecord(financialData, expenditures, documents)
+      if (!res.readyForSubmission) {
+        toast.error('Cannot submit yet', { description: res.blockingErrors.join(' · ') || 'Complete the mandatory levels first.' })
+        return false
+      }
+      financeStore.submitRecordForReview(financialData.common?.entityId || 'MEIL-SOL-GJT')
+
+      const post = await fetch('/api/pu/data-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -351,24 +621,96 @@ export function FinanceWorkspace() {
           levelKey: 'level9',
           levelName: 'BRSR Finance & Resource Expenditures',
           module: 'FINANCE',
-          projectId: 'cmv0skx6l0071e9cgt6sn5w7i',
-          reportingPeriodId: 'cmv0skxfn009he9cgg61xsb4c',
+          projectId: selectedProjectId || undefined,
+          reportingPeriodId: undefined,
           data: {
             activityInitiativeName: 'Resource Efficiency & Environmental Capital Expenditure',
             baselineValue: financialData.turnover || 1450,
             reportingPeriodValue: financialData.environmentalSpend || 120,
             outputUnit: 'INR Crores',
-            remarks: 'Submitted from Finance Contributor Workspace',
+            remarks: 'Submitted from Finance Contributor Workspace (consolidated review)',
           },
           submitForReview: true,
         }),
-      }).catch((e) => console.warn('Finance data-entry post warning:', e))
-    } catch {}
+      })
+      if (!post.ok) {
+        const err = await post.json().catch(() => ({}))
+        toast.error('Submission failed', { description: err?.error || `Server responded ${post.status}` })
+        return false
+      }
 
-    refreshData()
-    showToast('Record version v1.3 submitted for Project Admin review approval!')
-    setActiveModule('fin-submissions')
+      /* Submission is now in the Project Admin ledger (db.submission mirror). */
+      const ok = await post.json()
+      setLastSubmittedCount(res.readyForSubmission ? financeLevels.length : 0)
+      refreshData()
+      refreshApiSubmissions()
+      refreshEvidence()
+      setShowFinalReview(false)
+      setShowSubmitSuccess(true)
+      toast.success('Submitted to Project Admin', {
+        description: ok?.submission?.id ? `Ledger entry ${ok.submission.id.slice(-8).toUpperCase()} created.` : 'Your dossier reached the Project Admin workspace.',
+      })
+      return true
+    } catch (e: any) {
+      toast.error('Submission failed', { description: e?.message || 'Network error — please retry.' })
+      return false
+    } finally {
+      setSubmittingAll(false)
+    }
   }
+
+  /* Finance dossier shaped for the shared FinalSubmitAllModal — same
+     `l{N}-{projectId}-{periodId}` keyed structure the ENV data entry uses. */
+  const financeAllData: Record<string, any> = {
+    [`l1-${selectedProjectId}-current`]: {
+      totalTurnover: financialData.turnover,
+      previousTurnover: financialData.previousTurnover,
+      totalExpenditure: financialData.totalExpenditure,
+      capEx: financialData.capEx,
+      opEx: financialData.opEx,
+      financialReportingBasis: financialData.financialReportingBasis,
+      reconciliationStatus: financialData.reconciliationStatus,
+    },
+    [`l2-${selectedProjectId}-current`]: {
+      items: expenditures.map(e => ({
+        id: e.id,
+        title: e.projectName || e.category,
+        category: e.category,
+        description: e.description,
+        amount: `₹ ${Number(e.amount).toFixed(2)} Cr`,
+        expenseType: e.source,
+        costCentre: e.costCentre,
+        vendor: e.vendorRef,
+        invoiceRef: e.invoiceRef,
+        evidenceFiles: e.supportingDocument ? [e.supportingDocument] : [],
+      })),
+    },
+    [`l3-${selectedProjectId}-current`]: {
+      physicalOutputDenominator: intensityMetrics.physicalOutputDenominator,
+      physicalOutputUnit: intensityMetrics.physicalOutputUnit,
+      reviewerNotes: intensityMetrics.reviewerNotes,
+    },
+    [`l4-${selectedProjectId}-current`]: {
+      csrEnabled: csrData.isEnabled,
+      approvedCsrBudget: csrData.approvedCsrBudget,
+      actualCsrExpenditure: csrData.actualCsrExpenditure,
+      expenditureType: csrData.expenditureType,
+      implementingAgencyRef: csrData.implementingAgencyRef,
+    },
+    [`l6-${selectedProjectId}-current`]: {
+      items: validationResult.readyForSubmission
+        ? [{ id: 'validation', title: 'Validation Checklist', status: 'All checks passed' }]
+        : [],
+    },
+  }
+
+  const financeLevels = [
+    { key: 'l1', level: 1, label: 'Financial Summary', icon: FileText },
+    { key: 'l2', level: 2, label: 'Resource Expenditure', icon: Layers },
+    { key: 'l3', level: 3, label: 'Intensity Metrics', icon: Calculator },
+    { key: 'l4', level: 4, label: 'CSR Disclosures', icon: HeartHandshake },
+    { key: 'l6', level: 6, label: 'Validation Checklist', icon: ShieldCheck },
+  ]
 
   // Resubmit record returned for correction
   const handleResubmit = async (subId: string) => {
@@ -382,8 +724,8 @@ export function FinanceWorkspace() {
           levelKey: 'level9',
           levelName: 'BRSR Finance & Resource Expenditures (Resubmitted)',
           module: 'FINANCE',
-          projectId: 'cmv0skx6l0071e9cgt6sn5w7i',
-          reportingPeriodId: 'cmv0skxfn009he9cgg61xsb4c',
+          projectId: selectedProjectId || undefined,
+          reportingPeriodId: undefined,
           data: {
             activityInitiativeName: 'Resource Efficiency & Environmental Capital Expenditure',
             baselineValue: financialData.turnover || 1450,
@@ -410,13 +752,6 @@ export function FinanceWorkspace() {
   /* -------------------------------------------------------------------------- */
   /* STEPPER COMPONENT FOR ENTRY SCREENS                                        */
   /* -------------------------------------------------------------------------- */
-  const handleStepperStep = (moduleKey: 'fin-data' | 'fin-expenditure' | 'fin-evidence' | 'fin-submissions', levelKey: string) => {
-    setActiveModule(moduleKey)
-    if (moduleKey === 'fin-data' && (levelKey === 'l0' || levelKey === 'l1' || levelKey === 'l3' || levelKey === 'l4' || levelKey === 'l6' || levelKey === 'l7')) {
-      setActiveFinanceLevel(levelKey as 'l0' | 'l1' | 'l3' | 'l4' | 'l6' | 'l7')
-    }
-  }
-
   return (
     <div className="space-y-6 pb-12">
       {/* Toast feedback */}
@@ -448,110 +783,86 @@ export function FinanceWorkspace() {
                 </p>
               </div>
 
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-2.5">
-                <select
-                  value={statusFilter}
-                  onChange={e => setStatusFilter(e.target.value)}
-                  className="ios-field !w-auto !rounded-full !py-1.5 !text-xs font-semibold text-slate-700"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="In Progress">In Progress</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="Returned for Correction">Returned for Correction</option>
-                </select>
-
-                <select
-                  value={buFilter}
-                  onChange={e => setBuFilter(e.target.value)}
-                  className="ios-field !w-auto !rounded-full !py-1.5 !text-xs font-semibold text-slate-700"
-                >
-                  <option value="all">All Business Units</option>
-                  <option value="Solar BU">Solar BU</option>
-                  <option value="Infra BU">Infra BU</option>
-                  <option value="Ports BU">Ports BU</option>
-                  <option value="Water BU">Water BU</option>
-                </select>
-
-                <button
-                  onClick={() => { setStatusFilter('all'); setBuFilter('all'); }}
-                  className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-50"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                  <span>Reset</span>
-                </button>
-              </div>
+              {/* Live badge — assignments stream in from the PA Command Center */}
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Live
+              </span>
             </div>
 
-            {/* Assignments Table */}
-            <div className="mt-6 overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    <th className="pb-3 pl-2">Entity & Location</th>
-                    <th className="pb-3">Business Unit</th>
-                    <th className="pb-3">Reporting Period</th>
-                    <th className="pb-3">Module</th>
-                    <th className="pb-3">Progress</th>
-                    <th className="pb-3">Status</th>
-                    <th className="pb-3 pr-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 text-xs">
-                  {assignments
-                    .filter(a => statusFilter === 'all' || a.status === statusFilter)
-                    .filter(a => buFilter === 'all' || a.businessUnit === buFilter)
-                    .map(item => (
-                      <tr key={item.id} className="group hover:bg-blue-50/40 transition">
-                        <td className="py-4 pl-2">
-                          <div className="font-bold text-slate-900">{item.entityName}</div>
-                          <div className="text-[11px] text-slate-400 font-mono">{item.entityId} · {item.location}</div>
-                        </td>
-                        <td className="py-4 font-medium text-slate-700">{item.businessUnit}</td>
-                        <td className="py-4 text-slate-600">{item.financialYear}</td>
-                        <td className="py-4 font-semibold text-slate-800">{item.module}</td>
-                        <td className="py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
-                              <div className="h-full bg-blue-600" style={{ width: `${item.completion}%` }} />
-                            </div>
-                            <span className="font-bold text-slate-700 text-[11px]">{item.completion}%</span>
-                          </div>
-                        </td>
-                        <td className="py-4">
-                          <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                            item.status === 'Submitted'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : item.status === 'Returned for Correction'
-                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                              : item.status === 'In Progress'
-                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                              : 'bg-amber-50 text-amber-700 border border-amber-200'
-                          }`}>
-                            {item.status}
+            {/* Live indicator */}
+            <div className="mt-4 flex items-center gap-2 text-[11px] font-semibold text-slate-400">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Live — updates automatically every 15s from the Project Admin workspace</span>
+            </div>
+
+            {/* Realtime Assignments — PA tasks, corrections & draft reminders */}
+            <div className="mt-4 space-y-2.5">
+              {actionItems.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-10 text-center text-xs font-semibold text-slate-400">
+                  No open assignments right now — tasks assigned by the Project Admin appear here instantly.
+                </div>
+              )}
+              {actionItems.map((t: any) => {
+                const typeLabel = t.type === 'ASSIGNED_TASK' ? 'PA Task' : t.type === 'CORRECTION' ? 'Correction' : 'Draft Reminder'
+                const typeCls = t.type === 'ASSIGNED_TASK'
+                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                  : t.type === 'CORRECTION'
+                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                    : 'bg-sky-50 text-sky-700 border-sky-200'
+                return (
+                  <div
+                    key={t.id}
+                    className="group relative overflow-hidden rounded-[22px] border border-white/70 bg-white/75 p-4 shadow-lg shadow-sky-500/5 backdrop-blur-xl transition hover:shadow-xl"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${typeCls}`}>
+                            {typeLabel}
                           </span>
-                        </td>
-                        <td className="py-4 pr-2 text-right">
-                          <button
-                            onClick={() => {
-                              if (item.module === 'Resource Expenditure') {
-                                setActiveModule('fin-expenditure')
-                              } else {
-                                setActiveModule('fin-data')
-                                setActiveFinanceLevel('l1')
-                              }
-                            }}
-                            className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-3.5 py-1 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
-                          >
-                            <span>{item.completion > 0 ? 'Continue Draft' : 'Enter Data'}</span>
-                            <ArrowRight className="h-3 w-3" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+                          <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                            t.severity === 'critical'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : t.severity === 'warning'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-slate-50 text-slate-600 border-slate-200'
+                          }`}>
+                            {t.severity === 'critical' ? 'High Priority' : t.severity === 'warning' ? 'Medium' : 'Info'}
+                          </span>
+                          {t.dueDate && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-slate-400">
+                              <Clock className="h-3 w-3" />
+                              Due {new Date(t.dueDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-1.5 truncate text-sm font-bold text-slate-900">{t.title}</div>
+                        <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">{t.description}</div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
+                          String(t.status).toUpperCase() === 'OVERDUE'
+                            ? 'bg-rose-50 text-rose-700 border-rose-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}>
+                          {String(t.status).replace(/_/g, ' ')}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setActiveModule('fin-data')
+                            setActiveFinanceLevel('l1')
+                          }}
+                          className="inline-flex items-center gap-1 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                        >
+                          <span>Open</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -592,39 +903,53 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Stepper */}
-          <FinanceStepper currentStep={activeFinanceLevel === 'l0' ? 1 : activeFinanceLevel === 'l1' ? 2 : activeFinanceLevel === 'l3' ? 4 : activeFinanceLevel === 'l4' ? 5 : activeFinanceLevel === 'l6' ? 7 : 8} onStep={handleStepperStep} />
+          {/* Level progress is shown by the level selector tabs below */}
 
-          {/* Level Selector Tabs inside Data Entry */}
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/60 bg-white/70 p-2 shadow-sm backdrop-blur-md">
-            {[
+          {/* Level Progress Tabs — step bubbles with done-state (replaces the old stepper card) */}
+          <div className="flex flex-wrap items-stretch gap-2 rounded-2xl border border-white/60 bg-white/70 p-2.5 shadow-sm backdrop-blur-md">
+            {([
               { id: 'l0', label: 'Level 0 — Common Fields', desc: 'Metadata & Assignment Context' },
               { id: 'l1', label: 'Level 1 — Financial Summary', desc: 'Turnover, CapEx & Basis' },
               { id: 'l3', label: 'Level 3 — Intensity Metrics', desc: 'Ratios & Physical Output' },
               { id: 'l4', label: 'Level 4 — CSR Disclosures', desc: 'Assigned CSR Spending' },
-              { id: 'l6', label: 'Level 6 — Validation Checklist', desc: '10 Pre-submission Checks' },
-              { id: 'l7', label: 'Level 7 — Review & Sign-off', desc: 'Submission Workflow' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveFinanceLevel(tab.id as any)}
-                className={`flex flex-col rounded-xl px-3.5 py-2 text-left transition-all ${
-                  activeFinanceLevel === tab.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-100'
-                    : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-100'
-                }`}
-              >
-                <span className="text-xs font-black">{tab.label}</span>
-                <span className={`text-[10px] font-medium ${activeFinanceLevel === tab.id ? 'text-blue-100' : 'text-slate-400'}`}>
-                  {tab.desc}
-                </span>
-              </button>
-            ))}
+              { id: 'l6', label: 'Level 5 — Validation & Evidence', desc: 'Checks + Additional Evidence' },
+              { id: 'l7', label: 'Level 6 — Review & Sign-off', desc: 'Final Review & Submit' },
+            ] as const).map((tab, idx, arr) => {
+              const active = activeFinanceLevel === tab.id
+              const done = idx < arr.findIndex(t => t.id === activeFinanceLevel)
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveFinanceLevel(tab.id as any)}
+                  className={`flex min-w-[150px] flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-100'
+                      : done
+                        ? 'bg-blue-50/80 text-slate-700 border border-blue-100 hover:bg-blue-50'
+                        : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-100'
+                  }`}
+                >
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black shadow-xs ${
+                    active ? 'bg-white/20 text-white' : done ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-400'
+                  }`}>
+                    {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-black">{tab.label}</span>
+                    <span className={`block truncate text-[10px] font-medium ${active ? 'text-blue-100' : 'text-slate-400'}`}>
+                      {tab.desc}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
+          {/* LEVEL 0-4 WORKSPACE GRID (ENV-style): level form (left) + journey & evidence rail (right) */}
+          <div className="grid items-start gap-4 lg:grid-cols-3">
           {/* LEVEL 0: COMMON FIELDS FOR EVERY DATA ENTRY */}
           {activeFinanceLevel === 'l0' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-xs font-black text-white shadow-xs">
@@ -978,7 +1303,7 @@ export function FinanceWorkspace() {
 
           {/* LEVEL 1: FINANCIAL SUMMARY */}
           {activeFinanceLevel === 'l1' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-xs font-black text-white shadow-xs">
@@ -1245,12 +1570,24 @@ export function FinanceWorkspace() {
                   <div className="text-[11px] text-emerald-600">Operating surplus ratio for sustainability</div>
                 </div>
               </div>
+              {/* Action row — continue through the levels */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-400">Level complete — continue to the next step</span>
+                <button
+                  type="button"
+                  onClick={() => { setActiveModule('fin-expenditure') }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                >
+                  <span>Continue to Level 2 — Resource Expenditure</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
 
           {/* LEVEL 3: FINANCIAL CALCULATIONS & INTENSITY METRICS */}
           {activeFinanceLevel === 'l3' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-600 text-xs font-black text-white shadow-xs">
@@ -1444,12 +1781,24 @@ export function FinanceWorkspace() {
                   />
                 </div>
               </div>
+              {/* Action row — continue through the levels */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-400">Level complete — continue to the next step</span>
+                <button
+                  type="button"
+                  onClick={() => { setActiveFinanceLevel('l4') }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                >
+                  <span>Continue to Level 4 — CSR Disclosures</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
 
           {/* LEVEL 4: CSR & OTHER ASSIGNED FINANCIAL DISCLOSURES */}
           {activeFinanceLevel === 'l4' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-600 text-xs font-black text-white shadow-xs">
@@ -1630,8 +1979,50 @@ export function FinanceWorkspace() {
                   </div>
                 </>
               )}
+              {/* Action row — continue through the levels */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-400">Level complete — continue to the next step</span>
+                <button
+                  type="button"
+                  onClick={() => { setActiveFinanceLevel('l6') }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                >
+                  <span>Continue to Level 5 — Validation &amp; Evidence</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
+
+          {/* RIGHT: journey & evidence rail — only alongside the ENTRY levels.
+              The validation (L5) and review (L6) screens have their own layout. */}
+          {activeFinanceLevel !== 'l6' && activeFinanceLevel !== 'l7' && (
+          <div className="lg:sticky lg:top-20 lg:col-span-1">
+            <FinJourneyPanel
+              statusPill={financialData.common?.submissionStatus || 'Draft'}
+              statusTone={
+                financialData.common?.submissionStatus === 'Accepted' ? 'approved'
+                : financialData.common?.submissionStatus === 'Returned' ? 'warning'
+                : 'draft'
+              }
+              stats={[
+                { label: 'Expenditure Records', value: String(expenditures.length), sub: 'L2' },
+                { label: 'Evidence Documents', value: String(documents.length), sub: 'L5' },
+                { label: 'CSR Spend (L4)', value: csrData.isEnabled ? `₹ ${Number(csrData.actualCsrExpenditure || 0).toFixed(1)} Cr` : 'Disabled' },
+                { label: 'Total Green Spend', value: `₹ ${totalResourceExpenditure.toFixed(1)} Cr` },
+              ]}
+              evidence={evidenceItems}
+              validationResult={validationResult}
+              onSaveDraft={handleSaveDraft}
+              onSubmit={() => setShowFinalReview(true)}
+              onUploadFiles={handleRailUpload}
+              onViewEvidence={() => setActiveModule('fin-evidence')}
+              onViewSubmissions={() => setActiveModule('fin-submissions')}
+              onReviewEvidence={(ev) => setReviewEvidence(ev)}
+            />
+          </div>
+          )}{/* /rail — hidden on validation & review levels */}
+          </div>{/* /level 0-4 workspace grid */}
 
           {/* LEVEL 6: VALIDATION & RECONCILIATION */}
           {activeFinanceLevel === 'l6' && (
@@ -1639,12 +2030,12 @@ export function FinanceWorkspace() {
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-600 text-xs font-black text-white shadow-xs">
-                    6
+                    5
                   </span>
                   <div>
-                    <h2 className="text-base font-bold text-slate-900">Level 6 — Validation & Reconciliation</h2>
+                    <h2 className="text-base font-bold text-slate-900">Level 5 — Validation & Evidence</h2>
                     <p className="text-xs text-slate-500">
-                      Pre-submission diagnostic: 10 automated reconciliation checks across financial fields, units, and evidence
+                      10 automated reconciliation checks — and attach any additional evidence before review
                     </p>
                   </div>
                 </div>
@@ -1727,6 +2118,43 @@ export function FinanceWorkspace() {
                   )}
                 </div>
               </div>
+              {/* Additional evidence upload — attach final proof before review */}
+              <div className="rounded-2xl border border-indigo-100 bg-indigo-50/40 p-5">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
+                    <Upload className="h-3.5 w-3.5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-900">Additional Evidence (Optional)</h3>
+                    <p className="text-[11px] text-slate-500">Attach any remaining proof — audit letters, bank slips, certifications — before submitting for review</p>
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <EvidenceUploadSection
+                    projectId={selectedProjectId || null}
+                    periodId={null}
+                    moduleKey="FINANCE"
+                    evidence={evidenceItems}
+                    onUploaded={refreshEvidence}
+                    onReview={(ev) => setReviewEvidence(ev)}
+                    selectedEvidenceId={null}
+                    onSelectEvidence={() => {}}
+                  />
+                </div>
+              </div>
+
+              {/* Action row — continue through the levels */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-400">Validation reviewed & evidence attached — continue to the final review</span>
+                <button
+                  type="button"
+                  onClick={() => { setActiveFinanceLevel('l7') }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                >
+                  <span>Continue to Level 6 — Review &amp; Sign-off</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           )}
 
@@ -1736,12 +2164,12 @@ export function FinanceWorkspace() {
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-600 text-xs font-black text-white shadow-xs">
-                    7
+                    6
                   </span>
                   <div>
-                    <h2 className="text-base font-bold text-slate-900">Level 7 — Submission & Review Workflow</h2>
+                    <h2 className="text-base font-bold text-slate-900">Level 6 — Review & Sign-off</h2>
                     <p className="text-xs text-slate-500">
-                      Standard 5-step lifecycle: Save as Draft → Validate Data → Submit for Review → Correction → Accepted / Locked
+                      Lifecycle: Save as Draft → Submit for Review → Review / Correction → Accepted / Locked
                     </p>
                   </div>
                 </div>
@@ -1750,14 +2178,13 @@ export function FinanceWorkspace() {
                 </span>
               </div>
 
-              {/* 5-Step Workflow Cards */}
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
+              {/* 4-Step Workflow Cards */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
                 {[
                   { step: '1. Save as Draft', status: 'Saved', sub: 'Entries preserved locally', active: true },
-                  { step: '2. Validate Data', status: validationResult.readyForSubmission ? 'Passed' : 'Pending', sub: '10 rules evaluated', active: true },
-                  { step: '3. Submit for Review', status: financialData.common?.submissionStatus === 'Submitted' ? 'Submitted' : 'Ready', sub: 'Authorized reviewer', active: validationResult.readyForSubmission },
-                  { step: '4. Review / Correction', status: 'In Review', sub: 'Reviewer comments allowed', active: false },
-                  { step: '5. Accepted / Locked', status: 'Pending', sub: 'Locked for BRSR audit', active: false },
+                  { step: '2. Submit for Review', status: financialData.common?.submissionStatus === 'Submitted' ? 'Submitted' : 'Ready', sub: 'Authorized reviewer', active: validationResult.readyForSubmission },
+                  { step: '3. Review / Correction', status: 'In Review', sub: 'Reviewer comments allowed', active: false },
+                  { step: '4. Accepted / Locked', status: 'Pending', sub: 'Locked for BRSR audit', active: false },
                 ].map((s, idx) => (
                   <div key={idx} className={`rounded-2xl border p-4 text-center transition ${
                     s.active ? 'border-blue-200 bg-blue-50/60' : 'border-slate-100 bg-white/70'
@@ -1769,91 +2196,27 @@ export function FinanceWorkspace() {
                 ))}
               </div>
 
-              {/* Reviewer Comments & Resubmission Box */}
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-xs">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Review Feedback & Sign-off Notes</h3>
-                <div className="mt-3 flex items-start gap-3 rounded-xl bg-slate-50 p-4 border border-slate-100">
-                  <Clock className="h-4 w-4 text-blue-600 mt-0.5" />
-                  <div className="text-xs">
-                    <span className="font-bold text-slate-800">Finance Reviewer:</span>
-                    <p className="mt-1 text-slate-600">
-                      "Draft saved with ₹ 1,250.00 Cr turnover. Verified with STAT-AUD-FY26-SCH4. Please ensure CapEx ledger references are attached prior to final sign-off."
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Big Action Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3">
+              {/* Single sign-off action row */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
                 <div className="text-xs font-medium text-slate-500">
-                  Ready to submit version <strong className="text-slate-800">v1.3</strong> for Gayatri Solar Plant (MEIL-SOL-GJT)
+                  All levels complete — open the consolidated review to submit this dossier.
                 </div>
 
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={handleSaveDraft}
-                    className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-5 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
-                  >
-                    <Save className="h-3.5 w-3.5" />
-                    <span>Save as Draft</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSubmitForReview}
-                    disabled={!validationResult.readyForSubmission}
-                    className={`flex items-center gap-2 rounded-full px-6 py-2.5 text-xs font-bold text-white shadow-md transition ${
-                      validationResult.readyForSubmission
-                        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-blue-500/25'
-                        : 'bg-slate-300 cursor-not-allowed'
-                    }`}
+                    onClick={() => setShowFinalReview(true)}
+                    className="flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/25 transition hover:from-blue-700 hover:to-indigo-700"
                   >
                     <Send className="h-4 w-4" />
-                    <span>Submit for Review (v1.3)</span>
+                    <span>Submit for Review</span>
                   </button>
                 </div>
               </div>
             </div>
           )}
 
-          {/* Bottom Action Bar for fin-data */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-lg backdrop-blur-md">
-            <button
-              onClick={() => setActiveModule('fin-assignments')}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to Assignments</span>
-            </button>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleSaveDraft}
-                disabled={saveStatus === 'saving'}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>{saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved!' : 'Save as Draft'}</span>
-              </button>
-
-              <button
-                onClick={handleValidateData}
-                className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Validate Data</span>
-              </button>
-
-              <button
-                onClick={() => setActiveModule('fin-expenditure')}
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700"
-              >
-                <span>Next: Level 2 — Resource Expenditure</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          {/* Per-level Continue buttons replace the old bottom action bar */}
         </div>
       )}
 
@@ -1862,47 +2225,10 @@ export function FinanceWorkspace() {
       {/* ---------------------------------------------------------------------- */}
       {activeModule === 'fin-expenditure' && (
         <div className="space-y-6">
-          {/* Header */}
-          <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/25">
-                  <Layers className="h-5 w-5" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black text-slate-900">Level 2 — Environmental & Resource Expenditure</h1>
-                  <p className="text-xs font-medium text-slate-500">
-                    Record financial expenditure for relevant environmental and resource-efficiency activities across 8 categories
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-3">
-                <div className="rounded-full border border-blue-200 bg-blue-50/90 px-3.5 py-1.5 text-xs font-bold text-blue-800">
-                  Gayatri Solar Plant (MEIL-SOL-GJT) · FY 2026-27
-                </div>
-                <button
-                  onClick={() => setActiveModule('fin-assignments')}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>Assignments</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Stepper (Step 3 active) */}
-          <FinanceStepper currentStep={3} onStep={handleStepperStep} />
-
-          {/* System Logic Banner */}
-          <div className="rounded-[24px] border border-indigo-200 bg-indigo-50/60 p-4 text-xs text-indigo-900 flex items-start gap-3">
-            <Info className="h-4 w-4 shrink-0 text-indigo-600 mt-0.5" />
-            <p>
-              <strong>System Logic:</strong> Allows multiple expenditure records. Calculates totals by category, period, entity, CapEx and OpEx. Prevents double counting of amounts reported across multiple categories.
-            </p>
-          </div>
-
+          {/* Two-column workspace (ENV-style): captured records (left) + journey & evidence rail (right) */}
+          <div className="grid items-start gap-4 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
           {/* Resource-Related Expenditure Table */}
           <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
@@ -1912,11 +2238,15 @@ export function FinanceWorkspace() {
               </div>
 
               <button
-                onClick={() => setShowAddExpenditureModal(true)}
+                onClick={() => {
+                  setEditingExpId(null)
+                  resetExpenditureForm()
+                  setShowAddExpenditureModal(true)
+                }}
                 className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 self-start sm:self-auto"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Add Expenditure Record</span>
+                <span>+ Add (Draft)</span>
               </button>
             </div>
 
@@ -1978,12 +2308,22 @@ export function FinanceWorkspace() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => {
-                              const newAmt = prompt(`Update expenditure amount for ${item.description} (in ₹ Cr):`, String(item.amount))
-                              if (newAmt && !isNaN(Number(newAmt))) {
-                                financeStore.updateExpenditure(item.id, { amount: Number(newAmt) })
-                                refreshData()
-                                showToast('Expenditure amount updated')
-                              }
+                              /* Open the capture modal pre-filled for editing (no browser prompt dialogs) */
+                              setEditingExpId(item.id)
+                              setNewExpCategory(item.category)
+                              setNewExpProjectName(item.projectName || '')
+                              setNewExpDesc(item.description)
+                              setNewExpAmount(item.amount)
+                              setNewExpCurrency(item.currency || 'INR (₹)')
+                              setNewExpSource(item.source)
+                              setNewExpPeriod(item.accountingPeriod || 'FY 2026-27')
+                              setNewExpCostCentre(item.costCentre)
+                              setNewExpVendor(item.vendorRef || '')
+                              setNewExpInvoiceRef(item.invoiceRef || '')
+                              setNewExpDataSource(item.dataSource)
+                              setNewExpEvidenceLink(item.supportingDocument || '')
+                              setNewExpRemarks(item.remarks || '')
+                              setShowAddExpenditureModal(true)
                             }}
                             className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
                             title="Edit Record"
@@ -2006,107 +2346,82 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Bottom Summary Cards (Total + CapEx / OpEx Split + Distribution) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Total Resource Expenditure Card */}
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl lg:col-span-5 space-y-4">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Total Environmental Spend
-                </div>
-                <div className="mt-1 text-4xl font-black tracking-tight text-slate-900">
-                  ₹ {totalResourceExpenditure.toFixed(2)} <span className="text-xl font-bold text-slate-600">Cr</span>
-                </div>
-              </div>
+          </div>{/* /left column */}
 
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                <div className="rounded-xl bg-blue-50/70 p-3 border border-blue-100">
-                  <div className="text-[10px] font-bold text-blue-700 uppercase">CapEx Green Spend</div>
-                  <div className="text-lg font-black text-blue-900">₹ {capexTotal.toFixed(2)} Cr</div>
-                  <div className="text-[10px] text-blue-600">{((capexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}% of total</div>
-                </div>
-                <div className="rounded-xl bg-purple-50/70 p-3 border border-purple-100">
-                  <div className="text-[10px] font-bold text-purple-700 uppercase">OpEx Green Spend</div>
-                  <div className="text-lg font-black text-purple-900">₹ {opexTotal.toFixed(2)} Cr</div>
-                  <div className="text-[10px] text-purple-600">{((opexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}% of total</div>
-                </div>
-              </div>
+          {/* RIGHT: journey & evidence rail (ENV-style right panel) */}
+          <div className="lg:sticky lg:top-20 lg:col-span-1">
+            <FinJourneyPanel
+              statusPill={financialData.common?.submissionStatus || 'Draft'}
+              statusTone={
+                financialData.common?.submissionStatus === 'Accepted' ? 'approved'
+                : financialData.common?.submissionStatus === 'Returned' ? 'warning'
+                : 'draft'
+              }
+              stats={[
+                { label: 'Total Environmental Spend', value: `₹ ${totalResourceExpenditure.toFixed(2)} Cr` },
+                { label: 'CapEx Green Spend', value: `₹ ${capexTotal.toFixed(2)} Cr`, sub: `${((capexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}%` },
+                { label: 'OpEx Green Spend', value: `₹ ${opexTotal.toFixed(2)} Cr`, sub: `${((opexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}%` },
+                { label: 'Captured Records', value: String(expenditures.length) },
+              ]}
+              evidence={evidenceItems}
+              validationResult={validationResult}
+              onSaveDraft={handleSaveDraft}
+              onSubmit={() => setShowFinalReview(true)}
+              onUploadFiles={handleRailUpload}
+              onViewEvidence={() => setActiveModule('fin-evidence')}
+              onViewSubmissions={() => setActiveModule('fin-submissions')}
+              onReviewEvidence={(ev) => setReviewEvidence(ev)}
+            />
+          </div>
+          </div>{/* /two-column grid */}
+
+          {/* BRSR Category Allocation (full-width visualization strip) */}
+          <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">BRSR Category Allocation</h3>
+              <span className="text-[11px] font-semibold text-slate-400">Amount in ₹ Crore</span>
             </div>
 
-            {/* Category Distribution Bar */}
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl lg:col-span-7 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">BRSR Category Allocation</h3>
-                  <span className="text-[11px] font-semibold text-slate-400">Amount in ₹ Crore</span>
-                </div>
+            {/* Multi-segment progress bar */}
+            <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+              {distribution.map(d => (
+                <div
+                  key={d.category}
+                  style={{ width: `${d.percentage}%`, backgroundColor: d.color }}
+                  title={`${d.category}: ₹ ${d.amount.toFixed(2)} Cr (${d.percentage.toFixed(0)}%)`}
+                />
+              ))}
+            </div>
 
-                {/* Multi-segment progress bar */}
-                <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                  {distribution.map(d => (
-                    <div
-                      key={d.category}
-                      style={{ width: `${d.percentage}%`, backgroundColor: d.color }}
-                      title={`${d.category}: ₹ ${d.amount.toFixed(2)} Cr (${d.percentage.toFixed(0)}%)`}
-                    />
-                  ))}
+            {/* Legend */}
+            <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-slate-600 sm:grid-cols-4 lg:grid-cols-8">
+              {distribution.map(d => (
+                <div key={d.category} className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                  <span className="truncate">{d.category}</span>
+                  <span className="font-bold text-slate-900 ml-auto">
+                    ₹{d.amount.toFixed(1)}
+                  </span>
                 </div>
-
-                {/* Legend */}
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                  {distribution.map(d => (
-                    <div key={d.category} className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                      <span className="truncate">{d.category}</span>
-                      <span className="font-bold text-slate-900 ml-auto">
-                        ₹{d.amount.toFixed(1)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
-          {/* Action Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-lg backdrop-blur-md">
-            <button
-              onClick={() => {
-                setActiveModule('fin-data')
-                setActiveFinanceLevel('l1')
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back: Level 1 — Financial Summary</span>
-            </button>
+              {/* Action row — continue through the levels */}
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-400">Expenditure records captured — continue to evidence upload</span>
+                <button
+                  type="button"
+                  onClick={() => { setActiveModule('fin-evidence') }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                >
+                  <span>Continue to Evidence &amp; Documents</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleSaveDraft}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>Save as Draft</span>
-              </button>
 
-              <button
-                onClick={handleValidateData}
-                className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Validate Data</span>
-              </button>
-
-              <button
-                onClick={() => setActiveModule('fin-evidence')}
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700"
-              >
-                <span>Next: Level 5 — Evidence Vault</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </div>
+          {/* Navigation happens via the journey rail and level Continue buttons */}
         </div>
       )}
 
@@ -2115,104 +2430,65 @@ export function FinanceWorkspace() {
       {/* ---------------------------------------------------------------------- */}
       {activeModule === 'fin-evidence' && (
         <div className="space-y-6">
-          {/* Header */}
-          <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-md shadow-indigo-500/25">
-                  <Link2 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black text-slate-900">Level 5 — Financial Evidence & Documents</h1>
-                  <p className="text-xs font-medium text-slate-500">
-                    Attach verified audit evidence, invoices, and ledger schedules across all 14 disclosure fields
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <div className="rounded-full border border-blue-200 bg-blue-50/90 px-3.5 py-1.5 text-xs font-bold text-blue-800">
-                  Gayatri Solar Plant (MEIL-SOL-GJT) · FY 2026-27
-                </div>
-                <button
-                  onClick={() => setActiveModule('fin-assignments')}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 shadow-xs"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  <span>Assignments</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Stepper (Step 6 active) */}
-          <FinanceStepper currentStep={6} onStep={handleStepperStep} />
-
-          {/* System Logic Banner */}
-          <div className="rounded-[24px] border border-blue-200 bg-blue-50/60 p-4 text-xs text-blue-900 flex items-start gap-3">
-            <Info className="h-4 w-4 shrink-0 text-blue-600 mt-0.5" />
-            <p>
-              <strong>System Logic:</strong> An uploaded file is not automatically verified. Document upload status is kept separate from evidence acceptance status (Pending / Accepted / Returned).
-            </p>
-          </div>
 
           {/* TWO COLUMNS: Left Upload + Right Validation Checklist Summary */}
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Left: Document Upload Drag-and-drop Area */}
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl lg:col-span-6 flex flex-col justify-between">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Document Upload & Linking</h2>
-                <p className="text-xs text-slate-500">Upload financial statements, GL extracts, and vendor invoices</p>
+            {/* Left: REAL evidence vault — same upload stack as the ENV user
+                (drag & drop, SHA-256 hashing, /api/pu/evidence, view + download) */}
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl lg:col-span-6">
+              <h2 className="text-base font-bold text-slate-900">Evidence Upload &amp; Vault</h2>
+              <p className="text-xs text-slate-500">Upload invoices, ledger extracts and statements — hashed, stored and reviewable</p>
 
-                {/* Dropzone */}
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-blue-300 bg-blue-50/40 p-8 text-center transition hover:border-blue-500 hover:bg-blue-50/80"
-                >
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    className="hidden"
-                    accept=".pdf,.xlsx,.xls,.csv"
-                    onChange={e => {
-                      if (e.target.files?.[0]) {
-                        handleUploadDocument(e.target.files[0].name)
-                      }
-                    }}
-                  />
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-blue-600 shadow-xs">
-                    <Upload className="h-6 w-6" />
-                  </div>
-                  <div className="mt-3 text-sm font-bold text-slate-800">
-                    Drag & drop files here or <span className="text-blue-600 underline">click to upload</span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-400">
-                    Supported formats: PDF, XLSX, CSV (Max 25 MB)
-                  </div>
+              <EvidenceUploadSection
+                projectId={selectedProjectId || null}
+                periodId={null}
+                moduleKey="FINANCE"
+                evidence={evidenceItems}
+                onUploaded={refreshEvidence}
+                onReview={(ev) => setReviewEvidence(ev)}
+                selectedEvidenceId={null}
+                onSelectEvidence={() => {}}
+              />
 
-                  {uploadProgress !== null && (
-                    <div className="mt-4 w-full max-w-xs">
-                      <div className="flex justify-between text-[11px] font-bold text-slate-600">
-                        <span>Uploading & signing hash…</span>
-                        <span>{uploadProgress}%</span>
-                      </div>
-                      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
-                        <div className="h-full bg-blue-600 transition-all" style={{ width: `${uploadProgress}%` }} />
+              {/* Real vault list with view + download (exact ENV pattern) */}
+              <div className="mt-4 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Uploaded Evidence ({evidenceItems.length})
+                  </span>
+                </div>
+                {evidenceItems.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-slate-200 px-3 py-6 text-center text-xs font-medium text-slate-400">
+                    No evidence uploaded yet — drag files into the uploader above
+                  </div>
+                )}
+                {evidenceItems.map(ev => (
+                  <div key={ev.id} className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white/90 px-3 py-2.5">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-bold text-slate-800">{ev.fileName}</div>
+                      <div className="truncate text-[10px] font-medium text-slate-400">
+                        {ev.documentType}{ev.fileSize ? ` · ${(ev.fileSize / 1024 / 1024).toFixed(1)} MB` : ''}{ev.createdAt ? ` · ${new Date(ev.createdAt).toLocaleDateString()}` : ''}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 flex items-center justify-between text-xs text-slate-500">
-                <span>Stored in secure encrypted cloud repository</span>
-                <button
-                  type="button"
-                  onClick={() => setShowUploadDocModal(true)}
-                  className="font-bold text-blue-600 hover:underline"
-                >
-                  Upload with complete Level 5 metadata →
-                </button>
+                    <button
+                      onClick={() => setReviewEvidence(ev)}
+                      title="View document"
+                      className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <a
+                      href={`/api/pu/evidence/${encodeURIComponent(ev.id)}/file?download=true`}
+                      title="Download document"
+                      className="shrink-0 rounded-lg p-1.5 text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-600"
+                    >
+                      <Download className="h-4 w-4" />
+                    </a>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -2264,130 +2540,29 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Uploaded Documents Table — Full 14 Fields */}
-          <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
-              <div>
-                <h2 className="text-base font-bold text-slate-900">Uploaded Financial Documents</h2>
-                <p className="text-xs text-slate-500">Every linked file with version history and acceptance status</p>
-              </div>
-
-              <button
-                onClick={() => setShowUploadDocModal(true)}
-                className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 self-start sm:self-auto"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>+ Upload New Evidence</span>
-              </button>
-            </div>
-
-            <div className="mt-4 overflow-x-auto">
-              <table className="w-full border-collapse text-left">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    <th className="pb-3 pl-2">Document Name</th>
-                    <th className="pb-3">Category</th>
-                    <th className="pb-3">Linked Record</th>
-                    <th className="pb-3">Source Ref / Org</th>
-                    <th className="pb-3">Upload Date</th>
-                    <th className="pb-3">Acceptance Status</th>
-                    <th className="pb-3 pr-2 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50 text-xs">
-                  {documents.map(doc => (
-                    <tr key={doc.id} className="group hover:bg-blue-50/40 transition">
-                      <td className="py-4 pl-2 font-bold text-slate-800">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4 text-blue-600" />
-                          <span>{doc.documentName}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 text-slate-600 font-medium">{doc.category}</td>
-                      <td className="py-4 text-slate-500 font-semibold">{doc.linkedTo}</td>
-                      <td className="py-4 text-slate-600">
-                        <div className="font-mono text-slate-700">{doc.sourceReference || 'N/A'}</div>
-                        <div className="text-[10px] text-slate-400">{doc.issuingOrganization || 'MEIL'}</div>
-                      </td>
-                      <td className="py-4 text-slate-500">{doc.uploadDate}</td>
-                      <td className="py-4">
-                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                          doc.status === 'Accepted'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : doc.status === 'Under Review'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {doc.status}
-                        </span>
-                      </td>
-                      <td className="py-4 pr-2 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setSelectedDocForHistory(doc)}
-                            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                            title="Version History & Remarks"
-                          >
-                            <History className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => showToast(`Downloading verified attachment: ${doc.documentName}`)}
-                            className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
-                            title="Download Document"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteDocument(doc.id)}
-                            className="rounded p-1 text-slate-400 hover:bg-rose-50 hover:text-rose-600"
-                            title="Delete Document"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Bottom Action Bar */}
+          {/* Continue through the level sequence */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-lg backdrop-blur-md">
-            <button
-              onClick={() => setActiveModule('fin-expenditure')}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back: Resource Expenditure</span>
-            </button>
-
+            <span className="text-xs font-semibold text-slate-500">
+              Evidence uploaded &amp; hashed in the vault — continue to the next level
+            </span>
             <div className="flex items-center gap-3">
               <button
-                onClick={handleSaveDraft}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
+                type="button"
+                onClick={() => setActiveModule('fin-data')}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
-                <Save className="h-3.5 w-3.5" />
-                <span>Save as Draft</span>
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back: Financial Data</span>
               </button>
-
               <button
-                onClick={handleValidateData}
-                className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Validate Data</span>
-              </button>
-
-              <button
+                type="button"
                 onClick={() => {
                   setActiveModule('fin-data')
-                  setActiveFinanceLevel('l7')
+                  setActiveFinanceLevel('l6')
                 }}
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700"
+                className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
               >
-                <span>Next: Level 7 — Review & Sign-off</span>
+                <span>Continue to Level 5 — Validation &amp; Evidence</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -2421,36 +2596,36 @@ export function FinanceWorkspace() {
               </button>
             </div>
 
-            {/* Summary Counters */}
+            {/* Summary Counters — live from the real submissions ledger (/api/pu/submissions) */}
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
               <div className="rounded-2xl border border-slate-100 bg-white/80 p-3.5 text-center shadow-xs">
                 <div className="text-xs font-bold text-slate-500">Drafts</div>
                 <div className="mt-1 text-2xl font-black text-slate-800">
-                  {submissions.filter(s => s.status === 'Draft' || s.status === 'In Progress').length}
+                  {apiSubmissions.filter((s: any) => s.status === 'DRAFT').length}
                 </div>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-3.5 text-center shadow-xs">
                 <div className="text-xs font-bold text-blue-700">Submitted</div>
                 <div className="mt-1 text-2xl font-black text-blue-900">
-                  {submissions.filter(s => s.status === 'Submitted').length}
+                  {apiSubmissions.filter((s: any) => ['SUBMITTED', 'RESUBMITTED', 'PENDING'].includes(s.status)).length}
                 </div>
               </div>
               <div className="rounded-2xl border border-indigo-100 bg-indigo-50/70 p-3.5 text-center shadow-xs">
                 <div className="text-xs font-bold text-indigo-700">Under Review</div>
                 <div className="mt-1 text-2xl font-black text-indigo-900">
-                  {submissions.filter(s => s.status === 'Under Review').length}
+                  {apiSubmissions.filter((s: any) => s.status === 'UNDER_REVIEW').length}
                 </div>
               </div>
               <div className="rounded-2xl border border-rose-100 bg-rose-50/70 p-3.5 text-center shadow-xs">
                 <div className="text-xs font-bold text-rose-700">Returned</div>
                 <div className="mt-1 text-2xl font-black text-rose-900">
-                  {submissions.filter(s => s.status === 'Returned for Correction').length}
+                  {apiSubmissions.filter((s: any) => ['CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'].includes(s.status)).length}
                 </div>
               </div>
               <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-3.5 text-center shadow-xs">
                 <div className="text-xs font-bold text-emerald-700">Accepted</div>
                 <div className="mt-1 text-2xl font-black text-emerald-900">
-                  {submissions.filter(s => s.status === 'Accepted').length}
+                  {apiSubmissions.filter((s: any) => ['APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED'].includes(s.status)).length}
                 </div>
               </div>
             </div>
@@ -2460,38 +2635,44 @@ export function FinanceWorkspace() {
               <table className="w-full border-collapse text-left">
                 <thead>
                   <tr className="border-b border-slate-100 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                    <th className="pb-3 pl-2">Submission ID</th>
-                    <th className="pb-3">Version</th>
-                    <th className="pb-3">Entity</th>
-                    <th className="pb-3">FY</th>
-                    <th className="pb-3">Module</th>
-                    <th className="pb-3">Reviewer</th>
+                    <th className="pb-3 pl-2">Submission Ref</th>
+                    <th className="pb-3">Title / Record</th>
+                    <th className="pb-3">Project</th>
+                    <th className="pb-3">Period</th>
+                    <th className="pb-3">Category</th>
+                    <th className="pb-3">Submitted</th>
                     <th className="pb-3">Status</th>
                     <th className="pb-3 pr-2 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-xs">
-                  {submissions.map(sub => (
+                  {apiSubmissionsLoading && (
+                    <tr><td colSpan={8} className="py-8 text-center text-xs font-semibold text-slate-400">Loading your submissions…</td></tr>
+                  )}
+                  {!apiSubmissionsLoading && apiSubmissions.length === 0 && (
+                    <tr><td colSpan={8} className="py-8 text-center text-xs font-semibold text-slate-400">No submissions yet — complete the levels and submit for review.</td></tr>
+                  )}
+                  {apiSubmissions.map((sub: any) => (
                     <tr key={sub.id} className="group hover:bg-blue-50/40 transition">
                       <td className="py-4 pl-2 font-mono font-bold text-blue-700">
-                        {sub.id}
+                        {sub.ref || `SUB-${sub.id.slice(-6).toUpperCase()}`}
                       </td>
-                      <td className="py-4 font-mono font-semibold text-slate-600">{sub.version || 'v1.0'}</td>
-                      <td className="py-4 font-bold text-slate-800">{sub.entityName}</td>
-                      <td className="py-4 text-slate-600">{sub.financialYear}</td>
-                      <td className="py-4 text-slate-600 font-medium">{sub.module}</td>
-                      <td className="py-4 text-slate-600">{sub.reviewer}</td>
+                      <td className="py-4 font-bold text-slate-800 max-w-[220px] truncate">{sub.title}</td>
+                      <td className="py-4 text-slate-600 font-medium">{sub.project?.name || '—'}</td>
+                      <td className="py-4 text-slate-600">{sub.reportingPeriod?.periodLabel || '—'}</td>
+                      <td className="py-4 text-slate-600 font-medium">{sub.category}</td>
+                      <td className="py-4 text-slate-500">{sub.formattedDateTime || (sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '—')}</td>
                       <td className="py-4">
                         <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                          sub.status === 'Accepted'
+                          ['APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED'].includes(sub.status)
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : sub.status === 'Returned for Correction'
+                            : ['CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'].includes(sub.status)
                             ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                            : sub.status === 'Under Review'
+                            : sub.status === 'UNDER_REVIEW'
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-blue-50 text-blue-700 border border-blue-200'
                         }`}>
-                          {sub.status}
+                          {String(sub.status).replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="py-4 pr-2 text-right">
@@ -2503,7 +2684,7 @@ export function FinanceWorkspace() {
                             <span>Details</span>
                             <ChevronRight className="h-3 w-3" />
                           </button>
-                          {sub.status === 'Returned for Correction' && (
+                          {['CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'].includes(sub.status) && (
                             <button
                               onClick={() => {
                                 setActiveModule('fin-data')
@@ -2525,7 +2706,7 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Submission Details Modal */}
+          {/* Submission Details Modal — REAL ledger data (/api/pu/submissions) */}
           <AnimatePresence>
             {selectedSubmission && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
@@ -2533,16 +2714,17 @@ export function FinanceWorkspace() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-white/80 bg-white p-6 shadow-2xl"
+                  className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-white/80 bg-white p-6 shadow-2xl"
                 >
                   <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                     <div>
                       <div className="text-xs font-mono font-bold text-blue-600">
-                        {selectedSubmission.id} · {selectedSubmission.version || 'v1.0'}
+                        {selectedSubmission.ref || `SUB-${selectedSubmission.id.slice(-6).toUpperCase()}`}
                       </div>
-                      <h3 className="form-card-title">
-                        {selectedSubmission.entityName}
-                      </h3>
+                      <h3 className="form-card-title">{selectedSubmission.title}</h3>
+                      <p className="text-xs text-slate-500">
+                        {selectedSubmission.project?.name || '—'} · {selectedSubmission.reportingPeriod?.periodLabel || '—'}
+                      </p>
                     </div>
                     <button
                       onClick={() => setSelectedSubmission(null)}
@@ -2552,49 +2734,112 @@ export function FinanceWorkspace() {
                     </button>
                   </div>
 
-                  {/* Comments from reviewer */}
-                  {selectedSubmission.latestComment && (
+                  {/* Status + meta strip */}
+                  <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 text-xs">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Status</div>
+                      <div className="font-bold text-slate-800">{String(selectedSubmission.status || '—').replace(/_/g, ' ')}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Category</div>
+                      <div className="font-bold text-slate-800">{selectedSubmission.category || '—'}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Submitted</div>
+                      <div className="font-bold text-slate-800">{selectedSubmission.formattedDateTime || (selectedSubmission.submittedAt ? new Date(selectedSubmission.submittedAt).toLocaleString() : '—')}</div>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Reviewer</div>
+                      <div className="font-bold text-slate-800">{selectedSubmission.reviewer?.name || 'Pending assignment'}</div>
+                    </div>
+                  </div>
+
+                  {/* Reviewer feedback */}
+                  {selectedSubmission.reviewComment && (
                     <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
                       <div className="flex items-center gap-2 text-xs font-bold text-rose-800">
                         <AlertTriangle className="h-4 w-4" />
-                        <span>Reviewer Feedback ({selectedSubmission.reviewer})</span>
+                        <span>Reviewer Feedback {selectedSubmission.reviewer?.name ? `(${selectedSubmission.reviewer.name})` : ''}</span>
                       </div>
                       <p className="mt-1.5 text-xs font-medium text-slate-700">
-                        "{selectedSubmission.latestComment}"
+                        &quot;{selectedSubmission.reviewComment}&quot;
                       </p>
                     </div>
                   )}
 
-                  {/* Submission Timeline */}
-                  <div className="mt-6">
+                  {/* Submitted values — the REAL figures the reviewer sees */}
+                  <div className="mt-5">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Audit Timeline & History
+                      Submitted Data Values
                     </h4>
-                    <div className="mt-3 space-y-3">
-                      {selectedSubmission.timeline.map((item, idx) => (
-                        <div key={idx} className="flex items-start gap-3 text-xs">
-                          <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
-                            <Clock className="h-3 w-3" />
-                          </div>
-                          <div>
-                            <span className="font-bold text-slate-800">{item.step}</span>
-                            <span className="text-slate-400"> by {item.actor}</span>
-                            <div className="text-[11px] text-slate-400">{item.timestamp}</div>
-                            {item.note && <div className="mt-0.5 text-slate-600 italic">"{item.note}"</div>}
-                          </div>
+                    <div className="mt-2 space-y-1.5">
+                      {(selectedSubmission.parsedValues || []).length === 0 && (
+                        <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-xs text-slate-400">
+                          No metric values recorded on this submission
+                        </div>
+                      )}
+                      {(selectedSubmission.parsedValues || []).map((pv: any, idx: number) => (
+                        <div key={idx} className="flex items-center justify-between rounded-xl border border-slate-100 bg-white/90 px-3 py-2">
+                          <span className="text-xs font-semibold text-slate-600">{pv.label}</span>
+                          <span className="font-mono text-xs font-bold text-slate-900">
+                            {pv.value}{pv.unit ? ` ${pv.unit}` : ''}
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
 
+                  {/* Evidence attached to this submission */}
+                  <div className="mt-5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Attached Evidence ({(selectedSubmission.evidenceList || []).length})
+                    </h4>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {(selectedSubmission.evidenceList || []).length === 0 && (
+                        <span className="text-xs text-slate-400">No evidence files referenced</span>
+                      )}
+                      {(selectedSubmission.evidenceList || []).map((f: string, i: number) => (
+                        <span key={i} className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-800">
+                          <FileText className="h-3 w-3" /> {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Audit history */}
+                  {(selectedSubmission.history || []).length > 0 && (
+                    <div className="mt-5">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Audit Timeline</h4>
+                      <div className="mt-2 space-y-2">
+                        {selectedSubmission.history.map((h: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-3 text-xs">
+                            <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+                              <Clock className="h-3 w-3" />
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-800">{h.action || h.toStatus}</span>
+                              <span className="text-slate-400"> · {h.actorName || 'System'}</span>
+                              <div className="text-[11px] text-slate-400">{h.at || ''}</div>
+                              {h.comment && <div className="mt-0.5 text-slate-600 italic">&quot;{h.comment}&quot;</div>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Actions inside modal */}
                   <div className="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-4">
-                    {selectedSubmission.status === 'Returned for Correction' && (
+                    {['CORRECTION_REQUESTED', 'CHANGES_REQUESTED', 'REJECTED'].includes(selectedSubmission.status) && (
                       <button
-                        onClick={() => handleResubmit(selectedSubmission.id)}
+                        onClick={() => {
+                          setSelectedSubmission(null)
+                          setActiveModule('fin-data')
+                          setActiveFinanceLevel('l1')
+                        }}
                         className="rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700"
                       >
-                        Resubmit for Review
+                        Correct & Resubmit
                       </button>
                     )}
                     <button
@@ -2616,95 +2861,164 @@ export function FinanceWorkspace() {
       {/* ---------------------------------------------------------------------- */}
       {activeModule === 'fin-reports' && (
         <div className="space-y-6">
-          <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
-            <h1 className="text-2xl font-black text-slate-900">Reports & Exports</h1>
-            <p className="text-xs font-medium text-slate-500">
-              Authorized compliance extractions for SEBI BRSR Principle 6, ESG consolidation, and statutory audits
-            </p>
-
-            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {/* Report 1: Financial Summary */}
-              <div className="rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-sm">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-                  <FileText className="h-5 w-5" />
-                </div>
-                <h3 className="mt-3 text-sm font-bold text-slate-900">Financial Summary Report</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Turnover, YoY growth, CapEx/OpEx, and statutory reporting basis for FY 2026-27.
+          {/* iOS liquid glass header */}
+          <div className="relative overflow-hidden rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/80 to-transparent" />
+            <div className="relative z-10 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h1 className="text-2xl font-black tracking-tight text-slate-900">Reports &amp; Exports</h1>
+                <p className="text-xs font-medium text-slate-500">
+                  Your submitted &amp; approved dossiers — download any of them as CSV or JSON
                 </p>
-                <div className="mt-4 flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      financeStore.exportFinancialSummaryCSV()
-                      showToast('Exported Financial Summary CSV')
-                    }}
-                    className="flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700"
-                  >
-                    <Download className="h-3 w-3" />
-                    <span>Download CSV</span>
-                  </button>
-                </div>
               </div>
-
-              {/* Report 2: Resource Expenditure */}
-              <div className="rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-sm">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <Layers className="h-5 w-5" />
-                </div>
-                <h3 className="mt-3 text-sm font-bold text-slate-900">Resource Expenditure Report</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Category-wise environmental initiatives, clean energy CapEx, and water conservation spend across all 8 categories.
-                </p>
-                <div className="mt-4 flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      financeStore.exportResourceExpendituresCSV()
-                      showToast('Exported Resource Expenditures CSV')
-                    }}
-                    className="flex items-center gap-1.5 rounded-full bg-indigo-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-indigo-700"
-                  >
-                    <Download className="h-3 w-3" />
-                    <span>Download CSV</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Report 3: BRSR Financial Schedules */}
-              <div className="rounded-2xl border border-slate-100 bg-white/80 p-5 shadow-sm">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                  <FileCheck2 className="h-5 w-5" />
-                </div>
-                <h3 className="mt-3 text-sm font-bold text-slate-900">BRSR Financial Schedules</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  SEBI Principle 6 Environmental Protection expenditure mappings and intensity denominators in JSON structure.
-                </p>
-                <div className="mt-4 flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      const exportObj = {
-                        financialSummary: financeStore.getFinancialSummary(),
-                        intensityMetrics: financeStore.getIntensityMetrics(),
-                        csrDisclosures: financeStore.getCsrDisclosures(),
-                        expenditures: financeStore.getExpenditures(),
-                      }
-                      const json = JSON.stringify(exportObj, null, 2)
-                      const blob = new Blob([json], { type: 'application/json' })
-                      const url = URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `meilESG_BRSR_Comprehensive_Financial_Schedule.json`
-                      a.click()
-                      showToast('Exported BRSR JSON schedule')
-                    }}
-                    className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-700"
-                  >
-                    <Download className="h-3 w-3" />
-                    <span>Download JSON</span>
-                  </button>
-                </div>
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/80 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  {apiSubmissions.filter((s: any) => ['SUBMITTED', 'RESUBMITTED', 'PENDING'].includes(s.status)).length} Submitted · {apiSubmissions.filter((s: any) => ['APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED'].includes(s.status)).length} Approved
+                </span>
+                <button
+                  onClick={() => {
+                    const exportable = apiSubmissions.filter((s: any) => ['SUBMITTED', 'RESUBMITTED', 'PENDING', 'APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED'].includes(s.status))
+                    const json = JSON.stringify(exportable.map(({ history, corrections, ...rest }: any) => rest), null, 2)
+                    const blob = new Blob([json], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `meilESG_all_submissions_${new Date().toISOString().slice(0, 10)}.json`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                    showToast(`Exported ${exportable.length} submissions as JSON`)
+                  }}
+                  className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/70 px-3.5 py-1.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
+                >
+                  <Download className="h-3 w-3" />
+                  <span>Export All (JSON)</span>
+                </button>
               </div>
             </div>
           </div>
+
+          {/* Submitted & Approved dossiers — real ledger rows, liquid glass cards */}
+          {(() => {
+            const exportable = apiSubmissions
+              .filter((s: any) => ['SUBMITTED', 'RESUBMITTED', 'PENDING', 'APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED'].includes(s.status))
+            const downloadJson = (sub: any) => {
+              const { history, corrections, ...rest } = sub
+              const json = JSON.stringify(rest, null, 2)
+              const blob = new Blob([json], { type: 'application/json' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${(sub.ref || sub.id).replace(/[^a-zA-Z0-9-_]/g, '_')}.json`
+              a.click()
+              URL.revokeObjectURL(url)
+              showToast('Exported submission JSON')
+            }
+            const downloadCsv = (sub: any) => {
+              const rows: Array<Record<string, string | number>> = []
+              rows.push({ Field: 'Submission Ref', Value: sub.ref || sub.id })
+              rows.push({ Field: 'Title', Value: sub.title || '' })
+              rows.push({ Field: 'Project', Value: sub.project?.name || '' })
+              rows.push({ Field: 'Reporting Period', Value: sub.reportingPeriod?.periodLabel || '' })
+              rows.push({ Field: 'Category', Value: sub.category || '' })
+              rows.push({ Field: 'Status', Value: sub.status || '' })
+              rows.push({ Field: 'Submitted At', Value: sub.formattedDateTime || sub.submittedAt || '' })
+              rows.push({ Field: 'Reviewer', Value: sub.reviewer?.name || '' })
+              for (const pv of sub.parsedValues || []) {
+                rows.push({ Field: pv.label, Value: pv.value != null ? `${pv.value}${pv.unit ? ` ${pv.unit}` : ''}` : '' })
+              }
+              for (const ev of sub.evidenceList || []) {
+                rows.push({ Field: 'Evidence', Value: ev })
+              }
+              const headers = ['Field', 'Value']
+              const csv = [headers.join(','), ...rows.map(r => headers.map(h => `"${String(r[h] ?? '').replace(/"/g, '""')}"`).join(',')).join('\n')].join('\n')
+              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+              const url = URL.createObjectURL(blob)
+              const a = document.createElement('a')
+              a.href = url
+              a.download = `${(sub.ref || sub.id).replace(/[^a-zA-Z0-9-_]/g, '_')}.csv`
+              a.click()
+              URL.revokeObjectURL(url)
+              showToast('Exported submission CSV')
+            }
+            return (
+              <div className="space-y-3">
+                {apiSubmissionsLoading && (
+                  <div className="rounded-[24px] border border-white/60 bg-white/70 px-4 py-10 text-center text-xs font-semibold text-slate-400 backdrop-blur-xl">
+                    Loading your dossiers…
+                  </div>
+                )}
+                {!apiSubmissionsLoading && exportable.length === 0 && (
+                  <div className="rounded-[24px] border border-dashed border-slate-200 bg-white/60 px-4 py-12 text-center text-xs font-semibold text-slate-400 backdrop-blur-xl">
+                    No submitted or approved dossiers yet — submit from the Financial Data levels and they appear here instantly.
+                  </div>
+                )}
+                {exportable.map((sub: any) => {
+                  const isApproved = ['APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED'].includes(sub.status)
+                  return (
+                    <div
+                      key={sub.id}
+                      className="group relative overflow-hidden rounded-[24px] border border-white/70 bg-white/75 p-5 shadow-lg shadow-sky-500/5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+                    >
+                      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-white/90 to-transparent" />
+                      <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-blue-200 bg-blue-50/80 px-2.5 py-0.5 font-mono text-[10px] font-bold text-blue-700">
+                              {sub.ref || `SUB-${sub.id.slice(-6).toUpperCase()}`}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
+                              isApproved
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                                : 'border-blue-200 bg-blue-50 text-blue-700'
+                            }`}>
+                              <ShieldCheck className="h-3 w-3" />
+                              {isApproved ? 'Approved' : 'Submitted'}
+                            </span>
+                            {sub.evidenceList?.length > 0 && (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                                <FileText className="h-3 w-3" /> {sub.evidenceList.length} evidence file{sub.evidenceList.length === 1 ? '' : 's'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-1.5 truncate text-sm font-bold text-slate-900">{sub.title}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-medium text-slate-500">
+                            <span>{sub.project?.name || '—'}</span>
+                            <span>·</span>
+                            <span>{sub.reportingPeriod?.periodLabel || '—'}</span>
+                            <span>·</span>
+                            <span>{sub.formattedDateTime || (sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '—')}</span>
+                            {sub.reviewer?.name && (
+                              <>
+                                <span>·</span>
+                                <span>Reviewer: {sub.reviewer.name}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            onClick={() => downloadCsv(sub)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-blue-700"
+                          >
+                            <Download className="h-3 w-3" />
+                            <span>CSV</span>
+                          </button>
+                          <button
+                            onClick={() => downloadJson(sub)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs transition hover:bg-emerald-700"
+                          >
+                            <Download className="h-3 w-3" />
+                            <span>JSON</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -2732,16 +3046,39 @@ export function FinanceWorkspace() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50 text-xs">
-                  {activities.map(act => (
+                  {[
+                    ...realActivities.map((a: any) => ({
+                      id: a.id,
+                      timestamp: new Date(a.createdAt).toLocaleString(),
+                      title: String(a.action || 'Activity').replace(/_/g, ' '),
+                      entity: a.orgLabel || a.project?.name || 'MEIL-SOL-GJT',
+                      description: a.targetLabel || a.targetType || '',
+                      actor: a.actorName || 'System',
+                      severity: a.severity || 'INFO',
+                      real: true,
+                    })),
+                    ...activities.map(act => ({ ...act, real: false })),
+                  ].map(act => (
                     <tr key={act.id} className="group hover:bg-blue-50/40 transition">
                       <td className="py-4 pl-2 font-mono text-slate-500">{act.timestamp}</td>
-                      <td className="py-4 font-bold text-slate-800">{act.title}</td>
+                      <td className="py-4 font-bold text-slate-800">
+                        <span className="flex items-center gap-1.5">
+                          {act.real && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" title="Live" />}
+                          {act.title}
+                        </span>
+                      </td>
                       <td className="py-4 font-mono text-blue-700">{act.entity || 'MEIL-SOL-GJT'}</td>
                       <td className="py-4 text-slate-600 max-w-md">{act.description}</td>
                       <td className="py-4 text-slate-700 font-semibold">{act.actor}</td>
                       <td className="py-4 pr-2 text-right">
-                        <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
-                          Success
+                        <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${
+                          act.severity === 'SUCCESS'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : act.severity === 'WARNING'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-sky-50 text-sky-700 border-sky-200'
+                        }`}>
+                          {act.real ? 'Live' : 'Success'}
                         </span>
                       </td>
                     </tr>
@@ -2767,10 +3104,10 @@ export function FinanceWorkspace() {
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Add Resource Expenditure Record</h3>
-                  <p className="text-xs text-slate-500">Record Level 2 financial expenditure for environmental initiatives</p>
+                  <h3 className="text-base font-bold text-slate-900">{editingExpId ? 'Edit Resource Expenditure Record' : 'Add Resource Expenditure Record'}</h3>
+                  <p className="text-xs text-slate-500">{editingExpId ? 'Update the captured Level 2 expenditure record' : 'Record Level 2 financial expenditure for environmental initiatives — captured as Draft'}</p>
                 </div>
-                <button onClick={() => setShowAddExpenditureModal(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+                <button onClick={() => { setShowAddExpenditureModal(false); resetExpenditureForm() }} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -2957,7 +3294,7 @@ export function FinanceWorkspace() {
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setShowAddExpenditureModal(false)}
+                    onClick={() => { setShowAddExpenditureModal(false); resetExpenditureForm() }}
                     className="rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
                   >
                     Cancel
@@ -2966,7 +3303,7 @@ export function FinanceWorkspace() {
                     type="submit"
                     className="rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-xs"
                   >
-                    Save Level 2 Record
+                    {editingExpId ? 'Update Record' : '+ Add (Draft)'}
                   </button>
                 </div>
               </form>
@@ -3203,6 +3540,47 @@ export function FinanceWorkspace() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* ── Consolidated Final Review (ENV-user pattern): every level's entered
+          details + evidence, with "Submit to Project Admin" ── */}
+      <FinalSubmitAllModal
+        open={showFinalReview}
+        onClose={() => !submittingAll && setShowFinalReview(false)}
+        projectName={financialData.common?.entityName || 'Gayatri Solar Plant (MEIL-SOL-GJT)'}
+        periodLabel={financialData.common?.financialYear || 'FY 2026-27'}
+        submitting={submittingAll}
+        onSubmitAll={handleFinalSubmit}
+        levels={financeLevels}
+        allData={financeAllData}
+        projectId={selectedProjectId || null}
+        periodId="current"
+        evidenceList={evidenceItems.map(ev => ({ name: ev.fileName, id: ev.id }))}
+        submitterName={undefined}
+        submitterRole="Finance & Resource Data Contributor"
+      />
+
+      {/* ── Success confirmation — shown only after the dossier reached the
+          Project Admin ledger AND My Submissions was refreshed ── */}
+      <SubmitAllSuccessModal
+        open={showSubmitSuccess}
+        onClose={() => {
+          setShowSubmitSuccess(false)
+          setActiveModule('fin-submissions')
+        }}
+        projectName={financialData.common?.entityName || 'Gayatri Solar Plant (MEIL-SOL-GJT)'}
+        periodLabel={financialData.common?.financialYear || 'FY 2026-27'}
+        submittedCount={lastSubmittedCount}
+        totalLevels={financeLevels.length}
+        items={evidenceItems.slice(0, 5).map(ev => ({ name: ev.fileName }))}
+      />
+
+      {/* ── Fullscreen evidence viewer (ENV pattern) for rail + vault View clicks ── */}
+      {reviewEvidence && (
+        <FullscreenEvidenceModal
+          evidence={reviewEvidence}
+          onClose={() => setReviewEvidence(null)}
+        />
+      )}
     </div>
   )
 }

@@ -42,9 +42,10 @@ import {
 } from "@/components/shared/submission-review-window";
 
 export default function CollectionStatusView() {
-  const { navigate, viewParams } = usePaStore();
+  const { navigate, viewParams, setSidebarCollapsed } = usePaStore();
   const cached = getCachedPaData<any>("/api/project-admin/collection-status");
   const [loading, setLoading] = useState(!cached);
+  const [refreshing, setRefreshing] = useState(false);
   const [items, setItems] = useState<PaCollectionStatusItem[]>(cached?.items || []);
   const [summary, setSummary] = useState<any>(cached?.summary || null);
   const [activeTab, setActiveTab] = useState(viewParams.filter || "all");
@@ -59,19 +60,44 @@ export default function CollectionStatusView() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  const loadData = () => {
+  /* The full-window review overlays the whole screen — collapse the sidebar
+     while it is open and restore the admin's previous choice on close. */
+  const sidebarWasCollapsedRef = React.useRef<boolean | null>(null);
+  const openReview = (item: PaCollectionStatusItem) => {
+    sidebarWasCollapsedRef.current = usePaStore.getState().sidebarCollapsed;
+    setSidebarCollapsed(true);
+    setInspectItem(item);
+  };
+  const closeReview = () => {
+    setInspectItem(null);
+    if (sidebarWasCollapsedRef.current !== null) {
+      setSidebarCollapsed(sidebarWasCollapsedRef.current);
+      sidebarWasCollapsedRef.current = null;
+    }
+  };
+
+  const loadData = (bypass = false) => {
     if (!items.length) setLoading(true);
-    paApiGet<any>("/api/project-admin/collection-status")
+    if (bypass) setRefreshing(true);
+    /* Manual refresh must skip BOTH the client SWR cache and the 45s server
+       cache — otherwise the Refresh button re-serves stale data. */
+    paApiGet<any>("/api/project-admin/collection-status", bypass ? { bypassCache: true } : undefined)
       .then((res) => {
         setItems(res.items || []);
         setSummary(res.summary || {});
       })
       .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
   };
 
   useEffect(() => {
-    loadData();
+    /* Fresh-on-mount: the 60s client SWR cache can hide a submission that was
+       just sent from the site console — always bypass on first load. */
+    loadData(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const showToast = (msg: string) => {
@@ -132,7 +158,7 @@ export default function CollectionStatusView() {
       });
       patchItemStatus(inspectItem.id, "RETURNED");
       showToast(`Rejection dispatched for ${markedItems.length} marked item(s). ${inspectItem.assignedUserName} has been notified.`);
-      setInspectItem(null);
+      closeReview();
     } catch (err: any) {
       showToast(err.message || "Failed to submit rejection.");
     } finally {
@@ -203,7 +229,10 @@ export default function CollectionStatusView() {
     if (!matchesSearch || !matchesCategory) return false;
 
     if (activeTab === "submitted") return i.submissionStatus === "SUBMITTED" || i.submissionStatus === "APPROVED";
-    if (activeTab === "pending") return i.submissionStatus === "UNDER_REVIEW" || i.submissionStatus === "NOT_STARTED";
+    /* "Pending Review" = awaiting an admin decision — includes freshly
+       SUBMITTED rows (previously only UNDER_REVIEW/NOT_STARTED matched, so a
+       just-submitted disclosure never appeared here). */
+    if (activeTab === "pending") return i.submissionStatus === "SUBMITTED" || i.submissionStatus === "UNDER_REVIEW" || i.submissionStatus === "NOT_STARTED";
     if (activeTab === "draft") return i.submissionStatus === "DRAFT";
     if (activeTab === "returned") return i.submissionStatus === "RETURNED";
     if (activeTab === "overdue") return i.overdue;
@@ -230,9 +259,10 @@ export default function CollectionStatusView() {
               icon={RefreshCw}
               variant="secondary"
               size="sm"
-              onClick={loadData}
+              loading={refreshing}
+              onClick={() => loadData(true)}
             >
-              Refresh
+              {refreshing ? "Refreshing…" : "Refresh"}
             </PaButton>
             <PaButton
               icon={FolderLock}
@@ -327,7 +357,7 @@ export default function CollectionStatusView() {
                     <td className="p-4 pl-6">
                       <button
                         type="button"
-                        onClick={() => setInspectItem(item)}
+                        onClick={() => openReview(item)}
                         className="text-left"
                         title="Open the full review window"
                       >
@@ -359,13 +389,22 @@ export default function CollectionStatusView() {
                       </span>
                     </td>
                     <td className="p-4 text-[#64748B] text-xs">
-                      {item.submissionDate ? new Date(item.submissionDate).toLocaleDateString() : "Pending"}
+                      {item.submissionDate
+                        ? new Date(item.submissionDate).toLocaleString("en-GB", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })
+                        : "Pending"}
                     </td>
                     <td className="p-4 pr-6 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setInspectItem(item)}
+                          onClick={() => openReview(item)}
                           className="p-1.5 rounded-xl text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                           title="View Details & Audit (full window)"
                         >
@@ -422,10 +461,10 @@ export default function CollectionStatusView() {
           pending={actionLoading}
           onApprove={async () => {
             const ok = await handleApprove(inspectItem);
-            if (ok) setInspectItem(null);
+            if (ok) closeReview();
           }}
           onReject={(marked, generalNote) => submitRejection(marked, generalNote)}
-          onClose={() => setInspectItem(null)}
+          onClose={closeReview}
         />
       ) : null}
 

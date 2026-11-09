@@ -617,7 +617,10 @@ export function GlassDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={cn("glass-strong max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}>
+      <DialogContent
+        className={cn("glass-strong fixed inset-0 m-auto z-[70] max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}
+        style={{ transform: "none", translate: "none", margin: "auto" }}
+      >
         <DialogHeader>
           <DialogTitle className="text-lg text-[color:var(--ink)]">{title}</DialogTitle>
           {description && <DialogDescription className="text-sm text-[color:var(--muted-foreground)]">{description}</DialogDescription>}
@@ -667,7 +670,7 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
-            className="rounded-2xl"
+            className={cn("rounded-2xl cursor-pointer", !destructive && "bg-[#8B5CF6] text-white hover:bg-[#7C3AED]")}
             disabled={!canConfirm || pending}
             onClick={() => onConfirm(requireReason ? reason.trim() : undefined)}
           >

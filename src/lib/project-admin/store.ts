@@ -25,7 +25,7 @@ export const PA_VIEW_ORDER: { section: string; views: PaViewId[] }[] = [
   },
   {
     section: "ESG & REPORTING",
-    views: ["evidence", "esg-summary", "consolidated-report", "submissions", "corrections"],
+    views: ["approved-dataset", "evidence", "esg-summary", "consolidated-report", "submissions", "corrections"],
   },
   {
     section: "WORKSPACE",
@@ -88,6 +88,12 @@ export const PA_VIEW_META: Record<PaViewId, ViewMeta> = {
     section: "ESG & REPORTING",
     badge: "Core",
     description: "Assemble 7 categories into 1 project report & submit to BU Manager",
+  },
+  "approved-dataset": {
+    id: "approved-dataset",
+    label: "Approved Dataset",
+    section: "ESG & REPORTING",
+    description: "Consolidated approved submissions ready for Business Unit handoff",
   },
   submissions: {
     id: "submissions",

@@ -151,10 +151,13 @@ export const fmtDate = (iso?: string | null) =>
     ? new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
     : "—";
 
-export const fmtDateTime = (iso?: string | null) =>
-  iso
-    ? new Date(iso).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
-    : "—";
+export const fmtDateTime = (iso?: string | null) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  const timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return `${dateStr}, ${timeStr}`;
+};
 
 export const timeAgo = (iso?: string | null) => {
   if (!iso) return "—";

@@ -186,6 +186,10 @@ model Submission {
   lockedBy          String?
   reviewComment     String?   // pu: reviewer note on REVIEW/REJECT/LOCK transitions
   corrections       String?   @default("[]") // pu: JSON array of correction requests (portal-side)
+  forwardedToBu     Boolean   @default(false) // pa: staged in Approved Dataset and submitted to Business Unit
+  forwardedToBuAt   DateTime?
+  inConsolidatedReport Boolean  @default(false) // pa: included in consolidated project report
+  consolidatedReportId String?   // pa: links to Report when part of consolidated report
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }

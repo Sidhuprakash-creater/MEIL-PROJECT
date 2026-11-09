@@ -48,6 +48,7 @@ async function main() {
     { email: "imran@meil-esg.in", name: "Imran Sheikh", employeeId: "PU-CSR-019", role: "CSR_USER", title: "CSR Program Lead", projectId: klbd.id, phone: "+91 98480 11026" },
     { email: "deepika@meil-esg.in", name: "Deepika Joshi", employeeId: "PU-CMP-020", role: "COMPLIANCE_USER", title: "Compliance Officer", projectId: desal.id, phone: "+91 98480 11027" },
     { email: "sameer@meil-esg.in", name: "Sameer Khan", employeeId: "PU-ANA-021", role: "ESG_ANALYST", title: "ESG Analyst — Group Analytics", projectId: ktpp.id, phone: "+91 98480 11028" },
+    { email: "pavagada.admin@meil-esg.in", name: "Meera Iyer", employeeId: "ADM-2001", role: "PROJECT_ADMIN", title: "Project Admin — Pavagada Solar", projectId: pvagada.id, phone: "+91 98480 11030" },
   ] as const;
 
   const userIds: Record<string, string> = {};

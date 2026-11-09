@@ -17,8 +17,33 @@ import { EsgAnalystWorkspace } from '@/components/pu/modules/esg-analyst-workspa
 import { FinanceWorkspace } from '@/components/pu/modules/finance-workspace'
 
 export function ModuleRouter() {
-  const { activeModule, dataEntrySubModule } = useApp()
+  const { activeModule, dataEntrySubModule, user } = useApp()
   const m = activeModule
+
+  /* Role-aware routing: for the HR contributor, the shared Evidence / Submissions
+     screens and the (previously unrouted) Activity Log key must open the HR
+     workspace's own role-scoped screens — not the platform-wide ENV modules. */
+  const roleKeys = (user?.roles ?? []).map((r) => r.key)
+  const isHrContributor = roleKeys.includes('HR_USER')
+  if (isHrContributor && (m === 'evidence' || m === 'submissions' || m === 'activity')) {
+    return <HrWorkspace />
+  }
+  const isEhsContributor = roleKeys.includes('EHS_USER')
+  if (isEhsContributor && (m === 'evidence' || m === 'submissions' || m === 'activity')) {
+    return <EhsWorkspace />
+  }
+  const contributorWorkspaces: Record<string, any> = {
+    CSR_USER: CsrWorkspace,
+    PROCUREMENT_USER: ProcurementWorkspace,
+    COMPLIANCE_USER: ComplianceWorkspace,
+  }
+  for (const rk of ['CSR_USER', 'PROCUREMENT_USER', 'COMPLIANCE_USER']) {
+    if (roleKeys.includes(rk) && (m === 'evidence' || m === 'submissions' || m === 'activity')) {
+      const Ws = contributorWorkspaces[rk]
+      return <Ws />
+    }
+  }
+
   switch (m) {
     // Finance & Resource Data Contributor workspace
     case 'fin-assignments':
@@ -39,7 +64,8 @@ export function ModuleRouter() {
     case 'audit': return <AuditModule />
     case 'team': return <TeamModule />
     // HR workspace
-    case 'hr-workforce': case 'hr-training': case 'hr-wellbeing': case 'hr-rights':
+    case 'hr-workforce': case 'hr-diversity': case 'hr-learning': case 'hr-performance': case 'hr-compensation': case 'hr-grievances': case 'hr-human-rights':
+    case 'hr-training': case 'hr-wellbeing': case 'hr-rights': // legacy keys still route
       return <HrWorkspace />
     // EHS workspace
     case 'ehs-ops': case 'ehs-incidents': case 'ehs-inspections': case 'ehs-corrective': case 'ehs-environmental': case 'ehs-training':

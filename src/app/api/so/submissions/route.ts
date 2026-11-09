@@ -42,10 +42,10 @@ export async function GET(req: NextRequest) {
   if (periodId) where.reportingPeriodId = periodId
   if (moduleFilter) where.module = moduleFilter
   if (status) {
-    if (status === 'SUBMITTED') {
-      where.status = { in: ['SUBMITTED', 'RESUBMITTED'] }
-    } else if (status === 'APPROVED') {
-      where.status = { in: ['APPROVED', 'BU_APPROVED', 'SUBSIDIARY_APPROVED', 'HQ_REVIEW'] }
+    if (status === 'SUBMITTED' || status === 'PENDING') {
+      where.status = { in: ['SUBMITTED', 'RESUBMITTED', 'PENDING', 'UNDER_REVIEW', 'BU_REVIEW_PENDING'] }
+    } else if (status === 'APPROVED' || status === 'ACTIVE') {
+      where.status = { in: ['APPROVED', 'ACTIVE', 'BU_APPROVED', 'SUBSIDIARY_APPROVED', 'HQ_REVIEW'] }
     } else {
       where.status = status
     }

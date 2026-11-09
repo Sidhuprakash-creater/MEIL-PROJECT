@@ -10,6 +10,7 @@ export type PaViewId =
   | "categories"
   | "tasks"
   | "collection-status"
+  | "approved-dataset"
   | "evidence"
   | "esg-summary"
   | "consolidated-report"
@@ -391,6 +392,30 @@ export interface PaConsolidatedReport {
     by: string;
     timestamp: string;
     note: string;
+  }[];
+  contributorSubmissions: {
+    contributor: { id: string; name: string; email: string; role: string };
+    submissions: {
+      id: string;
+      ref: string;
+      title: string;
+      category: string;
+      module: string;
+      period: string;
+      parsedValues: Array<{ label: string; value: string | number; unit?: string }>;
+      evidenceList: string[];
+      evidenceFiles: Array<{ id: string; fileName: string; documentType: string; filePath: string; sizeKb: number; hash: string | null }>;
+      submittedAt: string | null;
+      reviewedAt: string | null;
+      reviewComment: string | null;
+      status: string;
+      forwardedToBu: boolean;
+      inConsolidatedReport: boolean;
+      consolidatedReportId: string | null;
+      history: any[];
+    }[];
+    totalItems: number;
+    totalEvidence: number;
   }[];
 }
 

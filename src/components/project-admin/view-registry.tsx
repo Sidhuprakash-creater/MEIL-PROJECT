@@ -15,6 +15,7 @@ import SubmissionsView from "./views/submissions";
 import CorrectionsView from "./views/corrections";
 import { NotificationsView } from "./views/notifications";
 import { SettingsView } from "./views/settings";
+import ApprovedDatasetView from "./views/approved-dataset";
 
 export const PA_VIEW_COMPONENTS: Record<PaViewId, React.ComponentType> = {
   dashboard: DashboardView,
@@ -30,4 +31,5 @@ export const PA_VIEW_COMPONENTS: Record<PaViewId, React.ComponentType> = {
   corrections: CorrectionsView,
   notifications: NotificationsView,
   settings: SettingsView,
+  "approved-dataset": ApprovedDatasetView,
 };

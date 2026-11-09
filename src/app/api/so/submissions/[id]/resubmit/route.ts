@@ -164,6 +164,28 @@ export async function POST(
       },
     })
 
+    /* Mirror sync — the unified db.submission row (different cuid, same
+       recordIds) must follow the resubmission so the Project Admin sees the
+       disclosure back in the pending queue. */
+    try {
+      if (recordIds.length > 0) {
+        const ridSet = new Set(recordIds.map(String))
+        const mirrors = await db.submission.findMany({
+          where: { projectId: submission.projectId, module: submission.module },
+          select: { id: true, recordIds: true },
+        })
+        const mirrorIds = mirrors
+          .filter((m) => parseRecordIds(m.recordIds).some((r) => ridSet.has(String(r))))
+          .map((m) => m.id)
+        if (mirrorIds.length > 0) {
+          await db.submission.updateMany({
+            where: { id: { in: mirrorIds } },
+            data: { status: 'UNDER_REVIEW', updatedAt: now },
+          })
+        }
+      }
+    } catch {}
+
     // History: record both hops (RESUBMIT then auto-review)
     await appendHistory({
       submissionId: id,

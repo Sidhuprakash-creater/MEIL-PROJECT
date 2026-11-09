@@ -99,7 +99,19 @@ export async function GET(req: NextRequest) {
     // history + corrections live on JSON columns of the shared ledger —
     // parse and project them into the shape the consoles render.
     const submissions = rows.map((s) => {
-      const history = parseJsonArray(s.history)
+      const rawHistory = parseJsonArray(s.history)
+      const history = rawHistory.map((h: any, idx: number) => ({
+        id: h.id || `hist-${s.id}-${idx}`,
+        action: h.action || "STATUS_CHANGE",
+        fromStatus: h.fromStatus || "SUBMITTED",
+        toStatus: h.toStatus || s.status,
+        actorName: h.actorName || h.actor || "Reviewer",
+        actorRole: h.actorRole || "Project Admin",
+        comment: h.comment || h.note || "",
+        note: h.note || h.comment || "",
+        createdAt: h.createdAt || h.at || s.updatedAt || s.createdAt,
+        at: h.at || h.createdAt || s.updatedAt || s.createdAt,
+      }))
       const corrections = parseJsonArray(s.corrections)
 
       let parsedValues: Array<{ label: string; value: string | number; unit?: string }> = []

@@ -71,7 +71,7 @@ export async function GET(
        contributor staged), falling back to the Prisma mirrors. */
     let sourceRecords: Record<string, unknown>[] = []
     if (recordIds.length > 0) {
-      const { getLevelRecordById } = await import('@/lib/pu/level-records')
+      const { getLevelRecordById, getLevelRecords } = await import('@/lib/pu/level-records')
       for (const rid of recordIds) {
         const lr = getLevelRecordById(rid)
         if (lr) sourceRecords.push(lr as unknown as Record<string, unknown>)
@@ -104,6 +104,16 @@ export async function GET(
             break
           case 'TRAVEL':
             sourceRecords.push(...(await db.travelRecord.findMany({ where: { id: { in: missing } }, include: { calculationResults: true, validationResults: true } })))
+            break
+          case 'ALL_LEVELS':
+            /* Consolidated dossier — its recordIds span every BRSR level, so
+               recover whatever the JSON store could not resolve from the store
+               itself (all records for the submission's project). */
+            sourceRecords.push(
+              ...getLevelRecords(submission.projectId || undefined)
+                .filter((r) => missing.includes(r.id))
+                .map((r) => r as unknown as Record<string, unknown>),
+            )
             break
           default:
             break
@@ -217,7 +227,18 @@ export async function GET(
         formattedDateTime: `${datePart} • ${timePart}`,
         reviewComment: submission.reviewComment || null,
         reviewedAt: submission.reviewedAt || null,
-        history: parseJsonArray(submission.history),
+        history: parseJsonArray(submission.history).map((h: any, idx: number) => ({
+          id: h.id || `hist-${submission.id}-${idx}`,
+          action: h.action || "STATUS_CHANGE",
+          fromStatus: h.fromStatus || "SUBMITTED",
+          toStatus: h.toStatus || submission.status,
+          actorName: h.actorName || h.actor || "Reviewer",
+          actorRole: h.actorRole || "Project Admin",
+          comment: h.comment || h.note || "",
+          note: h.note || h.comment || "",
+          createdAt: h.createdAt || h.at || submission.updatedAt || submission.createdAt,
+          at: h.at || h.createdAt || submission.updatedAt || submission.createdAt,
+        })),
         corrections: parseJsonArray(submission.corrections),
       },
       sourceRecords,

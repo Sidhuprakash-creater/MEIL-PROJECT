@@ -43,59 +43,156 @@ import {
 /* STEPPER COMPONENT FOR ENTRY SCREENS (hoisted out of the render body —       */
 /* react-hooks/static-components)                                             */
 /* -------------------------------------------------------------------------- */
-function FinStepper({
-  currentStep,
-  onNavigate,
+/* RIGHT-SIDE JOURNEY & EVIDENCE PANEL — mirrors the ENV user's data-entry     */
+/* right panel: live draft status, captured-record stats, the evidence vault   */
+/* preview and the Save → Validate → Submit action rail.                       */
+/* -------------------------------------------------------------------------- */
+function FinJourneyPanel({
+  statusPill,
+  statusTone,
+  stats,
+  docs,
+  validationResult,
+  onSaveDraft,
+  onValidate,
+  onSubmit,
+  onUploadEvidence,
+  onViewEvidence,
+  onViewSubmissions,
 }: {
-  currentStep: number
-  onNavigate: (moduleKey: 'fin-data' | 'fin-expenditure' | 'fin-evidence' | 'fin-submissions', levelKey: string) => void
+  statusPill: string
+  statusTone: 'draft' | 'submitted' | 'approved' | 'warning'
+  stats: Array<{ label: string; value: string; sub?: string }>
+  docs: EvidenceDocumentItem[]
+  validationResult: { readyForSubmission: boolean; blockingErrors: string[]; warnings: string[] }
+  onSaveDraft: () => void
+  onValidate: () => void
+  onSubmit: () => void
+  onUploadEvidence: () => void
+  onViewEvidence: () => void
+  onViewSubmissions: () => void
 }) {
-  const steps = [
-    { num: 1, label: 'L0 Common & Entity', levelKey: 'l0', moduleKey: 'fin-data' as const },
-    { num: 2, label: 'L1 Financial Summary', levelKey: 'l1', moduleKey: 'fin-data' as const },
-    { num: 3, label: 'L2 Resource Spend', levelKey: 'l2', moduleKey: 'fin-expenditure' as const },
-    { num: 4, label: 'L3 Intensity Metrics', levelKey: 'l3', moduleKey: 'fin-data' as const },
-    { num: 5, label: 'L4 CSR Disclosures', levelKey: 'l4', moduleKey: 'fin-data' as const },
-    { num: 6, label: 'L5 Evidence Vault', levelKey: 'l5', moduleKey: 'fin-evidence' as const },
-    { num: 7, label: 'L6 Validation Check', levelKey: 'l6', moduleKey: 'fin-data' as const },
-    { num: 8, label: 'L7 Review & Submit', levelKey: 'l7', moduleKey: 'fin-submissions' as const },
-  ]
+  const toneCls =
+    statusTone === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    : statusTone === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : statusTone === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200'
+    : 'bg-slate-50 text-slate-600 border-slate-200'
 
   return (
-    <div className="relative mb-6 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-sm backdrop-blur-md">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        {steps.map((st, idx) => {
-          const isCurrent = currentStep === st.num
-          const isDone = currentStep > st.num
+    <div className="space-y-4">
+      {/* Draft / Submission status */}
+      <div className="rounded-[22px] border border-white/60 bg-white/70 p-4 shadow-lg shadow-sky-500/5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Record Status</span>
+          <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${toneCls}`}>{statusPill}</span>
+        </div>
 
-          return (
-            <React.Fragment key={st.num}>
-              <button
-                type="button"
-                onClick={() => onNavigate(st.moduleKey, st.levelKey)}
-                className="flex items-center gap-2 text-left transition hover:opacity-90"
-              >
-                <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all shadow-xs ${
-                  isCurrent
-                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-4 ring-blue-100'
-                    : isDone
-                    ? 'bg-blue-600 text-white'
-                    : 'border border-slate-200 bg-white text-slate-400'
-                }`}>
-                  {isDone ? <Check className="h-3.5 w-3.5" /> : st.num}
-                </div>
-                <div>
-                  <div className={`text-[11px] font-bold ${isCurrent ? 'text-blue-900' : isDone ? 'text-slate-800' : 'text-slate-400'}`}>
-                    {st.label}
-                  </div>
-                </div>
-              </button>
-              {idx < steps.length - 1 && (
-                <div className="hidden h-0.5 w-6 bg-slate-200 xl:block" />
-              )}
-            </React.Fragment>
-          )
-        })}
+        {/* Captured-record stats */}
+        <div className="mt-3 space-y-2">
+          {stats.map(s => (
+            <div key={s.label} className="flex items-center justify-between rounded-xl bg-slate-50/80 px-3 py-2">
+              <span className="text-[11px] font-semibold text-slate-500">{s.label}</span>
+              <span className="text-right">
+                <span className="text-sm font-black text-slate-900">{s.value}</span>
+                {s.sub && <span className="ml-1 text-[10px] font-medium text-slate-400">{s.sub}</span>}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Validation rail */}
+        <div className={`mt-3 rounded-xl border px-3 py-2 text-[11px] font-semibold ${
+          validationResult.readyForSubmission
+            ? 'border-emerald-200 bg-emerald-50/70 text-emerald-800'
+            : 'border-amber-200 bg-amber-50/70 text-amber-800'
+        }`}>
+          {validationResult.readyForSubmission
+            ? '✓ All validation checks passed — ready to submit'
+            : `${validationResult.blockingErrors.length} blocking · ${validationResult.warnings.length} warning(s)`}
+        </div>
+
+        {/* Action rail — Save → Validate → Submit (ENV-style naming) */}
+        <div className="mt-3 space-y-2">
+          <button
+            onClick={onSaveDraft}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-50"
+          >
+            <Save className="h-3.5 w-3.5" />
+            <span>Save as Draft</span>
+          </button>
+          <button
+            onClick={onValidate}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+          >
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>Validate Data</span>
+          </button>
+          <button
+            onClick={onSubmit}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 transition hover:from-blue-700 hover:to-indigo-700"
+          >
+            <Send className="h-3.5 w-3.5" />
+            <span>Submit for Review</span>
+          </button>
+          <button
+            onClick={onViewSubmissions}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold text-slate-500 transition hover:text-blue-700"
+          >
+            <span>View My Submissions</span>
+            <ChevronRight className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Evidence vault preview */}
+      <div className="rounded-[22px] border border-white/60 bg-white/70 p-4 shadow-lg shadow-sky-500/5 backdrop-blur-xl">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Evidence Vault</span>
+          <button
+            onClick={onViewEvidence}
+            className="text-[10px] font-bold text-blue-600 hover:text-blue-700"
+          >
+            View all ({docs.length})
+          </button>
+        </div>
+
+        <div className="mt-3 space-y-1.5">
+          {docs.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-200 px-3 py-4 text-center text-[11px] font-medium text-slate-400">
+              No evidence documents yet
+            </div>
+          )}
+          {docs.slice(0, 4).map(d => (
+            <div key={d.id} className="flex items-center gap-2 rounded-xl bg-slate-50/80 px-2.5 py-2">
+              <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                d.status === 'Accepted' ? 'bg-emerald-100 text-emerald-600'
+                : d.status === 'Returned' ? 'bg-rose-100 text-rose-600'
+                : 'bg-blue-100 text-blue-600'
+              }`}>
+                <FileText className="h-3.5 w-3.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[11px] font-bold text-slate-800">{d.documentName}</div>
+                <div className="truncate text-[10px] font-medium text-slate-400">{d.category} · {d.size}</div>
+              </div>
+              <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                d.status === 'Accepted' ? 'bg-emerald-50 text-emerald-700'
+                : d.status === 'Returned' ? 'bg-rose-50 text-rose-700'
+                : 'bg-blue-50 text-blue-700'
+              }`}>
+                {d.status}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={onUploadEvidence}
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-100"
+        >
+          <Upload className="h-3.5 w-3.5" />
+          <span>Upload Evidence Document</span>
+        </button>
       </div>
     </div>
   )
@@ -158,6 +255,7 @@ export function FinanceWorkspace() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [showAddExpenditureModal, setShowAddExpenditureModal] = useState(false)
+  const [editingExpId, setEditingExpId] = useState<string | null>(null)
   const [showUploadDocModal, setShowUploadDocModal] = useState(false)
   const [selectedDocForHistory, setSelectedDocForHistory] = useState<EvidenceDocumentItem | null>(null)
   const [selectedSubmission, setSelectedSubmission] = useState<SubmissionRecord | null>(null)
@@ -213,13 +311,6 @@ export function FinanceWorkspace() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* Stable navigate handler for the hoisted FinStepper. */
-  const handleStepperNavigate = (moduleKey: 'fin-data' | 'fin-expenditure' | 'fin-evidence' | 'fin-submissions', levelKey: string) => {
-    setActiveModule(moduleKey)
-    if (moduleKey === 'fin-data' && (levelKey === 'l0' || levelKey === 'l1' || levelKey === 'l3' || levelKey === 'l4' || levelKey === 'l6' || levelKey === 'l7')) {
-      setActiveFinanceLevel(levelKey as any)
-    }
-  }
-
   const showToast = (msg: string) => {
     setToastMessage(msg)
     setTimeout(() => setToastMessage(null), 3500)
@@ -296,11 +387,51 @@ export function FinanceWorkspace() {
     }
   }
 
-  // Add expenditure item with all 13 fields
+  // Add / update expenditure item with all 13 fields
+  const resetExpenditureForm = () => {
+    setEditingExpId(null)
+    setNewExpCategory('Pollution Control')
+    setNewExpProjectName('')
+    setNewExpDesc('')
+    setNewExpAmount(0)
+    setNewExpCurrency('INR (₹)')
+    setNewExpSource('CapEx')
+    setNewExpPeriod('FY 2026-27')
+    setNewExpCostCentre('CC-SOL-GJT-01')
+    setNewExpVendor('')
+    setNewExpInvoiceRef('')
+    setNewExpDataSource('Invoice')
+    setNewExpEvidenceLink('CapEx_Projects.xlsx')
+    setNewExpRemarks('')
+  }
+
   const handleAddExpenditure = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newExpDesc || newExpAmount <= 0) {
       showToast('Please enter a valid description and positive expenditure amount.')
+      return
+    }
+    if (editingExpId) {
+      /* Update the existing captured record in place */
+      financeStore.updateExpenditure(editingExpId, {
+        category: newExpCategory,
+        projectName: newExpProjectName || `${newExpCategory} Enhancement`,
+        description: newExpDesc,
+        amount: Number(newExpAmount),
+        currency: newExpCurrency,
+        source: newExpSource,
+        accountingPeriod: newExpPeriod,
+        costCentre: newExpCostCentre,
+        vendorRef: newExpVendor || 'Approved Contractor',
+        invoiceRef: newExpInvoiceRef || `INV-${Date.now().toString().slice(-5)}`,
+        dataSource: newExpDataSource,
+        supportingDocument: newExpEvidenceLink || 'CapEx_Projects.xlsx',
+        remarks: newExpRemarks || 'Standard ledger recorded expense',
+      })
+      setShowAddExpenditureModal(false)
+      resetExpenditureForm()
+      refreshData()
+      showToast('Expenditure record updated')
       return
     }
     const item: Omit<ResourceExpenditureItem, 'id' | 'dateAdded'> = {
@@ -321,14 +452,9 @@ export function FinanceWorkspace() {
     }
     financeStore.addExpenditure(item)
     setShowAddExpenditureModal(false)
-    setNewExpProjectName('')
-    setNewExpDesc('')
-    setNewExpAmount(0)
-    setNewExpVendor('')
-    setNewExpInvoiceRef('')
-    setNewExpRemarks('')
+    resetExpenditureForm()
     refreshData()
-    showToast(`Added ₹ ${item.amount.toFixed(2)} Cr under ${item.category}`)
+    showToast(`Added ₹ ${item.amount.toFixed(2)} Cr under ${item.category} — saved as Draft`)
   }
 
   // Delete expenditure item
@@ -642,39 +768,53 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Stepper */}
-          <FinStepper currentStep={activeFinanceLevel === 'l0' ? 1 : activeFinanceLevel === 'l1' ? 2 : activeFinanceLevel === 'l3' ? 4 : activeFinanceLevel === 'l4' ? 5 : activeFinanceLevel === 'l6' ? 7 : 8} onNavigate={handleStepperNavigate} />
+          {/* Level progress is shown by the level selector tabs below */}
 
-          {/* Level Selector Tabs inside Data Entry */}
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/60 bg-white/70 p-2 shadow-sm backdrop-blur-md">
-            {[
+          {/* Level Progress Tabs — step bubbles with done-state (replaces the old stepper card) */}
+          <div className="flex flex-wrap items-stretch gap-2 rounded-2xl border border-white/60 bg-white/70 p-2.5 shadow-sm backdrop-blur-md">
+            {([
               { id: 'l0', label: 'Level 0 — Common Fields', desc: 'Metadata & Assignment Context' },
               { id: 'l1', label: 'Level 1 — Financial Summary', desc: 'Turnover, CapEx & Basis' },
               { id: 'l3', label: 'Level 3 — Intensity Metrics', desc: 'Ratios & Physical Output' },
               { id: 'l4', label: 'Level 4 — CSR Disclosures', desc: 'Assigned CSR Spending' },
               { id: 'l6', label: 'Level 6 — Validation Checklist', desc: '10 Pre-submission Checks' },
               { id: 'l7', label: 'Level 7 — Review & Sign-off', desc: 'Submission Workflow' },
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveFinanceLevel(tab.id as any)}
-                className={`flex flex-col rounded-xl px-3.5 py-2 text-left transition-all ${
-                  activeFinanceLevel === tab.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-100'
-                    : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-100'
-                }`}
-              >
-                <span className="text-xs font-black">{tab.label}</span>
-                <span className={`text-[10px] font-medium ${activeFinanceLevel === tab.id ? 'text-blue-100' : 'text-slate-400'}`}>
-                  {tab.desc}
-                </span>
-              </button>
-            ))}
+            ] as const).map((tab, idx, arr) => {
+              const active = activeFinanceLevel === tab.id
+              const done = idx < arr.findIndex(t => t.id === activeFinanceLevel)
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveFinanceLevel(tab.id as any)}
+                  className={`flex min-w-[150px] flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-left transition-all ${
+                    active
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-100'
+                      : done
+                        ? 'bg-blue-50/80 text-slate-700 border border-blue-100 hover:bg-blue-50'
+                        : 'bg-white/60 text-slate-600 hover:bg-white hover:text-slate-900 border border-slate-100'
+                  }`}
+                >
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-black shadow-xs ${
+                    active ? 'bg-white/20 text-white' : done ? 'bg-blue-600 text-white' : 'border border-slate-200 bg-white text-slate-400'
+                  }`}>
+                    {done ? <Check className="h-3.5 w-3.5" /> : idx + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-black">{tab.label}</span>
+                    <span className={`block truncate text-[10px] font-medium ${active ? 'text-blue-100' : 'text-slate-400'}`}>
+                      {tab.desc}
+                    </span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
 
+          {/* LEVEL 0-4 WORKSPACE GRID (ENV-style): level form (left) + journey & evidence rail (right) */}
+          <div className="grid items-start gap-4 lg:grid-cols-3">
           {/* LEVEL 0: COMMON FIELDS FOR EVERY DATA ENTRY */}
           {activeFinanceLevel === 'l0' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-xs font-black text-white shadow-xs">
@@ -1028,7 +1168,7 @@ export function FinanceWorkspace() {
 
           {/* LEVEL 1: FINANCIAL SUMMARY */}
           {activeFinanceLevel === 'l1' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-xs font-black text-white shadow-xs">
@@ -1300,7 +1440,7 @@ export function FinanceWorkspace() {
 
           {/* LEVEL 3: FINANCIAL CALCULATIONS & INTENSITY METRICS */}
           {activeFinanceLevel === 'l3' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-600 text-xs font-black text-white shadow-xs">
@@ -1499,7 +1639,7 @@ export function FinanceWorkspace() {
 
           {/* LEVEL 4: CSR & OTHER ASSIGNED FINANCIAL DISCLOSURES */}
           {activeFinanceLevel === 'l4' && (
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6">
+            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl space-y-6 lg:col-span-2">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-600 text-xs font-black text-white shadow-xs">
@@ -1682,6 +1822,33 @@ export function FinanceWorkspace() {
               )}
             </div>
           )}
+
+          {/* RIGHT: journey & evidence rail — visible alongside every entry level */}
+          <div className="lg:sticky lg:top-20 lg:col-span-1">
+            <FinJourneyPanel
+              statusPill={financialData.common?.submissionStatus || 'Draft'}
+              statusTone={
+                financialData.common?.submissionStatus === 'Accepted' ? 'approved'
+                : financialData.common?.submissionStatus === 'Returned' ? 'warning'
+                : 'draft'
+              }
+              stats={[
+                { label: 'Expenditure Records', value: String(expenditures.length), sub: 'L2' },
+                { label: 'Evidence Documents', value: String(documents.length), sub: 'L5' },
+                { label: 'CSR Spend (L4)', value: csrData.isEnabled ? `₹ ${Number(csrData.actualCsrExpenditure || 0).toFixed(1)} Cr` : 'Disabled' },
+                { label: 'Total Green Spend', value: `₹ ${totalResourceExpenditure.toFixed(1)} Cr` },
+              ]}
+              docs={documents}
+              validationResult={validationResult}
+              onSaveDraft={handleSaveDraft}
+              onValidate={handleValidateData}
+              onSubmit={handleSubmitForReview}
+              onUploadEvidence={() => setShowUploadDocModal(true)}
+              onViewEvidence={() => setActiveModule('fin-evidence')}
+              onViewSubmissions={() => setActiveModule('fin-submissions')}
+            />
+          </div>
+          </div>{/* /level 0-4 workspace grid */}
 
           {/* LEVEL 6: VALIDATION & RECONCILIATION */}
           {activeFinanceLevel === 'l6' && (
@@ -1874,7 +2041,7 @@ export function FinanceWorkspace() {
               className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to Assignments</span>
+              <span>Back: My Assignments</span>
             </button>
 
             <div className="flex items-center gap-3">
@@ -1889,7 +2056,7 @@ export function FinanceWorkspace() {
 
               <button
                 onClick={handleValidateData}
-                className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
                 <ShieldCheck className="h-3.5 w-3.5" />
                 <span>Validate Data</span>
@@ -1899,7 +2066,7 @@ export function FinanceWorkspace() {
                 onClick={() => setActiveModule('fin-expenditure')}
                 className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700"
               >
-                <span>Next: Level 2 — Resource Expenditure</span>
+                <span>Next: Resource Expenditure (L2)</span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -1942,8 +2109,7 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Stepper (Step 3 active) */}
-          <FinStepper currentStep={3} onNavigate={handleStepperNavigate} />
+          {/* Flow position is shown by the Back/Next action bar */}
 
           {/* System Logic Banner */}
           <div className="rounded-[24px] border border-indigo-200 bg-indigo-50/60 p-4 text-xs text-indigo-900 flex items-start gap-3">
@@ -1953,6 +2119,9 @@ export function FinanceWorkspace() {
             </p>
           </div>
 
+          {/* Two-column workspace (ENV-style): captured records (left) + journey & evidence rail (right) */}
+          <div className="grid items-start gap-4 lg:grid-cols-3">
+          <div className="space-y-4 lg:col-span-2">
           {/* Resource-Related Expenditure Table */}
           <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
@@ -1962,11 +2131,15 @@ export function FinanceWorkspace() {
               </div>
 
               <button
-                onClick={() => setShowAddExpenditureModal(true)}
+                onClick={() => {
+                  setEditingExpId(null)
+                  resetExpenditureForm()
+                  setShowAddExpenditureModal(true)
+                }}
                 className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 self-start sm:self-auto"
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>+ Add Expenditure Record</span>
+                <span>+ Add (Draft)</span>
               </button>
             </div>
 
@@ -2028,12 +2201,22 @@ export function FinanceWorkspace() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => {
-                              const newAmt = prompt(`Update expenditure amount for ${item.description} (in ₹ Cr):`, String(item.amount))
-                              if (newAmt && !isNaN(Number(newAmt))) {
-                                financeStore.updateExpenditure(item.id, { amount: Number(newAmt) })
-                                refreshData()
-                                showToast('Expenditure amount updated')
-                              }
+                              /* Open the capture modal pre-filled for editing (no browser prompt dialogs) */
+                              setEditingExpId(item.id)
+                              setNewExpCategory(item.category)
+                              setNewExpProjectName(item.projectName || '')
+                              setNewExpDesc(item.description)
+                              setNewExpAmount(item.amount)
+                              setNewExpCurrency(item.currency || 'INR (₹)')
+                              setNewExpSource(item.source)
+                              setNewExpPeriod(item.accountingPeriod || 'FY 2026-27')
+                              setNewExpCostCentre(item.costCentre)
+                              setNewExpVendor(item.vendorRef || '')
+                              setNewExpInvoiceRef(item.invoiceRef || '')
+                              setNewExpDataSource(item.dataSource)
+                              setNewExpEvidenceLink(item.supportingDocument || '')
+                              setNewExpRemarks(item.remarks || '')
+                              setShowAddExpenditureModal(true)
                             }}
                             className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-blue-600"
                             title="Edit Record"
@@ -2056,106 +2239,105 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Bottom Summary Cards (Total + CapEx / OpEx Split + Distribution) */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            {/* Total Resource Expenditure Card */}
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl lg:col-span-5 space-y-4">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Total Environmental Spend
-                </div>
-                <div className="mt-1 text-4xl font-black tracking-tight text-slate-900">
-                  ₹ {totalResourceExpenditure.toFixed(2)} <span className="text-xl font-bold text-slate-600">Cr</span>
-                </div>
-              </div>
+          </div>{/* /left column */}
 
-              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                <div className="rounded-xl bg-blue-50/70 p-3 border border-blue-100">
-                  <div className="text-[10px] font-bold text-blue-700 uppercase">CapEx Green Spend</div>
-                  <div className="text-lg font-black text-blue-900">₹ {capexTotal.toFixed(2)} Cr</div>
-                  <div className="text-[10px] text-blue-600">{((capexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}% of total</div>
-                </div>
-                <div className="rounded-xl bg-purple-50/70 p-3 border border-purple-100">
-                  <div className="text-[10px] font-bold text-purple-700 uppercase">OpEx Green Spend</div>
-                  <div className="text-lg font-black text-purple-900">₹ {opexTotal.toFixed(2)} Cr</div>
-                  <div className="text-[10px] text-purple-600">{((opexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}% of total</div>
-                </div>
-              </div>
+          {/* RIGHT: journey & evidence rail (ENV-style right panel) */}
+          <div className="lg:sticky lg:top-20 lg:col-span-1">
+            <FinJourneyPanel
+              statusPill={financialData.common?.submissionStatus || 'Draft'}
+              statusTone={
+                financialData.common?.submissionStatus === 'Accepted' ? 'approved'
+                : financialData.common?.submissionStatus === 'Returned' ? 'warning'
+                : 'draft'
+              }
+              stats={[
+                { label: 'Total Environmental Spend', value: `₹ ${totalResourceExpenditure.toFixed(2)} Cr` },
+                { label: 'CapEx Green Spend', value: `₹ ${capexTotal.toFixed(2)} Cr`, sub: `${((capexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}%` },
+                { label: 'OpEx Green Spend', value: `₹ ${opexTotal.toFixed(2)} Cr`, sub: `${((opexTotal / (totalResourceExpenditure || 1)) * 100).toFixed(0)}%` },
+                { label: 'Captured Records', value: String(expenditures.length) },
+              ]}
+              docs={documents}
+              validationResult={validationResult}
+              onSaveDraft={handleSaveDraft}
+              onValidate={handleValidateData}
+              onSubmit={handleSubmitForReview}
+              onUploadEvidence={() => setShowUploadDocModal(true)}
+              onViewEvidence={() => setActiveModule('fin-evidence')}
+              onViewSubmissions={() => setActiveModule('fin-submissions')}
+            />
+          </div>
+          </div>{/* /two-column grid */}
+
+          {/* BRSR Category Allocation (full-width visualization strip) */}
+          <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">BRSR Category Allocation</h3>
+              <span className="text-[11px] font-semibold text-slate-400">Amount in ₹ Crore</span>
             </div>
 
-            {/* Category Distribution Bar */}
-            <div className="rounded-[28px] border border-white/60 bg-white/70 p-6 shadow-xl shadow-sky-500/5 backdrop-blur-xl lg:col-span-7 flex flex-col justify-between">
-              <div>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">BRSR Category Allocation</h3>
-                  <span className="text-[11px] font-semibold text-slate-400">Amount in ₹ Crore</span>
-                </div>
+            {/* Multi-segment progress bar */}
+            <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
+              {distribution.map(d => (
+                <div
+                  key={d.category}
+                  style={{ width: `${d.percentage}%`, backgroundColor: d.color }}
+                  title={`${d.category}: ₹ ${d.amount.toFixed(2)} Cr (${d.percentage.toFixed(0)}%)`}
+                />
+              ))}
+            </div>
 
-                {/* Multi-segment progress bar */}
-                <div className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-slate-100">
-                  {distribution.map(d => (
-                    <div
-                      key={d.category}
-                      style={{ width: `${d.percentage}%`, backgroundColor: d.color }}
-                      title={`${d.category}: ₹ ${d.amount.toFixed(2)} Cr (${d.percentage.toFixed(0)}%)`}
-                    />
-                  ))}
+            {/* Legend */}
+            <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-slate-600 sm:grid-cols-4 lg:grid-cols-8">
+              {distribution.map(d => (
+                <div key={d.category} className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
+                  <span className="truncate">{d.category}</span>
+                  <span className="font-bold text-slate-900 ml-auto">
+                    ₹{d.amount.toFixed(1)}
+                  </span>
                 </div>
-
-                {/* Legend */}
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-medium text-slate-600 sm:grid-cols-3">
-                  {distribution.map(d => (
-                    <div key={d.category} className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.color }} />
-                      <span className="truncate">{d.category}</span>
-                      <span className="font-bold text-slate-900 ml-auto">
-                        ₹{d.amount.toFixed(1)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
 
           {/* Action Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/60 bg-white/70 p-4 shadow-lg backdrop-blur-md">
-            <button
-              onClick={() => {
-                setActiveModule('fin-data')
-                setActiveFinanceLevel('l1')
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back: Level 1 — Financial Summary</span>
-            </button>
-
-            <div className="flex items-center gap-3">
               <button
-                onClick={handleSaveDraft}
-                className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
+                onClick={() => {
+                  setActiveModule('fin-data')
+                  setActiveFinanceLevel('l1')
+                }}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
               >
-                <Save className="h-3.5 w-3.5" />
-                <span>Save as Draft</span>
+                <ArrowLeft className="h-3.5 w-3.5" />
+                <span>Back: Financial Summary (L1)</span>
               </button>
 
-              <button
-                onClick={handleValidateData}
-                className="flex items-center gap-1.5 rounded-full bg-blue-600 px-4 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700"
-              >
-                <ShieldCheck className="h-3.5 w-3.5" />
-                <span>Validate Data</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleSaveDraft}
+                  className="flex items-center gap-1.5 rounded-full border border-blue-200 bg-white px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  <span>Save as Draft</span>
+                </button>
 
-              <button
-                onClick={() => setActiveModule('fin-evidence')}
-                className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700"
-              >
-                <span>Next: Level 5 — Evidence Vault</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
+                <button
+                  onClick={handleValidateData}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  <span>Validate Data</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveModule('fin-evidence')}
+                  className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-xs font-bold text-white shadow-md shadow-blue-500/25 hover:from-blue-700 hover:to-indigo-700"
+                >
+                  <span>Next: Evidence & Documents</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
           </div>
         </div>
       )}
@@ -2195,8 +2377,7 @@ export function FinanceWorkspace() {
             </div>
           </div>
 
-          {/* Stepper (Step 6 active) */}
-          <FinStepper currentStep={6} onNavigate={handleStepperNavigate} />
+          {/* Dedicated Evidence & Documents screen — own header, no cross-screen stepper */}
 
           {/* System Logic Banner */}
           <div className="rounded-[24px] border border-blue-200 bg-blue-50/60 p-4 text-xs text-blue-900 flex items-start gap-3">
@@ -2817,10 +2998,10 @@ export function FinanceWorkspace() {
             >
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <div>
-                  <h3 className="text-base font-bold text-slate-900">Add Resource Expenditure Record</h3>
-                  <p className="text-xs text-slate-500">Record Level 2 financial expenditure for environmental initiatives</p>
+                  <h3 className="text-base font-bold text-slate-900">{editingExpId ? 'Edit Resource Expenditure Record' : 'Add Resource Expenditure Record'}</h3>
+                  <p className="text-xs text-slate-500">{editingExpId ? 'Update the captured Level 2 expenditure record' : 'Record Level 2 financial expenditure for environmental initiatives — captured as Draft'}</p>
                 </div>
-                <button onClick={() => setShowAddExpenditureModal(false)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
+                <button onClick={() => { setShowAddExpenditureModal(false); resetExpenditureForm() }} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100">
                   <X className="h-5 w-5" />
                 </button>
               </div>
@@ -3007,7 +3188,7 @@ export function FinanceWorkspace() {
                 <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                   <button
                     type="button"
-                    onClick={() => setShowAddExpenditureModal(false)}
+                    onClick={() => { setShowAddExpenditureModal(false); resetExpenditureForm() }}
                     className="rounded-full border border-slate-200 px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-50"
                   >
                     Cancel
@@ -3016,7 +3197,7 @@ export function FinanceWorkspace() {
                     type="submit"
                     className="rounded-full bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-700 shadow-xs"
                   >
-                    Save Level 2 Record
+                    {editingExpId ? 'Update Record' : '+ Add (Draft)'}
                   </button>
                 </div>
               </form>

@@ -4,68 +4,280 @@ import {
   getProjectAdminContext,
   paOk,
   paFail,
-  getPaServerCache,
-  setPaServerCache,
+  paSubmissionScope,
 } from "@/lib/project-admin/server";
+import { getPaConsolidatedReportCache, setPaConsolidatedReportCache, invalidatePaConsolidatedReportCache } from "@/lib/portal-cache";
 import type { PaConsolidatedReport, ContributorRole } from "@/lib/project-admin/types";
 
 export const dynamic = "force-dynamic";
+
+function parseJsonArray(raw: unknown): any[] {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
     const ctx = await getProjectAdminContext();
     if (!ctx) return paFail("Project Admin context not resolved.", 401);
 
-    const cacheKey = `consolidated-report:${ctx.projectId}`;
-    const cached = getPaServerCache<any>(cacheKey);
+    const bypassCache = req.nextUrl.searchParams.get("bypass") === "true";
+    const cached = !bypassCache ? getPaConsolidatedReportCache() : null;
     if (cached) {
       return paOk(cached);
     }
 
-    // Look for existing report or compile a live consolidated candidate with lean selects
-    const [existingReport, submissions, evidenceDocs] = await Promise.all([
-      db.report.findFirst({
-        where: { scopeId: ctx.projectId },
-        select: {
-          id: true,
-          status: true,
-          createdAt: true,
-          generatedBy: true,
-        },
-        orderBy: { createdAt: "desc" },
-      }),
-      db.submission.findMany({
-        where: { projectId: ctx.projectId },
-        select: { id: true, category: true, status: true },
-      }),
-      db.evidenceDoc.findMany({
-        where: { projectId: ctx.projectId },
-        select: { id: true, status: true },
-      }),
-    ]);
+    // Fetch existing report (for metadata like version, status, auditHistory)
+    const existingReport = await db.report.findFirst({
+      where: { scopeId: ctx.projectId },
+      select: {
+        id: true,
+        status: true,
+        createdAt: true,
+        generatedBy: true,
+        generatedByName: true,
+        fileName: true,
+        version: true,
+        content: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-    // Check completeness of the 7 contributor categories
+    // Fetch submissions belonging to this project for the consolidated report
+    const approvedSubmissions = await db.submission.findMany({
+      where: {
+        projectId: ctx.projectId,
+        category: { not: "CONSOLIDATED" },
+        status: { in: ["APPROVED", "BU_APPROVED", "SUBMITTED", "UNDER_REVIEW"] },
+      },
+      select: {
+        id: true,
+        ref: true,
+        title: true,
+        category: true,
+        module: true,
+        period: true,
+        projectId: true,
+        submittedById: true,
+        values: true,
+        evidence: true,
+        recordIds: true,
+        submittedAt: true,
+        reviewedAt: true,
+        reviewComment: true,
+        status: true,
+        forwardedToBu: true,
+        inConsolidatedReport: true,
+        consolidatedReportId: true,
+        history: true,
+        metricValue: true,
+        metricName: true,
+        metricUnit: true,
+      },
+      orderBy: { reviewedAt: "desc" },
+    });
+
+    // Fetch evidence docs for these submissions
+    const submissionIds = approvedSubmissions.map(s => s.id);
+    const evidenceDocs = submissionIds.length > 0
+      ? await db.evidenceDoc.findMany({
+          where: { submissionId: { in: submissionIds } },
+          select: { id: true, name: true, fileType: true, sizeKb: true, version: true, status: true, uploadedAt: true, submissionId: true },
+        })
+      : [];
+
+    // Fetch submitter user details
+    const submitterIds = [...new Set(approvedSubmissions.map(s => s.submittedById).filter((id): id is string => Boolean(id)))];
+    const submitters = await db.user.findMany({
+      where: { id: { in: submitterIds } },
+      select: { id: true, name: true, email: true, role: true },
+    });
+    const submitterMap = new Map(submitters.map(u => [u.id, u]));
+
+    // Fetch real Evidence rows for file paths (for View/Download).
+    // Submissions can come from any project in the PA review scope, so load
+    // evidence for every project present in the approved list.
+    const evidenceProjectIds = [
+      ...new Set([
+        ctx.projectId,
+        ...approvedSubmissions.map((s) => s.projectId).filter((id): id is string => Boolean(id)),
+      ]),
+    ];
+    const evidenceRows = await db.evidence.findMany({
+      where: { projectId: { in: evidenceProjectIds } },
+      select: { id: true, fileName: true, documentType: true, filePath: true, hash: true, status: true, fileSize: true, module: true, projectId: true },
+    });
+    // Group evidence by module for easy lookup
+    const evidenceByModule = new Map<string, typeof evidenceRows>();
+    for (const ev of evidenceRows) {
+      const mod = ev.module || "UNKNOWN";
+      if (!evidenceByModule.has(mod)) evidenceByModule.set(mod, []);
+      evidenceByModule.get(mod)!.push(ev);
+    }
+
+    // Group submissions by contributor
+    const contributorGroups = new Map<string, {
+      contributor: { id: string; name: string; email: string; role: string };
+      submissions: any[];
+    }>();
+
+    for (const sub of approvedSubmissions) {
+      const submitter = sub.submittedById ? submitterMap.get(sub.submittedById) : null;
+      const contributorKey = submitter?.id || "unknown";
+
+      // Parse values
+      let parsedValues: Array<{ label: string; value: string | number; unit?: string }> = [];
+      try {
+        if (sub.values) {
+          const parsed = JSON.parse(sub.values);
+          if (Array.isArray(parsed)) parsedValues = parsed;
+        }
+      } catch {}
+
+      if (parsedValues.length === 0 && sub.metricValue != null && sub.metricValue > 0) {
+        parsedValues.push({
+          label: sub.metricName || "Recorded Value",
+          value: sub.metricValue,
+          unit: sub.metricUnit || "",
+        });
+      }
+
+      // Parse evidence file names
+      let evidenceList: string[] = [];
+      try {
+        if (sub.evidence) {
+          const parsed = JSON.parse(sub.evidence);
+          if (Array.isArray(parsed)) evidenceList = parsed.filter(Boolean);
+        }
+      } catch {}
+
+      // Get evidence files with full details (for View/Download)
+      const evidenceFiles: Array<{
+        id: string;
+        fileName: string;
+        documentType: string;
+        filePath: string;
+        sizeKb: number;
+        hash: string | null;
+      }> = [];
+
+      // From evidenceDoc table
+      const docEvidences = evidenceDocs.filter(e => e.submissionId === sub.id);
+      for (const doc of docEvidences) {
+        evidenceFiles.push({
+          id: doc.id,
+          fileName: doc.name,
+          documentType: doc.fileType,
+          filePath: `/api/evidence/${doc.id}`, // will be resolved client-side
+          sizeKb: doc.sizeKb,
+          hash: null,
+        });
+      }
+
+      // From Evidence table — match by module AND the same project as the
+      // submission so evidence never leaks across projects.
+      const moduleEvidences = evidenceByModule.get(sub.module || "") || [];
+      for (const ev of moduleEvidences) {
+        if (ev.projectId && sub.projectId && ev.projectId !== sub.projectId) continue;
+        // Check if this evidence file name matches any in the submission's evidence list
+        const matchesEvidenceList = evidenceList.some(name =>
+          ev.fileName.includes(name.replace(/\.[^/.]+$/, "")) ||
+          name.includes(ev.fileName.replace(/\.[^/.]+$/, ""))
+        );
+
+        // Also include if no evidence list exists (fallback)
+        if (matchesEvidenceList || evidenceList.length === 0) {
+          evidenceFiles.push({
+            id: ev.id,
+            fileName: ev.fileName,
+            documentType: ev.documentType,
+            filePath: ev.filePath,
+            sizeKb: ev.fileSize,
+            hash: ev.hash,
+          });
+        }
+      }
+
+      const subData = {
+        id: sub.id,
+        ref: sub.ref,
+        title: sub.title,
+        category: sub.category,
+        module: sub.module,
+        period: sub.period,
+        parsedValues,
+        evidenceList,
+        evidenceFiles,
+        submittedAt: sub.submittedAt,
+        reviewedAt: sub.reviewedAt,
+        reviewComment: sub.reviewComment,
+        status: sub.status,
+        forwardedToBu: sub.forwardedToBu,
+        inConsolidatedReport: sub.inConsolidatedReport,
+        consolidatedReportId: sub.consolidatedReportId,
+        history: parseJsonArray(sub.history),
+      };
+
+      if (!contributorGroups.has(contributorKey)) {
+        const u = submitter || { id: "unknown", name: "Unknown Contributor", email: "", role: "CONTRIBUTOR" };
+        contributorGroups.set(contributorKey, {
+          contributor: { id: u.id, name: u.name, email: u.email, role: u.role },
+          submissions: [],
+        });
+      }
+      contributorGroups.get(contributorKey)!.submissions.push(subData);
+    }
+
+    // Sort submissions within each contributor by reviewedAt desc
+    contributorGroups.forEach(group => {
+      group.submissions.sort((a, b) => new Date(b.reviewedAt || b.submittedAt).getTime() - new Date(a.reviewedAt || a.submittedAt).getTime());
+    });
+
+    // Convert to array for response
+    const contributorSubmissions = Array.from(contributorGroups.entries()).map(([_, group]) => ({
+      contributor: group.contributor,
+      submissions: group.submissions,
+      totalItems: group.submissions.length,
+      totalEvidence: group.submissions.reduce((sum, s) => sum + s.evidenceFiles.length, 0),
+    }));
+
+    // Determine completeness status per category
     const categoriesStatus: Record<ContributorRole, "COMPLETED" | "PENDING" | "DRAFT" | "RETURNED"> = {
-      ENV_DATA_USER: "COMPLETED",
-      FIN_RESOURCE_USER: "COMPLETED",
-      HR_USER: "COMPLETED",
-      EHS_USER: "COMPLETED",
+      ENV_DATA_USER: "PENDING",
+      FIN_RESOURCE_USER: "PENDING",
+      HR_USER: "PENDING",
+      EHS_USER: "PENDING",
       PROCUREMENT_USER: "PENDING",
-      CSR_USER: "COMPLETED",
-      COMPLIANCE_USER: "COMPLETED",
+      CSR_USER: "PENDING",
+      COMPLIANCE_USER: "PENDING",
     };
 
-    const completedCategories = Object.values(categoriesStatus).filter((s) => s === "COMPLETED").length;
-    const isEligible = completedCategories >= 6;
+    // Check which categories have approved submissions
+    for (const group of contributorSubmissions) {
+      for (const sub of group.submissions) {
+        const role = group.contributor.role as ContributorRole;
+        if (categoriesStatus[role]) {
+          categoriesStatus[role] = "COMPLETED";
+        }
+      }
+    }
 
+    const completedCategories = Object.values(categoriesStatus).filter(s => s === "COMPLETED").length;
+    const isEligible = completedCategories >= 1; // At least one category has data
+
+    // Build report response
     const report: PaConsolidatedReport = {
       id: existingReport?.id || "rep-prj-cons-01",
-      reportCode: `REP-${ctx.projectCode}-2026-Q4`,
+      reportCode: `REP-${ctx.projectCode}-${new Date().getFullYear()}-Q4`,
       title: `${ctx.projectName} — Comprehensive ESG & BRSR Consolidated Report`,
       financialYear: "FY 2025-26",
       reportingPeriod: "Q4 (Annualized)",
-      version: existingReport ? 2 : 1,
-      versionLabel: existingReport ? "v2.0" : "v1.0",
+      version: existingReport ? (existingReport.version || 1) + 1 : 1,
+      versionLabel: existingReport ? `v${(existingReport.version || 1) + 1}.0` : "v1.0",
       status: (existingReport?.status as any) || "READY_TO_SUBMIT",
       submittedAt: existingReport?.createdAt ? new Date(existingReport.createdAt).toISOString() : null,
       submittedBy: existingReport?.generatedBy || ctx.userName,
@@ -73,12 +285,12 @@ export async function GET(req: NextRequest) {
       reviewedBy: null,
       buManagerName: "Gopal Rao (BU Manager)",
       latestReviewComment: null,
-      overallScorePct: 88,
+      overallScorePct: completedCategories > 0 ? Math.min(50 + completedCategories * 7, 95) : 0,
       completeness: {
         completedCategories,
         totalCategories: 7,
         categoriesStatus,
-        missingFields: completedCategories < 7 ? ["Vendor Sustainable Screening Survey (Procurement)"] : [],
+        missingFields: completedCategories < 7 ? ["Some categories pending approval"] : [],
         missingEvidenceList: evidenceDocs.length < 5 ? ["Third-party ETP water test certificate"] : [],
         validationErrorsList: [],
         isEligibleForSubmission: isEligible,
@@ -86,39 +298,39 @@ export async function GET(req: NextRequest) {
       sectionsData: {
         executiveSummary: `This Consolidated ESG Project Report encompasses all operational environmental, social, and governance disclosures for ${ctx.projectName} under ${ctx.businessUnitName}, ${ctx.subsidiaryName}. Data has been collected across all seven designated contributor divisions and verified by Project Administration.`,
         environment: {
-          energyGj: 550.8,
-          emissionsScope1: 11.26,
-          emissionsScope2: 89.5,
-          waterWithdrawalKl: 4200,
-          wasteTonnes: 51.3,
-          initiativesSummary: "Rooftop solar expansion, closed-loop water recovery system, and on-site vegetative buffer belt.",
+          energyGj: 0,
+          emissionsScope1: 0,
+          emissionsScope2: 0,
+          waterWithdrawalKl: 0,
+          wasteTonnes: 0,
+          initiativesSummary: "",
         },
         finance: {
-          esgBudgetInr: 8500000,
-          greenCapexInr: 4200000,
-          opexEnergyInr: 2800000,
+          esgBudgetInr: 0,
+          greenCapexInr: 0,
+          opexEnergyInr: 0,
         },
         hr: {
-          headcount: 340,
-          genderDiversityPct: 20,
-          trainingHoursPerEmployee: 24.5,
-          welfareProgramsCount: 4,
+          headcount: 0,
+          genderDiversityPct: 0,
+          trainingHoursPerEmployee: 0,
+          welfareProgramsCount: 0,
         },
         ehs: {
           fatalities: 0,
-          lostTimeInjuries: 1,
-          safeManHours: 680000,
-          safetyAuditsCompleted: 12,
+          lostTimeInjuries: 0,
+          safeManHours: 0,
+          safetyAuditsCompleted: 0,
         },
         procurement: {
-          localSuppliersPct: 74.5,
-          sustainableSuppliersAudited: 28,
-          totalSpendInr: 64000000,
+          localSuppliersPct: 0,
+          sustainableSuppliersAudited: 0,
+          totalSpendInr: 0,
         },
         csr: {
-          csrBudgetInr: 2400000,
-          beneficiariesServed: 1250,
-          activePrograms: 3,
+          csrBudgetInr: 0,
+          beneficiariesServed: 0,
+          activePrograms: 0,
         },
         compliance: {
           envClearancesValid: true,
@@ -126,21 +338,31 @@ export async function GET(req: NextRequest) {
           statutoryAuditsPassed: true,
         },
       },
-      auditHistory: [
-        {
-          version: 1,
-          action: "CONSOLIDATION_INITIALIZED",
-          by: `${ctx.userName} (Project Admin)`,
-          timestamp: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
-          note: "Consolidation compiled from 7 contributor categories.",
-        },
-      ],
+      auditHistory: existingReport && existingReport.content
+        ? (() => {
+            try {
+              const content = JSON.parse(existingReport.content);
+              return content.auditHistory || [];
+            } catch { return []; }
+          })()
+        : [
+            {
+              version: 1,
+              action: "CONSOLIDATION_INITIALIZED",
+              by: `${ctx.userName} (Project Admin)`,
+              timestamp: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
+              note: "Consolidation compiled from approved contributor submissions.",
+            },
+          ],
+      // New fields for frontend
+      contributorSubmissions,
     };
 
     const payload = { report };
-    setPaServerCache(cacheKey, payload, 45000);
+    setPaConsolidatedReportCache(payload, 45000);
     return paOk(payload);
   } catch (err: any) {
+    console.error("Consolidated report error:", err);
     return paFail(err.message, 500);
   }
 }

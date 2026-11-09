@@ -17,17 +17,30 @@ export const dynamic = "force-dynamic";
    The dashboard KPI cards use the same definitions so every card value equals
    the destination tab count. "overdue" is a deadline state kept separate
    from workflow tabs — a report can be UNDER_REVIEW and overdue at the same
-   time. "resubmitted" tracks history entries (returned + resubmitted). */
-const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean }) => boolean> = {
+   time. "resubmitted" tracks history entries (returned + resubmitted).
+
+   Project-level reports only reach BU after the Project Admin forwards them
+   from the Approved Dataset view (forwardedToBu = true); a PA-approved but
+   not-yet-forwarded report is invisible here and lands in the queue tab for
+   BU re-review once forwarded. BU-level reports (no projectId) keep the
+   legacy SUBMITTED → APPROVED flow. */
+type TabRow = { status: string; overdue: boolean; forwardedToBu: boolean; inConsolidatedReport?: boolean; projectId: string | null };
+const TAB_FILTERS: Record<string, (s: TabRow) => boolean> = {
   all: () => true,
-  queue: (s) => ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"].includes(s.status),
+  queue: (s) =>
+    ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"].includes(s.status) ||
+    ((s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING") && (s.forwardedToBu || (s as any).inConsolidatedReport)),
   draft: (s) => ["DRAFT", "ASSIGNED"].includes(s.status),
-  submitted: (s) => s.status === "SUBMITTED",
-  pending: (s) => s.status === "UNDER_REVIEW",
+  submitted: (s) =>
+    s.status === "SUBMITTED" ||
+    ((s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING") && (s.forwardedToBu || (s as any).inConsolidatedReport)),
+  pending: (s) =>
+    s.status === "UNDER_REVIEW" ||
+    ((s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING") && (s.forwardedToBu || (s as any).inConsolidatedReport)),
   returned: (s) => s.status === "CHANGES_REQUESTED",
-  approved: (s) => s.status === "APPROVED",
+  approved: (s) => s.status === "BU_APPROVED" || (s.status === "APPROVED" && !s.forwardedToBu && !(s as any).inConsolidatedReport && !s.projectId),
   rejected: (s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status),
-  overdue: (s) => s.overdue && s.status !== "APPROVED",
+  overdue: (s) => s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED",
   resubmitted: () => false, // computed separately via history inspection
 };
 
@@ -51,7 +64,11 @@ export async function GET(req: NextRequest) {
     const [all, userNames, projectNames] = await Promise.all([
       db.submission.findMany({
         where: {
-          businessUnitId: ctx.businessUnitId,
+          OR: [
+            { businessUnitId: ctx.businessUnitId },
+            { forwardedToBu: true },
+            { inConsolidatedReport: true },
+          ],
           ...(periodFilter ? { period: periodFilter } : {}),
         },
         orderBy: { updatedAt: "desc" },
@@ -59,7 +76,8 @@ export async function GET(req: NextRequest) {
       loadBmUserNames(ctx.businessUnitId, ctx.subsidiaryId),
       loadBmProjectNames(ctx.businessUnitId),
     ]);
-    const buNames = new Map([[bu.id, bu.name]]);
+    const allBus = await db.businessUnit.findMany({ select: { id: true, name: true } });
+    const buNames = new Map(allBus.map((b) => [b.id, b.name]));
 
     /* Level filter FIRST so the tab-strip counts always match the rows shown
        (BUG 1 lesson from the SA worklog). */
@@ -123,6 +141,7 @@ export async function GET(req: NextRequest) {
           reviewCtx.sourceLabel,
           s.dueDate.toISOString(),
           s.history,
+          { forwardedToBu: s.forwardedToBu, forwardedToBuAt: s.forwardedToBuAt },
         );
       }),
     );

@@ -20,6 +20,8 @@ export interface NavItem {
   label: string
   icon: LucideIcon
   badgeTone?: 'green' | 'blue' | 'amber' | 'rose'
+  /** Rendered as an indented sub-item under its primary parent (sidebar hierarchy). */
+  child?: boolean
 }
 
 // Role-specific navigation maps (per the master spec's role definitions)
@@ -31,8 +33,10 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'data-entry', label: 'Data Entry', icon: FileText, badgeTone: 'green' },
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
+    { key: 'activity', label: 'Activity Log', icon: History },
     { key: 'analytics', label: 'Analytics', icon: TrendingUp },
-    { key: 'team', label: 'Team', icon: Users },  ],
+    { key: 'team', label: 'Team', icon: Users },
+  ],
 
   // Finance & Resource Data Contributor — 8 dedicated tabs matching reference screenshot
   FINANCE_USER: [
@@ -44,34 +48,32 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'fin-submissions', label: 'My Submissions', icon: Send, badgeTone: 'amber' },
     { key: 'fin-reports', label: 'Reports & Exports', icon: FileBarChart },
     { key: 'fin-activity', label: 'Activity Log', icon: History },
-    { key: 'data-entry', label: 'BRSR Data Entry', icon: FileText, badgeTone: 'green' },
   ],
 
   // HR User — 7 HR-specific tabs (NOT generic tabs)
   HR_USER: [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { key: 'hr-workforce', label: 'Workforce', icon: Users },
-    { key: 'hr-training', label: 'Training & Dev', icon: GraduationCap },
-    { key: 'hr-wellbeing', label: 'Wellbeing', icon: HeartPulse },
-    { key: 'hr-rights', label: 'Human Rights', icon: Scale },
-    { key: 'data-entry', label: 'BRSR Data Entry', icon: FileText, badgeTone: 'green' },
-    { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
+    { key: 'hr-workforce', label: 'Workforce Census', icon: Users },
+    { key: 'hr-diversity', label: 'Diversity', icon: Users, child: true },
+    { key: 'hr-learning', label: 'Learning & Skills', icon: GraduationCap, child: true },
+    { key: 'hr-performance', label: 'Performance Reviews', icon: FileCheck2, child: true },
+    { key: 'hr-grievances', label: 'Grievance & POSH', icon: Scale, child: true },
+    { key: 'hr-human-rights', label: 'Human Rights', icon: ShieldCheck, child: true },
+    { key: 'hr-compensation', label: 'Compensation & Benefits', icon: HeartPulse, child: true },
+    { key: 'evidence', label: 'Evidence Vault', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
+    { key: 'activity', label: 'Activity Log', icon: History },
   ],
 
   // EHS / Safety User — 12 EHS-specific tabs
   EHS_USER: [
     { key: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { key: 'ehs-ops', label: 'Safety Operations', icon: ShieldCheck },
-    { key: 'ehs-incidents', label: 'Incidents', icon: AlertTriangle },
-    { key: 'ehs-inspections', label: 'Inspections', icon: FileSearch },
-    { key: 'ehs-corrective', label: 'Corrective Actions', icon: Wrench },
-    { key: 'ehs-environmental', label: 'Environmental', icon: Leaf },
-    { key: 'ehs-training', label: 'Safety Training', icon: GraduationCap },
-    { key: 'data-entry', label: 'BRSR Data Entry', icon: FileText, badgeTone: 'green' },
+    { key: 'ehs-ops', label: 'EHS Operations', icon: ShieldCheck },
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
-    { key: 'analytics', label: 'Analytics', icon: TrendingUp },    { key: 'audit', label: 'Audit & Trace', icon: History },
+    { key: 'activity', label: 'Activity Log', icon: History },
+    { key: 'analytics', label: 'Analytics', icon: TrendingUp },
+    { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
   // Procurement / Supply Chain User — 11 tabs
@@ -82,10 +84,11 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'proc-sourcing', label: 'Sustainable Sourcing', icon: Leaf },
     { key: 'proc-transactions', label: 'Transactions', icon: ShoppingCart },
     { key: 'proc-valuechain', label: 'ESG / Value Chain', icon: GitBranch },
-    { key: 'data-entry', label: 'BRSR Data Entry', icon: FileText, badgeTone: 'green' },
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
-    { key: 'analytics', label: 'Analytics', icon: TrendingUp },    { key: 'audit', label: 'Audit & Trace', icon: History },
+    { key: 'activity', label: 'Activity Log', icon: History },
+    { key: 'analytics', label: 'Analytics', icon: TrendingUp },
+    { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
   // CSR / Community User — 12 tabs
@@ -97,10 +100,11 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'csr-impact', label: 'Impact Assessment', icon: BarChart3 },
     { key: 'csr-community', label: 'Community Engagement', icon: MessageCircle },
     { key: 'csr-local', label: 'Local Sourcing', icon: MapPin },
-    { key: 'data-entry', label: 'BRSR Data Entry', icon: FileText, badgeTone: 'green' },
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
-    { key: 'analytics', label: 'Analytics', icon: TrendingUp },    { key: 'audit', label: 'Audit & Trace', icon: History },
+    { key: 'activity', label: 'Activity Log', icon: History },
+    { key: 'analytics', label: 'Analytics', icon: TrendingUp },
+    { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
   // Compliance / Governance User — 12 tabs
@@ -112,10 +116,10 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'comp-cases', label: 'Cases & Incidents', icon: AlertCircle },
     { key: 'comp-ethics', label: 'Ethics & Conduct', icon: Scale },
     { key: 'comp-calendar', label: 'Regulatory Calendar', icon: Calendar },
-    { key: 'data-entry', label: 'BRSR Data Entry', icon: FileText, badgeTone: 'green' },
     { key: 'evidence', label: 'Evidence', icon: Link2, badgeTone: 'blue' },
     { key: 'submissions', label: 'Submissions', icon: Send, badgeTone: 'amber' },
-    { key: 'brsr', label: 'BRSR Governance', icon: FileCheck2 },    { key: 'audit', label: 'Audit & Trace', icon: History },
+    { key: 'brsr', label: 'BRSR Governance', icon: FileCheck2 },
+    { key: 'audit', label: 'Audit & Trace', icon: History },
   ],
 
   // ESG Analyst — 11 tabs
@@ -128,7 +132,8 @@ const ROLE_NAV: Record<string, NavItem[]> = {
     { key: 'ana-social', label: 'Social Analytics', icon: Users },
     { key: 'ana-governance', label: 'Governance Analytics', icon: Scale },
     { key: 'ana-variance', label: 'Variance & Anomalies', icon: AlertTriangle },
-    { key: 'ana-quality', label: 'Data Quality', icon: ShieldCheck },    { key: 'audit', label: 'Audit', icon: History },
+    { key: 'ana-quality', label: 'Data Quality', icon: ShieldCheck },
+    { key: 'audit', label: 'Audit', icon: History },
   ],
 }
 

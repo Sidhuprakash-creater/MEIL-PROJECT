@@ -8,6 +8,8 @@ import {
   getPaServerCache,
   setPaServerCache,
   invalidatePaServerCache,
+  paSubmissionScope,
+  paSoSubmissionScope,
 } from "@/lib/project-admin/server";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { getLevelRecords, updateLevelRecordStatus } from "@/lib/pu/level-records";
@@ -35,12 +37,7 @@ export async function GET(req: NextRequest) {
     // Parallel fetch of submissions, SO submissions, users, and evidence docs with lean selects
     const [submissions, soSubmissions, users, evidenceDocs] = await Promise.all([
       db.submission.findMany({
-        where: {
-          OR: [
-            { projectId: ctx.projectId },
-            { businessUnitId: ctx.businessUnitId },
-          ],
-        },
+        where: paSubmissionScope(ctx),
         select: {
           id: true,
           projectId: true,
@@ -65,7 +62,7 @@ export async function GET(req: NextRequest) {
         orderBy: { updatedAt: "desc" },
       }),
       db.soSubmission.findMany({
-        where: { projectId: ctx.projectId },
+        where: paSoSubmissionScope(ctx),
         select: {
           id: true,
           module: true,
@@ -84,6 +81,7 @@ export async function GET(req: NextRequest) {
           OR: [
             { projectId: ctx.projectId },
             { businessUnitId: ctx.businessUnitId },
+            { subsidiaryId: ctx.subsidiaryId },
           ],
         },
         select: { id: true, name: true, role: true, email: true },
@@ -109,9 +107,35 @@ export async function GET(req: NextRequest) {
     const projectById = new Map(projects.map((p) => [p.id, p]));
 
     const userMap = new Map(users.map((u) => [u.id, u]));
+    /* Contributors whose user record sits outside this admin's scope (they
+       submitted into a project covered via a different scope arm) would show
+       blank names/roles — fetch them directly. */
+    const missingSubmitterIds = [
+      ...new Set(
+        [
+          ...submissions.map((s) => s.submittedById),
+          ...soSubmissions.map((s) => s.submittedBy),
+        ].filter((id): id is string => Boolean(id) && !userMap.has(String(id))),
+      ),
+    ];
+    if (missingSubmitterIds.length > 0) {
+      const extras = await db.user.findMany({
+        where: { id: { in: missingSubmitterIds } },
+        select: { id: true, name: true, email: true, role: true },
+      });
+      for (const u of extras) userMap.set(u.id, u);
+    }
 
-    /* Sequenced level records + real evidence names for the review dialog. */
-    const allRecords = getLevelRecords(ctx.projectId);
+    /* Sequenced level records + real evidence names for the review dialog.
+       Level records live under the SUBMISSION's project — which can differ
+       from the admin's scoped project when a submission surfaces via the
+       business-unit/subsidiary scope arms — so load records for every project
+       present in the list, not just ctx.projectId. */
+    const recordProjectIds = new Set<string>([
+      ctx.projectId,
+      ...submissions.map((s) => (s as any).projectId).filter(Boolean),
+    ]);
+    const allRecords = getLevelRecords().filter((r) => recordProjectIds.has(r.projectId));
     const recordById = new Map(allRecords.map((r) => [r.id, r]));
     const periods = await db.reportingPeriod.findMany({ select: { id: true, periodLabel: true } });
     const periodLabelById = new Map(periods.map((p) => [p.id, p.periodLabel]));
@@ -194,14 +218,18 @@ export async function GET(req: NextRequest) {
     };
     const userByRoleMap = new Map(users.map((u) => [u.role, u]));
     const evidenceBySubMap = new Set(evidenceDocs.map((e) => e.submissionId).filter(Boolean));
-    /* Ids already present in the standard submissions list — used to skip
-       duplicated soSubmissions without an O(n²) `.some()` scan. */
-    const mirroredIds = new Set(submissions.map((m) => m.id));
+    /* Workspace (site-ops) submissions are ALSO mirrored into db.submission
+       with the same recordIds — dedupe by recordIds overlap, not by row id
+       (the mirror gets its own cuid, so id comparison never matches). */
+    const mirroredRecordIds = new Set<string>();
+    for (const m of submissions) for (const rid of parseJsonArray(m.recordIds)) mirroredRecordIds.add(String(rid));
 
     // Combine standard and SO submissions
     const allList = [
       ...submissions.map((s, idx) => ({
         id: s.id,
+        /* Carried through so the review window can resolve the project card. */
+        projectId: (s as any).projectId || null,
         category: s.category || "ENVIRONMENT",
         title: s.title,
         status: s.status,
@@ -222,24 +250,34 @@ export async function GET(req: NextRequest) {
          per-source details for HR / EHS / Finance / Procurement / CSR /
          Compliance submissions exactly like the environment user's. */
       ...soSubmissions
-        .filter((s) => !mirroredIds.has(s.id))
-        .map((s) => ({
-          id: s.id,
-          category: s.module,
-          title: s.title || `${s.module} Data Package (Site Operations)`,
-          status: s.status,
-          submittedById: s.submittedBy,
-          responsibleName: s.submittedBy || "Site Operations Team",
-          dueDate: null,
-          overdue: false,
-          submittedAt: s.submittedAt,
-          updatedAt: s.updatedAt,
-          metricValue: null,
-          metricUnit: null,
-          period: periodLabelById.get(s.reportingPeriodId || "") || "—",
-          sourceRecords: recordsFor(s.recordIds),
-          hasEvidence: true,
-        })),
+        .filter((s) => !parseJsonArray(s.recordIds).some((rid) => mirroredRecordIds.has(String(rid))))
+        .map((s) => {
+          const soSourceRecords = recordsFor(s.recordIds);
+          /* Real evidence check — never fabricate a COMPLETE badge. */
+          const hasRealEvidence =
+            soSourceRecords.some(
+              (r: any) =>
+                (r.evidence?.length || 0) > 0 ||
+                (r.items || []).some((it: any) => (it.evidence?.length || 0) > 0 || (it.evidenceFileNames?.length || 0) > 0),
+            ) || parseJsonArray(s.recordIds).length > 0;
+          return {
+            id: s.id,
+            category: s.module,
+            title: s.title || `${s.module} Data Package (Site Operations)`,
+            status: s.status,
+            submittedById: s.submittedBy,
+            responsibleName: s.submittedBy || "Site Operations Team",
+            dueDate: null,
+            overdue: false,
+            submittedAt: s.submittedAt,
+            updatedAt: s.updatedAt,
+            metricValue: null,
+            metricUnit: null,
+            period: periodLabelById.get(s.reportingPeriodId || "") || "—",
+            sourceRecords: soSourceRecords,
+            hasEvidence: hasRealEvidence,
+          };
+        }),
     ];
 
     /* Explicit category/module → contributor-role mapping. The previous
@@ -247,8 +285,8 @@ export async function GET(req: NextRequest) {
        ENERGY submission labeled "Finance") because 'ENVIRONMENT' never
        contains 'ENV_DATA' and unmatched rows fell through to idx % length. */
     const CATEGORY_ROLE_MAP: Array<[string, ContributorRole]> = [
-      ["WORKFORCE", "HR_USER"], ["TRAINING", "HR_USER"], ["PEOPLE", "HR_USER"],
-      ["INCIDENTS", "EHS_USER"], ["SAFETY", "EHS_USER"],
+      ["WORKFORCE", "HR_USER"], ["TRAINING", "HR_USER"], ["PEOPLE", "HR_USER"], ["HR", "HR_USER"],
+      ["INCIDENTS", "EHS_USER"], ["SAFETY", "EHS_USER"], ["EHS", "EHS_USER"],
       ["FINANCE", "FIN_RESOURCE_USER"],
       ["PROCUREMENT", "PROCUREMENT_USER"],
       ["CSR", "CSR_USER"],
@@ -281,7 +319,7 @@ export async function GET(req: NextRequest) {
       if (s.status === "APPROVED" || s.status === "BU_APPROVED" || s.status === "LOCKED") subStatus = "APPROVED";
       else if (s.status === "SUBMITTED") subStatus = "SUBMITTED";
       else if (s.status === "UNDER_REVIEW" || s.status === "ASSIGNED" || s.status === "RESUBMITTED") subStatus = "UNDER_REVIEW";
-      else if (s.status === "CHANGES_REQUESTED" || s.status === "REJECTED") subStatus = "RETURNED";
+      else if (s.status === "CHANGES_REQUESTED" || s.status === "CORRECTION_REQUESTED" || s.status === "REJECTED") subStatus = "RETURNED";
       else if (s.status === "DRAFT") subStatus = "DRAFT";
 
       /* Review-window extras: parsed values, existing reviewer corrections and
@@ -345,7 +383,8 @@ export async function GET(req: NextRequest) {
       summary: {
         total: items.length,
         submitted: items.filter((i) => i.submissionStatus === "SUBMITTED" || i.submissionStatus === "APPROVED").length,
-        pending: items.filter((i) => i.submissionStatus === "UNDER_REVIEW" || i.submissionStatus === "NOT_STARTED").length,
+        /* Pending Review = awaiting an admin decision — includes freshly SUBMITTED rows. */
+        pending: items.filter((i) => i.submissionStatus === "SUBMITTED" || i.submissionStatus === "UNDER_REVIEW" || i.submissionStatus === "NOT_STARTED").length,
         draft: items.filter((i) => i.submissionStatus === "DRAFT").length,
         returned: items.filter((i) => i.submissionStatus === "RETURNED").length,
         overdue: items.filter((i) => i.overdue).length,
@@ -380,7 +419,7 @@ export async function POST(req: NextRequest) {
     if (action === "approve") {
       const sub = await db.submission.findUnique({
         where: { id: submissionId },
-        select: { id: true, title: true, submittedById: true, recordIds: true },
+        select: { id: true, title: true, submittedById: true, recordIds: true, subsidiaryId: true },
       });
 
       // 1. Try updating Submission
@@ -395,11 +434,26 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // 2. Try updating SoSubmission if it exists
+      // 2. Sync the site-ops twin — both the row with THIS id and any
+      //    soSubmission whose recordIds overlap (workspace submissions are
+      //    mirrored into db.submission with a different cuid, so the SO
+      //    user's Submissions tab must follow the PA decision too).
+      const approvedRids: string[] = parseJsonArray(sub?.recordIds).map((x) => String(x));
+      /* Unscoped fetch — under group-wide review the twin row can live in a
+         different project than ctx; the recordIds overlap bounds the match. */
+      const soRowsForSync = await db.soSubmission.findMany({
+        select: { id: true, recordIds: true },
+      });
+      const soApprovedIds = soRowsForSync
+        .filter(
+          (r) => r.id === submissionId || parseJsonArray(r.recordIds).some((rid) => approvedRids.includes(String(rid))),
+        )
+        .map((r) => r.id);
       await db.soSubmission.updateMany({
-        where: { id: submissionId },
+        where: { id: { in: soApprovedIds.length ? soApprovedIds : [submissionId] } },
         data: {
           status: "APPROVED",
+          reviewComment: comments || "Approved by Project Admin.",
           updatedAt: new Date(),
         },
       });
@@ -407,18 +461,26 @@ export async function POST(req: NextRequest) {
       // Sync underlying records to ACTIVE — both the Prisma mirrors (env
       // levels) AND the JSON LevelRecords every module stores (so HR / EHS /
       // Finance / Procurement / CSR / Compliance records activate too).
-      if (sub?.recordIds) {
+      /* recordIds may live on the db.submission mirror OR on the soSubmission
+         row itself (pure site-ops submissions have no mirror). */
+      let recordIdList: string[] = parseJsonArray(sub?.recordIds).map((x) => String(x));
+      if (recordIdList.length === 0) {
+        const soRow = await db.soSubmission.findUnique({
+          where: { id: submissionId },
+          select: { recordIds: true },
+        });
+        recordIdList = parseJsonArray(soRow?.recordIds).map((x) => String(x));
+      }
+      if (recordIdList.length > 0) {
         try {
-          const rids = typeof sub.recordIds === "string" ? JSON.parse(sub.recordIds) : sub.recordIds;
-          if (Array.isArray(rids)) {
-            await Promise.allSettled([
-              db.energyRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
-              db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
-              db.wasteRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
-            ]);
-            for (const rid of rids) {
-              try { updateLevelRecordStatus(String(rid), "ACTIVE"); } catch {}
-            }
+          const rids = recordIdList;
+          await Promise.allSettled([
+            db.energyRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
+            db.waterRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
+            db.wasteRecord.updateMany({ where: { id: { in: rids } }, data: { status: "ACTIVE" } }),
+          ]);
+          for (const rid of rids) {
+            try { updateLevelRecordStatus(String(rid), "ACTIVE"); } catch {}
           }
         } catch {}
       }
@@ -432,7 +494,9 @@ export async function POST(req: NextRequest) {
           severity: "SUCCESS",
           linkView: "submissions",
           refId: sub?.submittedById || submissionId,
-          subsidiaryId: ctx.subsidiaryId,
+          /* Notify under the SUBMISSION's subsidiary — with group-wide review
+             the contributor may sit outside the admin's own subsidiary. */
+          subsidiaryId: sub?.subsidiaryId || ctx.subsidiaryId,
         },
       });
 
@@ -450,19 +514,45 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "request_correction" || action === "reject") {
-      // 1. Update Submission status
+      const rejectionReason =
+        comments?.trim() || "Project Admin requested clarification and evidence re-submission.";
+
+      // 1. Update Submission status (+ reviewer note so the contributor sees WHY)
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
           status: "CHANGES_REQUESTED",
+          reviewerId: ctx.userId,
+          reviewComment: rejectionReason,
+          reviewedAt: new Date(),
           updatedAt: new Date(),
         },
       });
 
-      await db.soSubmission.updateMany({
+      /* Sync the site-ops twin row(s) — same id OR overlapping recordIds (the
+         workspace mirror gets a different cuid). SO workflow natively uses
+         CORRECTION_REQUESTED (CHANGES_REQUESTED is a dead status there: no
+         Resubmit button, no allowed transition), so write that + the reason. */
+      const subRow = await db.submission.findUnique({
         where: { id: submissionId },
+        select: { recordIds: true, subsidiaryId: true },
+      });
+      const returnedRids: string[] = parseJsonArray(subRow?.recordIds).map((x) => String(x));
+      /* Unscoped fetch — see the approve branch note (group-wide review). */
+      const soRowsForSync = await db.soSubmission.findMany({
+        select: { id: true, recordIds: true },
+      });
+      const soReturnedIds = soRowsForSync
+        .filter(
+          (r) => r.id === submissionId || parseJsonArray(r.recordIds).some((rid) => returnedRids.includes(String(rid))),
+        )
+        .map((r) => r.id);
+      await db.soSubmission.updateMany({
+        where: { id: { in: soReturnedIds.length ? soReturnedIds : [submissionId] } },
         data: {
-          status: "CHANGES_REQUESTED",
+          status: "CORRECTION_REQUESTED",
+          reviewComment: rejectionReason,
+          currentReviewerId: ctx.userId,
           updatedAt: new Date(),
         },
       });
@@ -501,7 +591,8 @@ export async function POST(req: NextRequest) {
           severity: "WARNING",
           linkView: "corrections",
           refId: submissionId,
-          subsidiaryId: ctx.subsidiaryId,
+          /* Notify under the SUBMISSION's subsidiary (group-wide review). */
+          subsidiaryId: subRow?.subsidiaryId || ctx.subsidiaryId,
         },
       });
 

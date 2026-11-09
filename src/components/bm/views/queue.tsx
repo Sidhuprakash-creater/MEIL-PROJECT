@@ -87,8 +87,34 @@ export default function QueueView() {
       ),
     },
     { key: "period", header: "Period", sortable: true, sortValue: (r) => r.period, render: (r) => <span className="text-[12px]">{r.period} · {r.fiscalQuarter}</span> },
-    { key: "user", header: "Responsible", render: (r) => <span className="text-[12.5px]">{r.submittedByName ?? "—"}</span> },
-    { key: "submittedAt", header: "Submitted", sortable: true, sortValue: (r) => r.submittedAt ?? "", render: (r) => <span className="text-[12px]">{fmtDate(r.submittedAt)}</span> },
+    {
+      key: "user", header: "Responsible", render: (r) => (
+        <div className="flex flex-col">
+          <span className="text-[12.5px] font-medium text-[color:var(--ink)]">{r.submittedByName || "Project User"}</span>
+          {r.forwardedByName ? (
+            <span className="text-[10.5px] text-[color:var(--bum-purple-deep)] font-medium">Forwarded by {r.forwardedByName} (PA)</span>
+          ) : (r.forwardedToBu || (r as any).inConsolidatedReport) ? (
+            <span className="text-[10.5px] text-[color:var(--bum-purple-deep)] font-medium">Forwarded by Project Admin</span>
+          ) : null}
+        </div>
+      )
+    },
+    {
+      key: "submittedAt", header: "Submitted", sortable: true, sortValue: (r) => r.forwardedToBuAt ?? r.submittedAt ?? r.lastUpdated,
+      render: (r) => {
+        const dt = r.forwardedToBuAt ?? r.submittedAt ?? r.lastUpdated;
+        if (!dt) return <span className="text-[12px] text-[color:var(--ink-faint)]">—</span>;
+        const d = new Date(dt);
+        const dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+        return (
+          <div className="flex flex-col">
+            <span className="text-[12px] font-semibold text-[color:var(--ink)]">{dateStr}</span>
+            <span className="text-[10.5px] text-[color:var(--ink-soft)] font-medium">{timeStr}</span>
+          </div>
+        );
+      }
+    },
     {
       key: "deadline", header: "Review deadline", sortable: true, sortValue: (r) => r.reviewDeadline ?? r.dueDate,
       render: (r) => (

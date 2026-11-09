@@ -17,6 +17,7 @@ interface CommonValidationModalProps {
   onClose: () => void
   roleKey: ContributorRoleKey
   levelName: string
+  hrData?: any
   onSubmitSuccess?: () => void
 }
 
@@ -38,6 +39,158 @@ const flattenRecord = (label: string, obj: unknown, out: Record<string, unknown>
   }
 }
 
+/** Build the role's submission payload from the contributor's REAL workspace
+ *  data — shared by the validation modal AND the per-workspace Save Draft. */
+export function buildRoleSubmissionPayload(roleKey: ContributorRoleKey): { module: string; level: number; data: Record<string, unknown> } {
+  const flat: Record<string, unknown> = {}
+  const F = (obj: unknown, label: string) => flattenRecord(label, obj, flat)
+
+  if (roleKey === 'HR_USER') {
+    const hr = contributorStore.getHrData()
+    F(hr.workforceProfile, 'Workforce profile')
+    F(hr.diversity, 'Diversity')
+    F(hr.turnover, 'Hiring & turnover')
+    F(hr.training, 'Training & development')
+    F(hr.reviews, 'Performance reviews')
+    F(hr.benefits, 'Employee benefits')
+    F(hr.wages, 'Wages & remuneration')
+    F(hr.grievances, 'Grievances & human rights')
+    F(hr.safetyCoord, 'Safety coordination')
+    return {
+      module: 'HR',
+      level: 6,
+      data: {
+        trainingProgramme: 'Health, Safety & ESG Capability Development',
+        participants: Number((hr.training as any)?.participantsCompleting ?? 0) || undefined,
+        duration: Number((hr.training as any)?.durationHours ?? 0) || undefined,
+        durationUnit: 'Hours',
+        ...flat,
+        remarks: 'Submitted from HR Contributor Workspace — live workspace dataset attached.',
+      },
+    }
+  }
+  if (roleKey === 'EHS_USER') {
+    const ehs = contributorStore.getEhsData()
+    F(ehs.energy, 'Energy consumption')
+    F(ehs.water, 'Water management')
+    F(ehs.ghg, 'GHG emissions')
+    F(ehs.waste, 'Waste management')
+    F(ehs.safety, 'Safety incidents')
+    F(ehs.permits, 'Compliance permits')
+    F(ehs.incidents, 'Environmental incidents')
+    F(ehs.initiatives, 'Sustainability initiatives')
+    return {
+      module: 'SAFETY',
+      level: 5,
+      data: {
+        incidentType: 'Workspace Safety & Environment Submission',
+        severity: 'Reported',
+        personHoursWorked: Number((ehs.safety as any)?.personHoursWorked ?? (ehs.safety as any)?.totalPersonHours ?? 0) || undefined,
+        lostTimeInjuries: Number((ehs.safety as any)?.lostTimeInjuries ?? (ehs.safety as any)?.lti ?? 0),
+        ...flat,
+        remarks: 'Submitted from EHS Contributor Workspace — live workspace dataset attached.',
+      },
+    }
+  }
+  if (roleKey === 'PROCUREMENT_USER') {
+    const sc = contributorStore.getScData()
+    F(sc.supplierMaster, 'Supplier master')
+    F(sc.spend, 'Procurement spend')
+    F(sc.assessment, 'Supplier ESG assessment')
+    F(sc.certifications, 'Supplier certifications')
+    F(sc.codeOfConduct, 'Code of conduct')
+    F(sc.audits, 'Supplier audits')
+    F(sc.valueChain, 'Value chain')
+    return {
+      module: 'PROCUREMENT',
+      level: 9,
+      data: {
+        activityInitiativeName: 'Sustainable Procurement & Supplier ESG Program',
+        ...flat,
+        remarks: 'Submitted from Procurement Contributor Workspace — live workspace dataset attached.',
+      },
+    }
+  }
+  if (roleKey === 'CSR_USER') {
+    const csr = contributorStore.getCsrData()
+    F(csr.projectMaster, 'CSR project master')
+    F(csr.activities, 'Activities & beneficiaries')
+    F(csr.expenditure, 'Expenditure references')
+    F(csr.outcomes, 'Project outcomes')
+    F(csr.grievances, 'Community grievances')
+    F(csr.sia, 'Social impact assessment')
+    F(csr.rr, 'Rehabilitation & resettlement')
+    return {
+      module: 'CSR',
+      level: 8,
+      data: {
+        dateReported: new Date().toISOString().slice(0, 10),
+        description: String((csr.projectMaster as any)?.projectName ?? 'CSR Community Programme Submission'),
+        impactSeverity: 'Positive Impact',
+        currentStatus: String((csr.projectMaster as any)?.status ?? 'Active'),
+        ...flat,
+        remarks: 'Submitted from CSR Contributor Workspace — live workspace dataset attached.',
+      },
+    }
+  }
+  // COMPLIANCE_USER
+  const gov = contributorStore.getGovData()
+  F(gov.policies, 'Policy register')
+  F(gov.implementation, 'Policy implementation')
+  F(gov.ethics, 'Business ethics')
+  F(gov.whistleblower, 'Whistleblower & grievances')
+  F(gov.compliance, 'Regulatory compliance')
+  F(gov.humanRights, 'Human rights')
+  F(gov.oversight, 'Governance oversight')
+  return {
+    module: 'COMPLIANCE',
+    level: 7,
+    data: {
+      permitNumber: String((gov.compliance as any)?.permitNumber ?? (gov.compliance as any)?.consentNumber ?? 'GOV-COMPLIANCE-REGISTER'),
+      authority: String((gov.compliance as any)?.authority ?? 'Regulatory Authority'),
+      complianceStatus: String((gov.compliance as any)?.status ?? 'Fully Compliant'),
+      ...flat,
+      remarks: 'Submitted from Governance & Compliance Contributor Workspace — live workspace dataset attached.',
+    },
+  }
+}
+
+/** Persist the workspace dataset as a real DRAFT soSubmission (+ unified
+ *  ledger mirror) — previously "Save Draft" only wrote to the in-memory
+ *  contributor store and was lost on refresh. */
+export async function saveRoleDraftToApi(
+  roleKey: ContributorRoleKey,
+  projectId?: string | null,
+): Promise<void> {
+  const cfg = buildRoleSubmissionPayload(roleKey)
+  let periodId: string | undefined
+  try {
+    const tr = await fetch('/api/so/organization/tree').then((r) => (r.ok ? r.json() : null))
+    const periods: any[] = tr?.periods || []
+    const open = periods.filter((p: any) => p.status === 'OPEN')
+    const pick = open[open.length - 1] || periods[periods.length - 1]
+    periodId = pick?.id
+  } catch {}
+  const res = await fetch('/api/so/data-entry', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      level: cfg.level,
+      levelKey: `level${cfg.level}`,
+      levelName: `${cfg.module} Workspace Draft`,
+      module: cfg.module,
+      projectId: projectId || undefined,
+      reportingPeriodId: periodId,
+      data: cfg.data,
+      submitForReview: false,
+    }),
+  })
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}))
+    throw new Error(j.error || `Draft save failed (${res.status})`)
+  }
+}
+
 export function CommonValidationModal({
   isOpen,
   onClose,
@@ -48,6 +201,8 @@ export function CommonValidationModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submissionSuccess, setSubmissionSuccess] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [vaultEvidence, setVaultEvidence] = useState<Array<{ id: string; fileName: string }>>([])
+  const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([])
   const { selectedProjectId } = useApp()
   /* Most recent OPEN reporting period (mirrors the PU data-entry default). */
   const [periodId, setPeriodId] = useState('')
@@ -65,127 +220,33 @@ export function CommonValidationModal({
         if (pick?.id) setPeriodId(pick.id)
       })
       .catch(() => {})
+    /* Evidence Vault documents for this project — the contributor picks which
+       ones travel with the submission so the Project Admin review window shows
+       real, actually-attached evidence. */
+    if (selectedProjectId) {
+      fetch(`/api/so/evidence?projectId=${encodeURIComponent(selectedProjectId)}&take=50`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (cancelled || !d) return
+          const items = (d.items || [])
+            .map((ev: any) => ({ id: String(ev.id), fileName: String(ev.fileName || ev.name || ev.id) }))
+            .filter((ev: any) => ev.id)
+          setVaultEvidence(items)
+        })
+        .catch(() => {})
+    } else {
+      setVaultEvidence([])
+    }
+    setSelectedEvidenceIds([])
     return () => { cancelled = true }
-  }, [isOpen])
+  }, [isOpen, selectedProjectId])
 
   const validationResult = contributorStore.validateRole(roleKey)
 
   /* Build the submission payload from the contributor's REAL workspace data
      (previously this sent a hardcoded demo payload, so nothing the user
      entered ever reached the Project Admin). */
-  const buildRolePayload = (): { module: string; level: number; data: Record<string, unknown> } => {
-    const flat: Record<string, unknown> = {}
-    const F = (obj: unknown, label: string) => flattenRecord(label, obj, flat)
-
-    if (roleKey === 'HR_USER') {
-      const hr = contributorStore.getHrData()
-      F(hr.workforceProfile, 'Workforce profile')
-      F(hr.diversity, 'Diversity')
-      F(hr.turnover, 'Hiring & turnover')
-      F(hr.training, 'Training & development')
-      F(hr.reviews, 'Performance reviews')
-      F(hr.benefits, 'Employee benefits')
-      F(hr.wages, 'Wages & remuneration')
-      F(hr.grievances, 'Grievances & human rights')
-      F(hr.safetyCoord, 'Safety coordination')
-      return {
-        module: 'HR',
-        level: 6,
-        data: {
-          trainingProgramme: 'Health, Safety & ESG Capability Development',
-          participants: Number((hr.training as any)?.participantsCompleting ?? 0) || undefined,
-          duration: Number((hr.training as any)?.durationHours ?? 0) || undefined,
-          durationUnit: 'Hours',
-          ...flat,
-          remarks: 'Submitted from HR Contributor Workspace — live workspace dataset attached.',
-        },
-      }
-    }
-    if (roleKey === 'EHS_USER') {
-      const ehs = contributorStore.getEhsData()
-      F(ehs.energy, 'Energy consumption')
-      F(ehs.water, 'Water management')
-      F(ehs.ghg, 'GHG emissions')
-      F(ehs.waste, 'Waste management')
-      F(ehs.safety, 'Safety incidents')
-      F(ehs.permits, 'Compliance permits')
-      F(ehs.incidents, 'Environmental incidents')
-      F(ehs.initiatives, 'Sustainability initiatives')
-      return {
-        module: 'SAFETY',
-        level: 5,
-        data: {
-          incidentType: 'Workspace Safety & Environment Submission',
-          severity: 'Reported',
-          personHoursWorked: Number((ehs.safety as any)?.personHoursWorked ?? (ehs.safety as any)?.totalPersonHours ?? 0) || undefined,
-          lostTimeInjuries: Number((ehs.safety as any)?.lostTimeInjuries ?? (ehs.safety as any)?.lti ?? 0),
-          ...flat,
-          remarks: 'Submitted from EHS Contributor Workspace — live workspace dataset attached.',
-        },
-      }
-    }
-    if (roleKey === 'PROCUREMENT_USER') {
-      const sc = contributorStore.getScData()
-      F(sc.supplierMaster, 'Supplier master')
-      F(sc.spend, 'Procurement spend')
-      F(sc.assessment, 'Supplier ESG assessment')
-      F(sc.certifications, 'Supplier certifications')
-      F(sc.codeOfConduct, 'Code of conduct')
-      F(sc.audits, 'Supplier audits')
-      F(sc.valueChain, 'Value chain')
-      return {
-        module: 'PROCUREMENT',
-        level: 9,
-        data: {
-          activityInitiativeName: 'Sustainable Procurement & Supplier ESG Program',
-          ...flat,
-          remarks: 'Submitted from Procurement Contributor Workspace — live workspace dataset attached.',
-        },
-      }
-    }
-    if (roleKey === 'CSR_USER') {
-      const csr = contributorStore.getCsrData()
-      F(csr.projectMaster, 'CSR project master')
-      F(csr.activities, 'Activities & beneficiaries')
-      F(csr.expenditure, 'Expenditure references')
-      F(csr.outcomes, 'Project outcomes')
-      F(csr.grievances, 'Community grievances')
-      F(csr.sia, 'Social impact assessment')
-      F(csr.rr, 'Rehabilitation & resettlement')
-      return {
-        module: 'CSR',
-        level: 8,
-        data: {
-          dateReported: new Date().toISOString().slice(0, 10),
-          description: String((csr.projectMaster as any)?.projectName ?? 'CSR Community Programme Submission'),
-          impactSeverity: 'Positive Impact',
-          currentStatus: String((csr.projectMaster as any)?.status ?? 'Active'),
-          ...flat,
-          remarks: 'Submitted from CSR Contributor Workspace — live workspace dataset attached.',
-        },
-      }
-    }
-    // COMPLIANCE_USER
-    const gov = contributorStore.getGovData()
-    F(gov.policies, 'Policy register')
-    F(gov.implementation, 'Policy implementation')
-    F(gov.ethics, 'Business ethics')
-    F(gov.whistleblower, 'Whistleblower & grievances')
-    F(gov.compliance, 'Regulatory compliance')
-    F(gov.humanRights, 'Human rights')
-    F(gov.oversight, 'Governance oversight')
-    return {
-      module: 'COMPLIANCE',
-      level: 7,
-      data: {
-        permitNumber: String((gov.compliance as any)?.permitNumber ?? (gov.compliance as any)?.consentNumber ?? 'GOV-COMPLIANCE-REGISTER'),
-        authority: String((gov.compliance as any)?.authority ?? 'Regulatory Authority'),
-        complianceStatus: String((gov.compliance as any)?.status ?? 'Fully Compliant'),
-        ...flat,
-        remarks: 'Submitted from Governance & Compliance Contributor Workspace — live workspace dataset attached.',
-      },
-    }
-  }
+  const buildRolePayload = buildRoleSubmissionPayload.bind(null, roleKey)
 
   const handleConfirmSubmit = async () => {
     if (!validationResult.passed) return
@@ -205,6 +266,8 @@ export function CommonValidationModal({
           projectId: selectedProjectId || undefined,
           reportingPeriodId: periodId || undefined,
           data: cfg.data,
+          evidenceId: selectedEvidenceIds[0] || undefined,
+          evidenceIds: selectedEvidenceIds.length ? selectedEvidenceIds : undefined,
           submitForReview: true,
         }),
       })
@@ -384,6 +447,51 @@ export function CommonValidationModal({
                   </span>
                 </div>
               ))}
+            </div>
+
+            {/* Evidence Vault picker — attach real documents to this submission */}
+            <div className="rounded-xl border border-slate-200 bg-white/70 p-3">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-bold text-slate-800">
+                  <FileText className="h-3.5 w-3.5 text-blue-600" /> Attach Evidence Documents
+                </span>
+                <span className="text-[10px] font-semibold text-slate-500">
+                  {selectedEvidenceIds.length} selected · {vaultEvidence.length} in vault
+                </span>
+              </div>
+              {vaultEvidence.length === 0 ? (
+                <p className="mt-2 text-[11px] text-slate-500">
+                  No evidence documents in your vault yet — upload bills, registers or certificates from the Evidence tab first.
+                </p>
+              ) : (
+                <div className="mt-2 max-h-32 space-y-1 overflow-y-auto pr-1">
+                  {vaultEvidence.map((ev) => {
+                    const checked = selectedEvidenceIds.includes(ev.id)
+                    return (
+                      <label
+                        key={ev.id}
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[11px] transition ${
+                          checked
+                            ? 'border-blue-300 bg-blue-50/70 font-semibold text-blue-900'
+                            : 'border-slate-200 bg-white/80 text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setSelectedEvidenceIds((prev) =>
+                              prev.includes(ev.id) ? prev.filter((x) => x !== ev.id) : [...prev, ev.id],
+                            )
+                          }
+                          className="h-3.5 w-3.5 accent-blue-600"
+                        />
+                        <span className="truncate">{ev.fileName}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Actions */}

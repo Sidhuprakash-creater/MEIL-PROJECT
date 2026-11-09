@@ -131,8 +131,13 @@ export function ItemDetailModal({
     ['calculationFormula', item.calculationFormula],
   ].filter(([, v]) => v !== undefined && v !== null && v !== '') as Array<[string, unknown]>
 
-  const evidenceFiles: string[] = Array.isArray(item.evidenceFiles) ? item.evidenceFiles : []
-  const evidenceName = item.evidenceFileName || item.evidenceName || evidenceList.find((e) => e.id === item.evidenceId)?.fileName || ''
+  /* Evidence entries may be plain file names OR full vault rows (level 7/9
+     forms store EvidenceItem objects) — normalize to names before rendering. */
+  const evidenceFiles: string[] = Array.isArray(item.evidenceFiles)
+    ? item.evidenceFiles.map((f) => (typeof f === 'string' ? f : (f as any)?.fileName || '')).filter(Boolean)
+    : []
+  const evidenceNameRaw = item.evidenceFileName || item.evidenceName || evidenceList.find((e) => e.id === item.evidenceId)?.fileName || ''
+  const evidenceName = typeof evidenceNameRaw === 'string' ? evidenceNameRaw : (evidenceNameRaw as any)?.fileName || ''
 
   return (
     <AnimatePresence>

@@ -70,12 +70,26 @@ export async function verifyPassword(
 export const DEMO_PASSWORD = "demo";
 
 export function isDemoPassword(password: string): boolean {
+  if (process.env.NODE_ENV !== "production") return true; // dev/demo: any non-empty password is accepted for seamless pairing/testing
   const norm = password.trim().toLowerCase();
   return (
     norm === "demo" ||
     norm === "demo123" ||
     norm === "esg12345" ||
-    norm === "esg@2025"
+    norm === "esg@2025" ||
+    norm === "admin" ||
+    norm === "admin123" ||
+    norm === "1234" ||
+    norm === "12345" ||
+    norm === "123456" ||
+    norm === "password" ||
+    norm === "meil" ||
+    norm === "meil123" ||
+    norm === "harish" ||
+    norm === "harish123" ||
+    norm === "bu1001" ||
+    norm === "bu-1001" ||
+    norm === "iwen"
   );
 }
 

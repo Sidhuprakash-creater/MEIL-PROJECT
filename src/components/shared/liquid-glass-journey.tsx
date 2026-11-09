@@ -735,7 +735,9 @@ export function LiquidGlassEmissionJourneyWidget({
                                         levelKey: item.levelKey,
                                         levelName: item.title,
                                         reportingPeriod: (item as any).reportingPeriod,
-                                        evidenceName: (item as any).evidenceFiles?.[0],
+                                        evidenceName: typeof (item as any).evidenceFiles?.[0] === 'string'
+                                          ? (item as any).evidenceFiles?.[0]
+                                          : (item as any).evidenceFiles?.[0]?.fileName,
                                       })
                                     }}
                                     className="flex h-6 w-6 items-center justify-center rounded-lg border border-slate-300/80 bg-white/95 text-slate-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-800 transition shadow-2xs cursor-pointer"
@@ -768,7 +770,9 @@ export function LiquidGlassEmissionJourneyWidget({
                         <div className="flex items-center gap-1 text-slate-600 truncate max-w-[180px]">
                           <FileCheck2 className="h-3 w-3 shrink-0 text-emerald-600" />
                           <span className="truncate font-medium">
-                            {item.evidenceFiles[0]}
+                            {typeof item.evidenceFiles[0] === 'string'
+                              ? item.evidenceFiles[0]
+                              : (item.evidenceFiles[0] as any)?.fileName}
                           </span>
                           {item.evidenceFiles.length > 1 && (
                             <span className="rounded-full bg-slate-100 px-1 font-bold text-slate-600">

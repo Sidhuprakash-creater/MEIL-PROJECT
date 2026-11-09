@@ -113,6 +113,11 @@ export function getLevelRecordById(id: string): LevelRecord | null {
 }
 
 export function saveLevelRecord(record: LevelRecord): LevelRecord {
+  /* Never store an id-less record — an undefined id breaks React keys and
+     every record lookup downstream. */
+  if (!record.id) {
+    record = { ...record, id: `rec-l${record.level}-${record.projectId}-${Date.now()}` }
+  }
   const all = readStore()
   const idx = all.findIndex((r) => r.id === record.id)
   if (idx >= 0) {

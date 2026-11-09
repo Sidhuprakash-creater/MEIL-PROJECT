@@ -6,6 +6,8 @@ import {
   bmLogActivity, bmLogAudit, bmNotify,
 } from "@/lib/bm/server";
 import { toBmSubmissionRow, resolveReviewDeadline, loadBmUserNames, loadBmProjectNames } from "@/lib/bm/rows";
+import { invalidatePaServerCache } from "@/lib/project-admin/server";
+import { invalidatePaConsolidatedReportCache, invalidatePuSubmissionsCache, invalidatePuOverviewCache } from "@/lib/portal-cache";
 import type { DecisionResponse } from "@/lib/bm/types";
 
 export const dynamic = "force-dynamic";
@@ -43,9 +45,11 @@ type Params = { params: Promise<{ id: string }> };
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const ELIGIBLE: Record<string, string[]> = {
-  approve: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"],
-  reject: ["SUBMITTED", "UNDER_REVIEW"],
-  return: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"],
+  /* approve also accepts APPROVED and BU_APPROVED — Project-Admin-forwarded
+     items (forwardedToBu) move to or remain BU_APPROVED. */
+  approve: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "APPROVED", "BU_REVIEW_PENDING", "BU_APPROVED"],
+  reject: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "APPROVED", "BU_REVIEW_PENDING", "BU_APPROVED"],
+  return: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "APPROVED", "BU_REVIEW_PENDING", "BU_APPROVED"],
 };
 
 const NEW_STATUS: Record<string, string> = {
@@ -95,7 +99,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     /* Load fresh row + scope check (must belong to this BU). */
     const s = await db.submission.findUnique({ where: { id } });
     if (!s) throw new BmError("Submission not found.", 404);
-    if (s.businessUnitId !== ctx.businessUnitId) {
+    const isForwarded = s.forwardedToBu || (s as any).inConsolidatedReport;
+    if (s.businessUnitId !== ctx.businessUnitId && !isForwarded) {
       throw new BmError("This submission is outside your assigned business unit.", 403);
     }
 
@@ -107,8 +112,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    /* Version guard: refuse decisions on a stale version. */
-    if (b.expectedUpdatedAt && new Date(b.expectedUpdatedAt).getTime() !== s.updatedAt.getTime()) {
+    /* An APPROVED or BU_APPROVED report forwarded by PA is decidable by BU */
+    const forwardedPaApproval = (s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING" || s.status === "BU_APPROVED") && isForwarded;
+
+    /* Version guard: refuse decisions on a stale version (with 30s tolerance for clock drift). */
+    if (b.expectedUpdatedAt && Math.abs(new Date(b.expectedUpdatedAt).getTime() - s.updatedAt.getTime()) > 30000) {
       throw new BmError(
         "This report changed after you opened it. Refresh and review the latest version before deciding.",
         409
@@ -157,11 +165,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     ];
 
     /* Concurrent-safe update: the where-clause re-asserts the eligible status
-       so a decision made between our load and write cannot be overwritten. */
+       so a decision made between our load and write cannot be overwritten.
+       Approving a PA-forwarded report records the distinct BU_APPROVED state. */
+    const finalStatus = (forwardedPaApproval || s.status === "BU_APPROVED" || isForwarded) && action === "approve"
+      ? "BU_APPROVED"
+      : NEW_STATUS[action];
     const updated = await db.submission.updateMany({
       where: { id, status: { in: ELIGIBLE[action] } },
       data: {
-        status: NEW_STATUS[action],
+        status: finalStatus,
         reviewedAt: now,
         reviewerId: ctx.userId,
         comments: JSON.stringify(newComment),
@@ -170,6 +182,38 @@ export async function POST(req: NextRequest, { params }: Params) {
     });
     if (updated.count !== 1) {
       throw new BmError("Concurrent update detected — the report state changed. Refresh and review again.", 409);
+    }
+
+    await db.soSubmission.updateMany({
+      where: { id },
+      data: {
+        status: finalStatus,
+        updatedAt: now,
+      },
+    });
+
+    /* If this submission was part of a consolidated project report, sync the report status */
+    if (s.consolidatedReportId) {
+      try {
+        const siblingSubs = await db.submission.findMany({
+          where: { consolidatedReportId: s.consolidatedReportId },
+          select: { id: true, status: true },
+        });
+        const allApproved = siblingSubs.every(sub => (sub.id === id ? finalStatus === "BU_APPROVED" : sub.status === "BU_APPROVED"));
+        if (allApproved && action === "approve") {
+          await db.report.update({
+            where: { id: s.consolidatedReportId },
+            data: { status: "APPROVED" },
+          });
+        } else if (action === "reject") {
+          await db.report.update({
+            where: { id: s.consolidatedReportId },
+            data: { status: "REJECTED" },
+          });
+        }
+      } catch (e) {
+        console.warn("Could not sync consolidated report status:", e);
+      }
     }
 
     /* Resolve the responsible user's name so the notification is personal. */
@@ -229,6 +273,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     const fresh = await db.submission.findUnique({ where: { id } });
     if (!fresh) throw new BmError("Submission disappeared after update.", 500);
 
+    invalidatePaServerCache();
+    invalidatePaConsolidatedReportCache();
+    invalidatePuSubmissionsCache();
+    invalidatePuOverviewCache();
+
     const [userNames, projectNames, reviewCtx] = await Promise.all([
       loadBmUserNames(ctx.businessUnitId, ctx.subsidiaryId),
       loadBmProjectNames(ctx.businessUnitId),
@@ -244,6 +293,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       reviewCtx.sourceLabel,
       fresh.dueDate.toISOString(),
       fresh.history,
+      { forwardedToBu: fresh.forwardedToBu, forwardedToBuAt: fresh.forwardedToBuAt },
     );
 
     const messageByAction: Record<string, string> = {

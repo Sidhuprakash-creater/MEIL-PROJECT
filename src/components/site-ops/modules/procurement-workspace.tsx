@@ -24,6 +24,7 @@ import {
   TrendingUp, Building2, FileCheck2, History, Award, CheckSquare
 } from 'lucide-react'
 import { useApp } from '@/components/site-ops/context'
+import { saveRoleDraftToApi } from './common-validation-modal'
 import {
   contributorStore,
   type ContributorAssignment,
@@ -34,7 +35,7 @@ import { CommonEvidenceManager } from './common-evidence-manager'
 import { CommonValidationModal } from './common-validation-modal'
 
 export function ProcurementWorkspace() {
-  const { activeModule } = useApp()
+  const { activeModule, selectedProjectId } = useApp()
   const [activeTab, setActiveTab] = useState<string>('overview')
   const [scData, setScData] = useState(() => contributorStore.getScData())
   const [assignments, setAssignments] = useState<ContributorAssignment[]>(() => contributorStore.getAssignments('PROCUREMENT_USER'))
@@ -63,6 +64,8 @@ export function ProcurementWorkspace() {
   const handleSaveDraft = (levelLabel: string) => {
     setSaveStatus('Saving...')
     contributorStore.saveScData(scData)
+    /* Sync a real DRAFT soSubmission to the server — the local store alone is lost on refresh. */
+    saveRoleDraftToApi('PROCUREMENT_USER', selectedProjectId).catch((e) => triggerToast(e?.message || 'Draft sync failed'))
     setTimeout(() => {
       setSaveStatus('Draft Saved')
       triggerToast(`${levelLabel} draft saved successfully.`)

@@ -164,6 +164,23 @@ export function WelcomeScreen() {
     setStage('login')
   }
 
+  /* One-click demo login — every role card carries pre-entered credentials
+     (its seeded email + the platform demo password), so this signs in
+     immediately without the user typing anything. */
+  const handleQuickLogin = async (role: RoleCardDef) => {
+    if (busy) return
+    setSelectedRole(role)
+    setEmail(role.email)
+    setPassword('demo')
+    setRemember(true)
+    setStage('login') // show the login morph as authenticating feedback
+    setBusy(true)
+    setError('')
+    const res = await login(role.email, 'demo')
+    setBusy(false)
+    if (!res.ok) setError(res.error || 'Invalid credentials')
+  }
+
   const handleSubmitLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -235,6 +252,7 @@ export function WelcomeScreen() {
               hovered={hoveredRole}
               setHovered={setHoveredRole}
               onPick={handlePickRole}
+              onQuickLogin={handleQuickLogin}
               onBack={() => setStage('project')}
             />
           </main>
@@ -1275,6 +1293,7 @@ function RolePickerScreen({
   hovered,
   setHovered,
   onPick,
+  onQuickLogin,
   onBack,
 }: {
   project: MeilProject
@@ -1283,6 +1302,7 @@ function RolePickerScreen({
   hovered: string | null
   setHovered: (s: string | null) => void
   onPick: (r: RoleCardDef) => void
+  onQuickLogin: (r: RoleCardDef) => void
   onBack: () => void
 }) {
   const [selectedCategory, setSelectedCategory] = useState<RoleCategory>('all')
@@ -1527,6 +1547,18 @@ function RolePickerScreen({
                       : 'bg-white/80 border border-white/90 shadow-[0_16px_36px_-8px_rgba(2,132,199,0.18),0_4px_14px_rgba(0,0,0,0.04),inset_0_1px_2px_rgba(255,255,255,0.95)] hover:bg-white/95 hover:border-sky-300 hover:shadow-[0_28px_65px_-8px_rgba(2,132,199,0.34),0_12px_24px_-4px_rgba(14,165,233,0.22),inset_0_2px_4px_rgba(255,255,255,1)]'
                   }`}
                 >
+                  {/* One-click quick login — pre-entered demo credentials */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onQuickLogin(r)
+                    }}
+                    title={`Sign in instantly as ${r.name} (pre-filled demo credentials)`}
+                    className="absolute right-2 top-2 z-20 flex items-center gap-1 rounded-full bg-gradient-to-r from-sky-500 to-blue-600 px-2 py-1 text-[9px] font-black text-white shadow-md shadow-blue-500/25 transition hover:scale-105 hover:from-sky-600 hover:to-blue-700 active:scale-95 disabled:opacity-50 cursor-pointer"
+                  >
+                    <Zap className="h-2.5 w-2.5 fill-current" />
+                    <span>1-CLICK</span>
+                  </button>
                   {/* Top Squircle Icon with Motion Pulse */}
                   <motion.div 
                     whileHover={{ scale: 1.15, rotate: [0, -4, 4, 0] }}

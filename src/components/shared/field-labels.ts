@@ -104,6 +104,43 @@ export function itemFieldEntries(item: Record<string, any>): Array<[string, unkn
   return entries
 }
 
+/* UI level ↔ internal store level aliases: UI Level 5 (Permits & Compliance)
+   stores under `l7-…`/`level7` and UI Level 6 (Initiatives) under `l9-…`/`level9`
+   (legacy BRSR numbering), so both directions must be probed. */
+const LEVEL_ALIASES: Record<number, number[]> = { 5: [7], 6: [9], 7: [5], 9: [6] }
+
+function levelCandidateNumbers(level: number): number[] {
+  return [level, ...(LEVEL_ALIASES[level] ?? [])]
+}
+
+function entryHasData(entry: any): boolean {
+  if (!entry || typeof entry !== 'object') return false
+  if (Array.isArray(entry.items) && entry.items.length > 0) return true
+  return Object.entries(entry).some(([, v]) =>
+    typeof v === 'string' ? v.trim() !== '' : v != null && !(Array.isArray(v) && v.length === 0),
+  )
+}
+
+/** Resolve the full staged entry (not just items) for one level from the
+ *  scoped formStateRef, probing both scoped `l{n}-…` keys and unscoped ones. */
+export function levelEntryFromFormData(
+  allData: Record<string, any> | undefined,
+  level: number,
+  projectId?: string | null,
+  periodId?: string | null,
+): Record<string, any> | undefined {
+  if (!allData) return undefined
+  for (const n of levelCandidateNumbers(level)) {
+    const scoped = projectId && periodId ? allData[`l${n}-${projectId}-${periodId}`] : undefined
+    if (entryHasData(scoped)) return scoped
+  }
+  for (const n of levelCandidateNumbers(level)) {
+    const unscoped = allData[`level${n}`]
+    if (entryHasData(unscoped)) return unscoped
+  }
+  return undefined
+}
+
 /** Resolve the staged items for one BRSR level from the scoped formStateRef. */
 export function levelItemsFromFormData(
   allData: Record<string, any> | undefined,
@@ -111,8 +148,6 @@ export function levelItemsFromFormData(
   projectId?: string | null,
   periodId?: string | null,
 ): any[] {
-  if (!allData) return []
-  const scoped = projectId && periodId ? allData[`l${level}-${projectId}-${periodId}`] : undefined
-  const data = scoped || allData[`level${level}`] || {}
-  return Array.isArray(data?.items) ? data.items : []
+  const data = levelEntryFromFormData(allData, level, projectId, periodId)
+  return data && Array.isArray(data.items) ? data.items : []
 }

@@ -96,7 +96,21 @@ export function toSubmissionRow(
     level: s.projectId ? "PROJECT" : "BU",
     buId: s.businessUnitId, buName: s.businessUnitId ? buNames.get(s.businessUnitId) ?? null : null,
     projectId: s.projectId, projectName: s.projectId ? projectNames.get(s.projectId) ?? null : null,
-    submittedByName: s.submittedById ? users.get(s.submittedById) ?? null : null,
+    submittedByName: (() => {
+      if (s.submittedById && users.get(s.submittedById)) {
+        return users.get(s.submittedById);
+      }
+      if ((s as any).history) {
+        try {
+          const hist = parseJson<any[]>((s as any).history, []);
+          const firstSubmit = hist.find((h) => /submit/i.test(h.action || '') || /create/i.test(h.action || '')) || hist[0];
+          if (firstSubmit?.actorName || firstSubmit?.actor) {
+            return firstSubmit.actorName || firstSubmit.actor;
+          }
+        } catch {}
+      }
+      return null;
+    })(),
     reviewerName: s.reviewerId ? users.get(s.reviewerId) ?? null : null,
     evidenceCount: evidenceList.length,
     lastUpdated: s.updatedAt.toISOString(),

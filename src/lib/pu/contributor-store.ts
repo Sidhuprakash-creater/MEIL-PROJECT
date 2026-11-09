@@ -203,6 +203,18 @@ export interface HrDiversityRepresentation {
   sourceReport: string
   evidence: string
   remarks: string
+  // Enhanced BRSR Principle 3 Disclosures (Zero data loss, 100% backward compatible)
+  pwdPermanentEmployeesMale?: number
+  pwdPermanentEmployeesFemale?: number
+  pwdOtherEmployeesCount?: number
+  pwdPermanentWorkersMale?: number
+  pwdPermanentWorkersFemale?: number
+  pwdOtherWorkersCount?: number
+  womenBoardPercent?: number
+  womenKmpPercent?: number
+  womenSeniorMgmtPercent?: number
+  accessibleSitesPercent?: number
+  assistiveTechCount?: number
 }
 
 export interface HrHiringTurnover {
@@ -236,6 +248,12 @@ export interface HrTrainingDevelopment {
   assessmentResult: string
   supportingEvidence: string
   remarks: string
+  // Enhanced BRSR Principle 3 Essential Indicator 8 coverage
+  healthSafetyEmployeesPct?: number
+  healthSafetyWorkersPct?: number
+  skillEmployeesPct?: number
+  skillWorkersPct?: number
+  totalPersonTrainingHours?: number
 }
 
 export interface HrPerformanceReviews {
@@ -250,6 +268,14 @@ export interface HrPerformanceReviews {
   sourceHrReport: string
   supportingEvidence: string
   remarks: string
+  // Enhanced BRSR Principle 3 Essential Indicator 11 coverage
+  permanentEmployeesEligible?: number
+  permanentEmployeesReviewedMale?: number
+  permanentEmployeesReviewedFemale?: number
+  permanentWorkersEligible?: number
+  permanentWorkersReviewedMale?: number
+  permanentWorkersReviewedFemale?: number
+  moderationSignOff?: string
 }
 
 export interface HrEmployeeBenefits {
@@ -289,6 +315,36 @@ export interface HrGrievancesHumanRights {
   humanRightsCategory: string
   responsibleDepartment: string
   sourceRegister: string
+  supportingEvidence: string
+  remarks: string
+  // Enhanced Workplace Grievance & SLA
+  workingConditionsReceived?: number
+  workingConditionsResolved?: number
+  wageDisputesReceived?: number
+  wageDisputesResolved?: number
+  discriminationReceived?: number
+  discriminationResolved?: number
+  avgTurnaroundDays?: number
+  pendingOver90DaysCount?: number
+}
+
+export interface HrHumanRightsCompliance {
+  common: CommonReportingFields
+  childLabourAuditsCount: number
+  childLabourViolations: number
+  ageVerificationMethod: string
+  forcedLabourAuditsCount: number
+  forcedLabourViolations: number
+  identityRetentionAudit: string
+  contractorCampsInspected: number
+  campsMeetingSanitationPct: number
+  cleanDrinkingWaterPct: number
+  minimumWageCompliancePct: number
+  epfUanGeneratedPct: number
+  esicCoveragePct: number
+  employeesTrainedHumanRightsPct: number
+  workersTrainedHumanRightsPct: number
+  thirdPartyAuditReference: string
   supportingEvidence: string
   remarks: string
 }
@@ -929,6 +985,7 @@ class ContributorStore {
     wages: HrWagesRemuneration
     grievances: HrGrievancesHumanRights
     safetyCoord: HrSafetyCoordination
+    humanRights?: HrHumanRightsCompliance
   } {
     return this.safeGet(this.hrKey, this.getDefaultHrData())
   }
@@ -1707,6 +1764,7 @@ class ContributorStore {
     wages: HrWagesRemuneration
     grievances: HrGrievancesHumanRights
     safetyCoord: HrSafetyCoordination
+    humanRights?: HrHumanRightsCompliance
   } {
     return {
       workforceProfile: {
@@ -1736,7 +1794,18 @@ class ContributorStore {
         calculatedPercentage: 0.5,
         sourceReport: 'HR-DIVERSITY-ANNUAL-2026',
         evidence: 'DOC-HR-2026-PWD.pdf',
-        remarks: 'Includes corporate headquarters and design centers.'
+        remarks: 'Includes corporate headquarters and design centers.',
+        pwdPermanentEmployeesMale: 142,
+        pwdPermanentEmployeesFemale: 28,
+        pwdOtherEmployeesCount: 14,
+        pwdPermanentWorkersMale: 85,
+        pwdPermanentWorkersFemale: 15,
+        pwdOtherWorkersCount: 0,
+        womenBoardPercent: 20.0,
+        womenKmpPercent: 25.0,
+        womenSeniorMgmtPercent: 18.4,
+        accessibleSitesPercent: 92.5,
+        assistiveTechCount: 160
       },
       turnover: {
         common: createDefaultCommonFields('HR_USER', 'Hiring & Turnover', 'Attrition & Retention', 'Workforce Turnover Rate'),
@@ -1767,7 +1836,12 @@ class ContributorStore {
         attendanceRecordRef: 'TRAIN-EHS-BATCH-42',
         assessmentResult: '98% pass rate upon post-course assessment',
         supportingEvidence: 'DOC-HR-TRAINING-LOGS.xlsx',
-        remarks: 'Mandatory certification before site deployment.'
+        remarks: 'Mandatory certification before site deployment.',
+        healthSafetyEmployeesPct: 94.2,
+        healthSafetyWorkersPct: 98.6,
+        skillEmployeesPct: 86.4,
+        skillWorkersPct: 78.2,
+        totalPersonTrainingHours: 468720
       },
       reviews: {
         common: createDefaultCommonFields('HR_USER', 'Performance Reviews', 'Appraisal Tracking', 'Annual Appraisal Cycle'),
@@ -1780,7 +1854,14 @@ class ContributorStore {
         reviewProcessReference: 'HR-PMS-2026-CY',
         sourceHrReport: 'HRMS-PMS-SIGN-OFF.pdf',
         supportingEvidence: 'DOC-HR-APPRAISAL.pdf',
-        remarks: 'Balance 180 employees on extended maternity/medical leave.'
+        remarks: 'Balance 180 employees on extended maternity/medical leave.',
+        permanentEmployeesEligible: 12450,
+        permanentEmployeesReviewedMale: 10420,
+        permanentEmployeesReviewedFemale: 1200,
+        permanentWorkersEligible: 18200,
+        permanentWorkersReviewedMale: 16800,
+        permanentWorkersReviewedFemale: 1150,
+        moderationSignOff: 'PMS Moderation Committee Sign-off (HR-PMS-2026-CY)'
       },
       benefits: {
         common: createDefaultCommonFields('HR_USER', 'Employee Benefits', 'Statutory & Voluntary Welfare', 'Benefits Coverage Matrix'),
@@ -1807,7 +1888,7 @@ class ContributorStore {
         remarks: '100% compliance with Minimum Wages Act across all states.'
       },
       grievances: {
-        common: createDefaultCommonFields('HR_USER', 'Grievances & Human Rights', 'Workforce Dispute Mechanism', 'Grievance Redressal Register'),
+        common: createDefaultCommonFields('HR_USER', 'Grievances & Redressal', 'Workforce Dispute Mechanism', 'Grievance Redressal Register'),
         grievanceCategory: 'Working Conditions' as const,
         population: 'Permanent & Contract Workers',
         grievancesReceived: 48,
@@ -1818,7 +1899,15 @@ class ContributorStore {
         responsibleDepartment: 'Industrial Relations & Site Admin',
         sourceRegister: 'IR-REG-2026-Q2',
         supportingEvidence: 'DOC-HR-GRIEVANCE-LOG.xlsx',
-        remarks: 'Average resolution turnaround time was 9.4 calendar days.'
+        remarks: 'Average resolution turnaround time was 9.4 calendar days.',
+        workingConditionsReceived: 24,
+        workingConditionsResolved: 23,
+        wageDisputesReceived: 14,
+        wageDisputesResolved: 13,
+        discriminationReceived: 6,
+        discriminationResolved: 6,
+        avgTurnaroundDays: 9.4,
+        pendingOver90DaysCount: 0
       },
       safetyCoord: {
         common: createDefaultCommonFields('HR_USER', 'Occupational Well-being', 'Health Coordination', 'Workforce Well-being Program'),
@@ -1830,6 +1919,26 @@ class ContributorStore {
         sourceReference: 'HR-WELLBEING-REPORT-Q2',
         supportingEvidence: 'DOC-HR-WELLBEING.pdf',
         remarks: 'Organized in partnership with local district health authorities.'
+      },
+      humanRights: {
+        common: createDefaultCommonFields('HR_USER', 'Human Rights & Fair Labour', 'Statutory Human Rights Due Diligence', 'BRSR Principle 5 Disclosures'),
+        childLabourAuditsCount: 48,
+        childLabourViolations: 0,
+        ageVerificationMethod: 'Biometric Access Gate with Aadhaar ID Validation',
+        forcedLabourAuditsCount: 48,
+        forcedLabourViolations: 0,
+        identityRetentionAudit: '100% Zero-Document Retention Compliance',
+        contractorCampsInspected: 36,
+        campsMeetingSanitationPct: 96.8,
+        cleanDrinkingWaterPct: 100,
+        minimumWageCompliancePct: 100,
+        epfUanGeneratedPct: 100,
+        esicCoveragePct: 100,
+        employeesTrainedHumanRightsPct: 88.5,
+        workersTrainedHumanRightsPct: 92.0,
+        thirdPartyAuditReference: 'SA8000-MEIL-AUDIT-2026',
+        supportingEvidence: 'DOC-HR-HRIGHTS-AUDIT.pdf',
+        remarks: 'Independent social audit conducted across all active EPC project sites.'
       }
     }
   }

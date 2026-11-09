@@ -52,6 +52,7 @@ const VIEW_ICONS: Record<PaViewId, React.ComponentType<{ size?: number; classNam
   corrections: FileWarning,
   notifications: Bell,
   settings: Settings,
+  "approved-dataset": FileCheck2,
 };
 
 export interface PaSessionUser {
@@ -103,6 +104,30 @@ export function ProjectAdminWorkspaceShell({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [commandPaletteOpen, setCommandPaletteOpen]);
+
+  /* Profile menu: close on Escape and whenever the admin navigates elsewhere.
+     Outside clicks use a document mousedown listener — a `fixed inset-0`
+     overlay inside the header does NOT cover the viewport because the glass
+     header's backdrop-filter turns it into the containing block. */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setProfileMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  useEffect(() => {
+    setProfileMenuOpen(false);
+  }, [currentView]);
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest("[data-profile-menu]")) setProfileMenuOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [profileMenuOpen]);
 
   const CurrentViewComponent = PA_VIEW_COMPONENTS[currentView] || PA_VIEW_COMPONENTS.dashboard;
 
@@ -292,7 +317,7 @@ export function ProjectAdminWorkspaceShell({
             </button>
 
             {/* Profile Pill matching Image 1 */}
-            <div className="relative">
+            <div className="relative" data-profile-menu>
               <button
                 type="button"
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}

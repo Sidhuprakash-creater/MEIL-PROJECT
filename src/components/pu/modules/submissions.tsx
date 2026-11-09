@@ -459,13 +459,18 @@ export function SubmissionsModule() {
           }
         }
         setProjects(out)
-        /* No "All projects" — resolve to the first concrete project. */
+        /* No "All projects" — resolve to the signed-in user's OWN project when
+           it is in the tree, falling back to the first concrete project. (The
+           tree returns every project in the org; defaulting to out[0] silently
+           hid the user's own submissions behind another project's filter.) */
         if (out.length > 0) {
-          setProjectId((prev) => (prev ? prev : out[0].id))
+          const ownProjectId = user?.scopes?.find((s) => s.scopeType === 'PROJECT')?.scopeId
+          setProjectId((prev) => (prev ? prev : (ownProjectId && out.some((p) => p.id === ownProjectId) ? ownProjectId : out[0].id)))
         }
       })
       .catch(() => { /* silent — list stays user-scoped */ })
       .finally(() => setProjectsReady(true))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ----- list URL builder -----
@@ -2332,13 +2337,13 @@ function CalcList({ results }: { results: CalcResultRow[] }) {
   )
 }
 
-function HistoryTimeline({ history }: { history: HistoryEntry[] }) {
-  if (history.length === 0) return <EmptyBlock icon={History} text="No status transitions yet." />
+function HistoryTimeline({ history }: { history: any[] }) {
+  if (!history || history.length === 0) return <EmptyBlock icon={History} text="No status transitions yet." />
   return (
     <ol className="relative space-y-3 border-l border-white/60 pl-4">
       {history.map((h, i) => (
         <motion.li
-          key={h.id}
+          key={h.id || i}
           initial={{ opacity: 0, x: -8 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: Math.min(i * 0.05, 0.4) }}
@@ -2346,17 +2351,21 @@ function HistoryTimeline({ history }: { history: HistoryEntry[] }) {
         >
           <span className="absolute -left-[18px] flex h-2.5 w-2.5 rounded-full bg-blue-500 ring-4 ring-blue-100" />
           <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-700">{h.action.replace(/_/g, ' ')}</span>
-            <span className="text-[10px] text-slate-400">{timeAgo(h.createdAt)}</span>
+            <span className="text-xs font-semibold text-slate-700">{(h.action || '').replace(/_/g, ' ')}</span>
+            <span className="text-[10px] text-slate-400">{timeAgo(h.createdAt || h.at)}</span>
           </div>
           <div className="text-[11px] text-slate-500">
-            {PIPELINE_LABEL[h.fromStatus] ?? h.fromStatus} → {PIPELINE_LABEL[h.toStatus] ?? h.toStatus}
+            {h.fromStatus && h.toStatus ? (
+              <span>{PIPELINE_LABEL[h.fromStatus] ?? h.fromStatus} → {PIPELINE_LABEL[h.toStatus] ?? h.toStatus}</span>
+            ) : (
+              <span>{h.note || h.comment || 'Transition recorded'}</span>
+            )}
           </div>
-          <div className="text-[10px] text-slate-400">{h.actorName} · {h.actorRole}</div>
-          {h.comment && (
+          <div className="text-[10px] text-slate-400">{h.actorName || h.actor || 'System'} · {h.actorRole || 'Project Admin'}</div>
+          {(h.comment || h.note) && (
             <div className="mt-0.5 flex items-start gap-1 text-[11px] italic text-slate-500">
               <MessageSquare className="h-3 w-3 flex-shrink-0" />
-              “{h.comment}”
+              “{h.comment || h.note}”
             </div>
           )}
         </motion.li>

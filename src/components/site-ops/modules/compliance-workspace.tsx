@@ -24,6 +24,7 @@ import {
   TrendingUp, Building2, History, Award, CheckSquare, Globe
 } from 'lucide-react'
 import { useApp } from '@/components/site-ops/context'
+import { saveRoleDraftToApi } from './common-validation-modal'
 import {
   contributorStore,
   type ContributorAssignment,
@@ -33,8 +34,89 @@ import { CommonLevel0Card } from './common-level0-card'
 import { CommonEvidenceManager } from './common-evidence-manager'
 import { CommonValidationModal } from './common-validation-modal'
 
+/* Per-module header theme — the sidebar maps each of these modules to this workspace,
+   so the header hero (icon, title, badge, colors) should follow the active module. */
+type Accent = 'teal' | 'amber' | 'blue' | 'rose' | 'purple'
+const MODULE_THEMES: Record<string, {
+  title: string; desc: string; badge: string; Icon: typeof Scale; accent: Accent;
+  iconBg: string; badgeCls: string; badgeIconCls: string; btnCls: string; pillCls: string;
+  toastCls: string; toastIconCls: string;
+}> = {
+  overview: {
+    title: 'Governance & Compliance Contributor Workspace',
+    desc: 'Corporate policy register · Anti-corruption & ethics · Whistleblower cases · Statutory notices & Board committee oversight',
+    badge: 'BRSR Principle 1 & 9', Icon: Scale, accent: 'purple',
+    iconBg: 'bg-gradient-to-br from-purple-600 to-indigo-600 shadow-purple-500/25',
+    badgeCls: 'border-purple-200 bg-purple-50/80 text-purple-700', badgeIconCls: 'text-purple-600',
+    btnCls: 'from-purple-600 to-indigo-600 shadow-purple-500/20 hover:from-purple-700 hover:to-indigo-700',
+    pillCls: 'bg-purple-600 shadow-purple-500/25',
+    toastCls: 'border-purple-200 shadow-purple-500/10 text-purple-800', toastIconCls: 'text-purple-600',
+  },
+  'comp-policies': {
+    title: 'Policy Register Workspace',
+    desc: 'Corporate policy register · Board approvals · Public policy URLs · Review schedules',
+    badge: 'BRSR Principle 1', Icon: FileCheck2, accent: 'teal',
+    iconBg: 'bg-gradient-to-br from-emerald-600 to-teal-600 shadow-emerald-500/25',
+    badgeCls: 'border-emerald-200 bg-emerald-50/80 text-emerald-700', badgeIconCls: 'text-emerald-600',
+    btnCls: 'from-emerald-600 to-teal-600 shadow-emerald-500/20 hover:from-emerald-700 hover:to-teal-700',
+    pillCls: 'bg-emerald-600 shadow-emerald-500/25',
+    toastCls: 'border-emerald-200 shadow-emerald-500/10 text-emerald-800', toastIconCls: 'text-emerald-600',
+  },
+  'comp-obligations': {
+    title: 'Compliance Obligations Workspace',
+    desc: 'Policy implementation & review · Rollout coverage · Secretarial audit · Training coverage',
+    badge: 'BRSR Principle 1 & 9', Icon: FileText, accent: 'blue',
+    iconBg: 'bg-gradient-to-br from-blue-600 to-sky-600 shadow-blue-500/25',
+    badgeCls: 'border-blue-200 bg-blue-50/80 text-blue-700', badgeIconCls: 'text-blue-600',
+    btnCls: 'from-blue-600 to-sky-600 shadow-blue-500/20 hover:from-blue-700 hover:to-sky-700',
+    pillCls: 'bg-blue-600 shadow-blue-500/25',
+    toastCls: 'border-blue-200 shadow-blue-500/10 text-blue-800', toastIconCls: 'text-blue-600',
+  },
+  'comp-controls': {
+    title: 'Controls Workspace',
+    desc: 'Internal controls · Control effectiveness · Assurance & remediation tracking',
+    badge: 'BRSR Principle 9', Icon: ShieldCheck, accent: 'teal',
+    iconBg: 'bg-gradient-to-br from-teal-600 to-cyan-600 shadow-teal-500/25',
+    badgeCls: 'border-teal-200 bg-teal-50/80 text-teal-700', badgeIconCls: 'text-teal-600',
+    btnCls: 'from-teal-600 to-cyan-600 shadow-teal-500/20 hover:from-teal-700 hover:to-cyan-700',
+    pillCls: 'bg-teal-600 shadow-teal-500/25',
+    toastCls: 'border-teal-200 shadow-teal-500/10 text-teal-800', toastIconCls: 'text-teal-600',
+  },
+  'comp-cases': {
+    title: 'Cases & Incidents Workspace',
+    desc: 'Whistleblower cases · Grievance redressal · Ombudsman tracking · Vigil mechanism',
+    badge: 'BRSR Principle 1', Icon: AlertCircle, accent: 'rose',
+    iconBg: 'bg-gradient-to-br from-rose-600 to-red-600 shadow-rose-500/25',
+    badgeCls: 'border-rose-200 bg-rose-50/80 text-rose-700', badgeIconCls: 'text-rose-600',
+    btnCls: 'from-rose-600 to-red-600 shadow-rose-500/20 hover:from-rose-700 hover:to-red-700',
+    pillCls: 'bg-rose-600 shadow-rose-500/25',
+    toastCls: 'border-rose-200 shadow-rose-500/10 text-rose-800', toastIconCls: 'text-rose-600',
+  },
+  'comp-ethics': {
+    title: 'Ethics & Conduct Workspace',
+    desc: 'Anti-corruption & ethics · Anti-bribery training · Complaints & disclosures',
+    badge: 'BRSR Principle 1', Icon: Gavel, accent: 'purple',
+    iconBg: 'bg-gradient-to-br from-violet-600 to-purple-600 shadow-violet-500/25',
+    badgeCls: 'border-violet-200 bg-violet-50/80 text-violet-700', badgeIconCls: 'text-violet-600',
+    btnCls: 'from-violet-600 to-purple-600 shadow-violet-500/20 hover:from-violet-700 hover:to-purple-700',
+    pillCls: 'bg-violet-600 shadow-violet-500/25',
+    toastCls: 'border-violet-200 shadow-violet-500/10 text-violet-800', toastIconCls: 'text-violet-600',
+  },
+  'comp-calendar': {
+    title: 'Regulatory Calendar Workspace',
+    desc: 'Statutory notices · Show-cause notices · Penalties & disposals · Filing deadlines',
+    badge: 'BRSR Principle 9', Icon: Calendar, accent: 'amber',
+    iconBg: 'bg-gradient-to-br from-amber-500 to-orange-600 shadow-amber-500/25',
+    badgeCls: 'border-amber-200 bg-amber-50/80 text-amber-700', badgeIconCls: 'text-amber-600',
+    btnCls: 'from-amber-500 to-orange-600 shadow-amber-500/20 hover:from-amber-600 hover:to-orange-700',
+    pillCls: 'bg-amber-600 shadow-amber-500/25',
+    toastCls: 'border-amber-200 shadow-amber-500/10 text-amber-800', toastIconCls: 'text-amber-600',
+  },
+}
+
 export function ComplianceWorkspace() {
-  const { activeModule } = useApp()
+  const { activeModule, selectedProjectId } = useApp()
+  const theme = MODULE_THEMES[activeModule] ?? MODULE_THEMES.overview
   const [activeTab, setActiveTab] = useState<string>('overview')
   const [govData, setGovData] = useState(() => contributorStore.getGovData())
   const [assignments, setAssignments] = useState<ContributorAssignment[]>(() => contributorStore.getAssignments('COMPLIANCE_USER'))
@@ -64,6 +146,8 @@ export function ComplianceWorkspace() {
   const handleSaveDraft = (levelLabel: string) => {
     setSaveStatus('Saving...')
     contributorStore.saveGovData(govData)
+    /* Sync a real DRAFT soSubmission to the server — the local store alone is lost on refresh. */
+    saveRoleDraftToApi('COMPLIANCE_USER', selectedProjectId).catch((e) => triggerToast(e?.message || 'Draft sync failed'))
     setTimeout(() => {
       setSaveStatus('Draft Saved')
       triggerToast(`${levelLabel} draft saved successfully.`)
@@ -105,9 +189,9 @@ export function ComplianceWorkspace() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-6 right-6 z-50 flex items-center gap-2 rounded-2xl border border-purple-200 bg-white/95 px-4 py-3 shadow-xl shadow-purple-500/10 backdrop-blur-xl text-xs font-bold text-purple-800"
+            className={`fixed top-6 right-6 z-50 flex items-center gap-2 rounded-2xl border bg-white/95 px-4 py-3 shadow-xl backdrop-blur-xl text-xs font-bold ${theme.toastCls}`}
           >
-            <CheckCircle2 className="h-4 w-4 text-purple-600" />
+            <CheckCircle2 className={`h-4 w-4 ${theme.toastIconCls}`} />
             <span>{toastMessage}</span>
           </motion.div>
         )}
@@ -118,19 +202,19 @@ export function ComplianceWorkspace() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/25">
-                <Scale className="h-6 w-6" />
+              <div className={`flex h-11 w-11 items-center justify-center rounded-2xl text-white shadow-md ${theme.iconBg}`}>
+                <theme.Icon className="h-6 w-6" />
               </div>
               <h1 className="text-2xl font-black tracking-tight text-slate-900 md:text-3xl">
-                Governance & Compliance Contributor Workspace
+                {theme.title}
               </h1>
-              <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50/80 px-3 py-1 text-xs font-bold text-purple-700 shadow-xs">
-                <Sparkles className="h-3 w-3 text-purple-600" />
-                BRSR Principle 1 & 9
+              <span className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-bold shadow-xs ${theme.badgeCls}`}>
+                <Sparkles className={`h-3 w-3 ${theme.badgeIconCls}`} />
+                {theme.badge}
               </span>
             </div>
             <p className="text-sm font-medium text-slate-500">
-              Corporate policy register · Anti-corruption & ethics · Whistleblower cases · Statutory notices & Board committee oversight
+              {theme.desc}
             </p>
           </div>
 
@@ -149,7 +233,7 @@ export function ComplianceWorkspace() {
             <button
               type="button"
               onClick={() => setShowValidationModal(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-purple-500/20 hover:from-purple-700 hover:to-indigo-700 hover:-translate-y-px transition-all cursor-pointer active:scale-95"
+              className={`inline-flex items-center gap-2 rounded-full bg-gradient-to-r px-5 py-2.5 text-xs font-bold text-white shadow-lg hover:-translate-y-px transition-all cursor-pointer active:scale-95 ${theme.btnCls}`}
             >
               <Send className="h-3.5 w-3.5" />
               <span>Validate & Submit</span>
@@ -166,7 +250,7 @@ export function ComplianceWorkspace() {
               onClick={() => setActiveTab(tab.id)}
               className={`rounded-xl px-3 py-1.5 text-xs font-bold transition-all ${
                 activeTab === tab.id
-                  ? 'bg-purple-600 text-white shadow-md shadow-purple-500/25'
+                  ? `text-white shadow-md ${theme.pillCls}`
                   : 'text-slate-600 hover:bg-white/80 hover:text-slate-900'
               }`}
             >
@@ -364,7 +448,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.policies.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               policies: { ...govData.policies, common: { ...govData.policies.common, ...upd } }
@@ -555,7 +639,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.implementation.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               implementation: { ...govData.implementation, common: { ...govData.implementation.common, ...upd } }
@@ -662,7 +746,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.ethics.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               ethics: { ...govData.ethics, common: { ...govData.ethics.common, ...upd } }
@@ -771,7 +855,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.whistleblower.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               whistleblower: { ...govData.whistleblower, common: { ...govData.whistleblower.common, ...upd } }
@@ -903,7 +987,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.compliance.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               compliance: { ...govData.compliance, common: { ...govData.compliance.common, ...upd } }
@@ -1029,7 +1113,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.humanRights.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               humanRights: { ...govData.humanRights, common: { ...govData.humanRights.common, ...upd } }
@@ -1138,7 +1222,7 @@ export function ComplianceWorkspace() {
         <div className="space-y-6">
           <CommonLevel0Card
             fields={govData.oversight.common}
-            accentColor="purple"
+            accentColor={theme.accent}
             onChange={(upd) => setGovData({
               ...govData,
               oversight: { ...govData.oversight, common: { ...govData.oversight.common, ...upd } }
@@ -1246,7 +1330,7 @@ export function ComplianceWorkspace() {
 
       {/* 9. EVIDENCE TAB */}
       {activeTab === 'evidence' && (
-        <CommonEvidenceManager roleKey="COMPLIANCE_USER" accentColor="purple" />
+        <CommonEvidenceManager roleKey="COMPLIANCE_USER" accentColor={theme.accent} />
       )}
 
       {/* 10. SUBMISSIONS TAB */}

@@ -86,7 +86,11 @@ export function ReportReviewWorkspace({
   const decision = useMutation<{ message: string; decision: { action: string; version: number } }>();
 
   const sub = detail?.submission ?? null;
-  const eligible = !!sub && REVIEW_ELIGIBLE.includes(sub.status);
+  const eligible = !!sub && (
+    REVIEW_ELIGIBLE.includes(sub.status) ||
+    sub.status === "BU_APPROVED" ||
+    ((sub.status === "APPROVED" || sub.status === "BU_REVIEW_PENDING") && (sub.forwardedToBu || (sub as any).inConsolidatedReport))
+  );
 
   /* Load report detail. */
   React.useEffect(() => {
@@ -144,30 +148,45 @@ export function ReportReviewWorkspace({
     body: { reason?: string; instructions?: string; affectedFields?: string[] }
   ) => {
     if (!detail) return;
-    const result = await decision.run(() =>
-      apiPost(`/api/bm/submissions/${detail.submission.id}/decision`, {
-        action,
-        reason: body.reason ?? "",
-        instructions: body.instructions ?? "",
-        affectedFields: body.affectedFields ?? [],
-        expectedUpdatedAt: detail.updatedAt, // stale-version guard
-      })
-    );
-    if (result) {
+    try {
+      const result = await decision.run(() =>
+        apiPost<{ message: string; decision: { action: string; version: number } }>(
+          `/api/bm/submissions/${detail.submission.id}/decision`,
+          {
+            action,
+            reason: body.reason ?? "",
+            instructions: body.instructions ?? "",
+            affectedFields: body.affectedFields ?? [],
+            expectedUpdatedAt: detail.updatedAt, // stale-version guard
+          }
+        )
+      );
+      if (result) {
+        toast({
+          title:
+            action === "approve" ? "Report approved"
+              : action === "reject" ? "Report rejected"
+                : "Report returned for correction",
+          description: result.message,
+        });
+        setApproveOpen(false);
+        setReturnOpen(false);
+        setRejectOpen(false);
+        onOpenChange(false);
+        onDecided?.(action);
+      } else {
+        toast({
+          title: "Decision not recorded",
+          description: decision.error || "Failed to submit review decision",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
       toast({
-        title:
-          action === "approve" ? "Report approved"
-            : action === "reject" ? "Report rejected"
-              : "Report returned for correction",
-        description: result.message,
+        title: "Decision not recorded",
+        description: err?.message || "Failed to submit review decision",
+        variant: "destructive",
       });
-      setApproveOpen(false);
-      setReturnOpen(false);
-      setRejectOpen(false);
-      onOpenChange(false);
-      onDecided?.(action);
-    } else if (decision.error) {
-      toast({ title: "Decision not recorded", description: decision.error, variant: "destructive" });
     }
   };
 
@@ -213,7 +232,10 @@ export function ReportReviewWorkspace({
         if (!o && (approveOpen || returnOpen || rejectOpen)) return; // decision dialogs stay on top
         onOpenChange(o);
       }}>
-        <DialogContent className="glass-strong glass-sheen nice-scroll fixed top-1/2 left-1/2 grid h-[92vh] w-full max-w-[calc(100vw-1.5rem)] translate-x-[-50%] translate-y-[-50%] flex-col gap-0 overflow-hidden rounded-3xl border-white/80 p-0 sm:max-w-6xl">
+        <DialogContent
+          className="glass-strong glass-sheen fixed inset-0 m-auto flex h-[90vh] max-h-[90vh] max-h-[90dvh] w-full max-w-[calc(100vw-1.5rem)] flex-col gap-0 overflow-hidden rounded-3xl border-white/80 p-0 shadow-2xl sm:max-w-6xl"
+          style={{ transform: "none", translate: "none", margin: "auto" }}
+        >
           {/* Header */}
           <DialogHeader className="glass-sheen shrink-0 border-b border-[rgba(139,92,246,0.18)] bg-white/50 px-5 py-4">
             <DialogTitle className="flex flex-wrap items-center gap-2 text-base leading-snug text-[color:var(--ink)]">
@@ -235,7 +257,7 @@ export function ReportReviewWorkspace({
           </DialogHeader>
 
           {/* Body — three-zone on desktop, stacked on mobile */}
-          <div className="nice-scroll flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+          <div className="nice-scroll flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
             {loading && <LoadingBlock rows={6} label="Loading the full report…" />}
             {error && !loading && <ErrorState message={error} onRetry={() => window.location.reload()} />}
             {sub && !loading && (
@@ -248,8 +270,13 @@ export function ReportReviewWorkspace({
                       {sub.level === "PROJECT" ? sub.projectName ?? "—" : "Business-unit level"}
                     </InfoRow>
                     <InfoRow label="Category">{sub.category}</InfoRow>
-                    <InfoRow label="Submitted by">{sub.submittedByName ?? "—"}</InfoRow>
-                    <InfoRow label="Submitted">{fmtDateTime(sub.submittedAt)}</InfoRow>
+                    <InfoRow label="Submitted by">{sub.submittedByName || sub.history?.find((h) => /submit/i.test(h.action))?.actor || "Project User"}</InfoRow>
+                    {sub.forwardedByName ? (
+                      <InfoRow label="Forwarded by (PA)">{sub.forwardedByName} (Project Admin)</InfoRow>
+                    ) : (sub.forwardedToBu || (sub as any).inConsolidatedReport) ? (
+                      <InfoRow label="Forwarded by (PA)">Project Admin</InfoRow>
+                    ) : null}
+                    <InfoRow label="Submitted">{fmtDateTime(sub.forwardedToBuAt || sub.submittedAt || sub.lastUpdated)}</InfoRow>
                     <InfoRow label="Report due">{fmtDate(sub.dueDate)}</InfoRow>
                     <InfoRow label="Review deadline">
                       <span>{fmtDate(sub.reviewDeadline)}</span>{" "}
@@ -409,13 +436,17 @@ export function ReportReviewWorkspace({
                           <div className="text-[10.5px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Review status</div>
                           <div className="mt-1.5"><StatusChip status={sub.status} /></div>
                           <div className="mt-2 text-[11px] text-[color:var(--ink-soft)]">
-                            {sub.status === "APPROVED"
-                              ? "Approved — eligible for subsidiary consolidation."
-                              : sub.status === "REJECTED"
-                                ? "Rejected — awaiting correction by the responsible user."
-                                : sub.status === "CHANGES_REQUESTED"
-                                  ? "Returned for correction — the responsible user has been notified."
-                                  : "Awaiting your review decision."}
+                            {sub.status === "APPROVED" && sub.forwardedToBu
+                              ? "Forwarded by the Project Admin as approved — awaiting your BU sign-off."
+                              : sub.status === "APPROVED"
+                                ? "Approved — eligible for subsidiary consolidation."
+                                : sub.status === "BU_APPROVED"
+                                  ? "Signed off by the Business Unit — eligible for subsidiary consolidation."
+                                  : sub.status === "REJECTED"
+                                    ? "Rejected — awaiting correction by the responsible user."
+                                    : sub.status === "CHANGES_REQUESTED"
+                                      ? "Returned for correction — the responsible user has been notified."
+                                      : "Awaiting your review decision."}
                           </div>
                         </div>
                         <div className="glass-subtle rounded-2xl p-3">
@@ -572,41 +603,46 @@ export function ReportReviewWorkspace({
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <Button
+                    type="button"
                     variant="outline"
                     disabled={decision.pending}
-                    className="rounded-2xl border-[rgba(139,92,246,0.4)] text-[color:var(--bum-purple-deep)] hover:bg-[rgba(139,92,246,0.06)]"
+                    className="rounded-2xl border-[rgba(139,92,246,0.4)] text-[color:var(--bum-purple-deep)] hover:bg-[rgba(139,92,246,0.06)] cursor-pointer"
                     onClick={() => setReturnOpen(true)}
                   >
                     <ArrowLeftRight className="mr-1.5 h-4 w-4" />
                     Return for correction…
                   </Button>
                   <Button
+                    type="button"
                     variant="outline"
                     disabled={decision.pending}
-                    className="rounded-2xl border-[rgba(195,74,74,0.4)] text-[#a53b3b] hover:bg-[rgba(195,74,74,0.06)]"
+                    className="rounded-2xl border-[rgba(195,74,74,0.4)] text-[#a53b3b] hover:bg-[rgba(195,74,74,0.06)] cursor-pointer"
                     onClick={() => setRejectOpen(true)}
                   >
                     <XCircle className="mr-1.5 h-4 w-4" />
                     Reject…
                   </Button>
                   <Button
+                    type="button"
                     disabled={decision.pending}
-                    className="btn-bum-action rounded-2xl"
+                    className="btn-bum-action rounded-2xl cursor-pointer"
                     onClick={() => setApproveOpen(true)}
                   >
                     {decision.pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
-                    Approve
+                    {sub.status === "BU_APPROVED" ? "Approved (BU Sign-off)" : "Approve"}
                   </Button>
                 </div>
               </div>
             ) : sub ? (
               <div className="flex w-full items-center justify-between gap-2">
                 <span className="text-[12px] text-[color:var(--ink-faint)]">
-                  {sub.status === "APPROVED"
-                    ? "This report is approved — eligible for subsidiary consolidation."
-                    : "This report is outside the review stage — decisions are only available while it awaits review."}
+                  {sub.status === "BU_APPROVED" || (sub.status === "APPROVED" && !sub.forwardedToBu && !(sub as any).inConsolidatedReport)
+                    ? "This report has been approved by BU Manager — eligible for subsidiary consolidation."
+                    : (sub.status === "APPROVED" || sub.status === "BU_REVIEW_PENDING") && (sub.forwardedToBu || (sub as any).inConsolidatedReport)
+                      ? "This report was forwarded by Project Admin and is awaiting your BU sign-off."
+                      : "This report is outside the review stage — decisions are only available while it awaits review."}
                 </span>
-                <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => onOpenChange(false)}>Close</Button>
+                <Button variant="outline" className="glass-subtle rounded-2xl cursor-pointer" onClick={() => onOpenChange(false)}>Close</Button>
               </div>
             ) : null}
           </DialogFooter>
@@ -630,7 +666,10 @@ export function ReportReviewWorkspace({
 
       {/* ── Return-for-correction dialog (mandatory reason + mandatory instructions) ── */}
       <Dialog open={returnOpen} onOpenChange={setReturnOpen}>
-        <DialogContent className="glass-strong max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll sm:max-w-xl">
+        <DialogContent
+          className="glass-strong fixed inset-0 m-auto z-[70] max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll sm:max-w-xl"
+          style={{ transform: "none", translate: "none", margin: "auto" }}
+        >
           <DialogHeader>
             <DialogTitle className="text-base text-[color:var(--ink)]">Return {sub?.ref ?? ""} for correction</DialogTitle>
             <DialogDescription className="text-[12.5px] text-[color:var(--ink-faint)]">
@@ -723,7 +762,10 @@ export function ReportReviewWorkspace({
 
       {/* ── Reject dialog (mandatory reason) ── */}
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-        <DialogContent className="glass-strong max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll sm:max-w-xl">
+        <DialogContent
+          className="glass-strong fixed inset-0 m-auto z-[70] max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll sm:max-w-xl"
+          style={{ transform: "none", translate: "none", margin: "auto" }}
+        >
           <DialogHeader>
             <DialogTitle className="text-base text-[color:var(--ink)]">Reject {sub?.ref ?? ""}</DialogTitle>
             <DialogDescription className="text-[12.5px] text-[color:var(--ink-faint)]">

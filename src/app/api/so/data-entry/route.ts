@@ -845,6 +845,12 @@ export async function POST(req: NextRequest) {
     const validationStatus = hasErrors ? 'FAILED' : hasWarnings ? 'WARNING' : 'PASSED'
 
     const recId = recordId || `rec-l${level}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+    /* How many evidence documents the contributor actually attached to this
+       record (record-level id + evidenceIds[] combined). */
+    const evCount = Math.max(
+      Array.isArray(evidenceIds) ? evidenceIds.filter(Boolean).length : 0,
+      evidenceId ? 1 : 0,
+    )
     const record: LevelRecord = {
       id: recId,
       level: Number(level),
@@ -982,7 +988,11 @@ export async function POST(req: NextRequest) {
     try {
       const proj = await db.project.findUnique({
         where: { id: projectId },
-        select: { id: true, name: true, code: true },
+        select: {
+          id: true, name: true, code: true,
+          businessUnitId: true,
+          businessUnit: { select: { id: true, subsidiaryId: true } },
+        },
       })
       const per = await db.reportingPeriod.findUnique({
         where: { id: reportingPeriodId },
@@ -1014,7 +1024,7 @@ export async function POST(req: NextRequest) {
             submittedAt: isSubmittingForReview ? new Date() : null,
             submittedBy: user.id,
             completionPct: hasErrors ? 50 : 100,
-            evidenceCount: evidenceId ? Math.max(1, existingDraft.evidenceCount) : existingDraft.evidenceCount,
+            evidenceCount: evCount ? Math.max(evCount, existingDraft.evidenceCount) : existingDraft.evidenceCount,
             validationPassed: hasErrors ? 0 : Math.max(1, existingDraft.validationPassed),
             validationErrors: hasErrors ? issues.length : 0,
           },
@@ -1035,7 +1045,7 @@ export async function POST(req: NextRequest) {
             submittedAt: isSubmittingForReview ? new Date() : null,
             submittedBy: user.id,
             completionPct: hasErrors ? 50 : 100,
-            evidenceCount: evidenceId ? 1 : 0,
+            evidenceCount: evCount,
             validationPassed: hasErrors ? 0 : 1,
             validationErrors: hasErrors ? issues.length : 0,
           },
@@ -1068,7 +1078,7 @@ export async function POST(req: NextRequest) {
           SAFETY: 'SAFETY', TRAINING: 'WORKFORCE', WORKFORCE: 'WORKFORCE',
           HR: 'WORKFORCE', PEOPLE: 'WORKFORCE',
           COMPLIANCE: 'COMPLIANCE', INCIDENTS: 'INCIDENTS', INITIATIVES: 'INITIATIVES',
-          FINANCE: 'FINANCE', PROCUREMENT: 'PROCUREMENT',
+          FINANCE: 'FINANCE', PROCUREMENT: 'PROCUREMENT', CSR: 'CSR',
         } as Record<string, string>)[record.module] || 'ENVIRONMENT'
 
         const mirrorValues: Array<{ label: string; value: string | number; unit?: string }> = []
@@ -1106,7 +1116,15 @@ export async function POST(req: NextRequest) {
         const mirrorRecordIds = mirrorExisting
           ? JSON.stringify(Array.from(new Set([...parseRecordIds(mirrorExisting.recordIds), recId])))
           : JSON.stringify([recId])
+        /* Org scope on the mirror row — the Project Admin console matches
+           submissions by projectId OR businessUnitId OR subsidiaryId; without
+           these, other admins' BU-scoped lists miss site-ops disclosures. */
+        const mirrorOrgScope = {
+          businessUnitId: proj?.businessUnitId || null,
+          subsidiaryId: proj?.businessUnit?.subsidiaryId || null,
+        }
         const mirrorPayload = {
+          ...mirrorOrgScope,
           title: submissionTitle,
           status: (isSubmittingForReview ? 'SUBMITTED' : 'DRAFT') as 'SUBMITTED' | 'DRAFT',
           recordIds: mirrorRecordIds,
@@ -1117,7 +1135,7 @@ export async function POST(req: NextRequest) {
           metricUnit: calculation?.resultUnit || '',
           values: JSON.stringify(mirrorValues),
           completionPct: hasErrors ? 50 : 100,
-          evidenceCount: evidenceId ? 1 : 0,
+          evidenceCount: evCount,
           validationPassed: hasErrors ? 0 : 1,
           validationErrors: hasErrors ? issues.length : 0,
           updatedAt: new Date(),

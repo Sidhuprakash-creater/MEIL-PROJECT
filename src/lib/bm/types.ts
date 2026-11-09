@@ -122,6 +122,11 @@ export interface BmSubmissionRow extends SubmissionRow {
   reviewDeadlineLabel: string;
   isResubmission: boolean;
   daysRemaining: number | null; // relative to reviewDeadline (or dueDate)
+  /** Project Admin forwarded this approved report to the BU for sign-off.
+   *  An APPROVED row with this true is awaiting BU review, not already done. */
+  forwardedToBu: boolean;
+  forwardedToBuAt: string | null;
+  forwardedByName?: string | null;
 }
 
 export interface SubmissionsResponse {
@@ -142,7 +147,7 @@ export interface SubmissionsResponse {
 
 /** Full report detail as served by /api/bm/submissions/[id] — the shared
  *  SubmissionDetail plus the manager review context fields. */
-export type BmSubmissionDetail = SubmissionDetail & Pick<BmSubmissionRow, "reviewDeadline" | "reviewDeadlineLabel" | "isResubmission" | "daysRemaining">;
+export type BmSubmissionDetail = SubmissionDetail & Pick<BmSubmissionRow, "reviewDeadline" | "reviewDeadlineLabel" | "isResubmission" | "daysRemaining" | "forwardedToBu" | "forwardedToBuAt" | "forwardedByName"> & { inConsolidatedReport?: boolean };
 
 /* ── review decision ───────────────────────────────────────────────────────── */
 

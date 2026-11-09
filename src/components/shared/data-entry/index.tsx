@@ -33,7 +33,7 @@ import { Level9InitiativesForm } from './forms/level9-initiatives'
 import { ItemDetailModal } from '../item-detail-modal'
 import { Stepper } from './primitives'
 import { describeLevelRecord, DataEntrySkeleton, ErrorState, EmptyState } from './states'
-import { LevelReviewModal, FinalSubmitAllModal } from '../submission-flow-modals'
+import { LevelReviewModal, FinalSubmitAllModal, SubmitAllSuccessModal } from '../submission-flow-modals'
 import { SUB_MODULES, normalizeSubModule, READ_ONLY_ROLES, STEPS, ApiBaseContext, type LevelKey, type Project, type Period, type EvidenceItem, type SavedRecord } from './core'
 
 /* ============================================================
@@ -189,8 +189,19 @@ export function DataEntryModule({
   const [finalSubmitModalOpen, setFinalSubmitModalOpen] = useState(false)
   const [stagedLevels, setStagedLevels] = useState<Record<string, any>>({})
 
+  /* Forms stage data under scoped keys `l{n}-{projectId}-{periodId}` (e.g.
+     'level7' → 'l7-…'); resolve the staged entry for a levelKey with an
+     unscoped fallback so reviews/submit-all never read an empty bucket. */
+  const stagedForLevel = (levelKey: string): Record<string, any> => {
+    const n = String(levelKey).replace('level', '')
+    const scoped = selectedProjectId && selectedPeriodId
+      ? formStateRef.current[`l${n}-${selectedProjectId}-${selectedPeriodId}`]
+      : undefined
+    return scoped || formStateRef.current[levelKey] || {}
+  }
+
   const handleRequestNextReview = (levelKey: LevelKey, data?: any) => {
-    const currentData = data || formStateRef.current[levelKey] || {}
+    const currentData = data && Object.keys(data).length ? data : stagedForLevel(levelKey)
     setStagedLevels((prev) => ({
       ...prev,
       [levelKey]: { ...currentData, stagedAt: new Date().toISOString() },
@@ -225,11 +236,33 @@ export function DataEntryModule({
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Failed to submit all levels')
 
+      /* Verify BEFORE confirming: re-read the submissions ledger (cache
+         bypassed) — the same db.submission table the Project Admin console
+         reads — and require the consolidated dossier row plus every level the
+         server reported as submitted. Only when this check passes does the
+         confirmation popup appear. */
+      const submittedItems: Array<{ level?: number; name?: string }> = Array.isArray(result.items) ? result.items : []
+      let verified = false
+      try {
+        const vres = await fetch(
+          `${apiBase}/submissions?projectId=${selectedProjectId}&periodId=${selectedPeriodId}&status=SUBMITTED&take=50&bypass=true`,
+        )
+        const vdata = await vres.json()
+        const rows: Array<{ module?: string; status?: string }> = vdata?.items || []
+        const submittedRows = rows.filter((r) => r.status === 'SUBMITTED')
+        const hasDossier = submittedRows.some((r) => r.module === 'ALL_LEVELS')
+        verified = hasDossier && submittedRows.length >= submittedItems.length
+      } catch {}
+      if (!verified) {
+        throw new Error('Submission saved, but verification against the submissions ledger failed — please open the Submissions screen and check before submitting again.')
+      }
+
       setSubmitAllSuccess(result)
-      toast.success('All Site Data Submitted to Project Admin!', {
-        description: `Successfully submitted all ${SUB_MODULES.length} BRSR disclosure levels for ${selectedProject?.projectName || 'Site'} at once. Status: SUBMITTED.`,
+      const submittedCount = Number(result.submittedCount) || SUB_MODULES.length
+      toast.success('Site Data Submitted to Project Admin!', {
+        description: `Successfully submitted ${submittedCount} of ${SUB_MODULES.length} BRSR disclosure levels for ${selectedProject?.projectName || 'Site'}. Status: SUBMITTED.`,
       })
-      setActionInfo(`All ${SUB_MODULES.length} environmental levels submitted at once to Project Admin! Status: SUBMITTED. Dossier #${result.dossierId?.slice(-8)} generated.`)
+      setActionInfo(`${submittedCount} of ${SUB_MODULES.length} environmental levels submitted at once to Project Admin! Status: SUBMITTED. Dossier #${result.dossierId?.slice(-8)} generated.`)
       refreshExistingRecords()
       return true
     } catch (e: any) {
@@ -395,7 +428,7 @@ export function DataEntryModule({
       setStep(4)
       setSubmitResult({ submissionId: result.id, status: 'SUBMITTED' })
       setActionInfo(`${activeSub.label} data captured. Opening Review summary...`)
-      handleRequestNextReview(activeLevelKey, formStateRef.current[activeLevelKey])
+      handleRequestNextReview(activeLevelKey, stagedForLevel(activeLevelKey))
     } else {
       setStep(2)
       setActionInfo(`Draft saved for ${activeSub.brsrTitle}. Saved as Draft in Submissions module.`)
@@ -436,7 +469,7 @@ export function DataEntryModule({
               projectId: selectedProjectId,
               reportingPeriodId: selectedPeriodId,
               data: {
-                ...(saved.data || formStateRef.current[activeLevelKey] || {}),
+                ...(saved.data || stagedForLevel(activeLevelKey)),
                 evidenceId,
                 evidenceIds: evidenceId ? [evidenceId] : [],
               },
@@ -910,11 +943,11 @@ export function DataEntryModule({
 
             {activeLevelRecords.length > 0 ? (
               <div className="max-h-64 space-y-1.5 overflow-y-auto scroll-elegant pr-1">
-                {activeLevelRecords.map((r: any) => {
+                {activeLevelRecords.map((r: any, rIdx: number) => {
                   const corrections = recordCorrections[r.id] || []
                   const isCorrection = r.status === 'CORRECTION_REQUESTED' || corrections.length > 0
                   return (
-                    <div key={r.id} className="space-y-1">
+                    <div key={r.id || `rec-${rIdx}`} className="space-y-1">
                       <div
                         className={`flex items-center justify-between rounded-xl p-2.5 text-xs shadow-sm ring-1 ${
                           isCorrection ? 'bg-rose-50/70 ring-rose-200' : 'bg-white/60 ring-slate-100'
@@ -1202,7 +1235,7 @@ export function DataEntryModule({
               setStagedLevels((prev) => ({
                 ...prev,
                 [reviewModalState.levelKey]: {
-                  ...(reviewModalState.data || formStateRef.current[reviewModalState.levelKey] || {}),
+                  ...(reviewModalState.data || stagedForLevel(reviewModalState.levelKey)),
                   stagedAt: new Date().toISOString(),
                 },
               }))
@@ -1233,6 +1266,19 @@ export function DataEntryModule({
         submitterName={submitter?.name}
         submitterRole={submitter?.roleLabel}
         submitterEmail={submitter?.email}
+      />
+
+      {/* Verified Submission Success Confirmation (iOS Liquid Glass) */}
+      <SubmitAllSuccessModal
+        open={!!submitAllSuccess}
+        onClose={() => setSubmitAllSuccess(null)}
+        projectName={selectedProject?.projectName || 'Site Project'}
+        periodLabel={selectedPeriod?.label || 'FY 2026-27'}
+        submittedCount={Number(submitAllSuccess?.submittedCount) || 0}
+        totalLevels={SUB_MODULES.length}
+        items={submitAllSuccess?.items || []}
+        contributorName={submitAllSuccess?.contributor?.name}
+        contributorEmail={submitAllSuccess?.contributor?.email}
       />
       </div>
     </ApiBaseContext.Provider>

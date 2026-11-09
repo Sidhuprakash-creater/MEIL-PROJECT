@@ -52,6 +52,7 @@ const EMP_BY_EMAIL: Record<string, string> = {
   "imran@meil-esg.in": "PU-CSR-019",
   "deepika@meil-esg.in": "PU-CMP-020",
   "projectadmin@meil-esg.in": "ADM-1001",
+  "pavagada.admin@meil-esg.in": "ADM-2001",
 };
 
 const PU_ROLE_DEFS: Array<{ email: string; name: string; role: string; title: string }> = [

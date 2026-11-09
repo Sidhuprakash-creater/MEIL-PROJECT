@@ -20,23 +20,16 @@ import type { SubmissionRow, SubmissionDetail } from "@/lib/sa/types";
 /** Resolve the user-id → name map for the BU's assigned users + parent
  *  subsidiary's admin/manager users (so submitted-by / reviewer names
  *  always resolve, even for parent-scope actors). */
-export async function loadBmUserNames(businessUnitId: string, subsidiaryId: string): Promise<Map<string, string>> {
+export async function loadBmUserNames(businessUnitId?: string, subsidiaryId?: string): Promise<Map<string, string>> {
   const users = await db.user.findMany({
-    where: {
-      OR: [
-        { businessUnitId },
-        { subsidiaryId, role: { in: ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"] } },
-      ],
-    },
     select: { id: true, name: true },
   });
   return new Map(users.map((u) => [u.id, u.name]));
 }
 
-/** Resolve project-id → name map for all projects under the BU. */
-export async function loadBmProjectNames(businessUnitId: string): Promise<Map<string, string>> {
+/** Resolve project-id → name map for all projects. */
+export async function loadBmProjectNames(businessUnitId?: string): Promise<Map<string, string>> {
   const projects = await db.project.findMany({
-    where: { businessUnitId },
     select: { id: true, name: true },
   });
   return new Map(projects.map((p) => [p.id, p.name]));
@@ -91,14 +84,28 @@ export function toBmSubmissionRow(
   reviewDeadlineSourceLabel: string,
   dueDateISO: string,
   historyJson: string | null,
+  forward?: { forwardedToBu?: boolean | null; forwardedToBuAt?: Date | null; forwardedByName?: string | null },
 ): BmSubmissionRow {
   const reviewDeadlineISO = reviewDeadline?.toISOString() ?? null;
+  let forwardedByName = forward?.forwardedByName ?? null;
+  if (!forwardedByName && historyJson) {
+    try {
+      const hist = parseJson<any[]>(historyJson, []);
+      const fwd = hist.slice().reverse().find((h) => /forward/i.test(h.action || '') || /consolidated/i.test(h.action || ''));
+      if (fwd?.actorName || fwd?.actor) {
+        forwardedByName = fwd.actorName || fwd.actor;
+      }
+    } catch {}
+  }
   return {
     ...row,
     reviewDeadline: reviewDeadlineISO,
     reviewDeadlineLabel: reviewDeadlineISO ? new Date(reviewDeadlineISO).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
     isResubmission: isResubmission(historyJson),
     daysRemaining: computeDaysRemaining(reviewDeadlineISO, dueDateISO),
+    forwardedToBu: Boolean(forward?.forwardedToBu),
+    forwardedToBuAt: forward?.forwardedToBuAt ? new Date(forward.forwardedToBuAt).toISOString() : null,
+    forwardedByName,
   };
 }
 
@@ -111,11 +118,26 @@ export function toBmSubmissionDetail(
   historyJson: string | null,
 ): BmSubmissionDetail {
   const reviewDeadlineISO = reviewDeadline?.toISOString() ?? null;
+  let forwardedByName: string | null = null;
+  if (historyJson) {
+    try {
+      const hist = parseJson<any[]>(historyJson, []);
+      const fwd = hist.slice().reverse().find((h) => /forward/i.test(h.action || '') || /consolidated/i.test(h.action || ''));
+      if (fwd?.actorName || fwd?.actor) {
+        forwardedByName = fwd.actorName || fwd.actor;
+      }
+    } catch {}
+  }
   return {
     ...detail,
     reviewDeadline: reviewDeadlineISO,
     reviewDeadlineLabel: reviewDeadlineISO ? new Date(reviewDeadlineISO).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—",
     isResubmission: isResubmission(historyJson),
     daysRemaining: computeDaysRemaining(reviewDeadlineISO, dueDateISO),
+    forwardedToBu: Boolean((detail as any).forwardedToBu),
+    forwardedToBuAt: (detail as any).forwardedToBuAt
+      ? new Date((detail as any).forwardedToBuAt).toISOString()
+      : null,
+    forwardedByName,
   };
 }

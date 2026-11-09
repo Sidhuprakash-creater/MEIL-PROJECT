@@ -193,10 +193,11 @@ export function PaStatusBadge({ status }: { status: string }) {
   let dot = "bg-slate-400";
   let label = status.replace(/_/g, " ");
 
-  if (normalized === "ACTIVE" || normalized === "COMPLETED" || normalized === "APPROVED" || normalized === "VERIFIED" || normalized === "COMPLETE" || normalized === "ON_TRACK") {
+  if (normalized === "ACTIVE" || normalized === "COMPLETED" || normalized === "APPROVED" || normalized === "BU_APPROVED" || normalized === "VERIFIED" || normalized === "COMPLETE" || normalized === "ON_TRACK") {
     bg = "bg-emerald-50 text-emerald-700 border-emerald-200/60";
     dot = "bg-emerald-500";
-  } else if (normalized === "PENDING" || normalized === "UNDER_REVIEW" || normalized === "SUBMITTED" || normalized === "READY_TO_SUBMIT" || normalized === "IN_PROGRESS") {
+    if (normalized === "BU_APPROVED") label = "Approved (BU)";
+  } else if (normalized === "PENDING" || normalized === "UNDER_REVIEW" || normalized === "SUBMITTED" || normalized === "READY_TO_SUBMIT" || normalized === "IN_PROGRESS" || normalized === "BU_REVIEW_PENDING") {
     bg = "bg-blue-50 text-blue-700 border-blue-200/60";
     dot = "bg-blue-500 animate-pulse";
   } else if (normalized === "DRAFT" || normalized === "DUE_SOON" || normalized === "PENDING_REVIEW") {

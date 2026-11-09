@@ -20,6 +20,7 @@ import { BM_VIEWS, type BmViewComponent } from "@/components/bm/view-registry";
 import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useBmWorkspace } from "@/lib/bm/store";
 import type { BmViewId, SaNotification } from "@/lib/bm/types";
 import { timeAgo, useBmApi } from "@/lib/bm/client";
+import "./bm.css";
 
 /* Map view ids to the premium iOS icon set — purple-tinted SF Symbols. */
 export const BM_VIEW_ICONS: Record<BmViewId, React.ComponentType<{ className?: string }>> = {
@@ -466,7 +467,7 @@ export function BmWorkspaceShell({
   return (
     <SessionUserContext.Provider value={sessionUser}>
       <SignOutContext.Provider value={onSignOut ?? (() => undefined)}>
-        <div className="relative h-dvh overflow-hidden bg-[color:var(--bum-bg)]">
+        <div className="bm-shell relative h-dvh overflow-hidden bg-[color:var(--bum-bg)]">
           {/* Ambient purple-tinted orbs (static by design) */}
           <div className="liquid-sky-bum" aria-hidden="true">
             <div className="orb left-[6%] top-[8%] h-[380px] w-[380px] bg-[rgba(139,92,246,0.34)]" />

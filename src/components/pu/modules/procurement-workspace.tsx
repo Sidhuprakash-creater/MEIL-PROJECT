@@ -21,8 +21,9 @@ import {
   Package, ShoppingCart, GitBranch, ClipboardCheck, Leaf, ShieldCheck,
   CheckCircle2, Clock, AlertTriangle, ArrowRight, Save, Send, Upload,
   RefreshCw, Sparkles, Filter, Eye, Edit3, ChevronRight, Layers, FileText,
-  TrendingUp, Building2, FileCheck2, History, Award, CheckSquare
-} from 'lucide-react'
+  TrendingUp, Building2, FileCheck2, History, Award, CheckSquare, X, Check} from 'lucide-react'
+import { toast } from 'sonner'
+import { FinalSubmitAllModal, SubmitAllSuccessModal } from '@/components/shared/submission-flow-modals'
 import { useApp } from '@/lib/pu/auth-context'
 import {
   contributorStore,
@@ -45,7 +46,7 @@ const MODULE_TABS: Record<string, string> = {
 }
 
 export function ProcurementWorkspace() {
-  const { activeModule } = useApp()
+  const { activeModule, selectedProjectId } = useApp()
   const [activeTab, setActiveTab] = useState<string>('overview')
   const [scData, setScData] = useState(() => contributorStore.getScData())
   const [assignments, setAssignments] = useState<ContributorAssignment[]>(() => contributorStore.getAssignments('PROCUREMENT_USER'))
@@ -112,6 +113,134 @@ export function ProcurementWorkspace() {
     { id: 'activity', label: 'Activity Log' }
   ]
 
+  /* ── Level journey — drafts tracked level-by-level ── */
+  const JOURNEY_LEVELS: Array<{ id: string; label: string; level: number; levelName: string; dataKey: string }> = [
+    { id: 'sc-1', label: 'Supplier Master', level: 1, levelName: 'Supplier Master (SC-1)', dataKey: 'supplierMaster' },
+    { id: 'sc-2', label: 'Procurement Spend', level: 2, levelName: 'Procurement Spend (SC-2)', dataKey: 'spend' },
+    { id: 'sc-3', label: 'Supplier ESG Assessments', level: 3, levelName: 'Supplier ESG Assessments (SC-3)', dataKey: 'assessment' },
+    { id: 'sc-4', label: 'Supplier Certifications', level: 4, levelName: 'Supplier Certifications (SC-4)', dataKey: 'certifications' },
+    { id: 'sc-5', label: 'Code of Conduct', level: 5, levelName: 'Code of Conduct (SC-5)', dataKey: 'codeOfConduct' },
+    { id: 'sc-6', label: 'Audits & CAPA', level: 6, levelName: 'Audits & CAPA (SC-6)', dataKey: 'audits' },
+    { id: 'sc-7', label: 'Value Chain Data', level: 7, levelName: 'Value Chain Data (SC-7)', dataKey: 'valueChain' },
+  ]
+
+  const [journeyOpen, setJourneyOpen] = useState(false)
+  const [levelDrafts, setLevelDrafts] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('procurement_user-level-drafts') || '{}') } catch { return {} }
+  })
+  const [levelSubmitted, setLevelSubmitted] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('procurement_user-level-submitted') || '{}') } catch { return {} }
+  })
+  const [levelSubmitting, setLevelSubmitting] = useState<string | null>(null)
+  const [showFinalReview, setShowFinalReview] = useState(false)
+  const [submittingAll, setSubmittingAll] = useState(false)
+  const [showSubmitSuccess, setShowSubmitSuccess] = useState(false)
+
+  const persistJourney = (drafts: Record<string, boolean>, submitted: Record<string, boolean>) => {
+    try {
+      localStorage.setItem('procurement_user-level-drafts', JSON.stringify(drafts))
+      localStorage.setItem('procurement_user-level-submitted', JSON.stringify(submitted))
+    } catch {}
+  }
+
+  const markLevelDrafted = (id: string) => {
+    const d = { ...levelDrafts, [id]: true }
+    setLevelDrafts(d)
+    persistJourney(d, levelSubmitted)
+  }
+
+  const handleLevelSubmit = async (screenId: string) => {
+    const def = JOURNEY_LEVELS.find(l => l.id === screenId)
+    if (!def || levelSubmitting) return
+    setLevelSubmitting(screenId)
+    try {
+      const post = await fetch('/api/pu/data-entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level: def.level,
+          levelKey: 'level' + def.level,
+          levelName: def.levelName,
+          module: 'PROCUREMENT',
+          data: {
+            levelData: (scData as any)[def.dataKey] ?? {},
+            remarks: 'Individual level submission from contributor workspace.',
+          },
+          submitForReview: true,
+        }),
+      })
+      if (!post.ok) {
+        const err = await post.json().catch(() => ({}))
+        toast.error('Submission failed', { description: (err as any)?.error || 'Server responded ' + post.status })
+        return
+      }
+      const d = { ...levelDrafts, [screenId]: true }
+      const s = { ...levelSubmitted, [screenId]: true }
+      setLevelDrafts(d)
+      setLevelSubmitted(s)
+      persistJourney(d, s)
+      contributorStore.addActivity({
+        id: 'act-' + Date.now(),
+        roleKey: 'PROCUREMENT_USER',
+        timestamp: 'Just now',
+        user: 'Priya Nair (Procurement)',
+        action: 'Submitted',
+        target: def.levelName,
+        details: 'Level submitted individually to the Project Admin.',
+        badgeTone: 'green'
+      })
+      toast.success(def.levelName + ' submitted to Project Admin')
+    } catch (e: any) {
+      toast.error('Submission failed', { description: e?.message || 'Network error.' })
+    } finally {
+      setLevelSubmitting(null)
+    }
+  }
+
+  const handleFinalSubmit = async (): Promise<boolean> => {
+    setSubmittingAll(true)
+    try {
+      const post = await fetch('/api/pu/data-entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level: 9,
+          levelKey: 'level9',
+          levelName: 'Consolidated Contributor Package (All Levels)',
+          module: 'PROCUREMENT',
+          data: { ...scData, remarks: 'Final consolidated submission — all levels.' },
+          submitForReview: true,
+        }),
+      })
+      if (!post.ok) {
+        const err = await post.json().catch(() => ({}))
+        toast.error('Final submission failed', { description: (err as any)?.error || 'Server responded ' + post.status })
+        return false
+      }
+      const d = { ...levelDrafts }
+      const s = { ...levelSubmitted }
+      for (const l of JOURNEY_LEVELS) { d[l.id] = true; s[l.id] = true }
+      setLevelDrafts(d)
+      setLevelSubmitted(s)
+      persistJourney(d, s)
+      setShowFinalReview(false)
+      setShowSubmitSuccess(true)
+      return true
+    } catch (e: any) {
+      toast.error('Final submission failed', { description: e?.message || 'Network error.' })
+      return false
+    } finally {
+      setSubmittingAll(false)
+    }
+  }
+
+  const allData: Record<string, any> = {}
+  for (const l of JOURNEY_LEVELS) {
+    allData['l' + l.level + '-' + (selectedProjectId || 'cur') + '-current'] = { items: [{ id: l.id, title: l.label, ...( (scData as any)[l.dataKey] ?? {} ) }] }
+  }
+
+  const modalLevels = JOURNEY_LEVELS.map(l => ({ key: l.id, level: l.level, label: l.label, icon: Layers }))
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast */}
@@ -154,22 +283,6 @@ export function ProcurementWorkspace() {
             <span className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-bold text-slate-700 shadow-xs">
               FY 2026-27 (Assigned)
             </span>
-            <button
-              type="button"
-              onClick={() => handleSaveDraft(activeTab.toUpperCase())}
-              className="ios-btn-ghost"
-            >
-              <Save className="h-3.5 w-3.5 text-slate-500" />
-              <span>{saveStatus}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowValidationModal(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 hover:from-blue-700 hover:to-indigo-700 hover:-translate-y-px transition-all cursor-pointer active:scale-95"
-            >
-              <Send className="h-3.5 w-3.5" />
-              <span>Validate & Submit</span>
-            </button>
           </div>
         </div>
 
@@ -377,6 +490,21 @@ export function ProcurementWorkspace() {
       {/* 2. LEVEL SC-1 — SUPPLIER MASTER */}
       {activeTab === 'sc-1' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-1'}
+              onClick={() => handleLevelSubmit('sc-1')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-1' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.supplierMaster.common}
             accentColor="blue"
@@ -519,6 +647,21 @@ export function ProcurementWorkspace() {
       {/* 3. LEVEL SC-2 — PROCUREMENT SPEND REFERENCES */}
       {activeTab === 'sc-2' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-2'}
+              onClick={() => handleLevelSubmit('sc-2')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-2' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.spend.common}
             accentColor="blue"
@@ -628,6 +771,21 @@ export function ProcurementWorkspace() {
       {/* 4. LEVEL SC-3 — SUPPLIER ESG ASSESSMENT */}
       {activeTab === 'sc-3' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-3'}
+              onClick={() => handleLevelSubmit('sc-3')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-3' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.assessment.common}
             accentColor="blue"
@@ -774,6 +932,21 @@ export function ProcurementWorkspace() {
       {/* 5. LEVEL SC-4 — CERTIFICATIONS */}
       {activeTab === 'sc-4' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-4'}
+              onClick={() => handleLevelSubmit('sc-4')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-4' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.certifications.common}
             accentColor="blue"
@@ -897,6 +1070,21 @@ export function ProcurementWorkspace() {
       {/* 6. LEVEL SC-5 — CODE OF CONDUCT */}
       {activeTab === 'sc-5' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-5'}
+              onClick={() => handleLevelSubmit('sc-5')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-5' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.codeOfConduct.common}
             accentColor="blue"
@@ -975,6 +1163,21 @@ export function ProcurementWorkspace() {
       {/* 7. LEVEL SC-6 — AUDITS & CAPA */}
       {activeTab === 'sc-6' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-6'}
+              onClick={() => handleLevelSubmit('sc-6')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-6' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.audits.common}
             accentColor="blue"
@@ -1087,6 +1290,21 @@ export function ProcurementWorkspace() {
       {/* 8. LEVEL SC-7 — VALUE CHAIN DATA */}
       {activeTab === 'sc-7' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/70 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === 'sc-7'}
+              onClick={() => handleLevelSubmit('sc-7')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/25 transition hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === 'sc-7' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={scData.valueChain.common}
             accentColor="blue"
@@ -1213,6 +1431,184 @@ export function ProcurementWorkspace() {
       )}
 
       {/* 9. EVIDENCE TAB */}
+      {/* ── BOTTOM ACTION BAR (iOS Liquid Glass Sticky Bar) ── */}
+      {activeTab !== 'evidence' && activeTab !== 'submissions' && activeTab !== 'activity' && (
+        <div className="sticky bottom-4 z-30">
+          <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-white/85 px-5 py-3.5 shadow-xl backdrop-blur-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="inline-block h-2 w-2 rounded-full bg-teal-500 animate-pulse" />
+                <span>Changes auto-persisted · Save each level, then Validate &amp; Continue for the journey review</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { handleSaveDraft(activeTab.toUpperCase()); markLevelDrafted(activeTab) }}
+                  className="ios-btn-ghost"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{saveStatus}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJourneyOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-indigo-500/25 transition-all hover:-translate-y-0.5 active:scale-95 cursor-pointer"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span>Validate &amp; Continue</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RIGHT-SIDE JOURNEY PANEL ── */}
+      <AnimatePresence>
+        {journeyOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setJourneyOpen(false)}
+              className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.aside
+              initial={{ x: 480 }}
+              animate={{ x: 0 }}
+              exit={{ x: 480 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-hidden border-l border-white/80 bg-white/90 shadow-2xl backdrop-blur-2xl"
+            >
+              <div className="relative overflow-hidden border-b border-white/70 bg-gradient-to-br from-indigo-500 to-blue-600 p-5 text-white">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/20 to-transparent" />
+                <div className="relative z-10 flex items-start justify-between">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Level Journey</div>
+                    <h3 className="mt-0.5 text-lg font-black">Contributor Disclosure Levels</h3>
+                    <p className="mt-0.5 text-[11px] opacity-90">
+                      {JOURNEY_LEVELS.filter(l => levelDrafts[l.id] || levelSubmitted[l.id]).length} of {JOURNEY_LEVELS.length} levels drafted — finish all to unlock the final review
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setJourneyOpen(false)}
+                    className="rounded-full p-1.5 text-white/80 transition hover:bg-white/20 hover:text-white"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-2 overflow-y-auto p-4 scroll-elegant">
+                {JOURNEY_LEVELS.map((l, idx) => {
+                  const submitted = levelSubmitted[l.id]
+                  const drafted = levelDrafts[l.id]
+                  const isCurrent = activeTab === l.id
+                  return (
+                    <div
+                      key={l.id}
+                      className={`flex items-center gap-3 rounded-2xl border p-3 transition ${
+                        submitted ? 'border-emerald-200 bg-emerald-50/70'
+                        : drafted ? 'border-teal-200 bg-teal-50/60'
+                        : isCurrent ? 'border-blue-200 bg-blue-50/60'
+                        : 'border-slate-200 bg-white/80'
+                      }`}
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
+                        submitted ? 'bg-emerald-500 text-white'
+                        : drafted ? 'bg-teal-500 text-white'
+                        : 'border border-slate-300 bg-white text-slate-400'
+                      }`}>
+                        {submitted ? <CheckCircle2 className="h-4 w-4" /> : drafted ? <Check className="h-4 w-4" /> : idx + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-bold text-slate-900">{l.label}</div>
+                        <div className="text-[10px] font-semibold text-slate-400">
+                          {submitted ? 'Submitted to Project Admin' : drafted ? 'Draft saved — ready to submit' : 'Not started'}
+                        </div>
+                      </div>
+                      {!isCurrent && (
+                        <button
+                          type="button"
+                          onClick={() => { setActiveTab(l.id); setJourneyOpen(false) }}
+                          className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 transition hover:bg-slate-50"
+                        >
+                          Go
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="border-t border-slate-200/80 bg-white/70 p-4">
+                {(() => {
+                  const doneCount = JOURNEY_LEVELS.filter(l => levelDrafts[l.id] || levelSubmitted[l.id]).length
+                  const allDone = doneCount === JOURNEY_LEVELS.length
+                  return (
+                    <>
+                      <div className="mb-2.5 flex items-center justify-between text-[11px] font-bold">
+                        <span className="text-slate-500">Journey progress</span>
+                        <span className={allDone ? 'text-emerald-600' : 'text-slate-600'}>{doneCount}/{JOURNEY_LEVELS.length}</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 transition-all duration-500" style={{ width: `${(doneCount / JOURNEY_LEVELS.length) * 100}%` }} />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!allDone || submittingAll}
+                        onClick={() => setShowFinalReview(true)}
+                        title={allDone ? 'Open the consolidated final review' : 'Draft all levels to unlock the final review'}
+                        className={`mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-xs font-extrabold transition ${
+                          allDone
+                            ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg shadow-indigo-500/25 hover:-translate-y-0.5'
+                            : 'cursor-not-allowed bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        <FileCheck2 className="h-4 w-4" />
+                        <span>{allDone ? 'Final Review & Submit' : 'Final Review & Submit (locked)'}</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  )
+                })()}
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── FINAL REVIEW — full-screen review of every entered level ── */}
+      <FinalSubmitAllModal
+        open={showFinalReview}
+        onClose={() => !submittingAll && setShowFinalReview(false)}
+        projectName="Contributor Workspace"
+        periodLabel="FY 2026-27"
+        submitting={submittingAll}
+        onSubmitAll={handleFinalSubmit}
+        levels={modalLevels}
+        allData={allData}
+        projectId={selectedProjectId || null}
+        periodId="current"
+        submitterRole="Contributor"
+      />
+
+      {/* ── Success confirmation ── */}
+      <SubmitAllSuccessModal
+        open={showSubmitSuccess}
+        onClose={() => {
+          setShowSubmitSuccess(false)
+          setActiveTab('submissions')
+        }}
+        projectName="Contributor Workspace"
+        periodLabel="FY 2026-27"
+        submittedCount={JOURNEY_LEVELS.length}
+        totalLevels={JOURNEY_LEVELS.length}
+      />
+
       {activeTab === 'evidence' && (
         <CommonEvidenceManager roleKey="PROCUREMENT_USER" accentColor="blue" />
       )}

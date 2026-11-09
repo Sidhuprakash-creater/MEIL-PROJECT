@@ -59,6 +59,12 @@ export function invalidatePuEvidenceCache() {
   puEvidenceCache.clear()
 }
 
+/* ---- Submitted reports list (pu, per user+filter key) ---- */
+export const submittedReportsCache = new Map<string, { payload: any; expiresAt: number }>()
+export function invalidateSubmittedReportsCache() {
+  submittedReportsCache.clear()
+}
+
 /* ---- Organization tree (pu + so) ---- */
 let puTreeCache: { data: any; expiresAt: number } | null = null
 export function getPuTreeCache() {
@@ -80,4 +86,16 @@ export function setSoTreeCache(data: any) {
 }
 export function invalidateSoTreeCache() {
   soTreeCache = null
+}
+
+/* ---- PA Consolidated Report ---- */
+let paConsolidatedReportCache: { data: any; expiresAt: number } | null = null
+export function getPaConsolidatedReportCache() {
+  return paConsolidatedReportCache && paConsolidatedReportCache.expiresAt > Date.now() ? paConsolidatedReportCache.data : null
+}
+export function setPaConsolidatedReportCache(data: any, ttlMs = 45000) {
+  paConsolidatedReportCache = { data, expiresAt: Date.now() + ttlMs }
+}
+export function invalidatePaConsolidatedReportCache() {
+  paConsolidatedReportCache = null
 }

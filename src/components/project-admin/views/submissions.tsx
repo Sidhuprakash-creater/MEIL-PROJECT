@@ -88,6 +88,20 @@ export default function SubmissionsView() {
 
   // Inspect & Action dialog states
   const [inspectSubmission, setInspectSubmission] = useState<any>(null);
+  /* Full-window review overlays the sidebar — collapse it while open, restore on close. */
+  const sidebarWasCollapsedRef = React.useRef<boolean | null>(null);
+  const openInspect = (s: any) => {
+    sidebarWasCollapsedRef.current = usePaStore.getState().sidebarCollapsed;
+    usePaStore.getState().setSidebarCollapsed(true);
+    setInspectSubmission(s);
+  };
+  const closeInspect = () => {
+    setInspectSubmission(null);
+    if (sidebarWasCollapsedRef.current !== null) {
+      usePaStore.getState().setSidebarCollapsed(sidebarWasCollapsedRef.current);
+      sidebarWasCollapsedRef.current = null;
+    }
+  }
   const [actionModal, setActionModal] = useState<{
     type: "approve" | "reject" | null;
     submission: any | null;
@@ -122,6 +136,29 @@ export default function SubmissionsView() {
     const interval = setInterval(() => loadSubmissions(true), 8000);
     return () => clearInterval(interval);
   }, []);
+
+  // Quick Action: Forward the approved dataset to the Business Unit
+  const handleForwardToBu = async () => {
+    if (!confirm("Forward all approved, not-yet-forwarded submissions to the Business Unit for review?")) return;
+    setActionLoading(true);
+    try {
+      const res: any = await paApiPost("/api/project-admin/submissions", {
+        action: "forward-to-bu",
+        comments: "Approved dataset forwarded to Business Unit for review.",
+      });
+      const n = res?.forwardedCount ?? 0;
+      showToast(
+        n > 0
+          ? `Forwarded ${n} approved submission${n === 1 ? "" : "s"} to the Business Unit.`
+          : "No approved submissions were waiting to be forwarded."
+      );
+      await loadSubmissions(true);
+    } catch (err: any) {
+      alert(err.message || "Forward to Business Unit failed.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   // Quick Action: Approve
   const handleApprove = async (sub: any, note?: string) => {
@@ -266,7 +303,13 @@ export default function SubmissionsView() {
 
     if (!matchesSearch) return false;
     if (activeTab === "approved") {
-      return s.submissionStatus === "APPROVED" || s.reviewStatus === "APPROVED";
+      return (
+        s.submissionStatus === "APPROVED" ||
+        s.submissionStatus === "BU_APPROVED" ||
+        s.submissionStatus === "LOCKED" ||
+        s.reviewStatus === "APPROVED" ||
+        s.reviewStatus === "BU_APPROVED"
+      );
     }
     if (activeTab === "submitted") {
       return (
@@ -296,16 +339,28 @@ export default function SubmissionsView() {
         title="Site Submissions & Dossier Review Command"
         subtitle="Review, approve, and manage disclosure packages from site contributors (Environment, Energy, Water, Waste) and quarterly consolidated reports"
         actions={
-          <PaButton
-            variant="secondary"
-            size="sm"
-            onClick={loadSubmissions}
-            disabled={loading}
-            className="flex items-center gap-1.5"
-          >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-            <span>Refresh</span>
-          </PaButton>
+          <div className="flex items-center gap-2">
+            <PaButton
+              variant="secondary"
+              size="sm"
+              onClick={handleForwardToBu}
+              disabled={loading || actionLoading}
+              className="flex items-center gap-1.5"
+            >
+              <Send size={13} />
+              <span>Forward to BU</span>
+            </PaButton>
+            <PaButton
+              variant="secondary"
+              size="sm"
+              onClick={loadSubmissions}
+              disabled={loading}
+              className="flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </PaButton>
+          </div>
         }
       />
 
@@ -400,7 +455,12 @@ export default function SubmissionsView() {
               </tr>
             ) : (
               filtered.map((s) => {
-                const isApproved = s.submissionStatus === "APPROVED" || s.reviewStatus === "APPROVED";
+                const isApproved =
+                  s.submissionStatus === "APPROVED" ||
+                  s.submissionStatus === "BU_APPROVED" ||
+                  s.submissionStatus === "LOCKED" ||
+                  s.reviewStatus === "APPROVED" ||
+                  s.reviewStatus === "BU_APPROVED";
                 const isReturned =
                   s.submissionStatus === "CHANGES_REQUESTED" ||
                   s.submissionStatus === "REJECTED" ||
@@ -546,7 +606,7 @@ export default function SubmissionsView() {
       {/* Inspect Submission Details Modal */}
       <PaDialog
         open={Boolean(inspectSubmission)}
-        onClose={() => setInspectSubmission(null)}
+        onClose={closeInspect}
         title={inspectSubmission?.title || "Submission Details"}
         subtitle={`Ref: ${inspectSubmission?.reportCode} • Category: ${inspectSubmission?.category}`}
       >
@@ -891,7 +951,7 @@ export default function SubmissionsView() {
                   size="sm"
                   onClick={() => {
                     const sub = inspectSubmission;
-                    setInspectSubmission(null);
+                    closeInspect();
                     setActionComments("");
                     setActionModal({ type: "reject", submission: sub });
                   }}
@@ -905,7 +965,7 @@ export default function SubmissionsView() {
                 </PaButton>
               </div>
 
-              <PaButton variant="secondary" size="sm" onClick={() => setInspectSubmission(null)}>
+              <PaButton variant="secondary" size="sm" onClick={closeInspect}>
                 Close
               </PaButton>
             </div>

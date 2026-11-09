@@ -8,10 +8,12 @@ import {
   getPaServerCache,
   setPaServerCache,
   invalidatePaServerCache,
+  paSubmissionScope,
+  paSoSubmissionScope,
 } from "@/lib/project-admin/server";
 
 import { getLevelRecords, updateLevelRecordStatus, type LevelRecord } from "@/lib/pu/level-records";
-import { invalidatePuSubmissionsCache, invalidatePuOverviewCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
+import { invalidatePuSubmissionsCache, invalidatePuOverviewCache, invalidatePuNotificationsCache, invalidateSubmittedReportsCache, invalidatePaConsolidatedReportCache } from '@/lib/portal-cache'
 
 export const dynamic = "force-dynamic";
 
@@ -39,13 +41,7 @@ export async function GET(req: NextRequest) {
     // Parallel fetch: Project Contributor Submissions, Site Ops Submissions, Reports, and Users
     const [submissions, soSubmissions, reports, users] = await Promise.all([
       db.submission.findMany({
-        where: {
-          OR: [
-            { projectId: ctx.projectId },
-            { businessUnitId: ctx.businessUnitId },
-            { subsidiaryId: ctx.subsidiaryId },
-          ],
-        },
+        where: paSubmissionScope(ctx),
         select: {
           id: true,
           ref: true,
@@ -66,6 +62,8 @@ export async function GET(req: NextRequest) {
           reviewerId: true,
           reviewComment: true,
           reviewedAt: true,
+          forwardedToBu: true,
+          forwardedToBuAt: true,
           dueDate: true,
           overdue: true,
           updatedAt: true,
@@ -82,7 +80,7 @@ export async function GET(req: NextRequest) {
         take: 200,
       }),
       db.soSubmission.findMany({
-        where: { projectId: ctx.projectId },
+        where: paSoSubmissionScope(ctx),
         select: {
           id: true,
           module: true,
@@ -122,11 +120,37 @@ export async function GET(req: NextRequest) {
 
     const userMap = new Map(users.map((u) => [u.id, u]));
 
+    /* Group-wide review surfaces submissions whose submitter sits outside the
+       admin's project/BU/subsidiary scope — fetch their user rows directly so
+       names/roles don't fall back to "Site Contributor". */
+    const missingSubmitterIds = [
+      ...new Set(
+        submissions
+          .map((s) => s.submittedById)
+          .filter((id): id is string => Boolean(id) && !userMap.has(String(id))),
+      ),
+    ];
+    if (missingSubmitterIds.length > 0) {
+      const extras = await db.user.findMany({
+        where: { id: { in: missingSubmitterIds } },
+        select: { id: true, name: true, email: true, role: true },
+      });
+      for (const u of extras) userMap.set(u.id, u);
+    }
+
     /* Enrichment: load the underlying level records (per-source items the user
        actually entered) and the real Evidence rows so the admin sees exactly
-       what was captured — not just aggregates. Scoped to the admin's project
-       so records from other projects are never pulled in. */
-    const allLevelRecords: LevelRecord[] = getLevelRecords(ctx.projectId);
+       what was captured — not just aggregates. Records live under the
+       SUBMISSION's project, which can differ from the admin's scoped project
+       when a submission surfaces via the BU/subsidiary scope arms, so load
+       records for every project present in the list. */
+    const recordProjectIds = new Set<string>([
+      ctx.projectId,
+      ...submissions.map((s) => s.project?.id).filter(Boolean),
+    ] as string[]);
+    const allLevelRecords: LevelRecord[] = getLevelRecords().filter((r) =>
+      recordProjectIds.has(r.projectId),
+    );
     const recordById = new Map(allLevelRecords.map((r) => [r.id, r]));
 
     const referencedEvidenceIds = new Set<string>();
@@ -271,6 +295,8 @@ export async function GET(req: NextRequest) {
         parsedValues,
         submissionStatus: s.status,
         reviewStatus,
+        forwardedToBu: (s as any).forwardedToBu ?? false,
+        forwardedToBuAt: (s as any).forwardedToBuAt ? new Date((s as any).forwardedToBuAt).toISOString() : null,
         metricName: s.metricName || "",
         metricUnit: s.metricUnit || "",
         metricValue: s.metricValue != null && s.metricValue > 0 ? `${s.metricValue} ${s.metricUnit || ""}`.trim() : (parsedValues[0]?.value ? `${parsedValues[0].value} ${parsedValues[0].unit || ""}`.trim() : null),
@@ -294,36 +320,46 @@ export async function GET(req: NextRequest) {
     });
 
     // Map consolidated dossier reports
-    const reportItems = reports.map((r) => ({
-      id: r.id,
-      reportCode: `REP-${ctx.projectCode}-v${r.version}`,
-      title: `${r.scopeName || ctx.projectName} — Consolidated ESG Report (${r.reportType})`,
-      category: "CONSOLIDATED",
-      module: "REPORT",
-      period: "Q4 FY 2025-26",
-      version: r.version,
-      versionLabel: `v${r.version}.0`,
-      submittedBy: `${r.generatedByName || ctx.userName} (Project Admin)`,
-      submitterName: r.generatedByName || ctx.userName,
-      submitterEmail: "admin@site.meil.in",
-      submitterId: ctx.userId,
-      submissionDate: new Date(r.createdAt).toISOString(),
-      submissionStatus: r.status,
-      reviewStatus:
-        r.status === "APPROVED"
-          ? "APPROVED"
-          : r.status === "CHANGES_REQUESTED"
-            ? "CHANGES_REQUESTED"
-            : "PENDING_BU_REVIEW",
-      metricValue: "Consolidated Pack",
-      evidenceCount: 1,
-      buManagerName: "Gopal Rao (BU Manager)",
-      latestReviewComment:
-        r.status === "APPROVED"
-          ? "Final approval granted by BU Manager."
-          : "Submitted to Business Unit Manager for formal quarterly review.",
-      isSiteSubmission: false,
-    }));
+    const reportItems = reports.map((r) => {
+      const d = new Date(r.createdAt);
+      const datePart = d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      const timePart = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+      const formattedDateTime = `${datePart} • ${timePart}`;
+
+      return {
+        id: r.id,
+        reportCode: `REP-${ctx.projectCode}-v${r.version}`,
+        title: `${r.scopeName || ctx.projectName} — Consolidated ESG Report (${r.reportType})`,
+        category: "CONSOLIDATED",
+        module: "REPORT",
+        period: "Q4 FY 2025-26",
+        version: r.version,
+        versionLabel: `v${r.version}.0`,
+        submittedBy: `${r.generatedByName || ctx.userName} (Project Admin)`,
+        submitterName: r.generatedByName || ctx.userName,
+        submitterEmail: "admin@site.meil.in",
+        submitterId: ctx.userId,
+        submissionDate: new Date(r.createdAt).toISOString(),
+        formattedDateTime,
+        datePart,
+        timePart,
+        submissionStatus: r.status,
+        reviewStatus:
+          r.status === "APPROVED" || r.status === "BU_APPROVED"
+            ? "APPROVED"
+            : r.status === "CHANGES_REQUESTED"
+              ? "CHANGES_REQUESTED"
+              : "PENDING_BU_REVIEW",
+        metricValue: "Consolidated Pack",
+        evidenceCount: 1,
+        buManagerName: "Gopal Rao (BU Manager)",
+        latestReviewComment:
+          r.status === "APPROVED" || r.status === "BU_APPROVED"
+            ? "Final approval granted by BU Manager."
+            : "Submitted to Business Unit Manager for formal quarterly review.",
+        isSiteSubmission: false,
+      };
+    });
 
     const allItems = [...siteItems, ...reportItems];
 
@@ -334,8 +370,10 @@ export async function GET(req: NextRequest) {
         approved: allItems.filter(
           (i) =>
             i.submissionStatus === "APPROVED" ||
+            i.submissionStatus === "BU_APPROVED" ||
             i.submissionStatus === "LOCKED" ||
-            i.reviewStatus === "APPROVED"
+            i.reviewStatus === "APPROVED" ||
+            i.reviewStatus === "BU_APPROVED"
         ).length,
         submitted: allItems.filter(
           (i) =>
@@ -373,6 +411,77 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, submissionId, comments, priority, dueDate } = body;
 
+    /* 0. FORWARD-TO-BU WORKFLOW — consolidated handoff from the Approved
+       Dataset view. Forwards ALL approved, not-yet-forwarded submissions in
+       one shot; BU then re-reviews each (APPROVED → BU_APPROVED). */
+    if (action === "forward-to-bu") {
+      const now = new Date();
+      const note = comments?.trim() || `Consolidated dataset forwarded to Business Unit by ${ctx.userName}.`;
+
+      const pending = await db.submission.findMany({
+        where: { ...paSubmissionScope(ctx), status: "APPROVED", forwardedToBu: false },
+        select: { id: true, title: true, category: true, history: true },
+        orderBy: { updatedAt: "asc" },
+      });
+
+      if (pending.length === 0) {
+        return paFail("No approved submissions are waiting to be forwarded.", 400);
+      }
+
+      await Promise.all(
+        pending.map((s) => {
+          let hist: any[] = [];
+          try { hist = JSON.parse(s.history || "[]"); if (!Array.isArray(hist)) hist = []; } catch {}
+          hist.push({ action: "FORWARDED_TO_BU", actor: ctx.userName, at: now.toISOString(), note });
+          return db.submission.update({
+            where: { id: s.id },
+            data: { forwardedToBu: true, forwardedToBuAt: now, history: JSON.stringify(hist), updatedAt: now },
+          });
+        }),
+      );
+
+      // Notify BU reviewers that a consolidated dataset is waiting for review
+      const buUsers = await db.user.findMany({
+        where: { role: { in: ["BU_MANAGER", "BU_ADMIN"] }, businessUnitId: ctx.businessUnitId },
+        select: { id: true },
+      });
+      for (const bu of buUsers) {
+        await db.notification.create({
+          data: {
+            ntype: "APPROVAL_PENDING",
+            title: `Approved Dataset Forwarded: ${pending.length} submission${pending.length === 1 ? "" : "s"}`,
+            body: `Project Admin ${ctx.userName} forwarded the approved dataset for ${ctx.projectName} to Business Unit for review. Note: "${note}"`,
+            severity: "INFO",
+            linkView: "queue",
+            refId: bu.id,
+            subsidiaryId: ctx.subsidiaryId,
+          },
+        });
+      }
+
+      await logProjectActivity({
+        actorName: ctx.userName,
+        actorRole: "Project Admin",
+        action: "DATASET_FORWARDED_TO_BU",
+        targetType: "Submission",
+        targetLabel: `${pending.length} approved submission${pending.length === 1 ? "" : "s"}`,
+        category: "Consolidated Dataset",
+        severity: "SUCCESS",
+      });
+
+      /* Bust every cache so the forwarded rows appear in the BU queue at once
+         (this branch returns before the shared invalidation block below). */
+      invalidatePaServerCache();
+      invalidatePuSubmissionsCache();
+      invalidatePuOverviewCache();
+      invalidateSubmittedReportsCache();
+
+      return paOk(
+        { forwardedCount: pending.length, forwardedAt: now.toISOString() },
+        `${pending.length} approved submission${pending.length === 1 ? "" : "s"} forwarded to Business Unit for review.`,
+      );
+    }
+
     if (!submissionId) return paFail("submissionId is required.", 400);
 
     // Invalidate caches immediately so all views reflect updates instantly
@@ -408,8 +517,30 @@ export async function POST(req: NextRequest) {
           reviewComment: approvalNote,
           reviewedAt: now,
           updatedAt: now,
+          inConsolidatedReport: true,
+          forwardedToBu: true,
+          forwardedToBuAt: now,
         },
       });
+
+      // Append to submission history: APPROVED_AND_FORWARDED_TO_BU
+      const subForHist = await db.submission.findUnique({ where: { id: submissionId }, select: { history: true } });
+      let hist: any[] = [];
+      try { hist = JSON.parse(subForHist?.history || "[]"); if (!Array.isArray(hist)) hist = []; } catch {}
+      hist.push({
+        id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        action: "APPROVED_AND_FORWARDED_TO_BU",
+        fromStatus: "SUBMITTED",
+        toStatus: "APPROVED",
+        actor: ctx.userName,
+        actorName: ctx.userName,
+        actorRole: "Project Admin",
+        at: now.toISOString(),
+        createdAt: now.toISOString(),
+        note: approvalNote,
+        comment: approvalNote,
+      });
+      await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });
 
       // Update soSubmission if exists
       await db.soSubmission.updateMany({
@@ -462,6 +593,9 @@ export async function POST(req: NextRequest) {
         category: sub?.category || "Environment",
         severity: "SUCCESS",
       });
+
+      // Bust consolidated-report cache so the view refreshes with the new approved item
+      invalidatePaConsolidatedReportCache();
 
       return paOk(
         { submissionId, status: "APPROVED", approvalNote },

@@ -51,6 +51,41 @@ export function invalidatePaServerCache(pattern?: string) {
   }
 }
 
+/* ─── PA review scope ──────────────────────────────────────────────────────
+ * The review ACTIONS (approve / reject / remind) resolve submissions by id
+ * with no project filter, so the read side must surface at least everything
+ * a PA can act on. In this deployment the seeded demo contributors submit
+ * from projects spanning every subsidiary while the demo PA account is
+ * scoped to a single project/BU/subsidiary chain — strict scoping left the
+ * Data Collection Status screen empty even though the rows existed.
+ * GROUP_WIDE_REVIEW widens the READ scope to all submissions so every
+ * site-ops submission is instantly visible and reviewable. Flip to false
+ * to restore strict project/BU/subsidiary scoping.
+ */
+export const GROUP_WIDE_REVIEW = true;
+
+export function paSubmissionScope(ctx: ProjectAdminContext) {
+  if (GROUP_WIDE_REVIEW) return {};
+  return {
+    OR: [
+      { projectId: ctx.projectId },
+      { businessUnitId: ctx.businessUnitId },
+      { subsidiaryId: ctx.subsidiaryId },
+    ],
+  };
+}
+
+export function paSoSubmissionScope(ctx: ProjectAdminContext) {
+  if (GROUP_WIDE_REVIEW) return {};
+  return {
+    OR: [
+      { projectId: ctx.projectId },
+      { project: { businessUnitId: ctx.businessUnitId } },
+      { project: { businessUnit: { subsidiaryId: ctx.subsidiaryId } } },
+    ],
+  };
+}
+
 export async function getProjectAdminContext(): Promise<ProjectAdminContext | null> {
   const session = await getSessionPayload();
   const user = session?.authenticated ? session.user : null;

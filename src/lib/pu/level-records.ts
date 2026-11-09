@@ -272,8 +272,12 @@ export function saveLevelRecord(
     data: Record<string, any>
   }
 ): LevelRecord {
+  /* Guard the id: callers may pass `id: undefined` explicitly, and the final
+     ...record spread would otherwise clobber the generated id — producing an
+     id-less store record that breaks React keys and record lookups. */
+  const fallbackId = `rec-${record.levelKey}-${record.projectId}-${Date.now()}`
+  const { id: maybeId, ...rest } = record
   const fullRecord: LevelRecord = {
-    id: record.id || `rec-${record.levelKey}-${record.projectId}-${Date.now()}`,
     calculationStatus: record.calculationStatus || 'COMPUTED',
     calculation: record.calculation || null,
     issues: record.issues || [],
@@ -283,7 +287,8 @@ export function saveLevelRecord(
     enteredBy: record.enteredBy || 'Environmental Data User',
     enteredAt: record.enteredAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    ...record,
+    ...rest,
+    id: maybeId || fallbackId,
   }
   const all = readStore()
   mergeRecord(all, fullRecord)
@@ -307,8 +312,11 @@ export function saveManyLevelRecords(
   const all = readStore()
   const saved: LevelRecord[] = []
   for (const record of records) {
+    /* Same id guard as saveLevelRecord — never let an explicit undefined id
+       wipe the generated one. */
+    const fallbackId = `rec-${record.levelKey}-${record.projectId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    const { id: maybeId, ...rest } = record
     const fullRecord: LevelRecord = {
-      id: record.id || `rec-${record.levelKey}-${record.projectId}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       calculationStatus: record.calculationStatus || 'COMPUTED',
       calculation: record.calculation || null,
       issues: record.issues || [],
@@ -318,7 +326,8 @@ export function saveManyLevelRecords(
       enteredBy: record.enteredBy || 'Environmental Data User',
       enteredAt: record.enteredAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      ...record,
+      ...rest,
+      id: maybeId || fallbackId,
     }
     mergeRecord(all, fullRecord)
     saved.push(fullRecord)

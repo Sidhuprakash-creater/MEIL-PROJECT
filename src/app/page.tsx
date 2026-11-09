@@ -93,6 +93,46 @@ const SmWorkspaceShell = dynamic(
   }
 );
 
+const BmWorkspaceShell = dynamic(
+  () => import("@/components/bm/shell").then((m) => m.BmWorkspaceShell),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
+        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
+          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
+            <span className="bg-gradient-to-br from-[#0284c7] to-[#0ea5e9] bg-clip-text text-[15px] font-extrabold text-transparent">BM</span>
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-[#17263d]">MEIL — Business Unit Manager</div>
+            <div className="text-xs text-[#66778d]">Loading Business Unit Manager workspace…</div>
+          </div>
+        </div>
+      </div>
+    ),
+  }
+);
+
+const BaWorkspaceShell = dynamic(
+  () => import("@/components/ba/shell").then((m) => m.BaWorkspaceShell),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
+        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
+          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
+            <span className="bg-gradient-to-br from-[#0284c7] to-[#8b5cf6] bg-clip-text text-[15px] font-extrabold text-transparent">BA</span>
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-[#17263d]">MEIL — Business Unit Admin</div>
+            <div className="text-xs text-[#66778d]">Loading Business Unit Admin workspace…</div>
+          </div>
+        </div>
+      </div>
+    ),
+  }
+);
+
 const ProjectAdminWorkspaceShell = dynamic(
   () => import("@/components/project-admin/shell").then((m) => m.ProjectAdminWorkspaceShell),
   {
@@ -159,6 +199,9 @@ const GROUP_ROLES = new Set(["GROUP_ADMIN", "ORG_MANAGER"]);
 /* Subsidiary-scope roles with shipped consoles. */
 const SUBSIDIARY_ADMIN_ROLES = new Set(["SUBSIDIARY_ADMIN"]);
 const SUBSIDIARY_MANAGER_ROLES = new Set(["SUBSIDIARY_MANAGER"]);
+/* Business Unit-scope roles with shipped consoles. */
+const BU_MANAGER_ROLES = new Set(["BU_MANAGER"]);
+const BU_ADMIN_ROLES = new Set(["BU_ADMIN"]);
 const PROJECT_ADMIN_ROLES = new Set(["PROJECT_ADMIN"]);
 /* Site-level roles served by the integrated Project User (site operations) portal. */
 const PROJECT_USER_ROLES = new Set([
@@ -179,10 +222,12 @@ export default function Page() {
   const [signingOut, setSigningOut] = useState(false);
 
   /* Resolve which console a verified role may open. */
-  const consoleForRole = useCallback((role: string): "group" | "subsidiary" | "manager" | "project" | "project-admin" | "none" => {
+  const consoleForRole = useCallback((role: string): "group" | "subsidiary" | "manager" | "bu-manager" | "bu-admin" | "project" | "project-admin" | "none" => {
     if (GROUP_ROLES.has(role)) return "group";
     if (SUBSIDIARY_ADMIN_ROLES.has(role)) return "subsidiary";
     if (SUBSIDIARY_MANAGER_ROLES.has(role)) return "manager";
+    if (BU_MANAGER_ROLES.has(role)) return "bu-manager";
+    if (BU_ADMIN_ROLES.has(role)) return "bu-admin";
     if (PROJECT_ADMIN_ROLES.has(role)) return "project-admin";
     if (PROJECT_USER_ROLES.has(role)) return "project";
     return "none";
@@ -191,12 +236,14 @@ export default function Page() {
   /* Restore an existing session + honour deep links (/?enter=1, /?dashboard=1, /?portal=project) */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const pEnter = params.get("enter");
+    const pPortal = params.get("portal");
     const deepLink =
-      params.get("enter") === "1"
+      pEnter === "1" || pEnter === "true" || pPortal === "enter"
         ? "enter"
         : params.get("dashboard") === "1"
           ? "workspace"
-          : params.get("portal") === "project"
+          : pPortal === "project"
             ? "project-portal"
             : null;
 
@@ -401,6 +448,48 @@ export default function Page() {
               email: session.user.employeeId,
               role: session.user.role,
               roleLabel: session.user.roleLabel,
+              subsidiary: session.user.scope.subsidiary,
+            }}
+            onSignOut={() => void handleSignOut()}
+          />
+        );
+      }
+      if (BU_MANAGER_ROLES.has(role) && session.user.scope.businessUnit && session.user.scope.subsidiary) {
+        return (
+          <BmWorkspaceShell
+            sessionUser={{
+              id: session.user.id,
+              name: session.user.name,
+              email: session.user.employeeId,
+              role: session.user.role,
+              roleLabel: session.user.roleLabel,
+              businessUnit: {
+                id: session.user.scope.businessUnit.id,
+                code: session.user.scope.businessUnit.code,
+                name: session.user.scope.businessUnit.name,
+                subsidiaryId: session.user.scope.subsidiary.id,
+              },
+              subsidiary: session.user.scope.subsidiary,
+            }}
+            onSignOut={() => void handleSignOut()}
+          />
+        );
+      }
+      if (BU_ADMIN_ROLES.has(role) && session.user.scope.businessUnit && session.user.scope.subsidiary) {
+        return (
+          <BaWorkspaceShell
+            sessionUser={{
+              id: session.user.id,
+              name: session.user.name,
+              email: session.user.employeeId,
+              role: session.user.role,
+              roleLabel: session.user.roleLabel,
+              businessUnit: {
+                id: session.user.scope.businessUnit.id,
+                code: session.user.scope.businessUnit.code,
+                name: session.user.scope.businessUnit.name,
+                subsidiaryId: session.user.scope.subsidiary.id,
+              },
               subsidiary: session.user.scope.subsidiary,
             }}
             onSignOut={() => void handleSignOut()}

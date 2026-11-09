@@ -16,14 +16,15 @@
  * - Evidence & Documents Repository
  * - Shared Validation & Multi-state Submission Workflow
  */
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ShieldAlert, AlertTriangle, Droplets, Flame, Zap, Wind, Trash2,
   FileSearch, Wrench, ShieldCheck, CheckCircle2, Clock, ArrowRight,
   Save, Send, Upload, RefreshCw, Sparkles, Filter, Eye, Edit3, ChevronRight,
-  Layers, FileText, TrendingUp, Building2, HardHat, FileCheck2, History, Leaf
-} from 'lucide-react'
+  Layers, FileText, TrendingUp, Building2, HardHat, FileCheck2, History, Leaf, X, Check} from 'lucide-react'
+import { toast } from 'sonner'
+import { FinalSubmitAllModal, SubmitAllSuccessModal } from '@/components/shared/submission-flow-modals'
 import { useApp } from '@/lib/pu/auth-context'
 import {
   contributorStore,
@@ -43,17 +44,43 @@ const MODULE_TABS: Record<string, string> = {
   'ehs-environmental': 'ehs-1',
   evidence: 'evidence',
   submissions: 'submissions',
+  activity: 'activity',
 }
 
 export function EhsWorkspace() {
-  const { activeModule } = useApp()
-  const [activeTab, setActiveTab] = useState<string>('overview')
+  const { activeModule, selectedProjectId } = useApp()
+  /* Initialize from the sidebar module — the shell remounts this component on
+     every module switch, so the initial value must reflect the active module. */
+  const [activeTab, setActiveTab] = useState<string>(() => MODULE_TABS[activeModule] ?? 'overview')
   const [ehsData, setEhsData] = useState(() => contributorStore.getEhsData())
   const [assignments, setAssignments] = useState<ContributorAssignment[]>(() => contributorStore.getAssignments('EHS_USER'))
   const [activities, setActivities] = useState<ActivityEvent[]>(() => contributorStore.getActivities('EHS_USER'))
   const [saveStatus, setSaveStatus] = useState<string>('Saved')
   const [showValidationModal, setShowValidationModal] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
+
+  /* ── Real submissions ledger (live WORKFORCE/SAFETY rows) ── */
+  const [realSubmissions, setRealSubmissions] = useState<any[]>([])
+  const [realSubmissionsLoading, setRealSubmissionsLoading] = useState(false)
+  const refreshRealSubmissions = async () => {
+    setRealSubmissionsLoading(true)
+    try {
+      const res = await fetch('/api/pu/submissions?take=100&bypass=true')
+      const d = await res.json().catch(() => null)
+      const rows: any[] = Array.isArray(d?.items) ? d.items : []
+      setRealSubmissions(rows.filter((r) => r.category === 'SAFETY' || r.module === 'SAFETY'))
+    } catch {
+      setRealSubmissions([])
+    } finally {
+      setRealSubmissionsLoading(false)
+    }
+  }
+
+  /* eslint-disable react-hooks/set-state-in-effect -- ENV-pattern mount hydration */
+  useEffect(() => {
+    refreshRealSubmissions()
+  }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   /* Re-map the active tab when the sidebar module changes — render-time
      adjustment (the sanctioned alternative to setState-in-effect). */
@@ -119,6 +146,169 @@ export function EhsWorkspace() {
     { id: 'activity', label: 'Activity Log' }
   ]
 
+  /* ── Level journey — 8 EHS levels, drafts tracked level-by-level ── */
+  const EHS_JOURNEY_LEVELS: Array<{ id: string; label: string; level: number; levelName: string; dataKey: string }> = [
+    { id: 'ehs-1', label: 'Energy Consumption', level: 1, levelName: 'Energy Consumption (EHS-1)', dataKey: 'energy' },
+    { id: 'ehs-2', label: 'Water Management', level: 2, levelName: 'Water Management (EHS-2)', dataKey: 'water' },
+    { id: 'ehs-3', label: 'Emissions & Air', level: 3, levelName: 'GHG Emissions & Air Quality (EHS-3)', dataKey: 'ghg' },
+    { id: 'ehs-4', label: 'Waste Management', level: 4, levelName: 'Waste Management (EHS-4)', dataKey: 'waste' },
+    { id: 'ehs-5', label: 'Safety Incidents', level: 5, levelName: 'Safety Incidents (EHS-5)', dataKey: 'safety' },
+    { id: 'ehs-6', label: 'Permits & CTO', level: 6, levelName: 'Permits & CTO Compliance (EHS-6)', dataKey: 'permits' },
+    { id: 'ehs-7', label: 'Environmental Incidents', level: 7, levelName: 'Environmental Incidents (EHS-7)', dataKey: 'incidents' },
+    { id: 'ehs-8', label: 'Initiatives', level: 8, levelName: 'Sustainability Initiatives (EHS-8)', dataKey: 'initiatives' },
+  ]
+
+  const [journeyOpen, setJourneyOpen] = useState(false)
+  const [levelDrafts, setLevelDrafts] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('ehs-level-drafts') || '{}') } catch { return {} }
+  })
+  const [levelSubmitted, setLevelSubmitted] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('ehs-level-submitted') || '{}') } catch { return {} }
+  })
+  const [levelSubmitting, setLevelSubmitting] = useState<string | null>(null)
+  const [showFinalReview, setShowFinalReview] = useState(false)
+  const [submittingAll, setSubmittingAll] = useState(false)
+  const [showSubmitSuccess, setShowSubmitSuccess] = useState(false)
+
+  const persistJourney = (drafts: Record<string, boolean>, submitted: Record<string, boolean>) => {
+    try {
+      localStorage.setItem('ehs-level-drafts', JSON.stringify(drafts))
+      localStorage.setItem('ehs-level-submitted', JSON.stringify(submitted))
+    } catch {}
+  }
+
+  const markLevelDrafted = (id: string) => {
+    const d = { ...levelDrafts, [id]: true }
+    setLevelDrafts(d)
+    persistJourney(d, levelSubmitted)
+  }
+
+  /* Per-level "Submit to Project Admin" — submits THAT level's data individually. */
+  const handleLevelSubmit = async (screenId: string) => {
+    const def = EHS_JOURNEY_LEVELS.find(l => l.id === screenId)
+    if (!def || levelSubmitting) return
+    setLevelSubmitting(screenId)
+    try {
+      const post = await fetch('/api/pu/data-entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level: def.level,
+          levelKey: 'level' + def.level,
+          levelName: def.levelName,
+          module: 'SAFETY',
+          data: {
+            levelData: (ehsData as any)[def.dataKey] ?? {},
+            remarks: 'Individual level submission from EHS Contributor Workspace.',
+          },
+          submitForReview: true,
+        }),
+      })
+      if (!post.ok) {
+        const err = await post.json().catch(() => ({}))
+        toast.error('Submission failed', { description: (err as any)?.error || 'Server responded ' + post.status })
+        return
+      }
+      const d = { ...levelDrafts, [screenId]: true }
+      const s = { ...levelSubmitted, [screenId]: true }
+      setLevelDrafts(d)
+      setLevelSubmitted(s)
+      persistJourney(d, s)
+      contributorStore.addActivity({
+        id: 'act-' + Date.now(),
+        roleKey: 'EHS_USER',
+        timestamp: 'Just now',
+        user: 'Praveen Reddy (EHS)',
+        action: 'Submitted',
+        target: def.levelName,
+        details: 'Level submitted individually to the Project Admin.',
+        badgeTone: 'green'
+      })
+      setActivities(contributorStore.getActivities('EHS_USER'))
+      toast.success(def.levelName + ' submitted to Project Admin')
+    } catch (e: any) {
+      toast.error('Submission failed', { description: e?.message || 'Network error.' })
+    } finally {
+      setLevelSubmitting(null)
+    }
+  }
+
+  /* Consolidated final submit — from the FinalSubmitAllModal. */
+  const handleFinalSubmit = async (): Promise<boolean> => {
+    setSubmittingAll(true)
+    try {
+      const post = await fetch('/api/pu/data-entry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level: 5,
+          levelKey: 'level5',
+          levelName: 'BRSR EHS & Safety Package (All Levels)',
+          module: 'SAFETY',
+          data: {
+            energy: ehsData.energy,
+            water: ehsData.water,
+            ghg: ehsData.ghg,
+            waste: ehsData.waste,
+            safety: ehsData.safety,
+            permits: ehsData.permits,
+            incidents: ehsData.incidents,
+            initiatives: ehsData.initiatives,
+            remarks: 'Final consolidated submission from EHS Contributor Workspace — all levels.',
+          },
+          submitForReview: true,
+        }),
+      })
+      if (!post.ok) {
+        const err = await post.json().catch(() => ({}))
+        toast.error('Final submission failed', { description: (err as any)?.error || 'Server responded ' + post.status })
+        return false
+      }
+      const d = { ...levelDrafts }
+      const s = { ...levelSubmitted }
+      for (const l of EHS_JOURNEY_LEVELS) { d[l.id] = true; s[l.id] = true }
+      setLevelDrafts(d)
+      setLevelSubmitted(s)
+      persistJourney(d, s)
+      contributorStore.addActivity({
+        id: 'act-' + Date.now(),
+        roleKey: 'EHS_USER',
+        timestamp: 'Just now',
+        user: 'Praveen Reddy (EHS)',
+        action: 'Submitted',
+        target: 'BRSR EHS & Safety Package',
+        details: 'Final consolidated package submitted to the Project Admin.',
+        badgeTone: 'green'
+      })
+      setActivities(contributorStore.getActivities('EHS_USER'))
+      setShowFinalReview(false)
+      setShowSubmitSuccess(true)
+      return true
+    } catch (e: any) {
+      toast.error('Final submission failed', { description: e?.message || 'Network error.' })
+      return false
+    } finally {
+      setSubmittingAll(false)
+    }
+  }
+
+  /* allData for the shared FinalSubmitAllModal — ENV-style keyed structure. */
+  const ehsAllData: Record<string, any> = {
+    [`l1-${selectedProjectId}-current`]: { items: [{ id: 'ehs-1', title: 'Energy Consumption', ...ehsData.energy }] },
+    [`l2-${selectedProjectId}-current`]: { items: [{ id: 'ehs-2', title: 'Water Management', ...ehsData.water }] },
+    [`l3-${selectedProjectId}-current`]: { items: [{ id: 'ehs-3', title: 'GHG Emissions & Air', ...ehsData.ghg }] },
+    [`l4-${selectedProjectId}-current`]: { items: [{ id: 'ehs-4', title: 'Waste Management', ...ehsData.waste }] },
+    [`l5-${selectedProjectId}-current`]: { items: [{ id: 'ehs-5', title: 'Safety Incidents', ...ehsData.safety }] },
+    [`l6-${selectedProjectId}-current`]: { items: [{ id: 'ehs-6', title: 'Permits & CTO', ...ehsData.permits }] },
+    [`l7-${selectedProjectId}-current`]: { items: [{ id: 'ehs-7', title: 'Environmental Incidents', ...ehsData.incidents }] },
+    [`l8-${selectedProjectId}-current`]: { items: [{ id: 'ehs-8', title: 'Initiatives', ...ehsData.initiatives }] },
+  }
+
+  const ehsModalLevels = EHS_JOURNEY_LEVELS.map(l => ({
+    key: l.id, level: l.level, label: l.label,
+    icon: l.id === 'ehs-1' ? Zap : l.id === 'ehs-2' ? Droplets : l.id === 'ehs-3' ? Wind : l.id === 'ehs-4' ? Trash2 : l.id === 'ehs-5' ? ShieldCheck : l.id === 'ehs-6' ? FileCheck2 : l.id === 'ehs-7' ? AlertTriangle : Sparkles,
+  }))
+
   return (
     <div className="space-y-6 pb-12">
       {/* Toast */}
@@ -161,22 +351,6 @@ export function EhsWorkspace() {
             <span className="rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2 text-xs font-bold text-slate-700 shadow-xs">
               FY 2026-27 (Assigned)
             </span>
-            <button
-              type="button"
-              onClick={() => handleSaveDraft(activeTab.toUpperCase())}
-              className="ios-btn-ghost"
-            >
-              <Save className="h-3.5 w-3.5 text-slate-500" />
-              <span>{saveStatus}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowValidationModal(true)}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-amber-500/20 hover:from-amber-600 hover:to-orange-700 hover:-translate-y-px transition-all cursor-pointer active:scale-95"
-            >
-              <Send className="h-3.5 w-3.5" />
-              <span>Validate & Submit</span>
-            </button>
           </div>
         </div>
 
@@ -388,6 +562,21 @@ export function EhsWorkspace() {
       {/* 2. LEVEL EHS-1 — ENERGY CONSUMPTION */}
       {activeTab === 'ehs-1' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.energy.common}
             accentColor="amber"
@@ -559,6 +748,21 @@ export function EhsWorkspace() {
       {/* 3. LEVEL EHS-2 — WATER MANAGEMENT */}
       {activeTab === 'ehs-2' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.water.common}
             accentColor="amber"
@@ -738,6 +942,21 @@ export function EhsWorkspace() {
       {/* 4. LEVEL EHS-3 — GHG EMISSIONS & AIR QUALITY */}
       {activeTab === 'ehs-3' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.ghg.common}
             accentColor="amber"
@@ -907,6 +1126,21 @@ export function EhsWorkspace() {
       {/* 5. LEVEL EHS-4 — WASTE MANAGEMENT */}
       {activeTab === 'ehs-4' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.waste.common}
             accentColor="amber"
@@ -1095,6 +1329,21 @@ export function EhsWorkspace() {
       {/* 6. LEVEL EHS-5 — SAFETY INCIDENTS */}
       {activeTab === 'ehs-5' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.safety.common}
             accentColor="amber"
@@ -1270,6 +1519,21 @@ export function EhsWorkspace() {
       {/* 7. LEVEL EHS-6 — ENVIRONMENTAL COMPLIANCE & PERMITS */}
       {activeTab === 'ehs-6' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.permits.common}
             accentColor="amber"
@@ -1397,6 +1661,21 @@ export function EhsWorkspace() {
       {/* 8. LEVEL EHS-7 — ENVIRONMENTAL INCIDENTS & SPILLS */}
       {activeTab === 'ehs-7' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.incidents.common}
             accentColor="amber"
@@ -1510,6 +1789,21 @@ export function EhsWorkspace() {
       {/* 9. LEVEL EHS-8 — SUSTAINABILITY INITIATIVES */}
       {activeTab === 'ehs-8' && (
         <div className="space-y-6">
+          {/* Per-level individual submission to Project Admin */}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200/70 bg-amber-50/40 px-4 py-3 backdrop-blur-xl">
+            <span className="text-xs font-semibold text-slate-600">
+              This level&apos;s data can be submitted individually — it reaches the Project Admin instantly.
+            </span>
+            <button
+              type="button"
+              disabled={levelSubmitting === '" + sid + "'}
+              onClick={() => handleLevelSubmit('" + sid + "')}
+              className="inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/25 transition hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 disabled:opacity-60"
+            >
+              <Send className="h-3.5 w-3.5" />
+              <span>{levelSubmitting === '" + sid + "' ? 'Submitting…' : 'Submit to Project Admin'}</span>
+            </button>
+          </div>
           <CommonLevel0Card
             fields={ehsData.initiatives.common}
             accentColor="amber"
@@ -1627,12 +1921,242 @@ export function EhsWorkspace() {
       )}
 
       {/* 10. EVIDENCE TAB */}
+      {/* ─────────────────────────────────────────────────────────────
+          BOTTOM ACTION BAR (iOS Liquid Glass Sticky Bar)
+          ───────────────────────────────────────────────────────────── */}
+      {activeTab !== 'evidence' && activeTab !== 'submissions' && activeTab !== 'activity' && (
+        <div className="sticky bottom-4 z-30">
+          <div className="relative overflow-hidden rounded-[22px] border border-white/80 bg-white/85 px-5 py-3.5 shadow-[0_18px_44px_-12px_rgba(245,158,11,0.28)] backdrop-blur-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                <span>Changes auto-persisted · Save each level, then Validate &amp; Continue for the journey review</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { handleSaveDraft(activeTab.toUpperCase()); markLevelDrafted(activeTab) }}
+                  className="ios-btn-ghost"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{saveStatus}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setJourneyOpen(true)}
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-600 px-5 py-2.5 text-xs font-bold text-white shadow-lg shadow-amber-500/25 transition-all hover:from-amber-600 hover:to-orange-700 hover:-translate-y-0.5 active:scale-95 cursor-pointer"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  <span>Validate &amp; Continue</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RIGHT-SIDE JOURNEY PANEL — level-by-level draft tracker ── */}
+      <AnimatePresence>
+        {journeyOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setJourneyOpen(false)}
+              className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm"
+            />
+            <motion.aside
+              initial={{ x: 480 }}
+              animate={{ x: 0 }}
+              exit={{ x: 480 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 260 }}
+              className="fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col overflow-hidden border-l border-white/80 bg-white/90 shadow-2xl backdrop-blur-2xl"
+            >
+              <div className="relative overflow-hidden border-b border-white/70 bg-gradient-to-br from-amber-500 to-orange-600 p-5 text-white">
+                <div className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-white/20 to-transparent" />
+                <div className="relative z-10 flex items-start justify-between">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-100">Level Journey</div>
+                    <h3 className="mt-0.5 text-lg font-black">EHS Disclosure Levels</h3>
+                    <p className="mt-0.5 text-[11px] text-amber-100/90">
+                      {EHS_JOURNEY_LEVELS.filter(l => levelDrafts[l.id] || levelSubmitted[l.id]).length} of {EHS_JOURNEY_LEVELS.length} levels drafted — finish all to unlock the final review
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setJourneyOpen(false)}
+                    className="rounded-full p-1.5 text-white/80 transition hover:bg-white/20 hover:text-white"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-2 overflow-y-auto p-4 scroll-elegant">
+                {EHS_JOURNEY_LEVELS.map((l, idx) => {
+                  const submitted = levelSubmitted[l.id]
+                  const drafted = levelDrafts[l.id]
+                  const isCurrent = activeTab === l.id
+                  return (
+                    <div
+                      key={l.id}
+                      className={`flex items-center gap-3 rounded-2xl border p-3 transition ${
+                        submitted ? 'border-emerald-200 bg-emerald-50/70'
+                        : drafted ? 'border-amber-200 bg-amber-50/60'
+                        : isCurrent ? 'border-blue-200 bg-blue-50/60'
+                        : 'border-slate-200 bg-white/80'
+                      }`}
+                    >
+                      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-black ${
+                        submitted ? 'bg-emerald-500 text-white'
+                        : drafted ? 'bg-amber-500 text-white'
+                        : 'border border-slate-300 bg-white text-slate-400'
+                      }`}>
+                        {submitted ? <CheckCircle2 className="h-4 w-4" /> : drafted ? <Check className="h-4 w-4" /> : idx + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-xs font-bold text-slate-900">{l.label}</div>
+                        <div className="text-[10px] font-semibold text-slate-400">
+                          {submitted ? 'Submitted to Project Admin' : drafted ? 'Draft saved — ready to submit' : 'Not started'}
+                        </div>
+                      </div>
+                      {!isCurrent && (
+                        <button
+                          type="button"
+                          onClick={() => { setActiveTab(l.id); setJourneyOpen(false) }}
+                          className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 transition hover:bg-slate-50"
+                        >
+                          Go
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="border-t border-slate-200/80 bg-white/70 p-4">
+                {(() => {
+                  const doneCount = EHS_JOURNEY_LEVELS.filter(l => levelDrafts[l.id] || levelSubmitted[l.id]).length
+                  const allDone = doneCount === EHS_JOURNEY_LEVELS.length
+                  return (
+                    <>
+                      <div className="mb-2.5 flex items-center justify-between text-[11px] font-bold">
+                        <span className="text-slate-500">Journey progress</span>
+                        <span className={allDone ? 'text-emerald-600' : 'text-slate-600'}>{doneCount}/{EHS_JOURNEY_LEVELS.length}</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-600 transition-all duration-500" style={{ width: `${(doneCount / EHS_JOURNEY_LEVELS.length) * 100}%` }} />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={!allDone || submittingAll}
+                        onClick={() => setShowFinalReview(true)}
+                        title={allDone ? 'Open the consolidated final review' : 'Draft all levels to unlock the final review'}
+                        className={`mt-3 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-xs font-extrabold transition ${
+                          allDone
+                            ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 hover:from-amber-600 hover:to-orange-700'
+                            : 'cursor-not-allowed bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        <FileCheck2 className="h-4 w-4" />
+                        <span>{allDone ? 'Final Review & Submit' : 'Final Review & Submit (locked)'}</span>
+                        <ArrowRight className="h-4 w-4" />
+                      </button>
+                    </>
+                  )
+                })()}
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ── FINAL REVIEW — full-screen review of every entered level ── */}
+      <FinalSubmitAllModal
+        open={showFinalReview}
+        onClose={() => !submittingAll && setShowFinalReview(false)}
+        projectName="EHS & Sustainability Contributor"
+        periodLabel="FY 2026-27"
+        submitting={submittingAll}
+        onSubmitAll={handleFinalSubmit}
+        levels={ehsModalLevels}
+        allData={ehsAllData}
+        projectId={selectedProjectId || null}
+        periodId="current"
+        submitterRole="EHS / Safety Contributor"
+      />
+
+      {/* ── Success confirmation ── */}
+      <SubmitAllSuccessModal
+        open={showSubmitSuccess}
+        onClose={() => {
+          setShowSubmitSuccess(false)
+          setActiveTab('submissions')
+        }}
+        projectName="EHS & Sustainability Contributor"
+        periodLabel="FY 2026-27"
+        submittedCount={EHS_JOURNEY_LEVELS.length}
+        totalLevels={EHS_JOURNEY_LEVELS.length}
+      />
+
       {activeTab === 'evidence' && (
         <CommonEvidenceManager roleKey="EHS_USER" accentColor="amber" />
       )}
 
       {/* 11. SUBMISSIONS TAB */}
       {activeTab === 'submissions' && (
+        <div className="space-y-6">
+          <div className="glass-form-card">
+            <h3 className="text-lg font-black text-slate-900 mb-1">My EHS Submissions — Live Ledger</h3>
+            <p className="text-xs text-slate-500 mb-4">Real SAFETY submissions — reviewer notes &amp; decisions from the Project Admin, updated every 15s</p>
+            <div className="space-y-2.5">
+              {realSubmissionsLoading && (
+                <div className="rounded-2xl border border-white/70 bg-white/75 px-4 py-8 text-center text-xs font-semibold text-slate-400 backdrop-blur-xl">Loading your submissions…</div>
+              )}
+              {!realSubmissionsLoading && realSubmissions.length === 0 && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-10 text-center text-xs font-semibold text-slate-400 backdrop-blur-xl">
+                  No SAFETY submissions yet — use Submit to Project Admin on any level.
+                </div>
+              )}
+              {realSubmissions.map((sub: any) => (
+                <div key={sub.id} className="rounded-2xl border border-white/70 bg-white/80 p-4 shadow-sm backdrop-blur-xl">
+                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full border border-amber-200 bg-amber-50/80 px-2.5 py-0.5 font-mono text-[10px] font-bold text-amber-700">
+                          {sub.ref || `SUB-${sub.id.slice(-6).toUpperCase()}`}
+                        </span>
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
+                          ['APPROVED', 'ACTIVE'].includes(String(sub.status).toUpperCase()) ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                          : ['CORRECTION_REQUESTED', 'REJECTED'].includes(String(sub.status).toUpperCase()) ? 'border-rose-200 bg-rose-50 text-rose-700'
+                          : 'border-blue-200 bg-blue-50 text-blue-700'
+                        }`}>
+                          {String(sub.status).replace(/_/g, ' ')}
+                        </span>
+                      </div>
+                      <div className="mt-1.5 truncate text-sm font-bold text-slate-900">{sub.title}</div>
+                      <div className="mt-0.5 text-[11px] font-medium text-slate-500">
+                        {sub.project?.name || '—'} · {sub.reportingPeriod?.periodLabel || '—'} · {sub.formattedDateTime || (sub.submittedAt ? new Date(sub.submittedAt).toLocaleString() : '—')}
+                      </div>
+                      {sub.reviewComment && (
+                        <div className="mt-2 flex items-start gap-1.5 rounded-lg border border-rose-200 bg-rose-50/80 px-2.5 py-1.5 text-[11px] font-medium text-rose-800">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                          <span>Reviewer: &quot;{sub.reviewComment}&quot;</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* legacy demo block (disabled) */}
+      {false && (
         <div className="space-y-6">
           <div className="glass-form-card">
             <h3 className="text-lg font-black text-slate-900 mb-1">My EHS Submissions History</h3>

@@ -30,6 +30,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const loadNotifications = () => {
     fetch('/api/pu/notifications').then(r => r.json()).then(d => setNotifications(Array.isArray(d) ? d : (d.items ?? d.notifications ?? []))).catch(() => setNotifications([]))
   }
+  /* Close any open header dropdown on Escape — outside clicks are handled by a
+     document mousedown listener (a `fixed inset-0` overlay inside the glass
+     header does not cover the viewport: backdrop-filter creates a containing
+     block for fixed descendants). */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setProfileOpen(false); setNotifOpen(false) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+  useEffect(() => {
+    if (!profileOpen && !notifOpen) return
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!t?.closest('[data-menu-root]')) { setProfileOpen(false); setNotifOpen(false) }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [profileOpen, notifOpen])
   /* Initial load + light live poll (45s, paused while hidden, instant refresh
      on tab re-focus) so reviewer decisions and assigned tasks reflect without
      a page refresh — without constant background traffic. */
@@ -137,13 +157,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative" data-menu-root>
             <button onClick={() => { setNotifOpen(v => !v); setProfileOpen(false) }} className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 transition hover:bg-white/60 hover:text-blue-600">
               <Bell className="h-4.5 w-4.5" style={{ width: 18, height: 18 }} />
               {unread > 0 && <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-rose-500 px-1 text-[9px] font-bold text-white">{unread}</span>}
             </button>
             <AnimatePresence>
               {notifOpen && (
+                <>
+                {/* Full-screen click-catcher so the menu closes on any outside click */}
+                <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)} />
                 <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}
                   className="glass-strong absolute right-0 top-12 z-50 w-80 rounded-2xl p-2">
                   <div className="mb-2 flex items-center justify-between border-b border-slate-200/50 px-2 pb-2">
@@ -193,6 +216,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     ))}
                   </div>
                 </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
@@ -203,7 +227,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
 
           {/* Profile */}
-          <div className="relative">
+          <div className="relative" data-menu-root>
             <button onClick={() => { setProfileOpen(v => !v); setNotifOpen(false) }} className="glass-subtle flex items-center gap-2 rounded-full py-1 pl-1 pr-2.5 transition hover:ring-2 hover:ring-blue-100">
               <div className={`flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br ${tint} text-[10px] font-bold text-white`}>
                 {user?.name?.split(' ').map(n => n[0]).join('') ?? 'U'}
@@ -216,6 +240,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
             <AnimatePresence>
               {profileOpen && (
+                <>
+                {/* Full-screen click-catcher so the menu closes on any outside click */}
+                <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
                 <motion.div initial={{ opacity: 0, y: -8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.96 }}
                   className="glass-strong absolute right-0 top-12 z-50 w-64 rounded-2xl p-2">
                   <div className="border-b border-slate-200/60 px-3 py-2.5">
@@ -231,16 +258,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <button onClick={logout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-50"><LogOut className="h-3.5 w-3.5" /> Sign out</button>
                   </div>
                 </motion.div>
+                </>
               )}
             </AnimatePresence>
           </div>
         </div>
       </header>
 
-      {/* BODY: sidebar + content */}
-      <div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 gap-0">
+      {/* BODY: fixed sidebar + scrollable content. On md+ the row is pinned to
+         the viewport under the header, so ONLY <main> scrolls and the left
+         nav never moves. Mobile keeps normal document scrolling. */}
+      <div className="relative z-10 mx-auto flex w-full max-w-[1600px] flex-1 gap-0 md:h-[calc(100vh-3.5rem)] md:overflow-hidden">
         {/* LEFT SIDEBAR — role-aware navigation */}
-        <aside className={`${sidebarCollapsed ? 'w-16' : 'w-56'} sticky top-14 hidden h-[calc(100vh-3.5rem)] flex-shrink-0 flex-col border-r border-white/30 py-3 transition-all duration-300 md:flex`}>
+        <aside className={`${sidebarCollapsed ? 'w-16' : 'w-56'} sticky top-14 hidden h-[calc(100vh-3.5rem)] flex-shrink-0 flex-col overflow-hidden border-r border-white/30 py-3 transition-all duration-300 md:flex`}>
           {/* User role card */}
           {!sidebarCollapsed && (
             <div className="mx-3 mb-3 glass rounded-xl p-3">
@@ -262,7 +292,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
 
           {/* Role-aware nav items */}
-          <nav className="flex-1 space-y-0.5 overflow-y-auto scroll-elegant px-2">
+          <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto scroll-elegant px-2">
             {navItems.map((item) => {
               const Icon = item.icon
               const active = activeModule === item.key
@@ -270,7 +300,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               return (
                 <button key={item.key} onClick={() => setActiveModule(item.key)}
                   title={item.label}
-                  className={`group relative flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold transition ${active ? `bg-gradient-to-r ${tint} text-white shadow-md` : 'text-slate-600 hover:bg-white/60 hover:text-slate-800'}`}>
+                  className={`group relative flex w-full items-center gap-2.5 rounded-xl font-semibold transition ${item.child && !sidebarCollapsed ? 'ml-4 w-[calc(100%-1rem)] px-2.5 py-1.5 text-[11px] border-l-2 border-slate-200/70' : 'px-3 py-2 text-xs'} ${active ? `bg-gradient-to-r ${tint} text-white shadow-md` : 'text-slate-600 hover:bg-white/60 hover:text-slate-800'}`}>
                   <Icon className="h-4 w-4 flex-shrink-0" />
                   {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
                   {badgeCount > 0 && !sidebarCollapsed && (
@@ -327,8 +357,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </AnimatePresence>
 
-        {/* MAIN CONTENT */}
-        <main className="relative z-10 min-w-0 flex-1 px-4 pb-16 pt-5 md:px-6 md:pb-20 md:pt-6">
+        {/* MAIN CONTENT — the only scrollable area on md+ */}
+        <main className="relative z-10 min-w-0 flex-1 px-4 pb-16 pt-5 md:h-full md:overflow-y-auto md:px-6 md:pb-20 md:pt-6 scroll-elegant">
           <AnimatePresence mode="wait">
             <motion.div key={activeModule} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8, transition: { duration: 0.15 } }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}>
               {children}

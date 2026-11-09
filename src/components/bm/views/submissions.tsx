@@ -75,13 +75,33 @@ export default function SubmissionsView() {
     {
       key: "org", header: "Project / BU", render: (r) => (
         <div className="min-w-0">
-          <div className="truncate text-[12.5px]">{r.level === "PROJECT" ? r.projectName ?? "—" : "BU level"}</div>
+          <div className="truncate text-[12.5px] font-medium">{r.level === "PROJECT" ? r.projectName ?? "—" : "BU level"}</div>
           <div className="truncate text-[10.5px] text-[color:var(--ink-faint)]">{r.submittedByName ?? "Unassigned"}</div>
+          {r.forwardedByName ? (
+            <div className="text-[10.5px] text-[color:var(--bum-purple-deep)] font-medium">Forwarded by {r.forwardedByName} (PA)</div>
+          ) : (r.forwardedToBu || (r as any).inConsolidatedReport) ? (
+            <div className="text-[10.5px] text-[color:var(--bum-purple-deep)] font-medium">Forwarded by Project Admin</div>
+          ) : null}
         </div>
       ),
     },
     { key: "period", header: "Period", sortable: true, sortValue: (r) => r.period, render: (r) => <span className="text-[12px]">{r.period} · {r.fiscalQuarter}</span> },
-    { key: "submittedAt", header: "Submitted", sortable: true, sortValue: (r) => r.submittedAt ?? "", render: (r) => <span className="text-[12px]">{fmtDate(r.submittedAt)}</span> },
+    {
+      key: "submittedAt", header: "Submitted", sortable: true, sortValue: (r) => r.forwardedToBuAt ?? r.submittedAt ?? r.lastUpdated,
+      render: (r) => {
+        const dt = r.forwardedToBuAt ?? r.submittedAt ?? r.lastUpdated;
+        if (!dt) return <span className="text-[12px] text-[color:var(--ink-faint)]">—</span>;
+        const d = new Date(dt);
+        const dateStr = d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+        const timeStr = d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
+        return (
+          <div className="flex flex-col">
+            <span className="text-[12px] font-semibold text-[color:var(--ink)]">{dateStr}</span>
+            <span className="text-[10.5px] text-[color:var(--ink-soft)] font-medium">{timeStr}</span>
+          </div>
+        );
+      }
+    },
     {
       key: "deadline", header: "Review deadline", sortable: true, sortValue: (r) => r.reviewDeadline ?? r.dueDate,
       render: (r) => (

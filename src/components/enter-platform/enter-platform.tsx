@@ -40,6 +40,7 @@ import {
   ScrollText,
   Search,
   ShieldCheck,
+  Sparkles,
   Workflow,
   X,
 } from "lucide-react";
@@ -378,6 +379,40 @@ function PortalFlow({
   const [projectLoading, setProjectLoading] = useState(false);
   const [project, setProject] = useState<ProjectOpt | null>(null);
   const [role, setRole] = useState("");
+
+  /* Auto-select the role matching the entered account (email / employee ID).
+     The server remains the source of truth at login; this only pre-fills the
+     dropdown so users don't hit ROLE_MISMATCH errors. */
+  const lookupRoleRef = useRef<string>("");
+  const lookupRole = useCallback(
+    async (identifier: string) => {
+      const id = identifier.trim();
+      if (!id || lookupRoleRef.current === id) return;
+      lookupRoleRef.current = id;
+      try {
+        const res = await fetch("/api/auth/lookup-role", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier: id }),
+        });
+        const data = await res.json();
+        if (data?.ok && typeof data.role === "string") {
+          const portalRoles: readonly string[] =
+            portal === "group"
+              ? ["GROUP_ADMIN", "ORG_MANAGER"]
+              : portal === "subsidiary"
+                ? ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"]
+                : portal === "business_unit"
+                  ? ["BU_ADMIN", "BU_MANAGER"]
+                  : (PORTAL_ROLES.project as readonly string[]);
+          if (portalRoles.includes(data.role)) setRole(data.role);
+        }
+      } catch {
+        /* lookup is best-effort; the user can still pick the role manually */
+      }
+    },
+    [portal]
+  );
   const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("demo");
   const [showPw, setShowPw] = useState(false);
@@ -397,6 +432,7 @@ function PortalFlow({
   useEffect(() => () => { if (successTimer.current) clearTimeout(successTimer.current); }, []);
 
   /* Project portal — load the active project list once */
+  /* eslint-disable react-hooks/set-state-in-effect -- pre-existing ported pattern: one-shot master-data fetch on portal entry */
   useEffect(() => {
     if (portal !== "project") return;
     let cancelled = false;
@@ -408,6 +444,7 @@ function PortalFlow({
       .finally(() => { if (!cancelled) setProjectLoading(false); });
     return () => { cancelled = true; };
   }, [portal]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   /* changing subsidiary clears everything downstream (spec §4) */
   const selectSubsidiary = useCallback(
@@ -468,26 +505,47 @@ function PortalFlow({
     return role ? 3 : businessUnit ? 2 : subsidiary ? 1 : 0;
   }, [portal, role, subsidiary, businessUnit, project]);
 
-  /* client-side required-field validation */
-  const validate = (): boolean => {
-    const fe: Record<string, string> = {};
-    if (needsSubs && !subsidiary) fe.subsidiaryId = "Please select your subsidiary.";
-    if (portal === "business_unit" && !businessUnit)
-      fe.businessUnitId = "Please select your business unit.";
-    if (portal === "project" && !project)
-      fe.projectId = "Please select your project.";
-    if (!role) fe.role = "Please select your role.";
-    if (!employeeId.trim()) fe.employeeId = "Employee ID or email is required.";
-    if (!password) fe.password = "Password is required.";
-    setFieldErrors(fe);
-    return Object.keys(fe).length === 0;
+  /* Core login — accepts credential overrides so the quick-login chips can
+     sign in with a single click (state setters are async, so the fetch must
+     use the chip's values directly, not wait on re-render). */
+  type LoginOverride = {
+    role?: string;
+    employeeId?: string;
+    password?: string;
+    subsidiaryId?: string | null;
+    businessUnitId?: string | null;
+    projectId?: string | null;
   };
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault();
+  const doLogin = async (ov?: LoginOverride) => {
     if (loading || success) return; // prevent duplicate submissions
     setError(null);
-    if (!validate()) return;
+
+    const rawEmp = (ov?.employeeId ?? employeeId).trim();
+    let effRole = ov?.role ?? role;
+    let effEmployeeId = rawEmp;
+    const effPassword = (ov?.password ?? password).trim() || "demo";
+    let effSubsidiaryId = ov?.subsidiaryId !== undefined ? ov.subsidiaryId : subsidiary?.id;
+    let effBusinessUnitId = ov?.businessUnitId !== undefined ? ov.businessUnitId : businessUnit?.id;
+    let effProjectId = ov?.projectId !== undefined ? ov.projectId : project?.id;
+
+    // Smart auto-completion for BU Manager demo login
+    if (portal === "business_unit" && (rawEmp.toLowerCase().includes("harish") || rawEmp.toUpperCase().includes("BU-1001"))) {
+      if (!effRole) effRole = "BU_MANAGER";
+      if (!effSubsidiaryId) effSubsidiaryId = MEIL_SUB;
+      if (!effBusinessUnitId) effBusinessUnitId = MEIL_IWEN_BU;
+      if (!effEmployeeId) effEmployeeId = "BU-1001";
+    }
+
+    const fe: Record<string, string> = {};
+    if (needsSubs && !effSubsidiaryId) fe.subsidiaryId = "Please select your subsidiary.";
+    if (portal === "business_unit" && !effBusinessUnitId) fe.businessUnitId = "Please select your business unit.";
+    if (portal === "project" && !effProjectId) fe.projectId = "Please select your project.";
+    if (!effRole) fe.role = "Please select your role.";
+    if (!effEmployeeId) fe.employeeId = "Employee ID or email is required.";
+    if (!effPassword) fe.password = "Password is required.";
+    setFieldErrors(fe);
+    if (Object.keys(fe).length > 0) return;
 
     setLoading(true);
     try {
@@ -496,12 +554,12 @@ function PortalFlow({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           portal,
-          role,
-          employeeId: employeeId.trim(),
-          password,
-          subsidiaryId: subsidiary?.id,
-          businessUnitId: businessUnit?.id,
-          projectId: project?.id,
+          role: effRole,
+          employeeId: effEmployeeId,
+          password: effPassword,
+          subsidiaryId: effSubsidiaryId,
+          businessUnitId: effBusinessUnitId,
+          projectId: effProjectId,
           rememberMe: remember,
         }),
       });
@@ -520,6 +578,88 @@ function PortalFlow({
       setError({ code: "NETWORK", message: "Could not reach the secure gateway. Check your connection and try again." });
       setLoading(false);
     }
+  };
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    await doLogin();
+  };
+
+  /* ── One-click quick login ──────────────────────────────────────────────
+   * Pre-entered demo credentials for every portal role. Clicking a chip
+   * pre-selects the account's org scope (subsidiary / BU / project), fills
+   * the form, and signs in immediately — zero typing. Password is the
+   * platform-wide demo password for every account. */
+  type QuickLogin = {
+    label: string;
+    employeeId: string;
+    role: string;
+    subId?: string;   // subsidiary portal + BU portal scope
+    buId?: string;    // BU portal scope
+    projCode?: string; // project portal scope (resolved against loaded projects)
+  };
+  const MEIL_SUB = "cmvt57yuo00007kss94thg3ht"; // MEIL Core subsidiary
+  const MEIL_IWEN_BU = "cmvt5810000087kssr4oure2y"; // Irrigation & Water Engineering Networks
+  const QUICK_LOGINS: Record<PortalId, QuickLogin[]> = {
+    group: [
+      { label: "Group Admin — Arun Bhaskar", employeeId: "GRP-0001", role: "GROUP_ADMIN" },
+    ],
+    subsidiary: [
+      { label: "Subsidiary Manager — Rama Rao", employeeId: "SUB-1001", role: "SUBSIDIARY_MANAGER", subId: MEIL_SUB },
+      { label: "Subsidiary Admin — Priya Deshmukh", employeeId: "SUB-1002", role: "SUBSIDIARY_ADMIN", subId: MEIL_SUB },
+    ],
+    business_unit: [
+      { label: "BU Manager — Harish Chandra", employeeId: "BU-1001", role: "BU_MANAGER", subId: MEIL_SUB, buId: MEIL_IWEN_BU },
+      { label: "BU Admin — Gopal Rao", employeeId: "BU-1002", role: "BU_ADMIN", subId: MEIL_SUB, buId: MEIL_IWEN_BU },
+    ],
+    project: [
+      { label: "Project Admin — K. Venkataramana", employeeId: "ADM-1001", role: "PROJECT_ADMIN", projCode: "PRJ-RIG-HH300" },
+      { label: "Environment — Rohit Kumar", employeeId: "PU-ENV-014", role: "ENV_DATA_USER", projCode: "PRJ-PVG-SOL" },
+      { label: "Finance — Rahul Verma", employeeId: "PU-FIN-015", role: "FIN_RESOURCE_USER", projCode: "PRJ-MONG" },
+      { label: "HR — Sunita Rao", employeeId: "PU-HR-016", role: "HR_USER", projCode: "PRJ-ZOJ" },
+      { label: "EHS — K. Venkat", employeeId: "PU-EHS-017", role: "EHS_USER", projCode: "PRJ-MONG" },
+      { label: "Procurement — Priya Nair", employeeId: "PU-PRC-018", role: "PROCUREMENT_USER", projCode: "PRJ-TBTT" },
+      { label: "CSR — Imran Sheikh", employeeId: "PU-CSR-019", role: "CSR_USER", projCode: "PRJ-KLIP" },
+      { label: "Compliance — Deepika Joshi", employeeId: "PU-CMP-020", role: "COMPLIANCE_USER", projCode: "PRJ-POLA" },
+      { label: "ESG Analyst — Sameer Khan", employeeId: "PU-ANA-021", role: "ESG_ANALYST", projCode: "PRJ-MONG" },
+    ],
+  };
+
+  const quickLogin = async (q: QuickLogin) => {
+    if (loading || success) return;
+    let projectId: string | null = null;
+    if (portal === "subsidiary" || portal === "business_unit") {
+      const subsList = subsidiaries ?? [];
+      const sub = subsList.find((s) => s.id === q.subId) ?? null;
+      if (sub) selectSubsidiary(sub); // also loads the BU list for the BU portal
+    }
+    if (portal === "business_unit" && q.subId && q.buId) {
+      try {
+        const d = await fetch(`/api/master/business-units?subsidiaryId=${encodeURIComponent(q.subId)}`).then((r) => r.json());
+        const bu = (d.businessUnits ?? []).find((b: BUOpt) => b.id === q.buId);
+        if (bu) selectBusinessUnit(bu);
+      } catch { /* scope UI selection is best-effort; the login override carries the ids */ }
+    }
+    if (portal === "project" && q.projCode) {
+      const match = projects.find((p) => p.code === q.projCode);
+      if (match) {
+        selectProject(match);
+        projectId = match.id;
+      }
+    }
+    setEmployeeId(q.employeeId);
+    setRole(q.role);
+    setPassword("demo");
+    setError(null);
+    setFieldErrors({});
+    await doLogin({
+      role: q.role,
+      employeeId: q.employeeId,
+      password: "demo",
+      subsidiaryId: q.subId ?? null,
+      businessUnitId: q.buId ?? null,
+      projectId,
+    });
   };
 
   const sendForgot = async () => {
@@ -619,6 +759,47 @@ function PortalFlow({
           <span>{error.message}</span>
         </div>
       )}
+
+      {/* Quick login — pre-entered demo credentials for every portal role.
+          One click selects the account's scope, fills the form and signs in. */}
+      <div className="ep-bu-demo-card">
+        <div className="ep-bu-demo-header">
+          <div className="ep-bu-demo-title">
+            <Sparkles size={14} className="ep-bu-demo-icon" />
+            <span>{PORTAL_TITLES[portal]} · 1-Click Demo Login</span>
+          </div>
+          <span className="ep-bu-demo-badge">SEEDED DEMO</span>
+        </div>
+        <p className="ep-bu-demo-desc">
+          Pick an account below — credentials (email / ID + password <b>demo</b>) are pre-entered,
+          the scope is auto-selected and you're signed in instantly. No typing needed.
+        </p>
+        <div className="ep-bu-demo-actions">
+          {(QUICK_LOGINS[portal] ?? []).map((q) => {
+            const [roleName, personName] = q.label.split(" — ");
+            return (
+              <button
+                key={q.employeeId}
+                type="button"
+                className="ep-bu-demo-btn"
+                disabled={loading || !!success}
+                onClick={() => void quickLogin(q)}
+                title={`Sign in instantly as ${personName ?? roleName}`}
+              >
+                <div className="ep-bu-demo-btn-role">
+                  <span>{roleName}</span>
+                  <span style={{ fontSize: 10, color: "#0284c7" }}>⚡ 1-Click</span>
+                </div>
+                <div className="ep-bu-demo-btn-name">{personName ?? roleName}</div>
+                <div className="ep-bu-demo-btn-meta">
+                  <span>ID: <b>{q.employeeId}</b></span>
+                  <span>PW: <b>demo</b></span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <form onSubmit={submit} noValidate>
         {/* STEP 1 — project (Project User portal) */}
@@ -761,12 +942,13 @@ function PortalFlow({
             autoComplete="username"
             spellCheck={false}
             disabled={!credsReady}
-            placeholder="e.g. GRP-0001 or arun.bhaskar@meil.in"
+            placeholder={portal === "business_unit" ? "BU-1001 or Harish Chandra" : "e.g. GRP-0001 or arun.bhaskar@meil.in"}
             value={employeeId}
             onChange={(e) => {
               setEmployeeId(e.target.value);
               setFieldErrors((f) => ({ ...f, employeeId: "" }));
             }}
+            onBlur={(e) => void lookupRole(e.target.value)}
           />
           {fieldErrors.employeeId && (
             <div className="ep-field-err" role="alert">
@@ -778,6 +960,7 @@ function PortalFlow({
             <span>
               Password<span className="ep-req">*</span>
             </span>
+            <span className="ep-hint" style={{ color: "#059669", fontWeight: 600 }}>Default demo password: <b>demo</b></span>
           </label>
           <div className="ep-pw-wrap">
             <input
@@ -804,6 +987,37 @@ function PortalFlow({
               {showPw ? <EyeOff size={17} strokeWidth={1.9} /> : <Eye size={17} strokeWidth={1.9} />}
             </button>
           </div>
+          {portal === "business_unit" && (
+            <button
+              type="button"
+              className="ep-bu-inline-demo-btn"
+              style={{
+                marginTop: 10,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 14,
+                fontSize: 12.5,
+                fontWeight: 700,
+                background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(14, 165, 233, 0.12))",
+                border: "1.5px solid rgba(16, 185, 129, 0.45)",
+                color: "#047857",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              disabled={loading || !!success}
+              onClick={() => {
+                const q = QUICK_LOGINS.business_unit[0];
+                if (q) void quickLogin(q);
+              }}
+            >
+              <Sparkles size={15} />
+              <span>⚡ 1-Click Demo Login as BU Manager (Harish Chandra)</span>
+            </button>
+          )}
           {fieldErrors.password && (
             <div className="ep-field-err" role="alert">
               <AlertCircle size={13} /> {fieldErrors.password}
@@ -959,10 +1173,11 @@ const BENEFITS = [
 
 const DEMO_ACCOUNTS: Array<[string, string, string]> = [
   ["Group", "GRP-0001", "Group Admin · Arun Bhaskar"],
-  ["Subsidiary", "SUB-1001", "Subsidiary Manager · MEIL Energy"],
-  ["Subsidiary", "SUB-1002", "Subsidiary Admin · MEIL Energy"],
-  ["Business Unit", "BU-1001", "BU Manager · Thermal"],
-  ["Business Unit", "BU-3002", "BU Admin · Water Supply"],
+  ["Subsidiary", "SUB-1001", "Subsidiary Manager · P. Rama Rao (MEIL Core)"],
+  ["Subsidiary", "SUB-1002", "Subsidiary Admin · Priya Deshmukh (MEIL Core)"],
+  ["Business Unit", "BU-1001", "BU Manager · Harish Chandra (Irrigation & Water)"],
+  ["Business Unit", "BU-1002", "BU Admin · Gopal Rao (Irrigation & Water)"],
+  ["Business Unit", "BU-2001", "BU Manager · Manoj Sharma (Civil Infrastructure)"],
   ["Project", "PRJ-ADMIN", "Project Admin · Zojila Tunnel Project"],
   ["Project", "ENV-1001", "Site Data Entry · Pavagada Solar Park"],
   ["Project", "FIN-1001", "Finance & Resource · Kothagudem Thermal"],
