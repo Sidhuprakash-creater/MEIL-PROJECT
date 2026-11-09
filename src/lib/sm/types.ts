@@ -57,6 +57,8 @@ export const SUBMISSION_STATUS_LABELS: Record<string, string> = {
   CHANGES_REQUESTED: "Changes Requested",
   REJECTED: "Rejected",
   APPROVED: "Approved",
+  BU_APPROVED: "BU Approved",
+  BU_REVIEW_PENDING: "BU Review Pending",
 };
 
 export const DEADLINE_STATUS_LABELS: Record<string, string> = {

@@ -28,7 +28,7 @@ import { EvidenceChip, StatusChip, UrgencyChip, fmtMetric, severityTone } from "
 
 type DetailResponse = { submission: SmSubmissionDetail; updatedAt: string; version: number };
 
-const REVIEW_ELIGIBLE = ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"];
+const REVIEW_ELIGIBLE = ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "BU_APPROVED"];
 
 export function ReportReviewDialog({
   submissionId,

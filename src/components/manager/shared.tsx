@@ -7,7 +7,7 @@ import { SUBMISSION_STATUS_LABELS } from "@/lib/sm/types";
 
 /* status hue map — sky blue primary, amber pending, red overdue, green approved */
 export const STATUS_HUE: Record<string, string> = {
-  APPROVED: "#20a779", SUBMITTED: "#3a7bff", UNDER_REVIEW: "#7c5cff",
+  APPROVED: "#20a779", BU_APPROVED: "#8B5CF6", BU_REVIEW_PENDING: "#c57926", SUBMITTED: "#3a7bff", UNDER_REVIEW: "#7c5cff",
   DRAFT: "#8a99ad", ASSIGNED: "#c57926", CHANGES_REQUESTED: "#c57926", REJECTED: "#c34a4a",
 };
 

@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
    separate from workflow tabs (a report can be UNDER_REVIEW and overdue). */
 const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean }) => boolean> = {
   all: () => true,
-  queue: (s) => ["SUBMITTED", "UNDER_REVIEW"].includes(s.status),
+  queue: (s) => ["SUBMITTED", "UNDER_REVIEW", "BU_APPROVED"].includes(s.status),
   draft: (s) => ["DRAFT", "ASSIGNED"].includes(s.status),
-  submitted: (s) => s.status === "SUBMITTED",
+  submitted: (s) => s.status === "SUBMITTED" || s.status === "BU_APPROVED",
   pending: (s) => s.status === "UNDER_REVIEW",
   approved: (s) => s.status === "APPROVED",
   rejected: (s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status),

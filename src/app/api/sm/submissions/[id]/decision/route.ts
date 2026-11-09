@@ -33,8 +33,8 @@ type Params = { params: Promise<{ id: string }> };
    ───────────────────────────────────────────────────────────────────────────── */
 
 const ELIGIBLE: Record<string, string[]> = {
-  approve: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"],
-  reject: ["SUBMITTED", "UNDER_REVIEW"],
+  approve: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "BU_APPROVED"],
+  reject: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED", "BU_APPROVED"],
 };
 
 export async function POST(req: NextRequest, { params }: Params) {
