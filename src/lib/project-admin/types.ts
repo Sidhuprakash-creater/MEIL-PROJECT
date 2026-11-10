@@ -417,6 +417,22 @@ export interface PaConsolidatedReport {
     totalItems: number;
     totalEvidence: number;
   }[];
+  /** Disclosures already handed over to the Business Unit — they are out of
+   *  the staging list above and are tracked from the Submissions screen. */
+  sentToBuCount: number;
+  sentToBuItems: Array<{
+    id: string;
+    ref: string;
+    title: string;
+    category: string;
+    module: string | null;
+    status: string;
+    buDecision: "BU_APPROVED" | "BU_REJECTED" | "RETURNED_BY_BU" | "AWAITING_BU_REVIEW";
+    forwardedToBuAt: string | null;
+    reviewedAt: string | null;
+    evidenceCount: number;
+    consolidatedReportId: string | null;
+  }>;
 }
 
 export interface PaCorrectionItem {

@@ -216,7 +216,38 @@ export function PaStatusBadge({ status }: { status: string }) {
   );
 }
 
-/* ── 6. Contributor Category Badge ── */
+/* ── 6. BU handoff decision badge ────────────────────────────────────────────
+   One vocabulary for "what did the Business Unit decide with this report",
+   shared by the Consolidated tracker and the Submissions screen. */
+export function PaBuDecisionBadge({ decision }: { decision?: string | null }) {
+  const d = String(decision || "AWAITING_BU_REVIEW").toUpperCase();
+  let bg = "bg-sky-50 text-sky-700 border-sky-200/60";
+  let dot = "bg-sky-500 animate-pulse";
+  let label = "Awaiting BU review";
+
+  if (d === "BU_APPROVED") {
+    bg = "bg-emerald-50 text-emerald-700 border-emerald-200/60";
+    dot = "bg-emerald-500";
+    label = "BU approved";
+  } else if (d === "BU_REJECTED") {
+    bg = "bg-rose-50 text-rose-700 border-rose-200/60";
+    dot = "bg-rose-500";
+    label = "BU rejected";
+  } else if (d === "RETURNED_BY_BU") {
+    bg = "bg-amber-50 text-amber-700 border-amber-200/60";
+    dot = "bg-amber-500";
+    label = "Returned by BU";
+  }
+
+  return (
+    <span className={`pa-badge border ${bg}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+      <span className="capitalize">{label.toLowerCase()}</span>
+    </span>
+  );
+}
+
+/* ── 7. Contributor Category Badge ── */
 export function PaCategoryBadge({ category }: { category: ContributorRole }) {
   const def = CONTRIBUTOR_CATEGORIES[category] || { label: category, color: "#315CFF" };
   return (

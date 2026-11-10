@@ -22,7 +22,7 @@ import {
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
-import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
+import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard, PaBuDecisionBadge } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
 
 /* ── Per-source item rendering helpers ──────────────────────────────────── */
@@ -291,6 +291,7 @@ export default function SubmissionsView() {
     { id: "all", label: "All Submissions", count: submissions.length },
     { id: "submitted", label: "Pending Admin Review", count: summary?.submitted || 0 },
     { id: "approved", label: "Approved", count: summary?.approved || 0 },
+    { id: "sent", label: "Sent to BU", count: submissions.filter((s) => s.forwardedToBu).length },
     { id: "returned", label: "Corrections Requested", count: summary?.returned || 0 },
     {
       id: "reports",
@@ -298,6 +299,19 @@ export default function SubmissionsView() {
       count: submissions.filter((s) => !s.isSiteSubmission).length,
     },
   ];
+
+  /* BU decision vocabulary — mirrors /api/project-admin/consolidated-report
+     so the tracker and this screen never disagree. */
+  const buDecisionOf = (s: any) => {
+    if (!s?.forwardedToBu) return null;
+    switch (s.submissionStatus) {
+      case "BU_APPROVED": return "BU_APPROVED";
+      case "REJECTED": return "BU_REJECTED";
+      case "CHANGES_REQUESTED":
+      case "CORRECTION_REQUESTED": return "RETURNED_BY_BU";
+      default: return "AWAITING_BU_REVIEW";
+    }
+  };
 
   const filtered = submissions.filter((s) => {
     const matchesSearch =
@@ -325,6 +339,9 @@ export default function SubmissionsView() {
         s.reviewStatus === "PENDING_ADMIN_REVIEW" ||
         s.reviewStatus === "PENDING_BU_REVIEW"
       );
+    }
+    if (activeTab === "sent") {
+      return !!s.forwardedToBu;
     }
     if (activeTab === "returned") {
       return (
@@ -450,13 +467,14 @@ export default function SubmissionsView() {
               <th className="p-4">Metric Value</th>
               <th className="p-4">Submitted By</th>
               <th className="p-4">Review Status</th>
+              <th className="p-4">BU Handoff</th>
               <th className="p-4 pr-6 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="p-8 text-center text-[#64748B]">
+                <td colSpan={8} className="p-8 text-center text-[#64748B]">
                   No matching submissions found.
                 </td>
               </tr>
@@ -542,6 +560,20 @@ export default function SubmissionsView() {
                     </td>
                     <td className="p-4">
                       <PaStatusBadge status={s.submissionStatus || s.reviewStatus} />
+                    </td>
+                    <td className="p-4">
+                      {buDecisionOf(s) ? (
+                        <div className="flex flex-col items-start gap-1">
+                          <PaBuDecisionBadge decision={buDecisionOf(s)} />
+                          {s.forwardedToBuAt && (
+                            <span className="text-[10px] text-slate-500 font-semibold">
+                              sent {new Date(s.forwardedToBuAt).toLocaleDateString("en-GB")}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400">Not sent yet</span>
+                      )}
                     </td>
                     <td className="p-4 pr-6 text-right">
                       <div className="flex items-center justify-end gap-1.5">

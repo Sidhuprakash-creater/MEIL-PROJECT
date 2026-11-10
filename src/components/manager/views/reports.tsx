@@ -2,7 +2,7 @@
 
 // ── SUBSIDIARY MANAGER · SCREENS 04 & 05 — BU Reports / Project Reports ──
 import { useMemo, useState } from "react";
-import { Landmark } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, FileText, Landmark, Sigma } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useSmWorkspace } from "@/lib/sm/store";
 import { fmtDate, useSmApi } from "@/lib/sm/client";
@@ -12,6 +12,140 @@ import {
 } from "@/components/workspace/ui";
 import { EvidenceChip, StatusChip, UrgencyChip } from "@/components/manager/shared";
 import { ReportReviewDialog } from "@/components/manager/review-detail";
+
+/* ── Final reports handed up by the business units ───────────────────────── */
+interface SmFinalReport {
+  id: string;
+  fileName: string | null;
+  status: string;
+  period: string;
+  generatedByName: string;
+  businessUnit: string;
+  businessUnitCode: string;
+  notes: string;
+  createdAt: string;
+  totals: {
+    sections: number;
+    projects: number;
+    reports: number;
+    confirmedReports: number;
+    confirmedValue: number;
+  };
+  sections: Array<{
+    category: string;
+    label: string;
+    confirmedValue: number;
+    unit: string | null;
+    projectCount: number;
+    reportCount: number;
+    projects: Array<{
+      projectName: string;
+      confirmedValue: number;
+      unit: string | null;
+      evidenceCount: number;
+      softCopy: { ref: string; fileName: string } | null;
+    }>;
+  }>;
+}
+
+function FinalReportsFromBu() {
+  const { data, loading } = useSmApi<{ reports: SmFinalReport[] }>("/api/sm/final-reports", {
+    pollMs: 30000,
+  });
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const reports = data?.reports ?? [];
+
+  if (loading && reports.length === 0) {
+    return (
+      <div className="glass-subtle rounded-2xl px-4 py-3 text-[12px] text-[color:var(--ink-faint)]">
+        Loading final reports from your business units…
+      </div>
+    );
+  }
+  if (reports.length === 0) return null;
+
+  return (
+    <div className="glass-subtle rounded-2xl p-4 space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[rgba(49,92,255,0.12)]">
+          <Sigma className="h-4 w-4 text-[color:var(--bum-purple-deep)]" />
+        </span>
+        <div>
+          <div className="text-[13.5px] font-bold text-[color:var(--ink)]">
+            Final reports received from business units
+          </div>
+          <div className="text-[11px] text-[color:var(--ink-faint)]">
+            Signed off by the Business Unit Managers — section totals summed across every project
+          </div>
+        </div>
+      </div>
+
+      {reports.map((r) => (
+        <div key={r.id} className="rounded-xl bg-white/60 border border-slate-200/70 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setOpen((p) => ({ ...p, [r.id]: !p[r.id] }))}
+            aria-expanded={!!open[r.id]}
+            className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-white/70"
+          >
+            <span className="text-[color:var(--bum-purple-deep)]">
+              {open[r.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="truncate text-[12.5px] font-bold text-[color:var(--ink)]">
+                  {r.businessUnit || "Business Unit"} — final ESG report
+                </span>
+                <Chip tone="purple">{r.period || "All periods"}</Chip>
+                <Chip tone="gray">{r.totals.sections} sections</Chip>
+                <Chip tone="gray">{r.totals.projects} projects</Chip>
+              </div>
+              <div className="truncate text-[10.5px] text-[color:var(--ink-faint)]">
+                {r.fileName} · submitted by {r.generatedByName || "BU Manager"} · {fmtDate(r.createdAt)}
+              </div>
+            </div>
+            <Chip tone="green">{r.totals.confirmedReports} approved</Chip>
+          </button>
+
+          {open[r.id] && (
+            <div className="border-t border-slate-200/70 bg-white/50 px-3 py-2.5 space-y-2">
+              {r.notes && (
+                <div className="text-[11px] italic text-[color:var(--ink-soft)]">“{r.notes}”</div>
+              )}
+              {r.sections.map((s) => (
+                <div key={s.category} className="rounded-xl bg-white/70 border border-slate-200/70 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[12px] font-semibold text-[color:var(--ink)]">{s.label}</span>
+                    <span className="font-mono text-[12px] font-bold text-[color:var(--ink)]">
+                      {Number(s.confirmedValue || 0).toLocaleString("en-IN")} {s.unit ?? ""}
+                    </span>
+                  </div>
+                  <div className="mt-1 space-y-0.5">
+                    {s.projects.map((p) => (
+                      <div key={p.projectName} className="flex flex-wrap items-center gap-2 text-[10.5px] text-[color:var(--ink-soft)]">
+                        <Building2 className="h-3 w-3 text-[color:var(--bum-purple-deep)]" />
+                        <span className="font-semibold">{p.projectName}</span>
+                        <span>
+                          {Number(p.confirmedValue || 0).toLocaleString("en-IN")} {p.unit ?? ""}
+                        </span>
+                        <Chip tone="gray">{p.evidenceCount} evidence</Chip>
+                        {p.softCopy && (
+                          <span className="flex items-center gap-1 text-[color:var(--bum-purple-deep)]">
+                            <FileText className="h-3 w-3" /> {p.softCopy.ref}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 /* One directory component parameterised by level — the manager must not
    create or edit BUs/projects here, so there are no creation controls. */
@@ -99,6 +233,9 @@ function ReportsDirectory({ level }: { level: "BU" | "PROJECT" }) {
         icon={Landmark}
         actions={<ExportButton filename={`${level.toLowerCase()}-reports`} rows={rows.map((r) => ({ ref: r.ref, title: r.title, org: level === "PROJECT" ? r.projectName ?? "" : r.buName ?? "", category: r.category, period: r.period, submittedBy: r.submittedByName ?? "", submittedAt: r.submittedAt ?? "", dueDate: r.dueDate, evidence: r.evidenceCount, status: r.status }))} />}
       />
+
+      {/* Final reports handed up by the business units (BU level only) */}
+      {level === "BU" && <FinalReportsFromBu />}
 
       <GlassTabBar
         value={tab}

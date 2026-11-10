@@ -34,7 +34,7 @@ import {
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
-import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaCircularProgress, PaKpiCard } from "../ui";
+import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaCircularProgress, PaKpiCard, PaBuDecisionBadge } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaConsolidatedReport, ContributorRole } from "@/lib/project-admin/types";
 
@@ -216,6 +216,7 @@ export default function ConsolidatedReportView() {
   }
 
   const contributorGroups = report?.contributorSubmissions || [];
+  const sentToBuItems = report?.sentToBuItems || [];
   const hasApprovedData = contributorGroups.some(g => g.submissions.length > 0);
   /* New approvals since the last consolidated submission — these make the
      report re-submittable as a new version. */
@@ -240,7 +241,9 @@ export default function ConsolidatedReportView() {
         title="Consolidated Project Report"
         subtitle={hasApprovedData
           ? "Approved submissions from all contributors assembled for review and BU submission"
-          : "No approved submissions yet — approve submissions from the Submissions view to populate this report"}
+          : sentToBuItems.length > 0
+            ? "Every approved disclosure has already been handed over to the Business Unit — new approvals will queue up here for the next consolidation"
+            : "No approved submissions yet — approve submissions from the Submissions view to populate this report"}
         badge={report?.versionLabel || "v1.0"}
         actions={
           <div className="flex items-center gap-3">
@@ -308,6 +311,58 @@ export default function ConsolidatedReportView() {
           </div>
         </div>
       </PaGlassCard>
+
+      {/* ── Delivered to BU tracker ──
+          Disclosures already handed over to the Business Unit leave the
+          staging list, so the PA needs a visible trace of them (and of the
+          BU decision) right here. */}
+      {sentToBuItems.length > 0 && (
+        <PaGlassCard strong className="p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Send size={16} className="text-[#315CFF]" />
+              <h3 className="text-sm font-bold text-[#202938]">
+                Already sent to Business Unit ({sentToBuItems.length})
+              </h3>
+            </div>
+            <PaButton size="sm" variant="secondary" icon={FileSearch} onClick={() => navigate("submissions")}>
+              Track in Submissions
+            </PaButton>
+          </div>
+          <p className="text-[11px] text-slate-500">
+            These disclosures were handed over once and are no longer part of the staging list below — a
+            re-consolidation only picks up freshly approved items. The Business Unit decision is tracked from the
+            Submissions screen.
+          </p>
+          <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+            {sentToBuItems.map((item: any) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-white/80 border border-slate-200"
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[10.5px] font-bold text-[#315CFF]">{item.ref}</span>
+                    {item.category && (
+                      <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                        {item.category}
+                      </span>
+                    )}
+                  </div>
+                  <div className="truncate text-[11.5px] text-slate-700 mt-0.5">{item.title}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {item.forwardedToBuAt && (
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      sent {new Date(item.forwardedToBuAt).toLocaleDateString("en-GB")}
+                    </span>
+                  )}
+                  <PaBuDecisionBadge decision={item.buDecision} />                </div>
+              </div>
+            ))}
+          </div>
+        </PaGlassCard>
+      )}
 
       {/* 6 Tabs */}
       <PaTabStrip tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />

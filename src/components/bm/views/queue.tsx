@@ -6,12 +6,14 @@ import { Building2, ChevronDown, ChevronRight, Inbox, Landmark } from "lucide-re
 import { CheckSealIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { useBmWorkspace } from "@/lib/bm/store";
-import { fmtDate, useBmApi } from "@/lib/bm/client";
+import { apiPost, fmtDate, useBmApi } from "@/lib/bm/client";
 import type { SubmissionsResponse, BmSubmissionRow } from "@/lib/bm/types";
+import type { BuRollupResponse } from "@/lib/bm/rollup-types";
 import {
   Chip, DataTable, ExportButton, PageHeader, Toolbar, type Column,
 } from "@/components/workspace/ui";
 import { EvidenceChip, StatusChip, UrgencyChip } from "@/components/bm/shared";
+import { BuRollupCard } from "@/components/bm/rollup-card";
 import { ReportReviewWorkspace } from "@/components/bm/review-detail";
 
 const TABS: { value: string; label: string }[] = [
@@ -42,6 +44,35 @@ export default function QueueView() {
     `/api/bm/submissions?tab=${tab}&period=${encodeURIComponent(reportingYear)}`,
     { deps: [tab, reportingYear] }
   );
+
+  /* Section-wise rollup (sums across the projects that report into this BU)
+     — the numbers the BU signs off and forwards to the subsidiary. */
+  const { data: rollupData, loading: rollupLoading, refetch: refetchRollup } = useBmApi<BuRollupResponse>(
+    `/api/bm/rollup?period=${encodeURIComponent(reportingYear)}`,
+    { deps: [reportingYear], pollMs: 60000 }
+  );
+  const [finalSubmitting, setFinalSubmitting] = useState(false);
+  const [finalMessage, setFinalMessage] = useState<string | null>(null);
+
+  const submitFinalReport = async () => {
+    if (!confirm("Submit the final consolidated report of your business unit to the subsidiary?")) return;
+    setFinalSubmitting(true);
+    setFinalMessage(null);
+    try {
+      const res = await apiPost<any>("/api/bm/final-report", { period: reportingYear });
+      const t = res?.totals;
+      setFinalMessage(
+        `Final report sent to ${res?.report?.scopeName ?? "the subsidiary"} — ${
+          t?.confirmedReports ?? 0
+        } approved report(s) across ${t?.projects ?? 0} project(s), ${t?.sections ?? 0} section(s).`,
+      );
+      await Promise.all([refetch(), refetchRollup()]);
+    } catch (err: any) {
+      setFinalMessage(err?.message || "Could not submit the final report.");
+    } finally {
+      setFinalSubmitting(false);
+    }
+  };
 
   const rows = useMemo(() => {
     let list = data?.submissions ?? [];
@@ -210,6 +241,24 @@ export default function QueueView() {
         })}
       </div>
 
+      {/* Consolidated rollup — section totals summed across every project */}
+      {tab === "queue" && (
+        <>
+          <BuRollupCard
+            rollup={rollupData?.rollup ?? null}
+            loading={rollupLoading}
+            submitting={finalSubmitting}
+            onSubmitFinal={submitFinalReport}
+            onOpenReport={(id) => openReview(id)}
+          />
+          {finalMessage && (
+            <div className="rounded-2xl border border-[rgba(35,134,83,0.3)] bg-[rgba(35,134,83,0.08)] px-4 py-2.5 text-[12px] font-medium text-[#1d6b40]">
+              {finalMessage}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Project inbox — consolidated packages forwarded by Project Admins */}
       {tab === "queue" && projectPackages.length > 0 && (
         <div className="glass-bum glass-sheen rounded-2xl p-3 space-y-2.5">
@@ -352,7 +401,7 @@ export default function QueueView() {
         open={reviewOpen}
         onOpenChange={setReviewOpen}
         startTab={reviewTab}
-        onDecided={() => void refetch()}
+        onDecided={() => { void refetch(); void refetchRollup(); }}
       />
     </div>
   );

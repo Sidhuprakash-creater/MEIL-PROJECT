@@ -41,6 +41,10 @@ export async function POST(req: NextRequest) {
     // If specific submissions selected, use those; otherwise use all eligible submissions in this project
     let submissionsToInclude;
     const eligibleStatuses = ["APPROVED", "BU_APPROVED", "SUBMITTED", "UNDER_REVIEW", "PENDING", "CHANGES_REQUESTED"];
+    /* A disclosure is handed over ONCE. Anything already forwarded to the
+       Business Unit is out of this (and every future) consolidation — it is
+       tracked from the Submissions screen instead. */
+    const notYetForwarded = { forwardedToBu: false };
     if (selectedSubmissionIds && Array.isArray(selectedSubmissionIds) && selectedSubmissionIds.length > 0) {
       submissionsToInclude = await db.submission.findMany({
         where: {
@@ -48,6 +52,7 @@ export async function POST(req: NextRequest) {
           id: { in: selectedSubmissionIds },
           category: { not: "CONSOLIDATED" },
           status: { in: eligibleStatuses },
+          ...notYetForwarded,
         },
         select: {
           id: true,
@@ -70,6 +75,7 @@ export async function POST(req: NextRequest) {
           ...scope,
           category: { not: "CONSOLIDATED" },
           status: { in: eligibleStatuses },
+          ...notYetForwarded,
         },
         select: {
           id: true,

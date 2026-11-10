@@ -74,6 +74,8 @@ export async function GET(req: NextRequest) {
           reviewComment: true,
           status: true,
           forwardedToBu: true,
+          forwardedToBuAt: true,
+          evidenceCount: true,
           inConsolidatedReport: true,
           consolidatedReportId: true,
           history: true,
@@ -122,13 +124,48 @@ export async function GET(req: NextRequest) {
       evidenceByModule.get(mod)!.push(ev);
     }
 
+    /* ── Staging vs. already-delivered split ──────────────────────────────
+       A disclosure that has ALREADY been forwarded to the Business Unit must
+       not sit in the consolidation staging list again — it has been handed
+       over once, so it is tracked from the Submissions screen (with its BU
+       decision) instead. Everything still waiting for its first handover
+       stays here and forms the next consolidated package. */
+    const stagingSubmissions = approvedSubmissions.filter((s) => !s.forwardedToBu);
+    const sentToBuSubmissions = approvedSubmissions.filter((s) => s.forwardedToBu);
+
+    /* BU decision snapshot for the delivered items — the Submissions screen
+       shows the same wording so the two views never disagree. */
+    const buDecisionLabel = (status: string): PaConsolidatedReport["sentToBuItems"][number]["buDecision"] => {
+      switch (status) {
+        case "BU_APPROVED": return "BU_APPROVED";
+        case "REJECTED": return "BU_REJECTED";
+        case "CHANGES_REQUESTED":
+        case "CORRECTION_REQUESTED": return "RETURNED_BY_BU";
+        case "APPROVED": return "AWAITING_BU_REVIEW";
+        default: return "AWAITING_BU_REVIEW";
+      }
+    };
+    const sentToBuItems = sentToBuSubmissions.map((s) => ({
+      id: s.id,
+      ref: s.ref,
+      title: s.title,
+      category: s.category,
+      module: s.module,
+      status: s.status,
+      buDecision: buDecisionLabel(s.status),
+      forwardedToBuAt: s.forwardedToBuAt ? new Date(s.forwardedToBuAt).toISOString() : null,
+      reviewedAt: s.reviewedAt ? new Date(s.reviewedAt).toISOString() : null,
+      evidenceCount: s.evidenceCount ?? 0,
+      consolidatedReportId: s.consolidatedReportId,
+    }));
+
     // Group submissions by contributor
     const contributorGroups = new Map<string, {
       contributor: { id: string; name: string; email: string; role: string };
       submissions: any[];
     }>();
 
-    for (const sub of approvedSubmissions) {
+    for (const sub of stagingSubmissions) {
       const submitter = sub.submittedById ? submitterMap.get(sub.submittedById) : null;
       const contributorKey = submitter?.id || "unknown";
 
@@ -359,6 +396,10 @@ export async function GET(req: NextRequest) {
           ],
       // New fields for frontend
       contributorSubmissions,
+      /* Disclosures already handed over to the Business Unit — they are out
+         of the staging list and are tracked from the Submissions screen. */
+      sentToBuCount: sentToBuItems.length,
+      sentToBuItems,
     };
 
     const payload = { report };
