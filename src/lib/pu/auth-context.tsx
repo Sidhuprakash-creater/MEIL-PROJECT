@@ -52,8 +52,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [activeModule, setActiveModule] = useState<ModuleKey>('overview')
   const [dataEntrySubModule, setDataEntrySubModule] = useState('energy')
-  const [selectedBuId, setSelectedBuIdState] = useState<string>('bu-transportation')
-  const [selectedProjectId, setSelectedProjectIdState] = useState<string>('trans-01')
+  const [selectedBuId, setSelectedBuIdState] = useState<string>('bu-iwen')
+  const [selectedProjectId, setSelectedProjectIdState] = useState<string>('prj-klip')
 
   useEffect(() => {
     try {

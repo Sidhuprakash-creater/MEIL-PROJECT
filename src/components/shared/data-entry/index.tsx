@@ -34,7 +34,7 @@ import { ItemDetailModal } from '../item-detail-modal'
 import { Stepper } from './primitives'
 import { describeLevelRecord, DataEntrySkeleton, ErrorState, EmptyState } from './states'
 import { LevelReviewModal, FinalSubmitAllModal, SubmitAllSuccessModal } from '../submission-flow-modals'
-import { SUB_MODULES, normalizeSubModule, READ_ONLY_ROLES, STEPS, ApiBaseContext, type LevelKey, type Project, type Period, type EvidenceItem, type SavedRecord } from './core'
+import { SUB_MODULES, normalizeSubModule, READ_ONLY_ROLES, STEPS, ApiBaseContext, matchProject, type LevelKey, type Project, type Period, type EvidenceItem, type SavedRecord } from './core'
 
 /* ============================================================
    MAIN COMPONENT: DataEntryModule
@@ -308,8 +308,9 @@ export function DataEntryModule({
         const periodList: Period[] = tr.periods || []
         setPeriods(periodList)
         const scopeProj = userScopes?.find((s) => s.scopeType === 'PROJECT')
+        const matchedAppProj = matchProject(flat, appProjectId)
         const defaultProject =
-          (appProjectId ? flat.find((p) => p.id === appProjectId || p.projectCode === appProjectId) : null) ||
+          matchedAppProj ||
           (scopeProj ? flat.find((p) => p.id === scopeProj.scopeId) : null) ||
           flat[0] ||
           null
@@ -332,6 +333,16 @@ export function DataEntryModule({
       cancelled = true
     }
   }, [apiBase, userScopes, appProjectId])
+
+  // Synchronize selectedProjectId when appProjectId changes or projects are loaded
+  useEffect(() => {
+    if (appProjectId && projects.length > 0) {
+      const matched = matchProject(projects, appProjectId)
+      if (matched && matched.id !== selectedProjectId) {
+        setSelectedProjectId(matched.id)
+      }
+    }
+  }, [appProjectId, projects, selectedProjectId])
 
   // ---- 2. Reset step & saved state when level/project/period changes
   useEffect(() => {
@@ -567,7 +578,7 @@ export function DataEntryModule({
             </span>
           </div>
           <p className="mt-1 text-sm text-slate-500">
-            Source-record capture &amp; verification · {selectedProject?.projectCode} · {selectedPeriod?.label}
+            Source-record capture &amp; verification · {selectedProject?.projectCode || selectedProject?.projectName || 'Project Site'} · {selectedPeriod?.label}
             {readOnly && (
               <span className="ml-2 inline-flex items-center gap-1 font-semibold text-amber-700">
                 <Lock className="h-3 w-3" /> Read-only mode ({roleKey})
@@ -585,7 +596,7 @@ export function DataEntryModule({
           >
             <Building2 className="h-3.5 w-3.5 shrink-0 text-blue-600" />
             <span className="text-[13px] font-bold text-slate-800">
-              {selectedProject?.projectCode || 'PRJ-KKD-RIG'}
+              {selectedProject?.projectCode || selectedProject?.projectName || 'Project Site'}
             </span>
           </div>
 

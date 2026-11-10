@@ -2260,7 +2260,7 @@ export function SiteUserOverview() {
       const moduleKey = isWater ? 'WATER' : 'ENERGY'
 
       const userProjId = (user as any)?.scopes?.find((s: any) => s.scopeType === 'PROJECT')?.scopeId || (user as any)?.projectId
-      const projectId = userProjId || selectedProjectId || 'cmvt5836n00167kss0csnb7il'
+      const projectId = selectedProjectId || userProjId || 'cmvt5836n00167kss0csnb7il'
       /* The Quick Log modal submits the selected period's ID directly — no
          label→id lookup that could miss and silently post to the wrong period. */
       const reportingPeriodId = record.periodId || overview?.periods?.[0]?.id || 'cmvt6acpg00047kxwgjmt06r8'

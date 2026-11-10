@@ -222,3 +222,49 @@ export const ApiBaseContext = createContext<string>('/api/pu')
 export function useApiBase(): string {
   return useContext(ApiBaseContext)
 }
+
+/** Robust project matcher across CUIDs, codes (case-insensitive), slugs, and names */
+export function matchProject<T extends { id: string; projectCode?: string; projectName?: string }>(
+  projects: T[],
+  targetIdOrCode?: string | null
+): T | null {
+  if (!targetIdOrCode || !projects?.length) return null
+  const clean = targetIdOrCode.trim().toLowerCase()
+  const alpha = clean.replace(/[^a-z0-9]/g, '')
+  if (!clean) return null
+
+  // 1. Direct ID match
+  const byId = projects.find((p) => p.id === targetIdOrCode || p.id.toLowerCase() === clean)
+  if (byId) return byId
+
+  // 2. Exact code match (case-insensitive)
+  const byCode = projects.find((p) => p.projectCode?.toLowerCase() === clean)
+  if (byCode) return byCode
+
+  // 3. Alphanumeric code match (e.g. 'prj-klip' vs 'PRJ-KLIP' or 'prjklip')
+  if (alpha) {
+    const byCleanCode = projects.find(
+      (p) => (p.projectCode || '').toLowerCase().replace(/[^a-z0-9]/g, '') === alpha
+    )
+    if (byCleanCode) return byCleanCode
+  }
+
+  // 4. Exact name match (case-insensitive)
+  const byName = projects.find((p) => p.projectName?.toLowerCase() === clean)
+  if (byName) return byName
+
+  // 5. Fuzzy match on code or name
+  if (alpha) {
+    const byFuzzy = projects.find((p) => {
+      const pCode = (p.projectCode || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      const pName = (p.projectName || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+      return (
+        (pCode && (pCode.includes(alpha) || alpha.includes(pCode))) ||
+        (pName && (pName.includes(alpha) || alpha.includes(pName)))
+      )
+    })
+    if (byFuzzy) return byFuzzy
+  }
+
+  return null
+}

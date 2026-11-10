@@ -297,7 +297,11 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
                         onSelectSub={handleSelectSub}
                         activeBuId={activeBuId}
                         onSelectBu={handleSelectBu}
-                        onContinue={() => setStage('project')}
+                        onContinue={() => {
+                          setSelectedBuId(activeBuId)
+                          setSelectedProjectId(activeProjectId)
+                          setStage('project')
+                        }}
                         onBack={handleBackToGateway}
                       />
                     </div>
@@ -318,7 +322,10 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
                       onSelectBu={handleSelectBu}
                       onSelectProject={handleSelectProject}
                       onBack={() => setStage('welcome')}
-                      onProceed={() => setStage('role')}
+                      onProceed={() => {
+                        setSelectedProjectId(activeProjectId)
+                        setStage('role')
+                      }}
                     />
                   </motion.div>
                 )}

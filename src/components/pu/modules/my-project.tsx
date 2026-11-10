@@ -34,6 +34,7 @@ import {
   ResponsiveContainer, Tooltip, XAxis, YAxis, Legend,
 } from 'recharts'
 import { useApp, type ModuleKey } from '@/lib/pu/auth-context'
+import { matchProject } from '@/components/shared/data-entry/core'
 import { toast } from 'sonner'
 
 /* ============================================================
@@ -2965,7 +2966,7 @@ export function MyProjectModule() {
         setAllSubs(subs.items ?? [])
         const projects = flattenProjects(tr)
         if (projects.length > 0) {
-          const matched = appProjectId ? projects.find(p => p.id === appProjectId || p.projectCode === appProjectId) : null
+          const matched = appProjectId ? matchProject(projects, appProjectId) : null
           setSelectedProjectId(matched ? matched.id : projects[0].id)
         }
         setLoading(false)
