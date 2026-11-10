@@ -31,7 +31,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { usePaStore, PA_VIEW_ORDER, PA_VIEW_META } from "@/lib/project-admin/store";
-import { prefetchProjectAdminData } from "@/lib/project-admin/client";
+import { prefetchProjectAdminData, setPaCacheOwner } from "@/lib/project-admin/client";
 import type { PaViewId } from "@/lib/project-admin/types";
 import { PaButton, PaStatusBadge } from "./ui";
 import { PA_VIEW_COMPONENTS } from "./view-registry";
@@ -89,10 +89,13 @@ export function ProjectAdminWorkspaceShell({
   const [searchQuery, setSearchQuery] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
 
-  // Warm up and prefetch all 13 views on mount for instantaneous navigation
+  // Warm up and prefetch all 13 views on mount for instantaneous navigation.
+  // Cache is identity-scoped FIRST so a different signed-in admin never sees
+  // the previous admin's cached data.
   useEffect(() => {
+    if (sessionUser?.id) setPaCacheOwner(sessionUser.id);
     prefetchProjectAdminData();
-  }, []);
+  }, [sessionUser?.id]);
 
   // Keyboard shortcut for Command Palette (⌘K / Ctrl+K)
   useEffect(() => {

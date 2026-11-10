@@ -28,7 +28,7 @@ import {
   PaDialog,
 } from "@/components/project-admin/ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
-import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
 import { usePaStore } from "@/lib/project-admin/store";
 
 interface SettingsData {

@@ -18,6 +18,19 @@ export class PaApiError extends Error {
 // Client memory cache with 60s TTL to give instant navigation between tabs
 const apiCache = new Map<string, { data: any; expiresAt: number; fetchedAt: number }>();
 
+/* Identity scoping: the cache survives in-memory across SPA account switches,
+   which made a newly-signed-in Project Admin see the PREVIOUS admin's cached
+   dashboard (e.g. Kaleshwaram data while managing Polavaram). The shell calls
+   setPaCacheOwner with the session user id; a different owner wipes the cache. */
+let cacheOwnerId: string | null = null;
+
+export function setPaCacheOwner(userId: string) {
+  if (cacheOwnerId && cacheOwnerId !== userId) {
+    apiCache.clear();
+  }
+  cacheOwnerId = userId;
+}
+
 export function clearPaClientCache() {
   apiCache.clear();
 }
