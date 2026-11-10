@@ -338,7 +338,7 @@ export async function GET(req: NextRequest) {
       /* Terminal / in-review states can never be "overdue" — only unworked
          (NOT_STARTED / DRAFT) or returned rows age past their due date. */
       const OVERDUE_EXEMPT = new Set([
-        "APPROVED", "SUBMITTED", "BU_APPROVED", "SUBSIDIARY_APPROVED", "HQ_REVIEW", "LOCKED",
+        "APPROVED", "SUBMITTED", "UNDER_REVIEW", "BU_APPROVED", "SUBSIDIARY_APPROVED", "HQ_REVIEW", "LOCKED",
       ]);
       const isOverdue = Boolean(s.overdue || (!OVERDUE_EXEMPT.has(s.status) && due.getTime() < Date.now()));
 
@@ -410,6 +410,10 @@ export async function GET(req: NextRequest) {
       summary: {
         total: items.length,
         submitted: items.filter((i) => i.submissionStatus === "SUBMITTED" || i.submissionStatus === "APPROVED").length,
+        /* Approved = signed off only (approved by admin / PM / BU) — not merely submitted. */
+        approved: items.filter(
+          (i) => i.submissionStatus === "APPROVED" || i.submissionStatus === "BU_APPROVED" || i.submissionStatus === "LOCKED"
+        ).length,
         /* Pending Review = awaiting an admin decision — includes freshly SUBMITTED rows. */
         pending: items.filter((i) => i.submissionStatus === "SUBMITTED" || i.submissionStatus === "UNDER_REVIEW" || i.submissionStatus === "NOT_STARTED").length,
         draft: items.filter((i) => i.submissionStatus === "DRAFT").length,

@@ -289,7 +289,7 @@ export default function CollectionStatusView() {
       {/* KPI Cards Strip */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5">
         <PaKpiCard title="Total Sections" value={items.length} icon={FileSpreadsheet} accentColor="#315CFF" />
-        <PaKpiCard title="Approved" value={summary?.submitted || 0} icon={CheckCircle2} accentColor="#10B981" />
+        <PaKpiCard title="Approved" value={summary?.approved || 0} icon={CheckCircle2} accentColor="#10B981" />
         <PaKpiCard title="Under Review" value={summary?.pending || 0} icon={Clock} accentColor="#3B82F6" />
         <PaKpiCard title="Drafts" value={summary?.draft || 0} icon={FileQuestion} accentColor="#F59E0B" />
         <PaKpiCard title="Corrections" value={summary?.returned || 0} icon={AlertTriangle} accentColor="#EF4444" />
