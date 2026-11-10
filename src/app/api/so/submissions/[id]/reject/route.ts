@@ -11,7 +11,7 @@ import {
   isLocked,
   primaryRoleLabel,
 } from '@/lib/so/workflow'
-import { updateLevelRecordStatus } from '@/lib/so/level-records'
+import { ensureSoLevelRecordsLoaded, updateLevelRecordStatus } from '@/lib/so/level-records'
 import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
@@ -30,6 +30,8 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureSoLevelRecordsLoaded().catch(() => {});
   let user
   try {
     user = await requirePermission('submission.reject')

@@ -1,3 +1,4 @@
+import { ensureLevelRecordsLoaded } from '@/lib/pu/level-records';
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { db } from '@/lib/pu/db'
@@ -153,6 +154,8 @@ function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {},
 
 // GET /api/data-entry?projectId=&periodId=&level=
 export async function GET(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
@@ -219,6 +222,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/data-entry
 export async function POST(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
@@ -1398,6 +1403,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/data-entry?id=
 export async function DELETE(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })

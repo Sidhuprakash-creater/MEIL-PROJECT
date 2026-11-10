@@ -13,7 +13,7 @@ import {
   SAFE_PROJECT,
   withProjectCompat,
 } from '@/lib/pu/workflow'
-import { updateLevelRecordStatus } from '@/lib/pu/level-records'
+import { ensureLevelRecordsLoaded, updateLevelRecordStatus } from '@/lib/pu/level-records'
 import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
 
@@ -28,6 +28,8 @@ export async function POST(
   req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   let user
   try {
     user = await requirePermission('submission.approve')

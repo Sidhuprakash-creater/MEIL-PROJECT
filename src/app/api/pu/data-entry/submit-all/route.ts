@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { db } from '@/lib/pu/db'
-import { saveManyLevelRecords } from '@/lib/pu/level-records'
+import { ensureLevelRecordsLoaded, saveManyLevelRecords } from '@/lib/pu/level-records'
 import { appendActivity, appendAudit, appendHistory, primaryRoleLabel } from '@/lib/pu/workflow'
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
 import { resolveProjectForUser } from '@/lib/pu/scope'
@@ -142,6 +142,8 @@ function entryHasData(entry: any): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })

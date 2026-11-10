@@ -1,3 +1,4 @@
+import { ensureSoLevelRecordsLoaded } from '@/lib/so/level-records';
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { ok } from "@/lib/esg/server";
@@ -19,6 +20,8 @@ type Params = { params: Promise<{ id: string }> };
    review workspace sends it back with the decision so the server can refuse
    decisions made against a report that changed after it was opened. */
 export async function GET(_req: NextRequest, { params }: Params) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureSoLevelRecordsLoaded().catch(() => {});
   return bmHandle(async () => {
     const ctx = await requireBuManager();
     const { id } = await params;

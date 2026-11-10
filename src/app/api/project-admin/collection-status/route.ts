@@ -13,7 +13,7 @@ import {
   paOwnsSubmission,
 } from "@/lib/project-admin/server";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
-import { getLevelRecords, updateLevelRecordStatus } from "@/lib/pu/level-records";
+import { ensureLevelRecordsLoaded, getLevelRecords, updateLevelRecordStatus } from "@/lib/pu/level-records";
 import { parseJsonArray } from "@/lib/pu/workflow";
 import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache, invalidatePaConsolidatedReportCache, invalidateSubmittedReportsCache } from "@/lib/portal-cache";
 import type { ContributorRole } from "@/lib/project-admin/types";
@@ -37,6 +37,8 @@ type ScopedUserRow = { id: string; name: string; email: string; role: string };
 type EvidenceRowShape = { id: string; fileName: string; documentType: string; filePath: string };
 
 export async function GET(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const ctx = await getProjectAdminContext();
     if (!ctx) return paFail("Project Admin context not resolved.", 401);
@@ -431,6 +433,8 @@ export async function GET(req: NextRequest) {
 
 // POST: Project Admin Approvals & Corrections Workflow
 export async function POST(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const ctx = await getProjectAdminContext();
     if (!ctx) return paFail("Project Admin context not resolved.", 401);

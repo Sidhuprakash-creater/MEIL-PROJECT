@@ -1,3 +1,4 @@
+import { ensureSoLevelRecordsLoaded } from '@/lib/so/level-records';
 import { NextRequest, NextResponse } from 'next/server'
 import { withProjectAliases } from '@/lib/so/engines'
 import { getCurrentUser } from '@/lib/so/session'
@@ -24,6 +25,8 @@ export const runtime = 'nodejs'
 
 // GET /api/data-entry?projectId=&periodId=&level=
 export async function GET(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureSoLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
@@ -90,6 +93,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/data-entry
 export async function POST(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureSoLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
@@ -1220,6 +1225,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/data-entry?id=
 export async function DELETE(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureSoLevelRecordsLoaded().catch(() => {});
   try {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })

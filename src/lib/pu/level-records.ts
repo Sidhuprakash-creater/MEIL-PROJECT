@@ -61,6 +61,48 @@ export interface LevelRecord {
 
 const STORE_PATH = path.join(process.cwd(), 'prisma', 'level-records-store.json')
 
+/* ── Serverless persistence (Vercel read-only filesystem) ─────────────────────
+   The JSON file store works locally, but on Vercel lambdas the filesystem is
+   read-only and writes silently fail — contributor level records vanished and
+   review windows showed "No per-source records captured". Every write now also
+   lands in an AppSetting blob (DB-backed, shared across lambdas), and once
+   hydrated from that blob it is the authoritative store. */
+const BLOB_SKEY = 'level_records_blob'
+let blobRecords: LevelRecord[] | null = null
+let blobHydrationStarted = false
+
+async function persistLevelRecordsToDb(records: LevelRecord[]): Promise<void> {
+  try {
+    const { db } = await import('@/lib/db')
+    const svalue = Buffer.from(JSON.stringify(records), 'utf-8').toString('base64')
+    await db.appSetting.upsert({
+      where: { skey: BLOB_SKEY },
+      create: { skey: BLOB_SKEY, label: 'Level records store', category: 'LEVEL_RECORDS', svalue, vtype: 'text' },
+      update: { svalue },
+    })
+  } catch (err) {
+    console.error('Failed to persist level records to DB:', (err as any)?.message || err)
+  }
+}
+
+/** Call ONCE per request in server handlers before reading/writing the store.
+   Hydrates the in-memory store from the DB blob so every lambda sees the same
+   records; the file store remains the local-dev fallback. */
+export async function ensureLevelRecordsLoaded(): Promise<void> {
+  if (blobHydrationStarted) return
+  blobHydrationStarted = true
+  try {
+    const { db } = await import('@/lib/db')
+    const row = await db.appSetting.findUnique({ where: { skey: BLOB_SKEY }, select: { svalue: true } })
+    if (row?.svalue) {
+      const parsed = JSON.parse(Buffer.from(row.svalue, 'base64').toString('utf-8'))
+      if (Array.isArray(parsed)) blobRecords = parsed.map((r: any) => sanitizeRecord(r))
+    }
+  } catch (err) {
+    console.error('Failed to hydrate level records from DB:', (err as any)?.message || err)
+  }
+}
+
 // Initial seed records for realistic enterprise presentation
 const DEFAULT_RECORDS: LevelRecord[] = [
   {
@@ -249,6 +291,9 @@ function sanitizeRecord<T extends { data?: any }>(record: T): T {
 }
 
 function readStore(): LevelRecord[] {
+  /* Once hydrated from the DB blob, that copy is authoritative — the bundled
+     file may be empty or stale on serverless deployments. */
+  if (blobRecords) return blobRecords
   try {
     const stat = fs.statSync(STORE_PATH)
     if (storeCache && storeCache.mtimeMs === stat.mtimeMs && storeCache.size === stat.size) {
@@ -272,6 +317,10 @@ function readStore(): LevelRecord[] {
 }
 
 function writeStore(records: LevelRecord[]): void {
+  /* DB blob is the durable copy — always written, even when the file write
+     below fails on a read-only filesystem. */
+  blobRecords = records
+  void persistLevelRecordsToDb(records)
   try {
     const dir = path.dirname(STORE_PATH)
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })

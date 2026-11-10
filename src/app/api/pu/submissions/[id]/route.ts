@@ -1,3 +1,4 @@
+import { ensureLevelRecordsLoaded } from '@/lib/pu/level-records';
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
@@ -12,6 +13,8 @@ export async function GET(
   _req: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   let user
   try {
     const u = await getCurrentUser()

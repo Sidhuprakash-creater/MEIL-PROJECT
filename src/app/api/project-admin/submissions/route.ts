@@ -13,7 +13,7 @@ import {
   paOwnsSubmission,
 } from "@/lib/project-admin/server";
 
-import { getLevelRecords, updateLevelRecordStatus, type LevelRecord } from "@/lib/pu/level-records";
+import { ensureLevelRecordsLoaded, getLevelRecords, updateLevelRecordStatus, type LevelRecord } from "@/lib/pu/level-records";
 import { invalidatePuSubmissionsCache, invalidatePuOverviewCache, invalidatePuNotificationsCache, invalidateSubmittedReportsCache, invalidatePaConsolidatedReportCache } from '@/lib/portal-cache'
 
 export const dynamic = "force-dynamic";
@@ -42,6 +42,8 @@ function parseJsonArray(raw: unknown): any[] {
 }
 
 export async function GET(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const ctx = await getProjectAdminContext();
     if (!ctx) return paFail("Project Admin context not resolved.", 401);
@@ -442,6 +444,8 @@ export async function GET(req: NextRequest) {
 
 // POST: Project Admin Review Decision & Reminders Workflow
 export async function POST(req: NextRequest) {
+  /* Hydrate the level-records store from the DB blob before first read (Vercel read-only FS). */
+  await ensureLevelRecordsLoaded().catch(() => {});
   try {
     const ctx = await getProjectAdminContext();
     if (!ctx) return paFail("Project Admin context not resolved.", 401);
