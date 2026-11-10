@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { ok } from "@/lib/esg/server";
-import { bmHandle, requireBuManager, getBuOrThrow } from "@/lib/bm/server";
+import { bmHandle, requireBuManager, getBuOrThrow, buSubmissionScope } from "@/lib/bm/server";
 import { buildBuRollup } from "@/lib/bm/rollup";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       period: period && period !== "ALL" ? period : "",
       buName: bu.name,
       subsidiaryName: bu.subsidiary?.name ?? "",
+      buProjectIds: (await buSubmissionScope(ctx.businessUnitId)).projectIds,
     });
 
     return ok({ rollup });

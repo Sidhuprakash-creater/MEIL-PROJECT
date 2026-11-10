@@ -177,6 +177,50 @@ export async function bmNotify(e: {
 
 /* ── shared scope-assertion helpers (read-only mirrors of the BA family) ─── */
 
+/**
+ * The submissions a Business Unit Manager may see.
+ *
+ * RULE: a report belongs to the Business Unit that OWNS ITS PROJECT. The
+ * submission's own `businessUnitId` can be stale (a report mirrored from a
+ * site-ops row may still carry the originating BU), so the project → BU
+ * relation is the authority. Only genuinely BU-level reports (no project at
+ * all) fall back to the BU id.
+ *
+ * This is what keeps one BU manager from seeing another BU's projects — a
+ * forwarded / consolidated status never widens the scope.
+ */
+export async function buSubmissionScope(businessUnitId: string) {
+  const projects = await db.project.findMany({
+    where: { businessUnitId },
+    select: { id: true },
+  });
+  const projectIds = projects.map((p) => p.id);
+  return {
+    projectIds,
+    where: {
+      OR: [
+        ...(projectIds.length ? [{ projectId: { in: projectIds } }] : []),
+        { AND: [{ projectId: null }, { businessUnitId }] },
+      ],
+    } as Record<string, unknown>,
+  };
+}
+
+/** Guard for a single row: may this BU manager open/decide this report? */
+export async function assertSubmissionInBuScope(
+  s: { businessUnitId: string | null; projectId: string | null },
+  businessUnitId: string,
+) {
+  if (s.projectId) {
+    const project = await db.project.findUnique({
+      where: { id: s.projectId },
+      select: { businessUnitId: true },
+    });
+    return !!project && project.businessUnitId === businessUnitId;
+  }
+  return s.businessUnitId === businessUnitId;
+}
+
 /** Resolve the assigned BU row + its parent subsidiary. */
 export async function getBuOrThrow(businessUnitId: string) {
   const bu = await db.businessUnit.findUnique({

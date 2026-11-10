@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { ok } from "@/lib/esg/server";
 import {
-  bmHandle, requireBuManager, getBuOrThrow,
+  bmHandle, requireBuManager, getBuOrThrow, buSubmissionScope,
 } from "@/lib/bm/server";
 import {
   toBmSubmissionRow, resolveReviewDeadline,
@@ -61,14 +61,15 @@ export async function GET(req: NextRequest) {
     const periodRaw = (sp.get("period") ?? "").trim();
     const periodFilter = periodRaw ? (periodRaw === "ALL" ? null : periodRaw) : "FY 2025-26";
 
+    /* SCOPE: the BU's own reports + every report that belongs to a project
+       of this BU. Forwarded / consolidated rows are NOT a group-wide pass —
+       a BU manager only ever sees the projects his business unit owns. */
+    const scope = await buSubmissionScope(ctx.businessUnitId);
+
     const [all, userNames, projectNames] = await Promise.all([
       db.submission.findMany({
         where: {
-          OR: [
-            { businessUnitId: ctx.businessUnitId },
-            { forwardedToBu: true },
-            { inConsolidatedReport: true },
-          ],
+          ...scope.where,
           ...(periodFilter ? { period: periodFilter } : {}),
         },
         orderBy: { updatedAt: "desc" },

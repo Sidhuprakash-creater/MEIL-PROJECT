@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { ok, fail } from "@/lib/esg/server";
-import { bmHandle, requireBuManager, getBuOrThrow, bmNotify, bmLogActivity, bmLogAudit } from "@/lib/bm/server";
+import { bmHandle, requireBuManager, getBuOrThrow, bmNotify, bmLogActivity, bmLogAudit, buSubmissionScope } from "@/lib/bm/server";
 import { buildBuRollup } from "@/lib/bm/rollup";
 
 export const dynamic = "force-dynamic";
@@ -23,12 +23,14 @@ export async function POST(req: NextRequest) {
       /* body optional */
     }
 
+    const scope = await buSubmissionScope(ctx.businessUnitId);
     const rollup = await buildBuRollup({
       businessUnitId: ctx.businessUnitId,
       subsidiaryId: ctx.subsidiaryId,
       period: body.period && body.period !== "ALL" ? body.period : "",
       buName: bu.name,
       subsidiaryName: bu.subsidiary?.name ?? "",
+      buProjectIds: scope.projectIds,
     });
 
     if (rollup.totals.confirmedReports === 0) {

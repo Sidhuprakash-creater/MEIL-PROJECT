@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { ok } from "@/lib/esg/server";
 import {
   BmError, bmHandle, requireBuManager, getBuOrThrow, parseJson,
-  bmLogActivity, bmLogAudit, bmNotify,
+  bmLogActivity, bmLogAudit, bmNotify, assertSubmissionInBuScope,
 } from "@/lib/bm/server";
 import { toBmSubmissionRow, resolveReviewDeadline, loadBmUserNames, loadBmProjectNames } from "@/lib/bm/rows";
 import { invalidatePaServerCache } from "@/lib/project-admin/server";
@@ -100,7 +100,10 @@ export async function POST(req: NextRequest, { params }: Params) {
     const s = await db.submission.findUnique({ where: { id } });
     if (!s) throw new BmError("Submission not found.", 404);
     const isForwarded = s.forwardedToBu || (s as any).inConsolidatedReport;
-    if (s.businessUnitId !== ctx.businessUnitId && !isForwarded) {
+    /* Scope: the report must belong to this BU — directly, or through the
+       project that owns it. Forwarded status alone never grants access, so a
+       BU manager can never decide another BU's project report. */
+    if (!(await assertSubmissionInBuScope(s, ctx.businessUnitId))) {
       throw new BmError("This submission is outside your assigned business unit.", 403);
     }
 

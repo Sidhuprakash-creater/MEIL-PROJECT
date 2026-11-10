@@ -70,6 +70,9 @@ export async function buildBuRollup(params: {
   period?: string | null;
   buName?: string;
   subsidiaryName?: string;
+  /** Projects of THIS business unit — the rollup never aggregates another
+   *  BU's projects (that was the group-wide leak in the review queue). */
+  buProjectIds?: string[];
 }): Promise<BuRollup> {
   const { businessUnitId, subsidiaryId } = params;
   const period = params.period ?? "";
@@ -79,8 +82,7 @@ export async function buildBuRollup(params: {
     where: {
       OR: [
         { businessUnitId },
-        { forwardedToBu: true },
-        { inConsolidatedReport: true },
+        ...(params.buProjectIds?.length ? [{ projectId: { in: params.buProjectIds } }] : []),
       ],
       ...(period ? { period } : {}),
     },
@@ -98,6 +100,7 @@ export async function buildBuRollup(params: {
       projectId: true,
       businessUnitId: true,
       forwardedToBu: true,
+      inConsolidatedReport: true,
       evidenceCount: true,
       evidence: true,
       forwardedToBuAt: true,
@@ -160,11 +163,13 @@ export async function buildBuRollup(params: {
       .map((s) => [s.id, s.ref]),
   );
 
-  /* ── 2. Only project-level reports that the BU actually received ─────── */
+  /* ── 2. Only the reports this BU actually received ──────────────────────
+     A report reaches the rollup when it was handed over (forwardedToBu) or
+     already sits in a consolidated package, and it always stays inside the
+     BU's own scope (its project belongs to this BU). */
   const eligible = candidates.filter(
     (s) =>
-      s.projectId &&
-      s.forwardedToBu &&
+      (s.forwardedToBu || s.inConsolidatedReport) &&
       s.category !== "CONSOLIDATED" &&
       (s.status === "BU_APPROVED" || s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING"),
   );
@@ -243,13 +248,15 @@ export async function buildBuRollup(params: {
     section.reportCount += 1;
     if (!section.unit && sub.metricUnit) section.unit = sub.metricUnit;
 
-    const pid = sub.projectId!;
+    /* Reports filed at BU level (no project) roll up under the business unit
+       itself, so they are never lost. */
+    const pid = sub.projectId || `BU-LEVEL:${businessUnitId}`;
     let project = section.projects.find((p) => p.projectId === pid);
     if (!project) {
       const dossier = dossierByProject.get(pid);
       project = {
         projectId: pid,
-        projectName: projectName.get(pid) || "Unnamed project",
+        projectName: projectName.get(pid) || (sub.projectId ? "Unnamed project" : "Business unit (direct)"),
         confirmedValue: 0,
         pendingValue: 0,
         unit: sub.metricUnit || null,

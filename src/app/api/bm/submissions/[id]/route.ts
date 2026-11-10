@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { ok } from "@/lib/esg/server";
-import { BmError, bmHandle, requireBuManager, parseJson } from "@/lib/bm/server";
+import { BmError, bmHandle, requireBuManager, parseJson, assertSubmissionInBuScope } from "@/lib/bm/server";
 import {
   toBmSubmissionRow, resolveReviewDeadline,
   loadBmUserNames, loadBmProjectNames,
@@ -25,8 +25,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const s = await db.submission.findUnique({ where: { id } });
     if (!s) throw new BmError("Submission not found.", 404);
-    const isForwarded = s.forwardedToBu || (s as any).inConsolidatedReport;
-    if (s.businessUnitId !== ctx.businessUnitId && !isForwarded) {
+    /* Scope: the report must belong to this BU — either directly, or through
+       the project that owns it. Forwarded status alone never grants access. */
+    if (!(await assertSubmissionInBuScope(s, ctx.businessUnitId))) {
       throw new BmError("This submission is outside your assigned business unit.", 403);
     }
 
