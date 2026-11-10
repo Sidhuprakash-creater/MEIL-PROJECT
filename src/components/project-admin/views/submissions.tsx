@@ -279,12 +279,14 @@ export default function SubmissionsView() {
 
     if (!matchesSearch) return false;
     if (activeTab === "approved") {
+      /* Only show what the Project Manager actually approved. */
       return (
-        s.submissionStatus === "APPROVED" ||
-        s.submissionStatus === "BU_APPROVED" ||
-        s.submissionStatus === "LOCKED" ||
-        s.reviewStatus === "APPROVED" ||
-        s.reviewStatus === "BU_APPROVED"
+        (s.submissionStatus === "APPROVED" ||
+          s.submissionStatus === "BU_APPROVED" ||
+          s.submissionStatus === "LOCKED" ||
+          s.reviewStatus === "APPROVED" ||
+          s.reviewStatus === "BU_APPROVED") &&
+        s.pmApproved !== false
       );
     }
     if (activeTab === "submitted") {
@@ -436,11 +438,13 @@ export default function SubmissionsView() {
             ) : (
               filtered.map((s) => {
                 const isApproved =
-                  s.submissionStatus === "APPROVED" ||
-                  s.submissionStatus === "BU_APPROVED" ||
-                  s.submissionStatus === "LOCKED" ||
-                  s.reviewStatus === "APPROVED" ||
-                  s.reviewStatus === "BU_APPROVED";
+                  (s.submissionStatus === "APPROVED" ||
+                    s.submissionStatus === "BU_APPROVED" ||
+                    s.submissionStatus === "LOCKED" ||
+                    s.reviewStatus === "APPROVED" ||
+                    s.reviewStatus === "BU_APPROVED") &&
+                  /* Only Project Manager-approved items count as approved */
+                  s.pmApproved !== false;
                 const isReturned =
                   s.submissionStatus === "CHANGES_REQUESTED" ||
                   s.submissionStatus === "REJECTED" ||

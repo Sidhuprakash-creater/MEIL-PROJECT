@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
           reviewerId: true,
           reviewComment: true,
           reviewedAt: true,
+          history: true,
           forwardedToBu: true,
           forwardedToBuAt: true,
           dueDate: true,
@@ -288,6 +289,19 @@ export async function GET(req: NextRequest) {
       // Corrections previously raised on this submission (per-field review notes)
       const corrections = parseJsonArray((s as any).corrections);
 
+      /* Only count as approved what the Project Manager (Subsidiary Manager)
+         actually approved — surfaced so the PA "Approved" surfaces mirror the
+         PM's decisions instead of the PA's own sign-off stage. Detected via
+         the PM's decision history entry or the reviewer's role. */
+      const pmApproved = (() => {
+        const hist = parseJsonArray((s as any).history);
+        const pmApprovalInHistory = hist.some(
+          (h: any) => typeof h?.action === "string" && h.action.startsWith("Approved") && h.action.includes("Subsidiary Manager")
+        );
+        const reviewerRole = s.reviewerId ? userMap.get(String(s.reviewerId))?.role : null;
+        return pmApprovalInHistory || reviewerRole === "SUBSIDIARY_MANAGER";
+      })();
+
       let reviewStatus = "PENDING_ADMIN_REVIEW";
       if (s.status === "APPROVED" || s.status === "BU_APPROVED") reviewStatus = "APPROVED";
       else if (s.status === "LOCKED") reviewStatus = "LOCKED";
@@ -316,6 +330,7 @@ export async function GET(req: NextRequest) {
         parsedValues,
         submissionStatus: s.status,
         reviewStatus,
+        pmApproved,
         forwardedToBu: (s as any).forwardedToBu ?? false,
         forwardedToBuAt: (s as any).forwardedToBuAt ? new Date((s as any).forwardedToBuAt).toISOString() : null,
         metricName: s.metricName || "",
@@ -390,11 +405,13 @@ export async function GET(req: NextRequest) {
         total: allItems.length,
         approved: allItems.filter(
           (i) =>
-            i.submissionStatus === "APPROVED" ||
-            i.submissionStatus === "BU_APPROVED" ||
-            i.submissionStatus === "LOCKED" ||
-            i.reviewStatus === "APPROVED" ||
-            i.reviewStatus === "BU_APPROVED"
+            (i.submissionStatus === "APPROVED" ||
+              i.submissionStatus === "BU_APPROVED" ||
+              i.submissionStatus === "LOCKED" ||
+              i.reviewStatus === "APPROVED" ||
+              i.reviewStatus === "BU_APPROVED") &&
+            /* Site submissions only count once the Project Manager approved them */
+            (i.isSiteSubmission ? (i as any).pmApproved : true)
         ).length,
         submitted: allItems.filter(
           (i) =>

@@ -155,7 +155,13 @@ const DOMAIN_GROUPS: Record<string, string[]> = {
 const TOP_ORDER = ["ENVIRONMENT", "FINANCE", "HR", "EHS-SAFETY", "PROCUREMENT", "CSR", "COMPLIANCE"];
 
 function isApproved(item: SubmissionItem) {
-  return item.submissionStatus === "APPROVED" || item.submissionStatus === "BU_APPROVED" || item.reviewStatus === "APPROVED";
+  /* Only Project Manager-approved items belong in the approved dataset. */
+  return (
+    (item.submissionStatus === "APPROVED" ||
+      item.submissionStatus === "BU_APPROVED" ||
+      item.reviewStatus === "APPROVED") &&
+    (item as any).pmApproved !== false
+  );
 }
 
 export default function ApprovedDatasetView() {
