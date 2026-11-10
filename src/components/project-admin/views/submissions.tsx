@@ -20,7 +20,7 @@ import {
   Send,
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
-import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
@@ -138,7 +138,10 @@ export default function SubmissionsView() {
        8s with cache bypass (each miss costs ~5s of DB round-trips). */
     loadSubmissions();
     ensureRevisionPolling();
-    return onRevisionChange(() => loadSubmissions());
+    return onRevisionChange(() => {
+      clearPaClientCache();
+      loadSubmissions(true);
+    });
   }, []);
 
   // Quick Action: Forward the approved dataset to the Business Unit

@@ -548,30 +548,31 @@ export async function POST(req: NextRequest) {
           reviewedAt: now,
           updatedAt: now,
           inConsolidatedReport: true,
-          ...(alreadyForwarded ? {} : { forwardedToBu: false, forwardedToBuAt: null }),
+          forwardedToBu: false,
+          forwardedToBuAt: null,
         },
       });
 
       // Append to submission history: APPROVED (staged for the BU handoff)
       const subForHist = await db.submission.findUnique({ where: { id: submissionId }, select: { history: true } });
-      let hist: any[] = [];
-      try { hist = JSON.parse(subForHist?.history || "[]"); if (!Array.isArray(hist)) hist = []; } catch {}
-      hist.push({
-        id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        action: "APPROVED",
-        fromStatus: "SUBMITTED",
-        toStatus: "APPROVED",
-        actor: ctx.userName,
-        actorName: ctx.userName,
-        actorRole: "Project Admin",
-        at: now.toISOString(),
-        createdAt: now.toISOString(),
-        note: alreadyForwarded
-          ? `${approvalNote} — re-approved after an earlier Business Unit handoff; the item stays with the BU and is not re-staged.`
-          : `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
-        comment: approvalNote,
-      });
-      await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });
+      if (subForHist) {
+        let hist: any[] = [];
+        try { hist = JSON.parse(subForHist.history || "[]"); if (!Array.isArray(hist)) hist = []; } catch {}
+        hist.push({
+          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          action: "APPROVED",
+          fromStatus: "SUBMITTED",
+          toStatus: "APPROVED",
+          actor: ctx.userName,
+          actorName: ctx.userName,
+          actorRole: "Project Admin",
+          at: now.toISOString(),
+          createdAt: now.toISOString(),
+          note: `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
+          comment: approvalNote,
+        });
+        await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });
+      }
 
       // Update soSubmission if exists
       await db.soSubmission.updateMany({
@@ -625,8 +626,13 @@ export async function POST(req: NextRequest) {
         severity: "SUCCESS",
       });
 
-      // Bust consolidated-report cache so the view refreshes with the new approved item
+      // Bust server, consolidated-report, and PU caches so views refresh immediately
+      invalidatePaServerCache();
       invalidatePaConsolidatedReportCache();
+      invalidateSubmittedReportsCache();
+      invalidatePuSubmissionsCache();
+      invalidatePuOverviewCache();
+      invalidatePuNotificationsCache();
 
       return paOk(
         { submissionId, status: "APPROVED", approvalNote },

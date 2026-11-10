@@ -436,6 +436,8 @@ export async function POST(req: NextRequest) {
     if (!submissionId) return paFail("submissionId is required.", 400);
 
     invalidatePaServerCache(); // Invalidate server cache on mutation
+    invalidatePaConsolidatedReportCache();
+    invalidateSubmittedReportsCache();
     /* Bust the PU portal caches too so contributors see approve/reject
        decisions without waiting for the client/server TTLs. */
     invalidatePuOverviewCache();
@@ -471,7 +473,8 @@ export async function POST(req: NextRequest) {
           reviewedAt: now,
           updatedAt: now,
           inConsolidatedReport: true,
-          ...(sub?.forwardedToBu ? {} : { forwardedToBu: false, forwardedToBuAt: null }),
+          forwardedToBu: false,
+          forwardedToBuAt: null,
         },
       });
 

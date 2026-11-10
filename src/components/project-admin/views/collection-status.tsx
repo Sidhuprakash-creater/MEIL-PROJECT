@@ -31,7 +31,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
-import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 import type { PaCollectionStatusItem, ContributorRole } from "@/lib/project-admin/types";
@@ -104,7 +104,10 @@ export default function CollectionStatusView() {
        Bypassing on every mount forced a ~7s cold compute per view open. */
     loadData();
     ensureRevisionPolling();
-    return onRevisionChange(() => loadData());
+    return onRevisionChange(() => {
+      clearPaClientCache();
+      loadData(true);
+    });
   }, []);
 
   const showToast = (msg: string) => {

@@ -44,8 +44,8 @@ export async function POST(req: NextRequest) {
     if (selectedSubmissionIds && Array.isArray(selectedSubmissionIds) && selectedSubmissionIds.length > 0) {
       submissionsToInclude = await db.submission.findMany({
         where: {
+          ...scope,
           id: { in: selectedSubmissionIds },
-          projectId: ctx.projectId,
           category: { not: "CONSOLIDATED" },
           status: { in: eligibleStatuses },
         },
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
     } else {
       submissionsToInclude = await db.submission.findMany({
         where: {
-          projectId: ctx.projectId,
+          ...scope,
           category: { not: "CONSOLIDATED" },
           status: { in: eligibleStatuses },
         },

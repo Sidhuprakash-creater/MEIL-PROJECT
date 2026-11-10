@@ -29,9 +29,11 @@ import {
   Plus,
   Minus,
   Sparkles,
+  RefreshCw,
 } from "lucide-react";
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
-import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
+import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaCircularProgress, PaKpiCard } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
 import type { PaConsolidatedReport, ContributorRole } from "@/lib/project-admin/types";
@@ -69,6 +71,11 @@ export default function ConsolidatedReportView() {
 
   useEffect(() => {
     loadReport();
+    ensureRevisionPolling();
+    return onRevisionChange(() => {
+      clearPaClientCache();
+      loadReport(true);
+    });
   }, []);
 
   // When report loads, select all approved submissions and contributors by default
@@ -237,6 +244,19 @@ export default function ConsolidatedReportView() {
         badge={report?.versionLabel || "v1.0"}
         actions={
           <div className="flex items-center gap-3">
+            <PaButton
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                clearPaClientCache();
+                loadReport(true);
+              }}
+              disabled={loading}
+              className="flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+              <span>Refresh</span>
+            </PaButton>
             <PaButton
               icon={Send}
               disabled={!canSubmit}

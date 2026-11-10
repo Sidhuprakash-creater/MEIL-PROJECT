@@ -18,7 +18,7 @@ import {
   FileCheck2,
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
-import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaKpiCard } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
@@ -199,7 +199,10 @@ export default function ApprovedDatasetView() {
        8s with cache bypass (each miss costs ~5s of DB round-trips). */
     load();
     ensureRevisionPolling();
-    return onRevisionChange(() => load());
+    return onRevisionChange(() => {
+      clearPaClientCache();
+      load(true);
+    });
   }, []);
 
   // Build grouped, stepwise dataset from approved, not-yet-forwarded submissions.
@@ -304,7 +307,10 @@ export default function ApprovedDatasetView() {
             <PaButton
               variant="secondary"
               size="sm"
-              onClick={() => load(true)}
+              onClick={() => {
+                clearPaClientCache();
+                load(true);
+              }}
               disabled={actionLoading}
               className="flex items-center gap-1.5"
             >

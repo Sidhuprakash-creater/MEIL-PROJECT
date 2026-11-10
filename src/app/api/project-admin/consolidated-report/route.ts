@@ -50,10 +50,10 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { createdAt: "desc" },
       }),
-      // Fetch submissions belonging to this project for the consolidated report
+      // Fetch submissions belonging to this project/scope for the consolidated report
       db.submission.findMany({
         where: {
-          projectId: ctx.projectId,
+          ...paSubmissionScope(ctx),
           category: { not: "CONSOLIDATED" },
           status: { in: ["APPROVED", "BU_APPROVED", "SUBMITTED", "UNDER_REVIEW"] },
         },
