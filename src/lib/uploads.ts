@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import os from "os";
 import { db } from "@/lib/db";
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -120,13 +121,22 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
   });
   const version = (prior?.version ?? 0) + 1;
 
-  /* Store the bytes on disk (unified Evidence vault location) … */
-  const uploadDir = path.join(process.cwd(), "public", "evidence-uploads");
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
   const safeName = name.replace(/[^\w.\-() ]+/g, "_");
   const storedName = `${Date.now()}-${safeName}`;
   const filePath = `/evidence-uploads/${storedName}`;
-  fs.writeFileSync(path.join(uploadDir, storedName), buf);
+
+  /* Store the bytes on disk (or /tmp on serverless environments like Vercel) … */
+  try {
+    const uploadDir = path.join(process.cwd(), "public", "evidence-uploads");
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    fs.writeFileSync(path.join(uploadDir, storedName), buf);
+  } catch {
+    try {
+      const tmpDir = path.join(os.tmpdir(), "evidence-uploads");
+      if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+      fs.writeFileSync(path.join(tmpDir, storedName), buf);
+    } catch {}
+  }
 
   /* … and index it with the unified Evidence model. */
   const { createHash } = await import("crypto");
@@ -146,6 +156,35 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
       status: "UPLOADED",
     },
   });
+
+  /* Persist bytes in AppSetting so Vercel lambdas can serve it anytime */
+  await db.appSetting.upsert({
+    where: { skey: `evidence_blob:${stored.id}` },
+    create: {
+      skey: `evidence_blob:${stored.id}`,
+      label: name,
+      category: "EVIDENCE_BLOB",
+      svalue: buf.toString("base64"),
+      vtype: "text",
+    },
+    update: {
+      svalue: buf.toString("base64"),
+    },
+  }).catch(() => null);
+
+  await db.appSetting.upsert({
+    where: { skey: `evidence_blob_file:${storedName}` },
+    create: {
+      skey: `evidence_blob_file:${storedName}`,
+      label: name,
+      category: "EVIDENCE_BLOB",
+      svalue: buf.toString("base64"),
+      vtype: "text",
+    },
+    update: {
+      svalue: buf.toString("base64"),
+    },
+  }).catch(() => null);
 
   const doc = await db.evidenceDoc.create({
     data: {
@@ -221,10 +260,43 @@ export async function serveEvidenceBytes(
 ): Promise<NextResponse | null> {
   const f = await db.evidence.findUnique({ where: { id: fileId } });
   if (!f || !f.filePath) return null;
+
+  let buffer: Buffer | null = null;
   const abs = path.join(process.cwd(), "public", f.filePath.replace(/^\//, ""));
-  if (!fs.existsSync(abs)) return null;
+  if (fs.existsSync(abs)) {
+    try { buffer = fs.readFileSync(abs); } catch {}
+  }
+
+  if (!buffer) {
+    try {
+      const tmpPath = path.join(os.tmpdir(), "evidence-uploads", path.basename(f.filePath));
+      if (fs.existsSync(tmpPath)) {
+        buffer = fs.readFileSync(tmpPath);
+      }
+    } catch {}
+  }
+
+  if (!buffer) {
+    try {
+      const blob = await db.appSetting.findFirst({
+        where: {
+          OR: [
+            { skey: `evidence_blob:${f.id}` },
+            { skey: `evidence_blob_file:${path.basename(f.filePath)}` },
+          ],
+        },
+        select: { svalue: true },
+      });
+      if (blob?.svalue) {
+        buffer = Buffer.from(blob.svalue, "base64");
+      }
+    } catch {}
+  }
+
+  if (!buffer) return null;
+
   const safeName = downloadName.replace(/[^\w.\-() ]+/g, "_") || "evidence";
-  const body = new Uint8Array(fs.readFileSync(abs));
+  const body = new Uint8Array(buffer);
   return new NextResponse(body, {
     headers: {
       "Content-Type": f.mimeType || "application/octet-stream",

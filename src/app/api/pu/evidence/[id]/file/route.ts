@@ -3,6 +3,7 @@ import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
 import * as fs from 'fs'
 import * as path from 'path'
+import * as os from 'os'
 
 export const runtime = 'nodejs'
 
@@ -106,11 +107,52 @@ export async function GET(
       absolutePath = path.join(process.cwd(), 'public', raw.replace(/^[/\\]+/, ''))
     }
 
-    let buffer: Buffer
-    if (fs.existsSync(absolutePath)) {
-      buffer = fs.readFileSync(absolutePath)
-    } else {
-      // Fallback for seeded demo documents: generate authentic enterprise audit evidence
+    let buffer: Buffer | null = null
+
+    // 1. Check data URI directly
+    if (raw.startsWith('data:')) {
+      const commaIdx = raw.indexOf(',')
+      const base64Str = commaIdx !== -1 ? raw.slice(commaIdx + 1) : raw
+      buffer = Buffer.from(base64Str, 'base64')
+    }
+
+    // 2. Check disk path
+    if (!buffer && fs.existsSync(absolutePath)) {
+      try {
+        buffer = fs.readFileSync(absolutePath)
+      } catch {}
+    }
+
+    // 3. Check /tmp on serverless (e.g. Vercel)
+    if (!buffer) {
+      try {
+        const tmpPath = path.join(os.tmpdir(), 'evidence-uploads', path.basename(raw))
+        if (fs.existsSync(tmpPath)) {
+          buffer = fs.readFileSync(tmpPath)
+        }
+      } catch {}
+    }
+
+    // 4. Check AppSetting blob persistence
+    if (!buffer) {
+      try {
+        const blob = await db.appSetting.findFirst({
+          where: {
+            OR: [
+              { skey: `evidence_blob:${evidence.id}` },
+              { skey: `evidence_blob_file:${path.basename(raw)}` },
+            ],
+          },
+          select: { svalue: true },
+        })
+        if (blob?.svalue) {
+          buffer = Buffer.from(blob.svalue, 'base64')
+        }
+      } catch {}
+    }
+
+    // 5. Fallback for seeded demo documents: generate authentic enterprise audit evidence
+    if (!buffer) {
       buffer = buildFallbackPdf(evidence.fileName, evidence.id)
     }
     const isDownload = req.nextUrl.searchParams.get('download') === 'true'

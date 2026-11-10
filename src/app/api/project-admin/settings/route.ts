@@ -32,9 +32,13 @@ function readPrefs(): PrefMap {
 }
 
 function writePrefs(map: PrefMap): void {
-  const dir = path.dirname(PREFS_PATH);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(PREFS_PATH, JSON.stringify(map, null, 2), "utf-8");
+  try {
+    const dir = path.dirname(PREFS_PATH);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(PREFS_PATH, JSON.stringify(map, null, 2), "utf-8");
+  } catch (e) {
+    console.warn("Failed to write prefs to disk on read-only filesystem:", e);
+  }
 }
 
 const DEFAULT_PREFS: Record<string, unknown> = {

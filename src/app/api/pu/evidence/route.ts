@@ -5,6 +5,7 @@ import { authErrorToStatus } from '@/lib/pu/workflow'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
+import * as os from 'os'
 
 import { puEvidenceCache, invalidatePuEvidenceCache } from '@/lib/portal-cache'
 
@@ -107,17 +108,25 @@ export async function POST(req: NextRequest) {
     const periodId = formData.get('periodId') as string | null || undefined
     const sourceRecordId = formData.get('sourceRecordId') as string | null || undefined
 
-    // Save the file to public/evidence-uploads/<timestamp>-<safeName>
-    const uploadDir = path.join(process.cwd(), 'public', 'evidence-uploads')
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
-
     const safeOrigName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
     const uniqueName = `${Date.now()}-${safeOrigName}`
-    const fullPath = path.join(uploadDir, uniqueName)
+    const filePath = `/evidence-uploads/${uniqueName}`
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
-    fs.writeFileSync(fullPath, buffer)
+
+    // Save to disk when writable, or fallback to /tmp on serverless (e.g. Vercel read-only filesystem)
+    try {
+      const uploadDir = path.join(process.cwd(), 'public', 'evidence-uploads')
+      if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
+      fs.writeFileSync(path.join(uploadDir, uniqueName), buffer)
+    } catch {
+      try {
+        const tmpDir = path.join(os.tmpdir(), 'evidence-uploads')
+        if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true })
+        fs.writeFileSync(path.join(tmpDir, uniqueName), buffer)
+      } catch {}
+    }
 
     // Compute SHA-256 hash
     const hash = `sha256:${crypto.createHash('sha256').update(buffer).digest('hex')}`
@@ -129,9 +138,6 @@ export async function POST(req: NextRequest) {
       select: { version: true },
     })
     const version = (existing?.version ?? 0) + 1
-
-    // Store relative URL (served from Next.js public/)
-    const filePath = `/evidence-uploads/${uniqueName}`
 
     const evidence = await db.evidence.create({
       data: {
@@ -154,6 +160,35 @@ export async function POST(req: NextRequest) {
         uploader: { select: { id: true, name: true, email: true, employeeId: true } },
       },
     })
+
+    // Store file bytes in AppSetting for permanent Vercel availability across lambdas
+    await db.appSetting.upsert({
+      where: { skey: `evidence_blob:${evidence.id}` },
+      create: {
+        skey: `evidence_blob:${evidence.id}`,
+        label: file.name,
+        category: 'EVIDENCE_BLOB',
+        svalue: buffer.toString('base64'),
+        vtype: 'text',
+      },
+      update: {
+        svalue: buffer.toString('base64'),
+      },
+    }).catch(() => null)
+
+    await db.appSetting.upsert({
+      where: { skey: `evidence_blob_file:${uniqueName}` },
+      create: {
+        skey: `evidence_blob_file:${uniqueName}`,
+        label: file.name,
+        category: 'EVIDENCE_BLOB',
+        svalue: buffer.toString('base64'),
+        vtype: 'text',
+      },
+      update: {
+        svalue: buffer.toString('base64'),
+      },
+    }).catch(() => null)
 
     invalidatePuEvidenceCache()
     // Audit asynchronously without blocking upload response
