@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
       title: `Final ESG report submitted: ${bu.name}`,
       body: `${ctx.name} (BU Manager, ${bu.name}) submitted the consolidated ESG report to ${bu.subsidiary?.name ?? "the subsidiary"} — ${rollup.totals.confirmedReports} approved report(s) across ${rollup.totals.projects} project(s), ${rollup.totals.sections} section(s).`,
       severity: "SUCCESS",
-      linkView: "reports",
+      linkView: "reports-bu",
       refId: report.id,
     });
 

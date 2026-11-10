@@ -15,11 +15,13 @@ const num = (v: string | null, d: number) => {
 const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean }) => boolean> = {
   all: () => true,
   draft: (s) => ["DRAFT", "ASSIGNED"].includes(s.status),
-  submitted: (s) => s.status === "SUBMITTED",
+  submitted: (s) => s.status === "SUBMITTED" || s.status === "BU_APPROVED",
   pending: (s) => s.status === "UNDER_REVIEW",
-  approved: (s) => s.status === "APPROVED",
+  /* BU_APPROVED = the Business Unit signed off → cleared for the subsidiary
+     roll-up. Same wording as the Subsidiary Manager console. */
+  approved: (s) => s.status === "APPROVED" || s.status === "BU_APPROVED",
   rejected: (s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status),
-  overdue: (s) => s.overdue && s.status !== "APPROVED",
+  overdue: (s) => s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED",
 };
 
 export async function GET(req: NextRequest) {

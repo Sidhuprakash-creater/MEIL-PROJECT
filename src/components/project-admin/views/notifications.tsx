@@ -27,6 +27,40 @@ import { paApiGet, paApiPatch, paApiDelete, getCachedPaData } from "@/lib/projec
 import { usePaStore } from "@/lib/project-admin/store";
 import type { PaNotificationItem, PaViewId } from "@/lib/project-admin/types";
 
+/* Cross-console notification links → the closest Project Admin screen.
+   Notifications are broadcast to every console, so a link can name a view
+   that only exists somewhere else (e.g. the BU's "queue"). */
+const PA_LINK_TARGETS: Record<string, PaViewId> = {
+  dashboard: "dashboard",
+  "project-overview": "project-overview",
+  users: "users",
+  categories: "categories",
+  tasks: "tasks",
+  "collection-status": "collection-status",
+  "approved-dataset": "approved-dataset",
+  evidence: "evidence",
+  "esg-summary": "esg-summary",
+  "consolidated-report": "consolidated-report",
+  consolidated: "consolidated-report",
+  submissions: "submissions",
+  queue: "submissions",
+  corrections: "corrections",
+  notifications: "notifications",
+  settings: "settings",
+};
+
+const PA_VIEW_IDS: PaViewId[] = [
+  "dashboard", "project-overview", "users", "categories", "tasks",
+  "collection-status", "approved-dataset", "evidence", "esg-summary",
+  "consolidated-report", "submissions", "corrections", "notifications", "settings",
+];
+
+const paLinkTarget = (raw: string): PaViewId => {
+  if (PA_LINK_TARGETS[raw]) return PA_LINK_TARGETS[raw];
+  if ((PA_VIEW_IDS as string[]).includes(raw)) return raw as PaViewId;
+  return "dashboard";
+};
+
 /* Normalize the API row (read/category/linkView) into the aliases the view
    renders (isRead/type) — previously these never matched, so the unread
    filter, counts and action links were all dead. */
@@ -305,9 +339,13 @@ export function NotificationsView() {
                         <button
                           onClick={() => {
                             if (!item.isRead) markAsRead(item.id);
-                            /* linkView comes from the API (actionUrl is a legacy alias). */
-                            const target = item.linkView ?? (item.actionUrl?.startsWith("#") ? item.actionUrl.replace("#", "") : null);
-                            if (target) navigate(target as PaViewId);
+                            /* linkView comes from the API (actionUrl is a legacy alias).
+                               Notifications are broadcast to ALL consoles, so the link
+                               may point at a view that does not exist here (e.g. the
+                               BU's "queue") — map it to the closest PA screen instead
+                               of navigating into an unknown view id. */
+                            const raw = item.linkView ?? (item.actionUrl?.startsWith("#") ? item.actionUrl.replace("#", "") : null);
+                            if (raw) navigate(paLinkTarget(raw));
                           }}
                           className="text-[#315CFF] font-semibold flex items-center gap-1 hover:underline"
                         >

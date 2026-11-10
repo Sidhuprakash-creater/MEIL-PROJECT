@@ -28,14 +28,14 @@ export async function GET(req: NextRequest) {
       db.activityEvent.findMany({ where: { orgLabel: sub.name }, orderBy: { createdAt: "desc" }, take: 8 }),
     ]);
 
-    const isOverdue = (s: { overdue: boolean; status: string }) => s.overdue && s.status !== "APPROVED";
+    const isOverdue = (s: { overdue: boolean; status: string }) => s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED";
     /* Definitions aligned with /api/sa/submissions TAB_FILTERS so every dashboard card
        value equals the destination tab count the user lands on. */
     const bucket = (list: typeof subs) => {
       const submitted = list.filter((s) => s.status === "SUBMITTED").length;
       const pending = list.filter((s) => s.status === "UNDER_REVIEW").length;
       const overdue = list.filter((s) => isOverdue(s)).length;
-      const approved = list.filter((s) => s.status === "APPROVED").length;
+      const approved = list.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length;
       const rejected = list.filter((s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status)).length;
       return { submitted, pending, overdue, approved, rejected };
     };
@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
       trend.push({
         label: MONTHS[d.getMonth()],
         submitted: inMonth.length,
-        approved: inMonth.filter((s) => s.status === "APPROVED").length,
+        approved: inMonth.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length,
       });
     }
 
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
         id: u.id, name: u.name, level: "BUSINESS_UNIT",
         eff: resolveEffectiveDeadline("BUSINESS_UNIT", { subsidiaryId: sub.id, businessUnitId: u.id }, timelines, sub.code),
         hasSubmitted: list.length > 0,
-        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED"),
+        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED" || s.status === "BU_APPROVED"),
         lastAt: list.reduce<Date | null>((acc, s) => (s.submittedAt && (!acc || s.submittedAt > acc) ? s.submittedAt : acc), null),
       });
     }
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
         id: pr.id, name: pr.name, level: "PROJECT",
         eff: resolveEffectiveDeadline("PROJECT", { subsidiaryId: sub.id, businessUnitId: pr.businessUnitId, projectId: pr.id }, timelines, sub.code),
         hasSubmitted: list.length > 0,
-        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED"),
+        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED" || s.status === "BU_APPROVED"),
         lastAt: list.reduce<Date | null>((acc, s) => (s.submittedAt && (!acc || s.submittedAt > acc) ? s.submittedAt : acc), null),
       });
     }
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
     const activeUsers = users.filter((u) => u.status === "ACTIVE" && u.lastActiveAt && now.getTime() - u.lastActiveAt.getTime() < 30 * 60000).length;
     const packages = await db.reportingPackage.findMany({ where: { subsidiaryId: ctx.subsidiaryId, period } });
     const totalNonDraft = subs.filter((s) => s.status !== "DRAFT").length;
-    const approvedTotal = subs.filter((s) => s.status === "APPROVED").length;
+    const approvedTotal = subs.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length;
 
     const data: DashboardData = {
       subsidiary: {

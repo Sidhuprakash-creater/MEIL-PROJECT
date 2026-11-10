@@ -17,9 +17,12 @@ const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean }) => b
   draft: (s) => ["DRAFT", "ASSIGNED"].includes(s.status),
   submitted: (s) => s.status === "SUBMITTED" || s.status === "BU_APPROVED",
   pending: (s) => s.status === "UNDER_REVIEW",
-  approved: (s) => s.status === "APPROVED",
+  /* A report the BU Manager signed off is BU_APPROVED — it is cleared for
+     the subsidiary consolidation and must show under "Approved", otherwise
+     the manager never sees the reports that are ready to roll up. */
+  approved: (s) => s.status === "APPROVED" || s.status === "BU_APPROVED",
   rejected: (s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status),
-  overdue: (s) => s.overdue && s.status !== "APPROVED",
+  overdue: (s) => s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED",
 };
 
 export async function GET(req: NextRequest) {

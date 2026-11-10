@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       loadBmProjectNames(ctx.businessUnitId),
     ]);
 
-    const isOverdue = (s: { overdue: boolean; status: string }) => s.overdue && s.status !== "APPROVED";
+    const isOverdue = (s: { overdue: boolean; status: string }) => s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED";
 
     /* Review workload — computed on the QUEUE (SUBMITTED + UNDER_REVIEW + CHANGES_REQUESTED). */
     const queue = subs.filter((s) => ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"].includes(s.status));
@@ -72,7 +72,7 @@ export async function GET(req: NextRequest) {
       const inMonth = subs.filter((s) => s.reviewedAt && s.reviewedAt >= d && s.reviewedAt < next && s.reviewerId === ctx.userId);
       decisionTrend.push({
         label: MONTHS[d.getMonth()],
-        approved: inMonth.filter((s) => s.status === "APPROVED").length,
+        approved: inMonth.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length,
         rejected: inMonth.filter((s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status)).length,
       });
     }
@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
     /* Completion by project — BU-scoped only. */
     const completionByProject = projects.map((p) => {
       const list = subs.filter((s) => s.projectId === p.id);
-      const approved = list.filter((s) => s.status === "APPROVED").length;
+      const approved = list.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length;
       const pending = list.filter((s) => ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"].includes(s.status)).length;
       const overdue = list.filter((s) => isOverdue(s)).length;
       return {
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
       id: bu.id, name: bu.name, level: "BUSINESS_UNIT",
       eff: resolveEffectiveDeadline("BUSINESS_UNIT", { subsidiaryId: ctx.subsidiaryId, businessUnitId: bu.id }, timelines as never, bu.code),
       hasSubmitted: subs.some((s) => !s.projectId && s.status !== "DRAFT"),
-      allApproved: subs.some((s) => !s.projectId) && subs.filter((s) => !s.projectId).every((s) => s.status === "APPROVED"),
+      allApproved: subs.some((s) => !s.projectId) && subs.filter((s) => !s.projectId).every((s) => s.status === "APPROVED" || s.status === "BU_APPROVED"),
       lastAt: subs.filter((s) => !s.projectId && s.submittedAt).reduce<Date | null>((acc, s) => (s.submittedAt && (!acc || s.submittedAt > acc) ? s.submittedAt : acc), null),
     });
     for (const p of projects) {
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
         id: p.id, name: p.name, level: "PROJECT",
         eff: resolveEffectiveDeadline("PROJECT", { subsidiaryId: ctx.subsidiaryId, businessUnitId: ctx.businessUnitId, projectId: p.id }, timelines as never, bu.code),
         hasSubmitted: list.length > 0,
-        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED"),
+        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED" || s.status === "BU_APPROVED"),
         lastAt: list.reduce<Date | null>((acc, s) => (s.submittedAt && (!acc || s.submittedAt > acc) ? s.submittedAt : acc), null),
       });
     }
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
         awaitingReview: subs.filter((s) => s.status === "SUBMITTED").length,
         underReview: subs.filter((s) => s.status === "UNDER_REVIEW").length,
         returnedForCorrection: subs.filter((s) => s.status === "CHANGES_REQUESTED").length,
-        approved: subs.filter((s) => s.status === "APPROVED").length,
+        approved: subs.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length,
         overdueReviews,
         avgReviewDays,
       },

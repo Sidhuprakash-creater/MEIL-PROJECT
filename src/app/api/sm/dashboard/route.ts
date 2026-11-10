@@ -36,12 +36,15 @@ export async function GET(req: NextRequest) {
       loadRowContext(ctx.subsidiaryId),
     ]);
 
-    const isOverdue = (s: { overdue: boolean; status: string }) => s.overdue && s.status !== "APPROVED";
+    const isOverdue = (s: { overdue: boolean; status: string }) =>
+      s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED";
     const bucket = (list: typeof subs) => ({
       submitted: list.filter((s) => s.status === "SUBMITTED").length,
       pending: list.filter((s) => s.status === "UNDER_REVIEW").length,
       overdue: list.filter((s) => isOverdue(s)).length,
-      approved: list.filter((s) => s.status === "APPROVED").length,
+      /* BU_APPROVED = signed off by the Business Unit → cleared for the
+         subsidiary consolidation, so it counts as approved here. */
+      approved: list.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length,
       rejected: list.filter((s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status)).length,
     });
     const buSubs = subs.filter((s) => !s.projectId);
@@ -91,7 +94,7 @@ export async function GET(req: NextRequest) {
       const inMonth = subs.filter((s) => s.reviewedAt && s.reviewedAt >= d && s.reviewedAt < next && s.reviewerId === ctx.userId);
       decisionTrend.push({
         label: MONTHS[d.getMonth()],
-        approved: inMonth.filter((s) => s.status === "APPROVED").length,
+        approved: inMonth.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length,
         rejected: inMonth.filter((s) => s.status === "REJECTED").length,
       });
     }
@@ -122,7 +125,7 @@ export async function GET(req: NextRequest) {
         id: u.id, name: u.name, level: "BUSINESS_UNIT",
         eff: resolveEffectiveDeadline("BUSINESS_UNIT", { subsidiaryId: sub.id, businessUnitId: u.id }, rowCtx.timelines, sub.code),
         hasSubmitted: list.length > 0,
-        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED"),
+        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED" || s.status === "BU_APPROVED"),
         lastAt: list.reduce<Date | null>((acc, s) => (s.submittedAt && (!acc || s.submittedAt > acc) ? s.submittedAt : acc), null),
       });
     }
@@ -132,7 +135,7 @@ export async function GET(req: NextRequest) {
         id: pr.id, name: pr.name, level: "PROJECT",
         eff: resolveEffectiveDeadline("PROJECT", { subsidiaryId: sub.id, businessUnitId: pr.businessUnitId, projectId: pr.id }, rowCtx.timelines, sub.code),
         hasSubmitted: list.length > 0,
-        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED"),
+        allApproved: list.length > 0 && list.every((s) => s.status === "APPROVED" || s.status === "BU_APPROVED"),
         lastAt: list.reduce<Date | null>((acc, s) => (s.submittedAt && (!acc || s.submittedAt > acc) ? s.submittedAt : acc), null),
       });
     }
@@ -164,9 +167,11 @@ export async function GET(req: NextRequest) {
         owner: submitters.find((u) => u.id === s.submittedById)?.name ?? "Unassigned",
       }));
 
-    /* Recent review decisions (any reviewer — manager + group parity view). */
+    /* Recent review decisions (any reviewer — manager + group parity view).
+       BU sign-offs are included: the subsidiary must see what its business
+       units already cleared. */
     const decided = subs
-      .filter((s) => ["APPROVED", "REJECTED"].includes(s.status) && s.reviewedAt)
+      .filter((s) => ["APPROVED", "BU_APPROVED", "REJECTED"].includes(s.status) && s.reviewedAt)
       .sort((a, x) => new Date(x.reviewedAt!).getTime() - new Date(a.reviewedAt!).getTime())
       .slice(0, 6);
     const reviewerIds = [...new Set(decided.map((s) => s.reviewerId).filter(Boolean))] as string[];
@@ -175,7 +180,7 @@ export async function GET(req: NextRequest) {
       : [];
 
     const totalNonDraft = subs.filter((s) => s.status !== "DRAFT").length;
-    const approvedTotal = subs.filter((s) => s.status === "APPROVED").length;
+    const approvedTotal = subs.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length;
     const openValidation = await db.validationIssue.count({ where: { subsidiaryId: ctx.subsidiaryId, status: { in: ["OPEN", "ASSIGNED"] } } });
 
     const data: ManagerDashboardData = {

@@ -33,6 +33,10 @@ function linkTarget(linkView: string): "queue" | "reports" | "evidence" | "tasks
     case "evidence": return "evidence";
     case "validation": return "corrections";
     case "esg": return "analytics";
+    /* Cross-console deep links (SM sends "reports-bu" / "queue"). */
+    case "queue": return "queue";
+    case "reports":
+    case "reports-bu": return "reports";
     default: return "dashboard";
   }
 }

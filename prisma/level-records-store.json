@@ -7,6 +7,168 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-10T08:34:48.473Z",
+    "updatedAt": "2026-11-10T08:35:53.263Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Canal Water",
+          "waterQuantity": 5000,
+          "unit": "kL",
+          "waterReusedRecycled": 500,
+          "meterSourceId": "W-01"
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794299688473-4sinm"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-10T08:34:48.473Z",
+    "updatedAt": "2026-11-10T08:35:37.480Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid Supply",
+          "consumptionQuantity": 1200,
+          "unit": "kWh",
+          "estGj": 4.32,
+          "estTco2e": 1.2,
+          "meterEquipmentId": "M-01"
+        },
+        {
+          "energySource": "Solar Rooftop",
+          "consumptionQuantity": 800,
+          "unit": "kWh",
+          "estGj": 2.88,
+          "estTco2e": 0,
+          "meterEquipmentId": "M-02"
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794299688473-7vudd"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "SUBMITTED",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-10T08:19:01.755Z",
+    "updatedAt": "2026-11-10T08:19:01.755Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid",
+          "consumptionQuantity": 100,
+          "unit": "kWh",
+          "estGj": 0.36
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794298741755-68ukk"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "SUBMITTED",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-10T08:12:22.150Z",
+    "updatedAt": "2026-11-10T08:12:22.150Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Canal Water",
+          "waterQuantity": 5000,
+          "unit": "kL",
+          "waterReusedRecycled": 500,
+          "meterSourceId": "W-01"
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794298342150-ch9aa"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-10T08:12:22.149Z",
+    "updatedAt": "2026-11-10T08:12:48.821Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid Supply",
+          "consumptionQuantity": 1200,
+          "unit": "kWh",
+          "estGj": 4.32,
+          "estTco2e": 1.2,
+          "meterEquipmentId": "M-01"
+        },
+        {
+          "energySource": "Solar Rooftop",
+          "consumptionQuantity": 800,
+          "unit": "kWh",
+          "estGj": 2.88,
+          "estTco2e": 0,
+          "meterEquipmentId": "M-02"
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794298342149-ees97"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
     "enteredAt": "2026-11-09T16:21:54.887Z",
     "updatedAt": "2026-11-10T02:42:34.617Z",
     "level": 2,

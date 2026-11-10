@@ -32,6 +32,11 @@ function linkTarget(linkView: string): "queue" | "reports-bu" | "evidence" | "de
     case "evidence": return "evidence";
     case "validation": return "corrections";
     case "esg": return "analytics";
+    /* Cross-console deep links: a BU decision notification must land on the
+       subsidiary review queue, a BU final report on the BU reports screen. */
+    case "queue": return "queue";
+    case "reports":
+    case "reports-bu": return "reports-bu";
     default: return "dashboard";
   }
 }
