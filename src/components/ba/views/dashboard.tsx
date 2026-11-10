@@ -227,12 +227,12 @@ export default function DashboardView() {
                 <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(125,177,216,0.18)" strokeWidth="9" />
                 {(() => {
                   const total = data.statusDist.reduce((s, x) => s + x.count, 0) || 1;
-                  let offset = 0;
                   const circ = 213.6;
-                  return data.statusDist.map((s) => {
+                  return data.statusDist.map((s, i, arr) => {
                     const frac = s.count / total;
                     const dash = frac * circ;
-                    const el = (
+                    const offset = arr.slice(0, i).reduce((t, x) => t + (x.count / total) * circ, 0);
+                    return (
                       <circle
                         key={s.status}
                         cx="40" cy="40" r="34" fill="none"
@@ -242,8 +242,6 @@ export default function DashboardView() {
                         strokeDashoffset={-offset}
                       />
                     );
-                    offset += dash;
-                    return el;
                   });
                 })()}
               </svg>

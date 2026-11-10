@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaKpiCard } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
 
@@ -75,6 +76,14 @@ const GROUP_MAP: Record<string, string> = {
   CSR: "CSR",
   COMPLIANCE: "COMPLIANCE",
 };
+
+/** Resolve an approved submission into exactly ONE module group, with the same
+ *  precedence everywhere: category → module → Compliance. Classifying once
+ *  (instead of re-testing category and module with two separate `||` checks at
+ *  the use site) guarantees an item can never match into two children of a
+ *  group, which used to duplicate rows — and their React keys — in one table. */
+const groupOf = (i: { category?: string; module?: string }) =>
+  GROUP_MAP[i.category ?? ""] || GROUP_MAP[i.module ?? ""] || "COMPLIANCE";
 
 const GROUP_LABELS: Record<string, string> = {
   ENVIRONMENT: "Environment",
@@ -185,17 +194,23 @@ export default function ApprovedDatasetView() {
   };
 
   useEffect(() => {
-    load(true);
-    const interval = setInterval(() => load(true), 8000);
-    return () => clearInterval(interval);
+    /* Instant paint from the SWR/server caches; fresh data arrives via the
+       shared revision bus (~4s) instead of re-computing this endpoint every
+       8s with cache bypass (each miss costs ~5s of DB round-trips). */
+    load();
+    ensureRevisionPolling();
+    return onRevisionChange(() => load());
   }, []);
 
-  // Build grouped, stepwise dataset from approved submissions
+  // Build grouped, stepwise dataset from approved, not-yet-forwarded submissions.
+  // Items already sent to the Business Unit are deliberately hidden — the BU
+  // receives them as one consolidated project package; showing them here twice
+  // invited accidental re-sends and double-counting.
   const groups: ModuleGroup[] = (() => {
-    const approved = submissions.filter((s) => isApproved(s));
+    const approved = submissions.filter((s) => isApproved(s) && !s.forwardedToBu);
     const byGroup = new Map<string, SubmissionItem[]>();
     approved.forEach((s) => {
-      const g = GROUP_MAP[s.category] || GROUP_MAP[s.module] || "COMPLIANCE";
+      const g = groupOf(s);
       if (!byGroup.has(g)) byGroup.set(g, []);
       byGroup.get(g)?.push(s as SubmissionItem);
     });
@@ -214,7 +229,10 @@ export default function ApprovedDatasetView() {
       // For Environment, show the parent ENVIRONMENT bucket separately if it exists
       const parentItems = byGroup.get(top) || [];
       if (children.length > 0 || parentItems.length > 0) {
-        const allItems = parentItems.length > 0 ? [...parentItems, ...children.flatMap((c) => c.items)] : children.flatMap((c) => c.items);
+        const rawItems = parentItems.length > 0 ? [...parentItems, ...children.flatMap((c) => c.items)] : children.flatMap((c) => c.items);
+        /* Defensive uniqueness by record id (first occurrence wins), in case the
+           API ever lists the same approved submission twice. */
+        const allItems = [...new Map(rawItems.map((i) => [i.id, i])).values()];
         if (allItems.length > 0) {
           result.push({
             id: top,
@@ -224,7 +242,9 @@ export default function ApprovedDatasetView() {
             children: children.map((c) => ({
               id: c.id,
               label: c.label,
-              items: allItems.filter((i) => GROUP_MAP[i.category] === c.id || GROUP_MAP[i.module] === c.id),
+              /* groupOf classifies each item exactly once — an item can never
+                 land in two steps of the same module. */
+              items: allItems.filter((i) => groupOf(i) === c.id),
             })),
           });
         }
@@ -234,9 +254,12 @@ export default function ApprovedDatasetView() {
     return result;
   })();
 
+  /* Staged items count straight from the visible groups. The "sent" KPI is
+     computed from the RAW list (forwarded rows are hidden from the grouping
+     above, so it can't be derived from groups anymore). */
   const totalApproved = groups.reduce((sum, g) => sum + g.children.reduce((s, c) => s + c.items.length, 0), 0);
-  const alreadyForwarded = groups.reduce((sum, g) => sum + g.children.reduce((s, c) => s + c.items.filter((i) => forwardedCount[i.id]).length, 0), 0);
-  const pendingForward = totalApproved - alreadyForwarded;
+  const alreadyForwarded = submissions.filter((s) => isApproved(s) && s.forwardedToBu).length;
+  const pendingForward = totalApproved;
 
   const handleForwardToBu = async () => {
     if (!confirm("Submit the consolidated approved dataset to the Business Unit for review? These submissions will be forwarded at once.")) return;
@@ -394,7 +417,7 @@ export default function ApprovedDatasetView() {
                     <tbody className="divide-y divide-slate-100">
                       {group.children.map((child) =>
                         child.items.map((item) => (
-                          <tr key={item.id} className="hover:bg-blue-50/20 transition-colors group">
+                          <tr key={`${child.id}:${item.id}`} className="hover:bg-blue-50/20 transition-colors group">
                             <td className="p-3 pl-4">
                               <div className="flex items-center gap-1.5">
                                 <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-[9px] font-bold tracking-wider" style={{ color: group.accent, borderColor: group.accent }}>

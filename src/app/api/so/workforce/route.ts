@@ -5,6 +5,7 @@ import { apiError, rollupValidationStatus, type ValidationIssue,
   withProjectAliasesList,
   withProjectAliases,
 } from '@/lib/so/engines'
+import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -202,6 +203,10 @@ export async function POST(req: NextRequest) {
         validationResults: true,
       },
     })
+
+    /* Keep site-ops dashboards realtime — record writes refresh Overview KPIs,
+       so bust the overview/submissions caches before the success response. */
+    invalidateSoSubmissionsCache()
 
     return NextResponse.json({ record: withProjectAliases(full), issues }, { status: 201 })
   } catch (e: any) {

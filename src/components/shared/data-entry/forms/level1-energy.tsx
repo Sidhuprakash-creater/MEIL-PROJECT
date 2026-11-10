@@ -6,7 +6,7 @@ import { Zap, Flame, CheckCircle2, AlertTriangle, Save, Info, Calculator, Sparkl
 import { toast } from 'sonner'
 import { EmissionFactorInfoIcon } from '../../emission-factor-info'
 import { FormEvidenceAttachSection } from '../evidence-attach'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, type Period, useApiBase } from '../core'
 
 /* ============================================================
@@ -201,7 +201,7 @@ export function Level1EnergyForm({
   const addBtnRef = useRef<HTMLButtonElement>(null)
 
   const key = `l1-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   // Multi-source staged draft items collection — blank unless a saved draft exists
   const [stagedItems, setStagedItems] = useState<StagedEnergyItem[]>(() => {
@@ -274,7 +274,7 @@ export function Level1EnergyForm({
   const [error, setError] = useState('')
 
   // Switch energy source or click on an existing staged item
-  const handleSelectSource = (src: string) => {
+  function handleSelectSource(src: string) {
     setError('')
     setEnergySource(src)
     if (src !== 'Other') {

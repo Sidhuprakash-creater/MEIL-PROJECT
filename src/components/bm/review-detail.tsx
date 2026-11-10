@@ -85,6 +85,11 @@ export function ReportReviewWorkspace({
   const [compareOpen, setCompareOpen] = React.useState(false);
   const decision = useMutation<{ message: string; decision: { action: string; version: number } }>();
 
+  // Return-for-correction form state
+  const [returnReason, setReturnReason] = React.useState("");
+  const [returnInstructions, setReturnInstructions] = React.useState("");
+  const [returnFields, setReturnFields] = React.useState("");
+
   const sub = detail?.submission ?? null;
   const eligible = !!sub && (
     REVIEW_ELIGIBLE.includes(sub.status) ||
@@ -133,13 +138,9 @@ export function ReportReviewWorkspace({
       setReturnReason("");
       setReturnInstructions("");
       setReturnFields("");
-    }
+      }
   }, [rejectOpen, returnOpen]);
 
-  // Return-for-correction form state
-  const [returnReason, setReturnReason] = React.useState("");
-  const [returnInstructions, setReturnInstructions] = React.useState("");
-  const [returnFields, setReturnFields] = React.useState("");
   const returnReasonValid = returnReason.trim().length >= 10;
   const returnInstructionsValid = returnInstructions.trim().length >= 10;
 

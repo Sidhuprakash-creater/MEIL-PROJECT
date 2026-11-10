@@ -11,6 +11,7 @@ import {
   isLocked,
   primaryRoleLabel,
 } from '@/lib/so/workflow'
+import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -77,6 +78,10 @@ export async function POST(
         entityId: id,
         reason: comment || 'Reviewer re-visited submission (no state change)',
       })
+      /* Keep portal dashboards realtime on the idempotent re-visit too —
+         history and audit rows were appended above. */
+      invalidateSoSubmissionsCache()
+
       return NextResponse.json({
         submission,
         message: 'Submission already under review',
@@ -142,6 +147,10 @@ export async function POST(
       module: submission.module,
       status: toStatus,
     })
+
+    /* Keep portal dashboards realtime — bust the overview/submissions caches
+       so Overview, Analytics and Submissions reflect this review immediately. */
+    invalidateSoSubmissionsCache()
 
     return NextResponse.json({ submission: withProjectAliases(updated) })
   } catch (e) {

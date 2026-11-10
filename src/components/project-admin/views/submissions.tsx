@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
 
@@ -132,9 +133,12 @@ export default function SubmissionsView() {
   };
 
   useEffect(() => {
-    loadSubmissions(true);
-    const interval = setInterval(() => loadSubmissions(true), 8000);
-    return () => clearInterval(interval);
+    /* Instant paint from the SWR/server caches; fresh data arrives via the
+       shared revision bus (~4s) instead of re-computing this endpoint every
+       8s with cache bypass (each miss costs ~5s of DB round-trips). */
+    loadSubmissions();
+    ensureRevisionPolling();
+    return onRevisionChange(() => loadSubmissions());
   }, []);
 
   // Quick Action: Forward the approved dataset to the Business Unit
@@ -911,7 +915,7 @@ export default function SubmissionsView() {
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-xs font-semibold text-slate-800 shadow-2xs"
                         >
                           <FileText size={13} className="text-emerald-600 shrink-0" />
-                          <span className="font-mono text-[11px] truncate max-w-[260px]">{doc}</span>
+                          <span className="font-mono text-[11px] truncate max-w-[260px]">{typeof doc === 'string' ? doc : (doc as any)?.fileName || (doc as any)?.name || 'Evidence Document'}</span>
                         </div>
                       ))}
                   </div>

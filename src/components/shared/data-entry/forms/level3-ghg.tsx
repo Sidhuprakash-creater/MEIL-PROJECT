@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Zap, Users, Flame, CheckCircle2, AlertTriangle, Save, Calculator, Layers, Download, Eye, Plus, Trash2, Edit3, ArrowLeft, Fuel, Wind, Truck, Factory, CloudFog, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormEvidenceAttachSection } from '../evidence-attach'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, type Period, useApiBase } from '../core'
 
 /* ============================================================
@@ -283,7 +283,7 @@ export function Level3GhgForm({
   const apiBase = useApiBase()
 
   const key = `l3-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   // Multi-item staged state
   const [stagedItems, setStagedItems] = useState<StagedGhgItem[]>(() => {
@@ -2127,15 +2127,19 @@ onOcrApply={(f) => {
                           <td className="py-2.5 px-2.5">
                             {attachedEvs.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
-                                {attachedEvs.map((ev) => (
-                                  <span
-                                    key={ev.id}
-                                    className="truncate max-w-[100px] rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 border border-emerald-200"
-                                    title={ev.fileName}
-                                  >
-                                    {ev.fileName}
-                                  </span>
-                                ))}
+                                {attachedEvs.map((ev: any, evIdx: number) => {
+                                  const evName = typeof ev === 'string' ? ev : ev?.fileName || 'Evidence'
+                                  const evKey = typeof ev === 'string' ? `${ev}-${evIdx}` : ev?.id || evIdx
+                                  return (
+                                    <span
+                                      key={evKey}
+                                      className="truncate max-w-[100px] rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800 border border-emerald-200"
+                                      title={evName}
+                                    >
+                                      {evName}
+                                    </span>
+                                  )
+                                })}
                               </div>
                             ) : (
                               <span className="text-[10px] text-slate-400 italic">None attached</span>
@@ -2373,18 +2377,22 @@ onOcrApply={(f) => {
                         <td className="py-2.5 px-3">
                           {attachedEvs.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
-                              {attachedEvs.map((ev) => (
-                                <button
-                                  key={ev.id}
-                                  type="button"
-                                  onClick={() => onReviewEvidence && onReviewEvidence(ev)}
-                                  className="flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition"
-                                  title="Review evidence (flips card 180°)"
-                                >
-                                  <Eye className="h-2.5 w-2.5" />
-                                  <span className="max-w-[80px] truncate">{ev.fileName}</span>
-                                </button>
-                              ))}
+                              {attachedEvs.map((ev: any, evIdx: number) => {
+                                const evName = typeof ev === 'string' ? ev : ev?.fileName || 'Evidence'
+                                const evKey = typeof ev === 'string' ? `${ev}-${evIdx}` : ev?.id || evIdx
+                                return (
+                                  <button
+                                    key={evKey}
+                                    type="button"
+                                    onClick={() => onReviewEvidence && onReviewEvidence(typeof ev === 'string' ? ({ id: ev, fileName: ev } as any) : ev)}
+                                    className="flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200 hover:bg-emerald-100 transition"
+                                    title="Review evidence (flips card 180°)"
+                                  >
+                                    <Eye className="h-2.5 w-2.5" />
+                                    <span className="max-w-[80px] truncate">{evName}</span>
+                                  </button>
+                                )
+                              })}
                             </div>
                           ) : (
                             <span className="text-[10px] text-slate-400 italic">None attached</span>
@@ -2526,18 +2534,22 @@ onOcrApply={(f) => {
                           <td className="py-2.5 px-3">
                             {attachedEvs.length > 0 ? (
                               <div className="flex flex-wrap gap-1">
-                                {attachedEvs.map((ev) => (
-                                  <button
-                                    key={ev.id}
-                                    type="button"
-                                    onClick={() => onReviewEvidence && onReviewEvidence(ev)}
-                                    className="flex items-center gap-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-800 border border-teal-200 hover:bg-teal-100 transition"
-                                    title="Review evidence (flips card 180°)"
-                                  >
-                                    <Eye className="h-2.5 w-2.5" />
-                                    <span className="max-w-[70px] truncate">{ev.fileName}</span>
-                                  </button>
-                                ))}
+                                {attachedEvs.map((ev: any, evIdx: number) => {
+                                  const evName = typeof ev === 'string' ? ev : ev?.fileName || 'Evidence'
+                                  const evKey = typeof ev === 'string' ? `${ev}-${evIdx}` : ev?.id || evIdx
+                                  return (
+                                    <button
+                                      key={evKey}
+                                      type="button"
+                                      onClick={() => onReviewEvidence && onReviewEvidence(typeof ev === 'string' ? ({ id: ev, fileName: ev } as any) : ev)}
+                                      className="flex items-center gap-1 rounded bg-teal-50 px-1.5 py-0.5 text-[10px] font-bold text-teal-800 border border-teal-200 hover:bg-teal-100 transition"
+                                      title="Review evidence (flips card 180°)"
+                                    >
+                                      <Eye className="h-2.5 w-2.5" />
+                                      <span className="max-w-[70px] truncate">{evName}</span>
+                                    </button>
+                                  )
+                                })}
                               </div>
                             ) : (
                               <span className="text-[10px] text-slate-400 italic">None attached</span>

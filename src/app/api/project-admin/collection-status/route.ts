@@ -14,10 +14,26 @@ import {
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { getLevelRecords, updateLevelRecordStatus } from "@/lib/pu/level-records";
 import { parseJsonArray } from "@/lib/pu/workflow";
-import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from "@/lib/portal-cache";
+import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache, invalidatePaConsolidatedReportCache, invalidateSubmittedReportsCache } from "@/lib/portal-cache";
 import type { ContributorRole } from "@/lib/project-admin/types";
 
 export const dynamic = "force-dynamic";
+
+/* Row shapes matching each query's select clause (schema-verified) — used to
+   type the empty-query ternary branches below so the Promise.all
+   destructuring stays precise instead of collapsing to `any`. */
+type ProjectRow = {
+  id: string;
+  code: string;
+  name: string;
+  location: string;
+  ptype: string;
+  capacityMw: number;
+  status: string;
+  businessUnit: { name: string };
+};
+type ScopedUserRow = { id: string; name: string; email: string; role: string };
+type EvidenceRowShape = { id: string; fileName: string; documentType: string; filePath: string };
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,8 +50,11 @@ export async function GET(req: NextRequest) {
       return paOk(cached);
     }
 
-    // Parallel fetch of submissions, SO submissions, users, and evidence docs with lean selects
-    const [submissions, soSubmissions, users, evidenceDocs] = await Promise.all([
+    // Parallel fetch of submissions, SO submissions, users, evidence docs and
+    // reporting periods with lean selects. Every additional sequential await
+    // costs one full DB round-trip (~1s to the remote Postgres), so anything
+    // that can run in parallel belongs in these batches.
+    const [submissions, soSubmissions, users, evidenceDocs, periods] = await Promise.all([
       db.submission.findMany({
         where: paSubmissionScope(ctx),
         select: {
@@ -90,21 +109,12 @@ export async function GET(req: NextRequest) {
         where: { projectId: ctx.projectId },
         select: { id: true, submissionId: true, name: true },
       }),
+      db.reportingPeriod.findMany({ select: { id: true, periodLabel: true } }),
     ]);
+    const periodLabelById = new Map(periods.map((p) => [p.id, p.periodLabel]));
 
     /* Project cards for the full-window review (id → project info). */
     const projectIds = [...new Set(submissions.map((s) => (s as any).projectId).filter(Boolean))];
-    const projects = projectIds.length
-      ? await db.project.findMany({
-          where: { id: { in: projectIds } },
-          select: {
-            id: true, code: true, name: true, location: true, ptype: true,
-            capacityMw: true, status: true,
-            businessUnit: { select: { name: true } },
-          },
-        })
-      : [];
-    const projectById = new Map(projects.map((p) => [p.id, p]));
 
     const userMap = new Map(users.map((u) => [u.id, u]));
     /* Contributors whose user record sits outside this admin's scope (they
@@ -118,13 +128,6 @@ export async function GET(req: NextRequest) {
         ].filter((id): id is string => Boolean(id) && !userMap.has(String(id))),
       ),
     ];
-    if (missingSubmitterIds.length > 0) {
-      const extras = await db.user.findMany({
-        where: { id: { in: missingSubmitterIds } },
-        select: { id: true, name: true, email: true, role: true },
-      });
-      for (const u of extras) userMap.set(u.id, u);
-    }
 
     /* Sequenced level records + real evidence names for the review dialog.
        Level records live under the SUBMISSION's project — which can differ
@@ -137,8 +140,6 @@ export async function GET(req: NextRequest) {
     ]);
     const allRecords = getLevelRecords().filter((r) => recordProjectIds.has(r.projectId));
     const recordById = new Map(allRecords.map((r) => [r.id, r]));
-    const periods = await db.reportingPeriod.findMany({ select: { id: true, periodLabel: true } });
-    const periodLabelById = new Map(periods.map((p) => [p.id, p.periodLabel]));
     const evidenceIdSet = new Set<string>();
     for (const s of submissions) {
       let rids: string[] = [];
@@ -153,10 +154,35 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    const evidenceRows = evidenceIdSet.size
-      ? await db.evidence.findMany({ where: { id: { in: [...evidenceIdSet] } }, select: { id: true, fileName: true, documentType: true, filePath: true } })
-      : [];
-    const evidenceById = new Map(evidenceRows.map((e) => [e.id, e]));
+
+    /* Everything else that depends on the fetched list — project cards,
+       out-of-scope contributor names, and evidence rows — is mutually
+       independent, so it runs as ONE parallel round (1 DB round-trip total
+       instead of three sequential ~1s round-trips). */
+    const [projects, extraUsers, evidenceRows] = await Promise.all([
+      projectIds.length
+        ? db.project.findMany({
+            where: { id: { in: projectIds } },
+            select: {
+              id: true, code: true, name: true, location: true, ptype: true,
+              capacityMw: true, status: true,
+              businessUnit: { select: { name: true } },
+            },
+          })
+        : Promise.resolve([] as ProjectRow[]),
+      missingSubmitterIds.length
+        ? db.user.findMany({
+            where: { id: { in: missingSubmitterIds } },
+            select: { id: true, name: true, email: true, role: true },
+          })
+        : Promise.resolve([] as ScopedUserRow[]),
+      evidenceIdSet.size
+        ? db.evidence.findMany({ where: { id: { in: [...evidenceIdSet] } }, select: { id: true, fileName: true, documentType: true, filePath: true } })
+        : Promise.resolve([] as EvidenceRowShape[]),
+    ]);
+    for (const u of extraUsers) userMap.set(u.id, u);
+    const projectById = new Map<string, ProjectRow>(projects.map((p) => [p.id, p]));
+    const evidenceById = new Map<string, EvidenceRowShape>(evidenceRows.map((e) => [e.id, e]));
     const toEvidenceRef = (eid: string) => {
       const e = evidenceById.get(eid);
       return {
@@ -417,22 +443,56 @@ export async function POST(req: NextRequest) {
     invalidatePuNotificationsCache();
 
     if (action === "approve") {
+      const now = new Date();
+      const approvalNote = comments || "Approved by Project Admin.";
       const sub = await db.submission.findUnique({
         where: { id: submissionId },
-        select: { id: true, title: true, submittedById: true, recordIds: true, subsidiaryId: true },
+        /* history is read so the approval trail can be appended exactly like
+           the /submissions approve flow does. */
+        select: { id: true, title: true, submittedById: true, recordIds: true, subsidiaryId: true, status: true, history: true },
       });
 
-      // 1. Try updating Submission
+      // 1. Update Submission — mirror the /submissions approve semantics: the
+      //    item is stamped APPROVED and STAGED in the Approved Dataset +
+      //    Consolidated Report (inConsolidatedReport). It is NOT auto-forwarded
+      //    to the Business Unit — the PA sends the whole batch from the
+      //    Approved Dataset view, so the BU only ever receives one grouped,
+      //    consolidated handoff per project.
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
           status: "APPROVED",
           reviewerId: ctx.userId,
-          reviewComment: comments || "Approved by Project Admin.",
-          reviewedAt: new Date(),
-          updatedAt: new Date(),
+          reviewComment: approvalNote,
+          reviewedAt: now,
+          updatedAt: now,
+          inConsolidatedReport: true,
+          forwardedToBu: false,
+          forwardedToBuAt: null,
         },
       });
+
+      /* Append the approval trail to the submission history (only when the id
+         was a real db.submission row — pure site-ops ids don't match it and
+         their twin is stamped below instead). */
+      if (sub) {
+        let hist: any[] = [];
+        try { hist = parseJsonArray(sub.history) as any[]; if (!Array.isArray(hist)) hist = []; } catch {}
+        hist.push({
+          id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          action: "APPROVED",
+          fromStatus: sub.status || "SUBMITTED",
+          toStatus: "APPROVED",
+          actor: ctx.userName,
+          actorName: ctx.userName,
+          actorRole: "Project Admin",
+          at: now.toISOString(),
+          createdAt: now.toISOString(),
+          note: `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
+          comment: approvalNote,
+        });
+        await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });
+      }
 
       // 2. Sync the site-ops twin — both the row with THIS id and any
       //    soSubmission whose recordIds overlap (workspace submissions are
@@ -453,8 +513,8 @@ export async function POST(req: NextRequest) {
         where: { id: { in: soApprovedIds.length ? soApprovedIds : [submissionId] } },
         data: {
           status: "APPROVED",
-          reviewComment: comments || "Approved by Project Admin.",
-          updatedAt: new Date(),
+          reviewComment: approvalNote,
+          updatedAt: now,
         },
       });
 

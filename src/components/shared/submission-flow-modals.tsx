@@ -502,7 +502,11 @@ export function FinalSubmitAllModal({
                       <div className="p-2.5 space-y-2 max-h-64 overflow-y-auto scroll-elegant">
                         {items.map((it: any, idx: number) => {
                           const itemEntries = itemFieldEntries(it)
-                          const evNames: string[] = Array.isArray(it.evidenceFiles) ? it.evidenceFiles : []
+                          const evNames: string[] = Array.isArray(it.evidenceFiles)
+                            ? it.evidenceFiles
+                                .map((f: any) => (typeof f === 'string' ? f : f?.fileName || f?.name || ''))
+                                .filter(Boolean)
+                            : []
                           return (
                             <div key={it.id || idx} className="rounded-xl border border-slate-200/90 bg-white/95 p-2.5">
                               <div className="flex items-center gap-1.5 mb-1.5">
@@ -533,7 +537,7 @@ export function FinalSubmitAllModal({
                                 <div className="mt-1.5 flex flex-wrap gap-1">
                                   {evNames.map((f, fi) => (
                                     <span key={fi} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800">
-                                      <FileText className="h-2.5 w-2.5" /> {f}
+                                      <FileText className="h-2.5 w-2.5" /> {typeof f === 'string' ? f : (f as any)?.fileName || (f as any)?.name || 'Evidence Document'}
                                     </span>
                                   ))}
                                 </div>

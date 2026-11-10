@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData } from "@/lib/project-admin/client";
+import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard } from "../ui";
 import type { PaCollectionStatusItem, ContributorRole } from "@/lib/project-admin/types";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
@@ -81,7 +82,11 @@ export default function CollectionStatusView() {
     if (bypass) setRefreshing(true);
     /* Manual refresh must skip BOTH the client SWR cache and the 45s server
        cache — otherwise the Refresh button re-serves stale data. */
-    paApiGet<any>("/api/project-admin/collection-status", bypass ? { bypassCache: true } : undefined)
+    paApiGet<any>(
+      "/api/project-admin/collection-status",
+      undefined,
+      bypass ? { bypassCache: true } : undefined
+    )
       .then((res) => {
         setItems(res.items || []);
         setSummary(res.summary || {});
@@ -94,10 +99,12 @@ export default function CollectionStatusView() {
   };
 
   useEffect(() => {
-    /* Fresh-on-mount: the 60s client SWR cache can hide a submission that was
-       just sent from the site console — always bypass on first load. */
-    loadData(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    /* Instant paint from the SWR/server caches; fresh data arrives via the
+       shared revision bus (~4s) or the manual Refresh button (cache bypass).
+       Bypassing on every mount forced a ~7s cold compute per view open. */
+    loadData();
+    ensureRevisionPolling();
+    return onRevisionChange(() => loadData());
   }, []);
 
   const showToast = (msg: string) => {

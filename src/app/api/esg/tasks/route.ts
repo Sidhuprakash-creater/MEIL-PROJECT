@@ -26,16 +26,20 @@ export async function GET() {
     // Recompute statuses based on dates
     const now = Date.now();
     const decorated: Task[] = [];
+    /* Status writes depend on the fetched snapshot above but are mutually
+       independent — collect them and flush as one parallel second-round batch. */
+    const staleUpdates: Promise<unknown>[] = [];
     for (const t of tasks) {
       let status = t.status;
       if (status !== "COMPLETED") {
         if (t.dueDate.getTime() < now) status = "OVERDUE";
         else if (t.startDate.getTime() > now) status = "UPCOMING";
         else status = "ACTIVE";
-        if (status !== t.status) await db.task.update({ where: { id: t.id }, data: { status } });
+        if (status !== t.status) staleUpdates.push(db.task.update({ where: { id: t.id }, data: { status } }));
       }
       decorated.push(decorate({ ...t, status }, subMap, unitMap));
     }
+    if (staleUpdates.length > 0) await Promise.all(staleUpdates);
     return ok({ tasks: decorated });
   });
 }

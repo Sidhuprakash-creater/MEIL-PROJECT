@@ -76,6 +76,12 @@ export const fieldLabel = (k: string) =>
 export const fmtValue = (v: unknown): string => {
   if (v === null || v === undefined || v === '') return '—'
   if (typeof v === 'boolean') return v ? 'Yes' : 'No'
+  if (typeof v === 'object') {
+    if (Array.isArray(v)) {
+      return v.map((item) => (typeof item === 'object' && item !== null ? (item as any).fileName || (item as any).name || '' : String(item))).filter(Boolean).join(', ') || '—'
+    }
+    return (v as any).fileName || (v as any).name || (v as any).label || (v as any).title || '—'
+  }
   const n = Number(v)
   if (Number.isFinite(n) && typeof v !== 'boolean' && String(v).trim() !== '' && /^\d+(\.\d+)?$/.test(String(v).trim())) {
     return n.toLocaleString()
@@ -93,7 +99,11 @@ export function itemFieldEntries(item: Record<string, any>): Array<[string, unkn
   const seen = new Set<string>()
   for (const k of FIELD_ORDER) {
     if (SKIP_FIELDS.has(k) || seen.has(k)) continue
-    if (k in item) { entries.push([k, item[k]]); seen.add(k) }
+    if (k in item) {
+      const v = item[k]
+      if (typeof v === 'object' && v !== null && !Array.isArray(v)) continue
+      entries.push([k, v]); seen.add(k)
+    }
   }
   for (const k of Object.keys(item)) {
     if (SKIP_FIELDS.has(k) || seen.has(k)) continue

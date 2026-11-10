@@ -7,6 +7,7 @@ import {
   authErrorToStatus,
   primaryRoleLabel,
 } from '@/lib/so/workflow'
+import { invalidateSoEvidenceCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -99,6 +100,9 @@ export async function POST(
         status: 'VERIFIED',
       })
     }
+
+    /* Keep the Evidence vault and portal dashboards in sync immediately. */
+    invalidateSoEvidenceCache()
 
     return NextResponse.json({ evidence: updated })
   } catch (e) {

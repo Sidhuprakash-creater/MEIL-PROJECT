@@ -13,6 +13,7 @@ import {
   parseRecordIds,
   primaryRoleLabel,
 } from '@/lib/so/workflow'
+import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -164,6 +165,10 @@ export async function POST(
     } catch {
       /* bridge is best-effort; the portal workflow continues regardless */
     }
+
+    /* Keep portal dashboards realtime — bust the overview/submissions caches
+       so Overview, Analytics and Submissions reflect this submission immediately. */
+    invalidateSoSubmissionsCache()
 
     return NextResponse.json({ submission: withProjectAliases(updated), rollup })
   } catch (e) {

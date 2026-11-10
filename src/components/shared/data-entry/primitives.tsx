@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { FileText, CheckCircle2, AlertTriangle, AlertOctagon, Clock, Link2, Send, Save, Compass, Calculator, Sparkles, Layers, ArrowRight, type LucideIcon } from 'lucide-react'
 import { STEPS, type LevelConfig, type EvidenceItem, type SavedRecord } from './core'
@@ -308,6 +309,22 @@ export interface LevelFormProps {
 }
 
 export const inputClass = 'ios-field'
+
+/* Snapshot a level's persisted draft bucket (owned by the Data Entry parent and
+   parked in a mutable ref, so live typing never re-renders the whole module).
+   Forms need the bucket ONCE — to seed their fields' initial state on mount.
+   Reading a ref for one-time state initialization is the React-docs-blessed
+   ref exception, but the react-hooks/refs rule cannot tell it apart from live
+   render reads, so it is scoped to this single hook. Later renders reuse the
+   captured snapshot; effects keep writing fresh drafts into the parent ref. */
+export function useDraftBucket(
+  formStateRef: React.MutableRefObject<Record<string, Record<string, any>>>,
+  key: string
+): Record<string, any> {
+  // eslint-disable-next-line react-hooks/refs -- one-time snapshot seeding mount state; see comment above
+  const [draft] = useState(() => formStateRef.current[key] || {})
+  return draft
+}
 
 export function FormGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>

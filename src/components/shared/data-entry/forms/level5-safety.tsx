@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ShieldCheck, Save } from 'lucide-react'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Period, useApiBase } from '../core'
 
 /* ============================================================
@@ -19,7 +19,7 @@ export function Level5SafetyForm({
   const apiBase = useApiBase()
 
   const key = `l5-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   const [reportingPeriod, setReportingPeriod] = useState(initial.reportingPeriod ?? 'FY 2026-27 (Annual)')
   const [workforceCategory, setWorkforceCategory] = useState(initial.workforceCategory ?? 'Employee')

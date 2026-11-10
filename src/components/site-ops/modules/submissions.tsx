@@ -1391,7 +1391,7 @@ function SubmissionDetailPanel({
                 className="flex items-center gap-1.5 rounded-xl border border-emerald-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs"
               >
                 <FileText className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                <span className="font-mono text-[11px] truncate max-w-[280px]">{doc}</span>
+                <span className="font-mono text-[11px] truncate max-w-[280px]">{typeof doc === 'string' ? doc : (doc as any)?.fileName || (doc as any)?.name || 'Evidence Document'}</span>
                 <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
                   VERIFIED
                 </span>

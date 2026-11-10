@@ -6,7 +6,10 @@ import type { AuditEvent } from "@/lib/esg/types";
 export async function GET(req: NextRequest) {
   return handle(async () => {
     const limit = parseInt(req.nextUrl.searchParams.get("limit") || "200", 10);
-    const rows = await db.auditEvent.findMany({ orderBy: { createdAt: "desc" }, take: limit });
+    const [rows, records] = await Promise.all([
+      db.auditEvent.findMany({ orderBy: { createdAt: "desc" }, take: limit }),
+      db.auditEvent.count(),
+    ]);
     const events: AuditEvent[] = rows.map((a) => ({
       id: a.id,
       actorName: a.actorName,
@@ -26,7 +29,7 @@ export async function GET(req: NextRequest) {
     const integrity = {
       appendOnly: true,
       note: "Audit records are append-only. Updates and deletes are rejected at the application layer.",
-      records: await db.auditEvent.count(),
+      records,
     };
     return ok({ events, integrity });
   });

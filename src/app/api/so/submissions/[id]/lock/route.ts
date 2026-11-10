@@ -11,6 +11,7 @@ import {
   isLocked,
   primaryRoleLabel,
 } from '@/lib/so/workflow'
+import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -117,6 +118,10 @@ export async function POST(
       module: submission.module,
       status: toStatus,
     })
+
+    /* Keep portal dashboards realtime — bust the overview/submissions caches
+       so Overview, Analytics and Submissions reflect this lock immediately. */
+    invalidateSoSubmissionsCache()
 
     return NextResponse.json({
       submission: withProjectAliases(updated),

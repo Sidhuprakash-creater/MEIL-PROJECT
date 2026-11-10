@@ -5,7 +5,10 @@ import type { BrsrReport, BrsrSection, BrsrDisclosure, BrsrSignoff } from "@/lib
 
 const STATUSES = ["DRAFT", "CONSOLIDATION", "VALIDATION", "REVIEW", "SIGNOFF", "FINALIZED"];
 
-async function decorate(r: Awaited<ReturnType<typeof db.brsrReport.findMany>>[number]): Promise<BrsrReport> {
+async function decorate(
+  r: Awaited<ReturnType<typeof db.brsrReport.findMany>>[number],
+  counts?: [number, number]
+): Promise<BrsrReport> {
   const scopeRaw = parseJson<Partial<{ subsidiaryIds: string[]; businessUnitIds: string[]; projectIds: string[] }>>(r.scope, {});
   const scope = {
     subsidiaryIds: scopeRaw.subsidiaryIds ?? [],
@@ -14,10 +17,12 @@ async function decorate(r: Awaited<ReturnType<typeof db.brsrReport.findMany>>[nu
   };
   const disclosures = parseJson<BrsrDisclosure[]>(r.disclosures, []);
   const sections = parseJson<BrsrSection[]>(r.sections, []);
-  const [srcCount, approvedCount] = await Promise.all([
+  /* Source-data totals are global (not per-report): callers that already
+     fetched them pass `counts` so no extra round-trip happens here. */
+  const [srcCount, approvedCount] = counts ?? (await Promise.all([
     db.submission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] } } }),
     db.submission.count({ where: { status: "APPROVED" } }),
-  ]);
+  ]));
   const mappedCount = disclosures.filter((d) => d.mapped).length;
   const validatedCount = disclosures.filter((d) => d.status === "VALIDATED").length;
   const completionPct = disclosures.length
@@ -54,18 +59,24 @@ export async function GET(req: NextRequest) {
   return handle(async () => {
     const id = req.nextUrl.searchParams.get("id");
     if (id) {
-      const r = await db.brsrReport.findUnique({ where: { id } });
+      const [r, srcCount, approvedCount] = await Promise.all([
+        db.brsrReport.findUnique({ where: { id } }),
+        db.submission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] } } }),
+        db.submission.count({ where: { status: "APPROVED" } }),
+      ]);
       if (!r) return fail("Report not found.", 404);
-      return ok({ report: await decorate(r) });
+      return ok({ report: await decorate(r, [srcCount, approvedCount]) });
     }
-    const [reports, catalog, missing] = await Promise.all([
+    const [reports, catalog, missing, subs, srcCount, approvedCount] = await Promise.all([
       db.brsrReport.findMany({ orderBy: { createdAt: "desc" } }),
       db.disclosure.findMany({ orderBy: { code: "asc" } }),
       db.submission.findMany({ where: { status: { in: ["ASSIGNED", "SUBMITTED"] }, overdue: true }, take: 8 }),
+      db.subsidiary.findMany({ select: { id: true, name: true } }),
+      db.submission.count({ where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "APPROVED"] } } }),
+      db.submission.count({ where: { status: "APPROVED" } }),
     ]);
-    const subs = await db.subsidiary.findMany({ select: { id: true, name: true } });
     const subMap = new Map(subs.map((s) => [s.id, s.name]));
-    const decorated = await Promise.all(reports.map(decorate));
+    const decorated = await Promise.all(reports.map((r) => decorate(r, [srcCount, approvedCount])));
     const byYear: Record<string, { total: number; finalized: number; draft: number }> = {};
     for (const r of decorated) {
       (byYear[r.financialYear] ??= { total: 0, finalized: 0, draft: 0 });

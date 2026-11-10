@@ -15,64 +15,81 @@ export async function GET() {
 
   try {
     // Gather the same real KPI data as /api/overview
-    const calcResults = await db.calculationResult.findMany()
+    const [
+      calcResults,
+      energyRecords,
+      waterRecords,
+      wasteRecords,
+      workforceRecords,
+      safetyRecords,
+      brsrAnswers,
+      submissions,
+      openExceptions,
+      periods,
+      projects,
+    ] = await Promise.all([
+      db.calculationResult.findMany(),
+      db.energyRecord.findMany(),
+      db.waterRecord.findMany(),
+      db.wasteRecord.findMany(),
+      db.workforceRecord.findMany(),
+      db.safetyRecord.findMany(),
+      db.brsrAnswer.findMany(),
+      db.soSubmission.findMany(),
+      db.validationResult.count({ where: { status: 'OPEN', severity: { in: ['ERROR', 'BLOCKING'] } } }),
+      db.reportingPeriod.findMany({ orderBy: { startDate: 'asc' } }),
+      db.project.count(),
+    ])
     const totalEmissions = calcResults.reduce((s, c) => s + (c.calculatedValue || 0), 0)
     const scope1 = calcResults.filter(c => c.scope === 'SCOPE_1').reduce((s, c) => s + (c.calculatedValue || 0), 0)
     const scope2 = calcResults.filter(c => c.scope === 'SCOPE_2').reduce((s, c) => s + (c.calculatedValue || 0), 0)
 
-    const energyRecords = await db.energyRecord.findMany()
     const totalEnergyGJ = energyRecords.reduce((s, e) => s + (e.normalizedValue || 0), 0)
     const renewableGJ = energyRecords.filter(e => e.sourceCategory === 'RENEWABLE').reduce((s, e) => s + (e.normalizedValue || 0), 0)
     const renewableShare = totalEnergyGJ > 0 ? (renewableGJ / totalEnergyGJ) * 100 : 0
 
-    const waterRecords = await db.waterRecord.findMany()
     const waterWithdrawal = waterRecords.reduce((s, w) => s + (w.withdrawal || 0), 0)
     const waterRecycled = waterRecords.reduce((s, w) => s + (w.recycledReused || 0), 0)
     const waterRecycledShare = waterWithdrawal > 0 ? (waterRecycled / waterWithdrawal) * 100 : 0
 
-    const wasteRecords = await db.wasteRecord.findMany()
     const wasteGenerated = wasteRecords.reduce((s, w) => s + (w.generatedQty || 0), 0)
     const wasteRecovered = wasteRecords.reduce((s, w) => s + (w.recoveredQty || w.recycledQty || 0), 0)
     const wasteRecycledShare = wasteGenerated > 0 ? (wasteRecovered / wasteGenerated) * 100 : 0
 
-    const workforceRecords = await db.workforceRecord.findMany()
     const totalWorkforce = workforceRecords.reduce((s, w) => s + w.permanent + w.nonPermanent, 0)
     const femaleShare = totalWorkforce > 0 ? (workforceRecords.reduce((s, w) => s + w.female, 0) / totalWorkforce) * 100 : 0
 
-    const safetyRecords = await db.safetyRecord.findMany()
     const lti = safetyRecords.reduce((s, x) => s + x.lostTimeIncidents, 0)
     const manHours = safetyRecords.reduce((s, x) => s + (x.manHoursWorked || 0), 0)
     const ltifr = manHours > 0 ? (lti * 1000000) / manHours : 0
 
-    const brsrAnswers = await db.brsrAnswer.findMany()
     const brsrReady = brsrAnswers.filter(a => a.status === 'APPROVED' || a.status === 'LOCKED').length
     const brsrReadiness = brsrAnswers.length > 0 ? (brsrReady / brsrAnswers.length) * 100 : 0
     const brsrMissing = brsrAnswers.filter(a => a.status === 'MISSING').length
 
-    const submissions = await db.soSubmission.findMany()
     const approvedSubs = submissions.filter(s => s.status === 'APPROVED' || s.status === 'LOCKED').length
     const completion = submissions.length > 0 ? (approvedSubs / submissions.length) * 100 : 0
 
-    const openExceptions = await db.validationResult.count({ where: { status: 'OPEN', severity: { in: ['ERROR', 'BLOCKING'] } } })
-
-    // Monthly trends
-    const periods = await db.reportingPeriod.findMany({ orderBy: { startDate: 'asc' } })
-    const trends: { period: string; emissions: number; energy: number; water: number; waste: number }[] = []
-    for (const p of periods) {
-      const pEnergy = await db.energyRecord.findMany({ where: { reportingPeriodId: p.id }, include: { calculationResults: true } })
-      const pWater = await db.waterRecord.findMany({ where: { reportingPeriodId: p.id } })
-      const pWaste = await db.wasteRecord.findMany({ where: { reportingPeriodId: p.id } })
-      const pCalc = pEnergy.flatMap(e => e.calculationResults)
-      trends.push({
-        period: p.periodLabel,
-        emissions: Math.round(pCalc.reduce((s, c) => s + (c.calculatedValue || 0), 0) * 100) / 100,
-        energy: Math.round(pEnergy.reduce((s, e) => s + (e.normalizedValue || 0), 0) * 100) / 100,
-        water: Math.round(pWater.reduce((s, w) => s + (w.withdrawal || 0), 0) * 10) / 10,
-        waste: Math.round(pWaste.reduce((s, w) => s + (w.generatedQty || 0), 0) * 100) / 100,
+    // Monthly trends (per-period queries depend only on `periods` above, so run
+    // every period's three fetches concurrently; Promise.all preserves order).
+    const trends: { period: string; emissions: number; energy: number; water: number; waste: number }[] = await Promise.all(
+      periods.map(async (p) => {
+        const [pEnergy, pWater, pWaste] = await Promise.all([
+          db.energyRecord.findMany({ where: { reportingPeriodId: p.id }, include: { calculationResults: true } }),
+          db.waterRecord.findMany({ where: { reportingPeriodId: p.id } }),
+          db.wasteRecord.findMany({ where: { reportingPeriodId: p.id } }),
+        ])
+        const pCalc = pEnergy.flatMap(e => e.calculationResults)
+        return {
+          period: p.periodLabel,
+          emissions: Math.round(pCalc.reduce((s, c) => s + (c.calculatedValue || 0), 0) * 100) / 100,
+          energy: Math.round(pEnergy.reduce((s, e) => s + (e.normalizedValue || 0), 0) * 100) / 100,
+          water: Math.round(pWater.reduce((s, w) => s + (w.withdrawal || 0), 0) * 10) / 10,
+          waste: Math.round(pWaste.reduce((s, w) => s + (w.generatedQty || 0), 0) * 100) / 100,
+        }
       })
-    }
+    )
 
-    const projects = await db.project.count()
     const orgs = 1 // synthetic single group (MEIL) — no Group table on platform
 
     const pdfData = {

@@ -5,7 +5,7 @@ import { Droplet, CheckCircle2, AlertTriangle, Save, Building2, Layers, Check, E
 import { toast } from 'sonner'
 import { EmissionFactorInfoIcon } from '../../emission-factor-info'
 import { FormEvidenceAttachSection } from '../evidence-attach'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, useApiBase } from '../core'
 
 /* ============================================================
@@ -137,7 +137,7 @@ export function Level2WaterForm({
   const addBtnRef = useRef<HTMLButtonElement>(null)
 
   const key = `l2-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   // Multi-item staged state — blank unless a saved draft exists
   const [stagedItems, setStagedItems] = useState<StagedWaterItem[]>(() => {
@@ -208,7 +208,7 @@ export function Level2WaterForm({
   }, [selectedSourceToEdit])
 
   // Handle source chip click
-  const handleSelectSource = (src: string) => {
+  function handleSelectSource(src: string) {
     setError('')
     setWaterSource(src)
     const existing = stagedItems.find((i) => i.waterSource === src)

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Settings,
   User,
@@ -55,6 +56,7 @@ interface SettingsData {
 }
 
 export function SettingsView() {
+  const router = useRouter();
   const { financialYear, setFinancialYear } = usePaStore();
   const cached = getCachedPaData<any>("/api/project-admin/settings");
   const initialUser = cached?.profile || cached?.user;
@@ -220,7 +222,8 @@ export function SettingsView() {
 
   const handleSignOut = async () => {
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => {});
-    window.location.href = "/";
+    router.push("/");
+    router.refresh();
   };
 
   if (isLoading) {

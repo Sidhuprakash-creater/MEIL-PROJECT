@@ -59,7 +59,10 @@ function defaultMatrix(role: string): Record<string, boolean> {
 
 export async function GET() {
   return handle(async () => {
-    const users = await db.user.groupBy({ by: ["role"], _count: { role: true } });
+    const [users, settings] = await Promise.all([
+      db.user.groupBy({ by: ["role"], _count: { role: true } }),
+      db.appSetting.findUnique({ where: { skey: "permission_matrix" } }),
+    ]);
     const countMap = new Map(users.map((u) => [u.role, u._count.role]));
     const roles: RolesData["roles"] = [];
     for (const [group, list] of Object.entries(ROLE_GROUPS)) {
@@ -73,7 +76,6 @@ export async function GET() {
         });
       }
     }
-    const settings = await db.appSetting.findUnique({ where: { skey: "permission_matrix" } });
     const saved = settings ? parseJson<Record<string, Record<string, boolean>>>(settings.svalue, {}) : {};
     const matrix: Record<string, Record<string, boolean>> = {};
     for (const r of Object.keys(ROLE_LABELS)) {

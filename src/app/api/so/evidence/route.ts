@@ -5,6 +5,7 @@ import { authErrorToStatus } from '@/lib/so/workflow'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as crypto from 'crypto'
+import { soEvidenceCache, invalidateSoEvidenceCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -31,6 +32,14 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status') || undefined
   const take = Math.min(Number(searchParams.get('take') || 50), 200)
 
+  /* 20s keyed cache — identical to the pu twin. Uploading/verifying/rejecting
+     evidence calls invalidateSoEvidenceCache(), so the list can't go stale. */
+  const soCacheKey = `${projectId || 'all'}:${periodId || 'all'}:${moduleFilter || 'all'}:${status || 'all'}:${take}`
+  const cachedEvidence = soEvidenceCache.get(soCacheKey)
+  if (cachedEvidence && cachedEvidence.expiresAt > Date.now()) {
+    return NextResponse.json(cachedEvidence.data)
+  }
+
   const where: Record<string, unknown> = {
     NOT: {
       filePath: { startsWith: '/evidence/' },
@@ -56,12 +65,14 @@ export async function GET(req: NextRequest) {
       db.evidence.count({ where }),
     ])
 
-    return NextResponse.json({
+    const payload = {
       user: { id: user.id, name: user.name },
       total,
       count: evidence.length,
       items: evidence.map((ev) => ({ ...ev, uploader: ev.uploader ? { ...ev.uploader, employeeCode: ev.uploader.employeeId } : ev.uploader })),
-    })
+    }
+    soEvidenceCache.set(soCacheKey, { data: payload, expiresAt: Date.now() + 20000 })
+    return NextResponse.json(payload)
   } catch (e) {
     console.error('GET /api/evidence error', e)
     return NextResponse.json(
@@ -161,6 +172,9 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    /* Keep the evidence list cache (and overview KPIs) fresh — same contract
+       as the pu twin's upload route. */
+    invalidateSoEvidenceCache()
     return NextResponse.json({ evidence: { ...evidence, uploader: evidence.uploader ? { ...evidence.uploader, employeeCode: evidence.uploader.employeeId } : evidence.uploader } }, { status: 201 })
   } catch (e: any) {
     console.error('POST /api/evidence error', e)

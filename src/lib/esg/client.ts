@@ -53,24 +53,21 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
   const [loading, setLoading] = useState(!!path);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
-  const pathRef = useRef(path);
-  pathRef.current = path;
 
   const load = useCallback(async (silent = false) => {
-    const p = pathRef.current;
-    if (!p) return;
+    if (!path) return;
     const id = ++seq.current;
     if (!silent) setLoading(true);
     setError(null);
     try {
-      const d = await apiGet<T>(p);
+      const d = await apiGet<T>(path);
       if (seq.current === id) setData(d);
     } catch (e) {
       if (seq.current === id) setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
       if (seq.current === id) setLoading(false);
     }
-  }, []);
+  }, [path]);
 
   useEffect(() => {
     load();

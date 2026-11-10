@@ -5,19 +5,21 @@ import { ROLE_LABELS } from "@/lib/esg/types";
 import type { Submission } from "@/lib/esg/types";
 
 async function decorate(ids?: { id: string }): Promise<Submission[]> {
-  const [subs, units, projects, users] = await Promise.all([
+  /* The submission rows do not feed any lookup where-clause — fetch them in the
+     same parallel batch instead of a second sequential round-trip. */
+  const [subs, units, projects, users, rows] = await Promise.all([
     db.subsidiary.findMany({ select: { id: true, name: true } }),
     db.businessUnit.findMany({ select: { id: true, name: true } }),
     db.project.findMany({ select: { id: true, name: true } }),
     db.user.findMany({ select: { id: true, name: true, role: true } }),
+    ids?.id
+      ? db.submission.findMany({ where: { id: ids.id } })
+      : db.submission.findMany({ orderBy: { createdAt: "desc" } }),
   ]);
   const subMap = new Map(subs.map((s) => [s.id, s.name]));
   const unitMap = new Map(units.map((u) => [u.id, u.name]));
   const projMap = new Map(projects.map((p) => [p.id, p.name]));
   const userMap = new Map(users.map((u) => [u.id, u]));
-  const rows = ids?.id
-    ? await db.submission.findMany({ where: { id: ids.id } })
-    : await db.submission.findMany({ orderBy: { createdAt: "desc" } });
   return rows.map((s) => {
     const submitter = s.submittedById ? userMap.get(s.submittedById) : null;
     const reviewer = s.reviewerId ? userMap.get(s.reviewerId) : null;

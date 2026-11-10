@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Save } from 'lucide-react'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, useApiBase } from '../core'
 
 /* ============================================================
@@ -19,7 +19,7 @@ export function Level8IncidentsForm({
   const apiBase = useApiBase()
 
   const key = `l8-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   const [recordType, setRecordType] = useState(initial.recordType ?? 'Community grievance')
   const [incidentGrievanceId, setIncidentGrievanceId] = useState(initial.incidentGrievanceId ?? 'GRV-2026-002')

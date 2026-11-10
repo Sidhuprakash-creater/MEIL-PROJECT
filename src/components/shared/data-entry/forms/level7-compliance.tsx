@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { ShieldCheck, CheckCircle2, AlertTriangle, Clock, Save, Building2, FileCheck2, Layers, Eye, Plus, Trash2, Edit3, ArrowRight, ListOrdered, Waves, Wind, Factory, Package, ShieldAlert, Landmark, Trees, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormEvidenceAttachSection } from '../evidence-attach'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, type EvidenceItem, useApiBase } from '../core'
 
 /* ============================================================
@@ -124,7 +124,7 @@ export function Level7ComplianceForm({
   const apiBase = useApiBase()
 
   const key = `l7-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   // Workflow mode: 1 = Item Drafting, 2 = Organized Consolidated Summary
   const [workflowStep, setWorkflowStep] = useState<1 | 2>(initial.items?.length > 0 ? 2 : 1)
@@ -794,18 +794,22 @@ export function Level7ComplianceForm({
                         <td className="py-2.5 px-3">
                           {item.evidenceFiles && item.evidenceFiles.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
-                              {item.evidenceFiles.map((ev) => (
-                                <button
-                                  key={ev.id}
-                                  type="button"
-                                  onClick={() => onReviewEvidence && onReviewEvidence(ev)}
-                                  className="flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition"
-                                  title="Review evidence (flips card 180°)"
-                                >
-                                  <Eye className="h-2.5 w-2.5" />
-                                  <span className="max-w-[80px] truncate">{ev.fileName}</span>
-                                </button>
-                              ))}
+                              {item.evidenceFiles.map((ev: any, evIdx: number) => {
+                                const evName = typeof ev === 'string' ? ev : ev?.fileName || 'Evidence'
+                                const evKey = typeof ev === 'string' ? `${ev}-${evIdx}` : ev?.id || evIdx
+                                return (
+                                  <button
+                                    key={evKey}
+                                    type="button"
+                                    onClick={() => onReviewEvidence && onReviewEvidence(typeof ev === 'string' ? ({ id: ev, fileName: ev } as any) : ev)}
+                                    className="flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition"
+                                    title="Review evidence (flips card 180°)"
+                                  >
+                                    <Eye className="h-2.5 w-2.5" />
+                                    <span className="max-w-[80px] truncate">{evName}</span>
+                                  </button>
+                                )
+                              })}
                             </div>
                           ) : (
                             <span className="text-[10px] text-slate-400">None</span>
@@ -949,18 +953,22 @@ export function Level7ComplianceForm({
                       <td className="py-2.5 px-3">
                         {item.evidenceFiles && item.evidenceFiles.length > 0 ? (
                           <div className="flex flex-wrap gap-1">
-                            {item.evidenceFiles.map((ev) => (
+                            {item.evidenceFiles.map((ev: any, evIdx: number) => {
+                              const evName = typeof ev === 'string' ? ev : ev?.fileName || 'Evidence'
+                              const evKey = typeof ev === 'string' ? `${ev}-${evIdx}` : ev?.id || evIdx
+                              return (
                               <button
-                                key={ev.id}
+                                key={evKey}
                                 type="button"
-                                onClick={() => onReviewEvidence && onReviewEvidence(ev)}
+                                onClick={() => onReviewEvidence && onReviewEvidence(typeof ev === 'string' ? ({ id: ev, fileName: ev } as any) : ev)}
                                 className="flex items-center gap-1 rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 transition"
                                 title="Review document (flips Engine Preview card)"
                               >
                                 <Eye className="h-2.5 w-2.5" />
-                                <span className="max-w-[90px] truncate">{ev.fileName}</span>
+                                <span className="max-w-[90px] truncate">{evName}</span>
                               </button>
-                            ))}
+                              )
+                            })}
                           </div>
                         ) : (
                           <span className="text-[10px] text-slate-400">None attached</span>

@@ -5,7 +5,7 @@ import { Zap, Recycle, ShieldCheck, CheckCircle2, AlertTriangle, Save, Building2
 import { toast } from 'sonner'
 import { EmissionFactorInfoIcon } from '../../emission-factor-info'
 import { FormEvidenceAttachSection } from '../evidence-attach'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { useApiBase } from '../core'
 
 /* ============================================================
@@ -148,7 +148,7 @@ export function Level4WasteForm({
   const addBtnRef = useRef<HTMLButtonElement>(null)
 
   const key = `l4-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   // Multi-item staged state
   const [stagedItems, setStagedItems] = useState<StagedWasteItem[]>(() => {
@@ -222,7 +222,7 @@ export function Level4WasteForm({
   }, [selectedSourceToEdit])
 
   // Handle category chip click
-  const handleSelectCategory = (cat: string) => {
+  function handleSelectCategory(cat: string) {
     setError('')
     setWasteCategory(cat)
     const existing = stagedItems.find((i) => i.wasteCategory === cat)

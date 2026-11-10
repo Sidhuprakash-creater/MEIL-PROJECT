@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withProjectAliases } from '@/lib/so/engines'
 import { getCurrentUser } from '@/lib/so/session'
+import { getSoCorrectionsCache, setSoCorrectionsCache } from '@/lib/portal-cache'
 import { db } from '@/lib/db'
 import {
   getLevelRecords,
@@ -17,6 +18,7 @@ import {
   parseRecordIds,
   primaryRoleLabel,
 } from '@/lib/so/workflow'
+import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -35,38 +37,47 @@ export async function GET(req: NextRequest) {
     const records = getLevelRecords(projectId, periodId, level)
 
     /* Reviewer corrections ride along so the Data Entry screen can show WHY a
-       record was sent back — keyed by the record they target. */
+       record was sent back — keyed by the record they target. Served from a
+       short-TTL cache (cleared on every submission mutation) so the screen
+       loads without the ~1s remote round trip — identical to the pu twin. */
     const correctionsByRecord: Record<string, any[]> = {}
     try {
-      const scopeSubs = await db.submission.findMany({
-        where: {
-          ...(projectId ? { projectId } : {}),
-          ...(periodId ? { reportingPeriodId: periodId } : {}),
-          status: { in: ['CHANGES_REQUESTED', 'REJECTED', 'CORRECTION_REQUESTED'] },
-        },
-        select: { id: true, corrections: true },
-        take: 50,
-        orderBy: { updatedAt: 'desc' },
-      })
-      for (const s of scopeSubs) {
-        let list: any[] = []
-        try {
-          const parsed = typeof s.corrections === 'string' ? JSON.parse(s.corrections) : s.corrections
-          if (Array.isArray(parsed)) list = parsed
-        } catch {}
-        for (const c of list) {
-          if (c?.recordId) {
-            (correctionsByRecord[c.recordId] ||= []).push({
-              field: c.field,
-              issue: c.issue || c.comment,
-              severity: c.severity,
-              comment: c.comment || c.issue,
-              reviewer: c.requesterName,
-              createdAt: c.createdAt,
-              submissionId: s.id,
-            })
+      const corrKey = `${projectId ?? ''}|${periodId ?? ''}`
+      const cachedCorrections = getSoCorrectionsCache(corrKey)
+      if (cachedCorrections) {
+        Object.assign(correctionsByRecord, cachedCorrections)
+      } else {
+        const scopeSubs = await db.submission.findMany({
+          where: {
+            ...(projectId ? { projectId } : {}),
+            ...(periodId ? { reportingPeriodId: periodId } : {}),
+            status: { in: ['CHANGES_REQUESTED', 'REJECTED', 'CORRECTION_REQUESTED'] },
+          },
+          select: { id: true, corrections: true },
+          take: 50,
+          orderBy: { updatedAt: 'desc' },
+        })
+        for (const s of scopeSubs) {
+          let list: any[] = []
+          try {
+            const parsed = typeof s.corrections === 'string' ? JSON.parse(s.corrections) : s.corrections
+            if (Array.isArray(parsed)) list = parsed
+          } catch {}
+          for (const c of list) {
+            if (c?.recordId) {
+              (correctionsByRecord[c.recordId] ||= []).push({
+                field: c.field,
+                issue: c.issue || c.comment,
+                severity: c.severity,
+                comment: c.comment || c.issue,
+                reviewer: c.requesterName,
+                createdAt: c.createdAt,
+                submissionId: s.id,
+              })
+            }
           }
         }
+        setSoCorrectionsCache(corrKey, correctionsByRecord)
       }
     } catch {}
 
@@ -1188,6 +1199,11 @@ export async function POST(req: NextRequest) {
       }).catch(() => {})
     } catch {}
 
+    /* Keep site-ops dashboards realtime — this save writes soSubmission rows
+       in both the draft and submit-for-review paths, so bust the
+       submissions/overview caches before the success response. */
+    invalidateSoSubmissionsCache()
+
     return NextResponse.json({
       record,
       issues,
@@ -1213,6 +1229,10 @@ export async function DELETE(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
 
     const ok = deleteLevelRecord(id)
+    if (ok) {
+      /* Keep the site-ops submissions list and dashboards consistent after deletion. */
+      invalidateSoSubmissionsCache()
+    }
     return NextResponse.json({ success: ok })
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || 'Failed to delete' }, { status: 500 })

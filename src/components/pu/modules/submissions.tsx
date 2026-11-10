@@ -470,8 +470,7 @@ export function SubmissionsModule() {
       })
       .catch(() => { /* silent — list stays user-scoped */ })
       .finally(() => setProjectsReady(true))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    }, [])
 
   // ----- list URL builder -----
   const buildUrl = useCallback(() => {
@@ -1893,20 +1892,21 @@ function SubmissionDetailPanel({
           </div>
           <div className="flex flex-wrap gap-2">
             {s.evidenceList.map((doc, idx) => {
-              const ev = findEvidenceByName(doc)
+              const docName = typeof doc === 'string' ? doc : (doc as any)?.fileName || (doc as any)?.name || 'Evidence Document'
+              const ev = findEvidenceByName(docName)
               return (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => {
                     if (ev) setPreviewEvidence(ev)
-                    else toast.info('Preview unavailable', { description: `${doc} is not registered in the Evidence Vault for this submission yet.` })
+                    else toast.info('Preview unavailable', { description: `${docName} is not registered in the Evidence Vault for this submission yet.` })
                   }}
                   className="flex cursor-pointer items-center gap-1.5 rounded-xl border border-emerald-200/90 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-2xs transition hover:border-emerald-400 hover:bg-emerald-50/60 hover:shadow-xs"
                   title="Click to preview this evidence document"
                 >
                   <FileText className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                  <span className="font-mono text-[11px] truncate max-w-[280px]">{doc}</span>
+                  <span className="font-mono text-[11px] truncate max-w-[280px]">{docName}</span>
                   <span className="ml-1 rounded-md bg-emerald-100 px-1.5 py-0.2 text-[9px] font-bold text-emerald-800">
                     VERIFIED
                   </span>
@@ -2154,7 +2154,11 @@ function RecordGrid({ records, module: mod, corrections = [], onOpenEvidence }: 
 
               {recItems.map((it: any, idx: number) => {
                 const entries = itemFieldEntries(it)
-                const evNames: string[] = Array.isArray(it.evidenceFiles) ? it.evidenceFiles : []
+                const evNames: string[] = Array.isArray(it.evidenceFiles)
+                  ? it.evidenceFiles
+                      .map((f: any) => (typeof f === 'string' ? f : f?.fileName || f?.name || ''))
+                      .filter(Boolean)
+                  : []
                 const sourceName = String(it.energySource || it.waterSource || it.emissionSource || it.wasteCategory || it.permitConsentType || it.title || '')
                 const itemCorr = recCorrections.filter((c) => (c.field || '').includes(sourceName) || sourceName === '' )
                 const itemRejected = itemCorr.length > 0
@@ -2190,9 +2194,9 @@ function RecordGrid({ records, module: mod, corrections = [], onOpenEvidence }: 
                             type="button"
                             onClick={() => onOpenEvidence?.(f)}
                             className="inline-flex cursor-pointer items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-800 transition hover:bg-emerald-100 hover:border-emerald-400"
-                            title={`Click to preview ${f}`}
+                            title={`Click to preview ${typeof f === 'string' ? f : (f as any)?.fileName || (f as any)?.name || 'Evidence Document'}`}
                           >
-                            <FolderOpen className="h-2.5 w-2.5" /> {f} <Eye className="h-2.5 w-2.5 text-emerald-500" />
+                            <FolderOpen className="h-2.5 w-2.5" /> {typeof f === 'string' ? f : (f as any)?.fileName || (f as any)?.name || 'Evidence Document'} <Eye className="h-2.5 w-2.5 text-emerald-500" />
                           </button>
                         ))}
                       </div>

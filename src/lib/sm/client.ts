@@ -64,19 +64,16 @@ export function useSmApi<T>(path: string | null, opts: { pollMs?: number; deps?:
   const [loading, setLoading] = useState(!!path);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
-  const pathRef = useRef(path);
-  pathRef.current = path;
   const setLastSynced = useSmWorkspace((s) => s.setLastSyncedAt);
 
   const load = useCallback(
     async (silent = false) => {
-      const p = pathRef.current;
-      if (!p) return;
+      if (!path) return;
       const id = ++seq.current;
       if (!silent) setLoading(true);
       if (!silent) setError(null);
       try {
-        const d = await apiGet<T>(p);
+        const d = await apiGet<T>(path);
         if (seq.current === id) {
           setData(d);
           setError(null);
@@ -88,7 +85,7 @@ export function useSmApi<T>(path: string | null, opts: { pollMs?: number; deps?:
         if (seq.current === id) setLoading(false);
       }
     },
-    [setLastSynced]
+    [path, setLastSynced]
   );
 
   useEffect(() => {

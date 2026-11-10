@@ -285,7 +285,7 @@ export function buildReviewModelFromPuDetail(detail: any, s: any): ReviewModel {
         title: itemTitle(it) || `Source item ${idx + 1}`,
         fields: itemFieldEntries(it).map(([k, v]) => ({ k, v })),
         evidence: evOf(it?.evidenceIds, it?.evidenceId),
-        evidenceFileNames: Array.isArray(it?.evidenceFiles) ? it.evidenceFiles : [],
+        evidenceFileNames: Array.isArray(it?.evidenceFiles) ? it.evidenceFiles.map((f: any) => typeof f === 'string' ? f : f?.fileName || f?.name || '').filter(Boolean) : [],
       }))
 
       const recEvidenceIds = [...((Array.isArray(lr?.evidenceIds) ? lr.evidenceIds : []) as string[]), ...(lr?.evidenceId ? [lr?.evidenceId] : [])]
@@ -405,6 +405,8 @@ export function SubmissionReviewWindow({
   const [generalNote, setGeneralNote] = useState('')
   const [preview, setPreview] = useState<ReviewEvidence | null>(null)
   const [copiedEmail, setCopiedEmail] = useState(false)
+  /** Tray chip that was clicked — drives a highlight flash on the matching card. */
+  const [flashTarget, setFlashTarget] = useState<string | null>(null)
 
   /* Reset transient state whenever a different submission is opened. */
   useEffect(() => {
@@ -495,7 +497,6 @@ export function SubmissionReviewWindow({
   }
 
   /* Tray chip → scroll the marked card into view with a highlight flash. */
-  const [flashTarget, setFlashTarget] = useState<string | null>(null)
   const scrollToMark = (target: string) => {
     const el = document.getElementById(`mark-${target}`)
     if (!el) return

@@ -79,12 +79,21 @@ export async function GET(req: NextRequest) {
     }
     const byModule: Record<string, MappingEntry[]> = {}
     const flat: Array<MappingEntry & { sourceRecordType: string | null; resolvedValue: number | string | null }> = []
-    for (const q of questions) {
-      const resolved = await resolveIndicator(q.mappingSource, q.unit, {
-        scopeType: scopeType ?? null,
-        scopeId: scopeId ?? null,
-        reportingPeriodId,
-      })
+    // Each question's resolution depends only on that question's own fields
+    // (already in hand), so resolve all questions concurrently.
+    // Promise.all preserves question order, keeping byModule/flat identical.
+    const resolvedList = await Promise.all(
+      questions.map((q) =>
+        resolveIndicator(q.mappingSource, q.unit, {
+          scopeType: scopeType ?? null,
+          scopeId: scopeId ?? null,
+          reportingPeriodId,
+        })
+      )
+    )
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i]
+      const resolved = resolvedList[i]
       const moduleKey = q.mappingSource ? q.mappingSource.split('.')[0] : 'UNMAPPED'
       if (!byModule[moduleKey]) byModule[moduleKey] = []
       const entry = {

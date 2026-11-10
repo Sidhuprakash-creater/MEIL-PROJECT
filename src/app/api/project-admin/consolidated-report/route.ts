@@ -31,86 +31,89 @@ export async function GET(req: NextRequest) {
       return paOk(cached);
     }
 
-    // Fetch existing report (for metadata like version, status, auditHistory)
-    const existingReport = await db.report.findFirst({
-      where: { scopeId: ctx.projectId },
-      select: {
-        id: true,
-        status: true,
-        createdAt: true,
-        generatedBy: true,
-        generatedByName: true,
-        fileName: true,
-        version: true,
-        content: true,
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    // Round 1: existing report + submissions are mutually independent — one
+    // DB round-trip instead of two sequential ones (each sequential await
+    // costs a full ~1s round-trip to the remote Postgres).
+    const [existingReport, approvedSubmissions] = await Promise.all([
+      // Fetch existing report (for metadata like version, status, auditHistory)
+      db.report.findFirst({
+        where: { scopeId: ctx.projectId },
+        select: {
+          id: true,
+          status: true,
+          createdAt: true,
+          generatedBy: true,
+          generatedByName: true,
+          fileName: true,
+          version: true,
+          content: true,
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      // Fetch submissions belonging to this project for the consolidated report
+      db.submission.findMany({
+        where: {
+          projectId: ctx.projectId,
+          category: { not: "CONSOLIDATED" },
+          status: { in: ["APPROVED", "BU_APPROVED", "SUBMITTED", "UNDER_REVIEW"] },
+        },
+        select: {
+          id: true,
+          ref: true,
+          title: true,
+          category: true,
+          module: true,
+          period: true,
+          projectId: true,
+          submittedById: true,
+          values: true,
+          evidence: true,
+          recordIds: true,
+          submittedAt: true,
+          reviewedAt: true,
+          reviewComment: true,
+          status: true,
+          forwardedToBu: true,
+          inConsolidatedReport: true,
+          consolidatedReportId: true,
+          history: true,
+          metricValue: true,
+          metricName: true,
+          metricUnit: true,
+        },
+        orderBy: { reviewedAt: "desc" },
+      }),
+    ]);
 
-    // Fetch submissions belonging to this project for the consolidated report
-    const approvedSubmissions = await db.submission.findMany({
-      where: {
-        projectId: ctx.projectId,
-        category: { not: "CONSOLIDATED" },
-        status: { in: ["APPROVED", "BU_APPROVED", "SUBMITTED", "UNDER_REVIEW"] },
-      },
-      select: {
-        id: true,
-        ref: true,
-        title: true,
-        category: true,
-        module: true,
-        period: true,
-        projectId: true,
-        submittedById: true,
-        values: true,
-        evidence: true,
-        recordIds: true,
-        submittedAt: true,
-        reviewedAt: true,
-        reviewComment: true,
-        status: true,
-        forwardedToBu: true,
-        inConsolidatedReport: true,
-        consolidatedReportId: true,
-        history: true,
-        metricValue: true,
-        metricName: true,
-        metricUnit: true,
-      },
-      orderBy: { reviewedAt: "desc" },
-    });
-
-    // Fetch evidence docs for these submissions
+    // Round 2: everything that derives from the submission list — evidence
+    // docs, submitter details, and the Evidence rows for View/Download — is
+    // mutually independent, so it runs as ONE parallel round.
     const submissionIds = approvedSubmissions.map(s => s.id);
-    const evidenceDocs = submissionIds.length > 0
-      ? await db.evidenceDoc.findMany({
-          where: { submissionId: { in: submissionIds } },
-          select: { id: true, name: true, fileType: true, sizeKb: true, version: true, status: true, uploadedAt: true, submissionId: true },
-        })
-      : [];
-
-    // Fetch submitter user details
     const submitterIds = [...new Set(approvedSubmissions.map(s => s.submittedById).filter((id): id is string => Boolean(id)))];
-    const submitters = await db.user.findMany({
-      where: { id: { in: submitterIds } },
-      select: { id: true, name: true, email: true, role: true },
-    });
-    const submitterMap = new Map(submitters.map(u => [u.id, u]));
-
-    // Fetch real Evidence rows for file paths (for View/Download).
-    // Submissions can come from any project in the PA review scope, so load
-    // evidence for every project present in the approved list.
+    // Proof/evidence can come from any project present in the approved list.
     const evidenceProjectIds = [
       ...new Set([
         ctx.projectId,
         ...approvedSubmissions.map((s) => s.projectId).filter((id): id is string => Boolean(id)),
       ]),
     ];
-    const evidenceRows = await db.evidence.findMany({
-      where: { projectId: { in: evidenceProjectIds } },
-      select: { id: true, fileName: true, documentType: true, filePath: true, hash: true, status: true, fileSize: true, module: true, projectId: true },
-    });
+    const [evidenceDocs, submitters, evidenceRows] = await Promise.all([
+      submissionIds.length > 0
+        ? db.evidenceDoc.findMany({
+            where: { submissionId: { in: submissionIds } },
+            select: { id: true, name: true, fileType: true, sizeKb: true, version: true, status: true, uploadedAt: true, submissionId: true },
+          })
+        : Promise.resolve([]),
+      db.user.findMany({
+        where: { id: { in: submitterIds } },
+        select: { id: true, name: true, email: true, role: true },
+      }),
+      db.evidence.findMany({
+        where: { projectId: { in: evidenceProjectIds } },
+        select: { id: true, fileName: true, documentType: true, filePath: true, hash: true, status: true, fileSize: true, module: true, projectId: true },
+      }),
+    ]);
+    const submitterMap = new Map<string, { id: string; name: string; email: string; role: string }>(submitters.map(u => [u.id, u]));
     // Group evidence by module for easy lookup
     const evidenceByModule = new Map<string, typeof evidenceRows>();
     for (const ev of evidenceRows) {

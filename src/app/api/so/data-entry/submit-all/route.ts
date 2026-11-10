@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
@@ -45,6 +46,12 @@ export async function POST(req: NextRequest) {
     }
 
     const okCount = results.filter((r) => r.ok).length
+    /* Each delegated single-level POST already busts the site-ops caches on
+       success; re-bust once so the aggregate Submit-All response is guaranteed
+       to read fresh state. */
+    if (okCount > 0) {
+      invalidateSoSubmissionsCache()
+    }
     return NextResponse.json(
       {
         ok: okCount > 0,

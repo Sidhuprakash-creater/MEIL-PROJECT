@@ -17,6 +17,20 @@ import { invalidatePuSubmissionsCache, invalidatePuOverviewCache, invalidatePuNo
 
 export const dynamic = "force-dynamic";
 
+/* Row shapes matching each query's select clause (schema-verified) — used to
+   type the empty-query ternary branches below so the Promise.all
+   destructuring stays precise instead of collapsing to `any`. */
+type ScopedUserRow = { id: string; name: string; email: string; role: string };
+type EvidenceRowShape = {
+  id: string;
+  fileName: string;
+  documentType: string;
+  filePath: string;
+  hash: string | null;
+  status: string;
+  fileSize: number;
+};
+
 function parseJsonArray(raw: unknown): any[] {
   try {
     const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
@@ -121,8 +135,8 @@ export async function GET(req: NextRequest) {
     const userMap = new Map(users.map((u) => [u.id, u]));
 
     /* Group-wide review surfaces submissions whose submitter sits outside the
-       admin's project/BU/subsidiary scope — fetch their user rows directly so
-       names/roles don't fall back to "Site Contributor". */
+       admin's project/BU/subsidiary scope — their user rows are fetched below
+       so names/roles don't fall back to "Site Contributor". */
     const missingSubmitterIds = [
       ...new Set(
         submissions
@@ -130,13 +144,6 @@ export async function GET(req: NextRequest) {
           .filter((id): id is string => Boolean(id) && !userMap.has(String(id))),
       ),
     ];
-    if (missingSubmitterIds.length > 0) {
-      const extras = await db.user.findMany({
-        where: { id: { in: missingSubmitterIds } },
-        select: { id: true, name: true, email: true, role: true },
-      });
-      for (const u of extras) userMap.set(u.id, u);
-    }
 
     /* Enrichment: load the underlying level records (per-source items the user
        actually entered) and the real Evidence rows so the admin sees exactly
@@ -167,13 +174,26 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    const evidenceRows = referencedEvidenceIds.size
-      ? await db.evidence.findMany({
-          where: { id: { in: [...referencedEvidenceIds] } },
-          select: { id: true, fileName: true, documentType: true, filePath: true, hash: true, status: true, fileSize: true },
-        })
-      : [];
-    const evidenceById = new Map(evidenceRows.map((e) => [e.id, e]));
+
+    /* Both follow-up queries are mutually independent — out-of-scope
+       contributor names and evidence rows — so they run as ONE parallel DB
+       round (1 round-trip instead of two sequential ~1s round-trips). */
+    const [extraUsers, evidenceRows] = await Promise.all([
+      missingSubmitterIds.length
+        ? db.user.findMany({
+            where: { id: { in: missingSubmitterIds } },
+            select: { id: true, name: true, email: true, role: true },
+          })
+        : Promise.resolve([] as ScopedUserRow[]),
+      referencedEvidenceIds.size
+        ? db.evidence.findMany({
+            where: { id: { in: [...referencedEvidenceIds] } },
+            select: { id: true, fileName: true, documentType: true, filePath: true, hash: true, status: true, fileSize: true },
+          })
+        : Promise.resolve([] as EvidenceRowShape[]),
+    ]);
+    for (const u of extraUsers) userMap.set(u.id, u);
+    const evidenceById = new Map<string, EvidenceRowShape>(evidenceRows.map((e) => [e.id, e]));
 
     // Map site submissions into unified rich display items
     const siteItems = submissions.map((s, idx) => {
@@ -508,7 +528,10 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Update db.submission
+      // Update db.submission — status flips to APPROVED and the item is staged
+      // in the Approved Dataset + Consolidated Report. It is NOT auto-forwarded
+      // to the Business Unit: the PA decides when to send the whole batch from
+      // the Approved Dataset view (action "forward-to-bu").
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
@@ -518,18 +541,18 @@ export async function POST(req: NextRequest) {
           reviewedAt: now,
           updatedAt: now,
           inConsolidatedReport: true,
-          forwardedToBu: true,
-          forwardedToBuAt: now,
+          forwardedToBu: false,
+          forwardedToBuAt: null,
         },
       });
 
-      // Append to submission history: APPROVED_AND_FORWARDED_TO_BU
+      // Append to submission history: APPROVED (staged for the BU handoff)
       const subForHist = await db.submission.findUnique({ where: { id: submissionId }, select: { history: true } });
       let hist: any[] = [];
       try { hist = JSON.parse(subForHist?.history || "[]"); if (!Array.isArray(hist)) hist = []; } catch {}
       hist.push({
         id: `hist-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        action: "APPROVED_AND_FORWARDED_TO_BU",
+        action: "APPROVED",
         fromStatus: "SUBMITTED",
         toStatus: "APPROVED",
         actor: ctx.userName,
@@ -537,7 +560,7 @@ export async function POST(req: NextRequest) {
         actorRole: "Project Admin",
         at: now.toISOString(),
         createdAt: now.toISOString(),
-        note: approvalNote,
+        note: `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
         comment: approvalNote,
       });
       await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });
@@ -599,7 +622,7 @@ export async function POST(req: NextRequest) {
 
       return paOk(
         { submissionId, status: "APPROVED", approvalNote },
-        "Submission approved and contributor notified successfully."
+        "Submission approved — added to the Approved Dataset & Consolidated Report, pending Business Unit handoff."
       );
     }
 

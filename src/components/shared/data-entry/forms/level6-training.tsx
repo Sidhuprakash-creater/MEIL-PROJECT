@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Users, Save } from 'lucide-react'
-import { inputClass, FormGrid, FormField, FormSaveActions, type LevelFormProps } from '../primitives'
+import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { useApiBase } from '../core'
 
 /* ============================================================
@@ -19,7 +19,7 @@ export function Level6TrainingForm({
   const apiBase = useApiBase()
 
   const key = `l6-${projectId}-${periodId}`
-  const initial = formStateRef.current[key] || {}
+  const initial = useDraftBucket(formStateRef, key)
 
   const [trainingProgramme, setTrainingProgramme] = useState(initial.trainingProgramme ?? 'SEBI BRSR Human Rights, Code of Conduct & POSH Awareness')
   const [trainingCategory, setTrainingCategory] = useState(initial.trainingCategory ?? 'Human Rights')

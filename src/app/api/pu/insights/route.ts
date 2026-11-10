@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { getPuInsightsCache, setPuInsightsCache } from '@/lib/portal-cache'
 import ZAI from 'z-ai-web-dev-sdk'
 
 export const runtime = 'nodejs'
@@ -11,53 +12,80 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
+  // LLM narrative generation costs ~5-10s + a full KPI sweep — serve the
+  // cached narrative within its TTL window (freshness policy in portal-cache).
+  const cachedInsights = getPuInsightsCache()
+  if (cachedInsights) return NextResponse.json(cachedInsights)
+
   try {
-    // Gather real KPI data (same computation as /api/overview, condensed)
-    const calcResults = await db.calculationResult.findMany()
+    // One parallel round for every independent query (each sequential await
+    // previously cost a full ~1s round-trip to the remote Postgres).
+    const [
+      calcResults,
+      energyRecords,
+      waterRecords,
+      wasteRecords,
+      workforceRecords,
+      safetyRecords,
+      brsrAnswers,
+      submissions,
+      openExceptions,
+      periods,
+    ] = await Promise.all([
+      db.calculationResult.findMany({ select: { calculatedValue: true, scope: true } }),
+      db.energyRecord.findMany({ select: { sourceCategory: true, normalizedValue: true, reportingPeriodId: true, calculationResults: { select: { calculatedValue: true } } } }),
+      db.waterRecord.findMany({ select: { withdrawal: true, recycledReused: true } }),
+      db.wasteRecord.findMany({ select: { generatedQty: true, recoveredQty: true, recycledQty: true } }),
+      db.workforceRecord.findMany({ select: { permanent: true, nonPermanent: true, female: true } }),
+      db.safetyRecord.findMany({ select: { lostTimeIncidents: true, manHoursWorked: true } }),
+      db.brsrAnswer.findMany({ select: { status: true } }),
+      db.submission.findMany({ select: { status: true } }),
+      db.validationResult.count({ where: { status: 'OPEN', severity: { in: ['ERROR', 'BLOCKING'] } } }),
+      db.reportingPeriod.findMany({ orderBy: { startDate: 'asc' }, select: { id: true, periodLabel: true } }),
+    ])
+
     const totalEmissions = calcResults.reduce((s, c) => s + (c.calculatedValue || 0), 0)
     const scope1 = calcResults.filter(c => c.scope === 'SCOPE_1').reduce((s, c) => s + (c.calculatedValue || 0), 0)
     const scope2 = calcResults.filter(c => c.scope === 'SCOPE_2').reduce((s, c) => s + (c.calculatedValue || 0), 0)
 
-    const energyRecords = await db.energyRecord.findMany()
     const totalEnergyGJ = energyRecords.reduce((s, e) => s + (e.normalizedValue || 0), 0)
     const renewableGJ = energyRecords.filter(e => e.sourceCategory === 'RENEWABLE').reduce((s, e) => s + (e.normalizedValue || 0), 0)
     const renewableShare = totalEnergyGJ > 0 ? (renewableGJ / totalEnergyGJ) * 100 : 0
 
-    const waterRecords = await db.waterRecord.findMany()
     const waterWithdrawal = waterRecords.reduce((s, w) => s + (w.withdrawal || 0), 0)
     const waterRecycled = waterRecords.reduce((s, w) => s + (w.recycledReused || 0), 0)
     const waterRecycledShare = waterWithdrawal > 0 ? (waterRecycled / waterWithdrawal) * 100 : 0
 
-    const wasteRecords = await db.wasteRecord.findMany()
     const wasteGenerated = wasteRecords.reduce((s, w) => s + (w.generatedQty || 0), 0)
     const wasteRecovered = wasteRecords.reduce((s, w) => s + (w.recoveredQty || w.recycledQty || 0), 0)
     const wasteRecycledShare = wasteGenerated > 0 ? (wasteRecovered / wasteGenerated) * 100 : 0
 
-    const workforceRecords = await db.workforceRecord.findMany()
     const totalWorkforce = workforceRecords.reduce((s, w) => s + w.permanent + w.nonPermanent, 0)
     const femaleShare = totalWorkforce > 0 ? (workforceRecords.reduce((s, w) => s + w.female, 0) / totalWorkforce) * 100 : 0
 
-    const safetyRecords = await db.safetyRecord.findMany()
     const lti = safetyRecords.reduce((s, x) => s + x.lostTimeIncidents, 0)
     const manHours = safetyRecords.reduce((s, x) => s + (x.manHoursWorked || 0), 0)
     const ltifr = manHours > 0 ? (lti * 1000000) / manHours : 0
 
-    const brsrAnswers = await db.brsrAnswer.findMany()
     const brsrReady = brsrAnswers.filter(a => a.status === 'APPROVED' || a.status === 'LOCKED').length
     const brsrReadiness = brsrAnswers.length > 0 ? (brsrReady / brsrAnswers.length) * 100 : 0
     const brsrMissing = brsrAnswers.filter(a => a.status === 'MISSING').length
 
-    const submissions = await db.submission.findMany()
     const approvedSubs = submissions.filter(s => s.status === 'APPROVED' || s.status === 'LOCKED').length
     const draftSubs = submissions.filter(s => s.status === 'DRAFT').length
 
-    const openExceptions = await db.validationResult.count({ where: { status: 'OPEN', severity: { in: ['ERROR', 'BLOCKING'] } } })
-
-    // Monthly trends
-    const periods = await db.reportingPeriod.findMany({ orderBy: { startDate: 'asc' } })
+    // Monthly trends — grouped in memory from the already-fetched energy rows
+    // (previously one more sequential query PER PERIOD inside a loop).
+    const energyByPeriod = new Map<string, typeof energyRecords>()
+    for (const e of energyRecords) {
+      if (!e.reportingPeriodId) continue
+      const list = energyByPeriod.get(e.reportingPeriodId) || []
+      list.push(e)
+      energyByPeriod.set(e.reportingPeriodId, list)
+    }
     const trends: { period: string; emissions: number; energy: number }[] = []
     for (const p of periods) {
-      const pEnergy = await db.energyRecord.findMany({ where: { reportingPeriodId: p.id }, include: { calculationResults: true } })
+      const pEnergy = energyByPeriod.get(p.id) || []
       const pCalc = pEnergy.flatMap(e => e.calculationResults)
       trends.push({
         period: p.periodLabel,
@@ -122,14 +150,18 @@ Respond with ONLY a JSON object: {"insights": [...]}`
       insights = { insights: [{ title: 'Analysis complete', severity: 'positive', category: 'data_quality', insight: content.slice(0, 200), action: 'Review the full dashboard for details.' }] }
     }
 
-    return NextResponse.json({
+    const payload = {
       insights: insights.insights || [],
       generatedAt: new Date().toISOString(),
       dataSource: 'real-time KPIs from approved source records + calculation results',
-    })
+    }
+    setPuInsightsCache(payload)
+    return NextResponse.json(payload)
   } catch (e: any) {
     console.error('Insights API error:', e)
-    return NextResponse.json({
+    /* Cache the degraded panel briefly so repeat opens don't re-pay the KPI
+       sweep while the provider is misconfigured (retried after 60s). */
+    const degraded = {
       insights: [{
         title: 'Insights temporarily unavailable',
         severity: 'warning' as const,
@@ -138,6 +170,8 @@ Respond with ONLY a JSON object: {"insights": [...]}`
         action: 'Refresh the page to retry, or review the KPI cards directly.',
       }],
       error: e.message,
-    })
+    }
+    setPuInsightsCache(degraded, 60000)
+    return NextResponse.json(degraded)
   }
 }
