@@ -60,7 +60,13 @@ export async function paApiGet<T>(
         return cached.data as T;
       }
       // If stale, return cached immediately and revalidate in background (SWR pattern)
-      fetch(url.toString(), {
+      /* The background revalidate MUST bypass the server cache too: a plain
+         fetch would hit the 45s server cache, receive the SAME stale payload
+         and re-mark it fresh in the client cache — newly submitted data could
+         then stay invisible for minutes depending on cache timing. */
+      const revalidateUrl = new URL(url.toString());
+      revalidateUrl.searchParams.set("bypass", "true");
+      fetch(revalidateUrl.toString(), {
         method: "GET",
         headers: { Accept: "application/json" },
       })

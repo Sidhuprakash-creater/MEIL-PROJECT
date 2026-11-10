@@ -35,7 +35,12 @@ export function getPaServerCache<T>(key: string): T | null {
   return null;
 }
 
-export function setPaServerCache(key: string, data: any, ttlMs = 45000) {
+/* Short default TTL: a long cache here meant contributor submissions could
+   stay invisible to the Project Admin for up to a minute depending on when
+   the cache was seeded — the "sometimes it shows, sometimes it doesn't" bug.
+   The client SWR layer still gives instant navigation; the server cache only
+   needs to absorb rapid re-polls. */
+export function setPaServerCache(key: string, data: any, ttlMs = 10000) {
   paDataCache.set(key, { data, expiresAt: Date.now() + ttlMs });
 }
 
