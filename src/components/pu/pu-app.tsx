@@ -56,22 +56,6 @@ function getRoleDashboard(roleKey: string) {
   }
 }
 
-/* Floating gateway back-link — always reachable, styled with the portal's
-   own glass so it reads as part of the experience, not an overlay. */
-function ExitPortalButton({ onExit }: { onExit: () => void }) {
-  return (
-    <button
-      type="button"
-      className="pu-exit-btn glass-strong"
-      onClick={onExit}
-      aria-label="Exit Project User Portal — back to secure gateway"
-      title="Back to gateway"
-    >
-      <ArrowLeft className="h-3.5 w-3.5" strokeWidth={2.2} aria-hidden="true" />
-      <span>Exit</span>
-    </button>
-  );
-}
 
 function PortalRoot({ onExit }: { onExit?: () => void }) {
   const { user, loading, activeModule, logout } = useApp();

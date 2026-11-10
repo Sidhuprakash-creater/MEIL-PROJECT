@@ -753,21 +753,9 @@
    Sits below both of the portal's own top bars (welcome header ≈60px,
    workspace header = 56px) so it never covers the profile/notifications,
    and respects the right safe-area inset on notched devices. */
-.pu-root .pu-exit-btn {
-  position: fixed;
-  top: 64px;
-  right: max(0.75rem, env(safe-area-inset-right, 0.75rem));
-  z-index: 70;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 9999px;
-  padding: 7px 14px;
-  font-size: 12px;
-  font-weight: 600;
-  color: #475569;
-  cursor: pointer;
-  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+.pu-root .pu-exit-btn,
+.pu-exit-btn {
+  display: none !important;
 }
 .pu-root .pu-exit-btn:hover {
   color: #0369a1;
