@@ -17,7 +17,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const d = await db.evidenceDoc.findUnique({ where: { id } });
     if (!d) throw new BmError("Evidence document not found.", 404);
-    if (d.businessUnitId !== ctx.businessUnitId) {
+    /* Uploads that did not carry a BU at creation time (businessUnitId null)
+       stay visible instead of hard-failing scope checks. */
+    if (d.businessUnitId && d.businessUnitId !== ctx.businessUnitId) {
       throw new BmError("This evidence document is outside your assigned business unit.", 403);
     }
 

@@ -30,13 +30,18 @@ export async function GET(req: NextRequest) {
     const page = num(sp.get("page"), 1);
     const pageSize = Math.min(num(sp.get("pageSize"), 50), 100);
 
-    const [docs, projects] = await Promise.all([
-      db.evidenceDoc.findMany({
-        where: { businessUnitId: ctx.businessUnitId },
-        orderBy: { uploadedAt: "desc" },
-      }),
-      db.project.findMany({ where: { businessUnitId: ctx.businessUnitId }, select: { id: true, name: true } }),
-    ]);
+    const projects = await db.project.findMany({ where: { businessUnitId: ctx.businessUnitId }, select: { id: true, name: true } });
+    /* Docs uploaded without a BU reference (businessUnitId null) stay visible
+       when they belong to one of this BU's projects. */
+    const docs = await db.evidenceDoc.findMany({
+      where: {
+        OR: [
+          { businessUnitId: ctx.businessUnitId },
+          { businessUnitId: null, projectId: { in: projects.map((p) => p.id) } },
+        ],
+      },
+      orderBy: { uploadedAt: "desc" },
+    });
     const projectNames = new Map(projects.map((p) => [p.id, p.name]));
 
     const toRow = (d: EvidenceDoc): EvidenceRow => ({
