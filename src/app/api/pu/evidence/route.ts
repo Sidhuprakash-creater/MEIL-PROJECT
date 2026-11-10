@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { resolveProjectForUser } from '@/lib/pu/scope'
 import { authErrorToStatus } from '@/lib/pu/workflow'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -104,9 +105,19 @@ export async function POST(req: NextRequest) {
     const documentDateRaw = formData.get('documentDate') as string | null
     const documentDate = documentDateRaw ? new Date(documentDateRaw) : null
     const moduleKey = String(formData.get('module') || 'ENERGY')
-    const projectId = formData.get('projectId') as string | null || undefined
+    const requestedProjectId = formData.get('projectId') as string | null || undefined
     const periodId = formData.get('periodId') as string | null || undefined
     const sourceRecordId = formData.get('sourceRecordId') as string | null || undefined
+
+    /* SCOPE: evidence may only be filed for the contributor's own project. */
+    let projectId: string | undefined
+    try {
+      const scoped = await resolveProjectForUser(user, requestedProjectId, true)
+      projectId = scoped.id
+    } catch (e: any) {
+      if (e?.status) return NextResponse.json({ error: e.message }, { status: e.status })
+      throw e
+    }
 
     const safeOrigName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
     const uniqueName = `${Date.now()}-${safeOrigName}`
@@ -208,6 +219,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ evidence }, { status: 201 })
   } catch (e: any) {
     console.error('POST /api/evidence error', e)
-    return NextResponse.json({ error: 'Failed to upload evidence', detail: String(e?.message ?? e) }, { status: 500 })
+    /* A scope refusal is a client error, not a server error — surface the
+       message and the right status instead of a generic 500. */
+    const status = e?.status && e.status >= 400 && e.status < 600 ? e.status : 500
+    return NextResponse.json(
+      { error: status === 500 ? 'Failed to upload evidence' : e.message, detail: String(e?.message ?? e) },
+      { status },
+    )
   }
 }

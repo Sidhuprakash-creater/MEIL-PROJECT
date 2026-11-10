@@ -52,25 +52,27 @@ export function invalidatePaServerCache(pattern?: string) {
 }
 
 /* ─── PA review scope ──────────────────────────────────────────────────────
- * The review ACTIONS (approve / reject / remind) resolve submissions by id
- * with no project filter, so the read side must surface at least everything
- * a PA can act on. In this deployment the seeded demo contributors submit
- * from projects spanning every subsidiary while the demo PA account is
- * scoped to a single project/BU/subsidiary chain — strict scoping left the
- * Data Collection Status screen empty even though the rows existed.
- * GROUP_WIDE_REVIEW widens the READ scope to all submissions so every
- * site-ops submission is instantly visible and reviewable. Flip to false
- * to restore strict project/BU/subsidiary scoping.
+ * A Project Admin is bound to ONE project: the contributors of that project
+ * (Environment, Finance, HR, EHS, Procurement, CSR, Compliance) report into
+ * it and only that PA reviews it. The previous group-wide scope made every
+ * PA see submissions from all 32 projects of the group, which is why a PA
+ * opened a project and found data from unrelated projects.
+ *
+ * The scope is enforced server-side: the READ side (submissions, collection
+ * status, consolidated report) and the ACTIONS (approve / reject / remind)
+ * all resolve through the same project scope.
  */
-export const GROUP_WIDE_REVIEW = true;
+export const GROUP_WIDE_REVIEW = false;
 
 export function paSubmissionScope(ctx: ProjectAdminContext) {
   if (GROUP_WIDE_REVIEW) return {};
+  /* A Project Admin works ONE project. The read scope is therefore that
+     project (plus BU-level disclosures of the same business unit that have
+     no project of their own) — never a group-wide list. */
   return {
     OR: [
       { projectId: ctx.projectId },
-      { businessUnitId: ctx.businessUnitId },
-      { subsidiaryId: ctx.subsidiaryId },
+      { businessUnitId: ctx.businessUnitId, projectId: null },
     ],
   };
 }
@@ -81,9 +83,28 @@ export function paSoSubmissionScope(ctx: ProjectAdminContext) {
     OR: [
       { projectId: ctx.projectId },
       { project: { businessUnitId: ctx.businessUnitId } },
-      { project: { businessUnit: { subsidiaryId: ctx.subsidiaryId } } },
     ],
   };
+}
+
+/**
+ * Guard for the review ACTIONS (approve / reject / request correction /
+ * remind). Those resolve a submission by id, so without this check a Project
+ * Admin could act on another project's report by guessing its id.
+ * Returns true when the row belongs to the admin's project (or is a
+ * BU-level disclosure of their business unit).
+ */
+export async function paOwnsSubmission(
+  ctx: ProjectAdminContext,
+  submissionId: string,
+): Promise<boolean> {
+  const sub = await db.submission.findUnique({
+    where: { id: submissionId },
+    select: { id: true, projectId: true, businessUnitId: true },
+  });
+  if (!sub) return false;
+  if (sub.projectId) return sub.projectId === ctx.projectId;
+  return sub.businessUnitId === ctx.businessUnitId;
 }
 
 export async function getProjectAdminContext(): Promise<ProjectAdminContext | null> {

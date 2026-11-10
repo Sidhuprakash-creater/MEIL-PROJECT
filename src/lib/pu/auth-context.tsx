@@ -56,8 +56,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [activeModule, setActiveModule] = useState<ModuleKey>('overview')
   const [dataEntrySubModule, setDataEntrySubModule] = useState('energy')
-  const [selectedBuId, setSelectedBuIdState] = useState<string>('bu-iwen')
-  const [selectedProjectId, setSelectedProjectIdState] = useState<string>('prj-klip')
+  /* No hard-coded ids here — they were legacy seed ids ('bu-iwen' / 'prj-klip')
+     that do not exist in the database, so every write silently fell back to
+     the user's own project while the header showed a different one. The
+     selection is now derived from the user's own scope. */
+  const [selectedBuId, setSelectedBuIdState] = useState<string>('')
+  const [selectedProjectId, setSelectedProjectIdState] = useState<string>('')
+
+  /* The user's scope always wins for a project-scoped contributor. */
+  const applyUserScope = useCallback((u: SessionUser | null) => {
+    if (!u) return
+    const projectScope = u.scopes.find((s) => s.scopeType === 'PROJECT')?.scopeId
+    const buScope = u.scopes.find((s) => s.scopeType === 'BUSINESS_UNIT')?.scopeId
+    if (projectScope) {
+      setSelectedProjectIdState(projectScope)
+      if (buScope) setSelectedBuIdState(buScope)
+      try {
+        localStorage.setItem('meil_selected_project_id', projectScope)
+        if (buScope) localStorage.setItem('meil_selected_bu_id', buScope)
+      } catch {}
+      return
+    }
+    /* Users without a project scope may keep their own selection. */
+    if (buScope) {
+      setSelectedBuIdState(buScope)
+      try { localStorage.setItem('meil_selected_bu_id', buScope) } catch {}
+    }
+  }, [])
 
   useEffect(() => {
     try {
@@ -85,12 +110,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/pu/auth/me')
       const data = await res.json()
       setUser(data.user ?? null)
+      applyUserScope(data.user ?? null)
     } catch {
       setUser(null)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [applyUserScope])
 
   useEffect(() => { refreshUser() }, [refreshUser])
 
@@ -106,11 +132,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     if (d && d.id) {
       setUser(d)
+      applyUserScope(d)
     } else {
       await refreshUser()
     }
     return { ok: true }
-  }, [refreshUser])
+  }, [refreshUser, applyUserScope])
 
   const logout = useCallback(async () => {
     await fetch('/api/pu/auth/logout', { method: 'POST' })

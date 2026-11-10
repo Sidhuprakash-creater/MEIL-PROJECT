@@ -57,6 +57,9 @@ export interface ItemDetailData {
   evidenceIds?: string[]
   evidenceName?: string
   evidenceFileName?: string
+  /* Normalised to file names on read (legacy records could carry the whole
+     evidence row here — rendering that object crashed the view with
+     React's minified error #31). */
   evidenceFiles?: string[]
   factor?: number | string
   factorUnit?: string

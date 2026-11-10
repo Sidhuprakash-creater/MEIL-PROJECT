@@ -89,9 +89,23 @@ export const fmtValue = (v: unknown): string => {
   return String(v)
 }
 
-export const itemTitle = (it: Record<string, any>): string =>
-  it.energySource || it.waterSource || it.emissionSource || it.wasteCategory ||
-  it.permitConsentType || it.title || it.pollutantType || it.refrigerantType || it.category || 'Source item'
+/** A short human label for one source item. NEVER returns an object — a
+ *  legacy record can carry an evidence row in `title`/`category`, and
+ *  returning it would be rendered as a React child (minified error #31). */
+export const itemTitle = (it: Record<string, any>): string => {
+  const candidates = [
+    it.energySource, it.waterSource, it.emissionSource, it.wasteCategory,
+    it.permitConsentType, it.title, it.pollutantType, it.refrigerantType, it.category,
+  ]
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c
+    if (c && typeof c === 'object') {
+      const name = (c as any).fileName ?? (c as any).name ?? (c as any).label ?? (c as any).title
+      if (typeof name === 'string' && name.trim()) return name
+    }
+  }
+  return 'Source item'
+}
 
 /** Ordered [key, value] entries for one item — form vocabulary, blanks kept. */
 export function itemFieldEntries(item: Record<string, any>): Array<[string, unknown]> {

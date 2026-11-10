@@ -24,59 +24,14 @@ import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard, PaBuDecisionBadge } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
+import * as SHARED_FIELD_LABELS from "@/components/shared/field-labels";
 
-/* ── Per-source item rendering helpers ──────────────────────────────────── */
-const FIELD_LABELS: Record<string, string> = {
-  energySource: "Energy Source", emissionDataType: "GHG Scope", energyActivity: "Energy Activity",
-  consumptionQuantity: "Consumption Quantity", unit: "Unit", meterEquipmentId: "Meter / Equipment ID",
-  openingMeterReading: "Opening Meter Reading", closingMeterReading: "Closing Meter Reading",
-  energyPurchased: "Energy Purchased", energyGenerated: "Energy Generated",
-  renewableEnergyQuantity: "Renewable Energy", reportingPeriod: "Reporting Period",
-  sourceDocument: "Source Document", remarks: "Remarks",
-  waterSource: "Water Source", waterActivity: "Water Activity", waterQuantity: "Water Quantity",
-  meterSourceId: "Meter / Pump ID", openingReading: "Opening Reading", closingReading: "Closing Reading",
-  waterReusedRecycled: "Reused / Recycled", dischargeDestination: "Discharge Destination",
-  treatmentLevel: "Treatment Level", waterQualityResult: "Water Quality Result", testDateLab: "Lab Test / Date",
-  supportingEvidence: "Supporting Evidence",
-  sourceCategory: "Source Category", emissionSource: "Emission Source", fuelEnergyType: "Fuel / Energy Type",
-  equipmentId: "Equipment ID", electricityKwh: "Electricity (kWh)", gridFactorRef: "Grid Factor Ref",
-  activityQuantity: "Activity Quantity", scope3Category: "Scope 3 Category",
-  transportMode: "Transport Mode", cargoWeightTonnes: "Cargo Weight (t)", distanceKm: "Distance (km)",
-  tonneKm: "Tonne-km", logisticsProvider: "Logistics Provider", originDestination: "Origin → Destination",
-  travelMode: "Travel Mode", travelDistanceKm: "Travel Distance (km)", passengerCount: "Passengers",
-  passengerKm: "Passenger-km", pollutantType: "Pollutant", samplingLocation: "Sampling Location",
-  testDate: "Test Date", laboratory: "Laboratory", laboratoryTestMethod: "Lab / Method",
-  testMethod: "Test Method", measuredResult: "Measured Result", testResult: "Test Result",
-  regulatoryBenchmark: "Regulatory Benchmark", complianceStatus: "Compliance",
-  refrigerantType: "Refrigerant", quantityLeakedKg: "Quantity Leaked (kg)", gwpSource: "GWP Source",
-  wasteCategory: "Waste Category", wasteTypeDescription: "Description", quantityGenerated: "Quantity Generated",
-  quantityReused: "Quantity Reused", quantityRecycled: "Quantity Recycled", quantityRecovered: "Quantity Recovered",
-  quantityDisposed: "Quantity Disposed", disposalMethod: "Disposal Method", wasteHandler: "Handler",
-  authorizationReference: "Authorization Ref", transferManifestNumber: "Manifest No.",
-  permitConsentType: "Permit Type", permitNumber: "Permit Number", issuingAuthority: "Issuing Authority",
-  issueDate: "Issue Date", expiryDate: "Expiry Date", permitStatus: "Permit Status",
-  applicableActivity: "Applicable Activity", inspectionDate: "Inspection Date",
-  inspectionFindings: "Inspection Findings", nonComplianceIdentified: "Non-compliance",
-  correctiveAction: "Corrective Action", responsibleOwner: "Responsible Owner", dueDate: "Due Date",
-  closureDate: "Closure Date", factor: "Emission Factor", factorUnit: "Factor Unit", factorSource: "Factor Source",
-  estTco2e: "Est. GHG (tCO₂e)", estGj: "Energy (GJ)",
-  title: "Title", category: "Category", startDate: "Start Date", completionDate: "Completion Date",
-  physicalOutputQuantity: "Physical Output",
-};
-const SKIP_FIELDS = new Set([
-  "evidenceId", "evidenceIds", "evidenceFileName", "evidenceFiles", "id", "status",
-  "viewStep", "stagedAt", "items", "calculationFormula", "calculationTimestamp", "factorVersion", "factorConfigured",
-]);
-const fieldLabel = (k: string) =>
-  FIELD_LABELS[k] || k.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase());
-const itemTitle = (it: any) =>
-  it.energySource || it.waterSource || it.emissionSource || it.wasteCategory ||
-  it.permitConsentType || it.title || it.pollutantType || it.refrigerantType || it.category || "Source item";
-const fmtVal = (v: any) => {
-  if (v === null || v === undefined || v === "") return "—";
-  const n = Number(v);
-  return Number.isFinite(n) && String(v).trim() !== "" && typeof v !== "boolean" ? n.toLocaleString() : String(v);
-};
+/* The shared vocabulary is the single source of truth for field names and
+   value formatting — and it is OBJECT-SAFE (a legacy record may carry an
+   evidence row inside an item; rendering that object crashed the view with
+   React's minified error #31). */
+const { FIELD_LABELS, SKIP_FIELDS, fieldLabel, itemTitle } = SHARED_FIELD_LABELS;
+const fmtVal = (v: any) => SHARED_FIELD_LABELS.fmtValue(v);
 
 export default function SubmissionsView() {
   const { navigate } = usePaStore();

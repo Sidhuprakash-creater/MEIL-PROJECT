@@ -76,7 +76,10 @@ export interface StagedGhgItem {
   evidenceId: string
   evidenceIds?: string[]
   evidenceFileName?: string
-  evidenceFiles?: any[]
+  /* Only the FILE NAMES are persisted — never the whole evidence row.
+     Storing the object made the review screens render a raw object as a
+     React child (minified error #31). */
+  evidenceFiles?: string[]
   status?: string
 }
 
@@ -824,7 +827,9 @@ export function Level3GhgForm({
       evidenceId: selectedEvidenceIds[0] || '',
       evidenceIds: selectedEvidenceIds,
       evidenceFileName: attachedFiles.map((f) => f.fileName).join(', ') || undefined,
-      evidenceFiles: attachedFiles,
+      /* File NAMES only — the evidence row itself must never enter the
+         persisted payload (it breaks every screen that renders the item). */
+      evidenceFiles: attachedFiles.map((f) => f.fileName),
       status: overallWorkflowStatus,
     }
 

@@ -199,6 +199,55 @@ const DEFAULT_RECORDS: LevelRecord[] = [
    external edits are still picked up. */
 let storeCache: { mtimeMs: number; size: number; records: LevelRecord[] } | null = null
 
+/**
+ * Make a persisted record safe to render.
+ *
+ * Older data-entry versions stored the WHOLE evidence row (with the uploader
+ * relation) inside `items[].evidenceFiles`. Any screen that renders an item
+ * then hit React's "objects are not valid as a React child" (minified #31).
+ * We normalise on read: an evidence object becomes its file name, and any
+ * other stray object becomes a short readable string.
+ */
+function sanitizeRecord<T extends { data?: any }>(record: T): T {
+  const data = record?.data
+  if (!data || typeof data !== 'object') return record
+  const items = Array.isArray(data.items) ? data.items : null
+  if (!items) return record
+
+  const nameOf = (v: any): string | null => {
+    if (typeof v === 'string') return v
+    if (v && typeof v === 'object') {
+      const name = v.fileName ?? v.name ?? v.documentName ?? v.originalFilename
+      return typeof name === 'string' && name.trim() ? name : null
+    }
+    return null
+  }
+
+  let changed = false
+  const safeItems = items.map((item: any) => {
+    if (!item || typeof item !== 'object') return item
+    const next: any = { ...item }
+    for (const key of Object.keys(next)) {
+      const value = next[key]
+      if (Array.isArray(value)) {
+        const names = value.map(nameOf).filter((n): n is string => !!n)
+        if (names.length !== value.length || value.some((v: any) => typeof v !== 'string')) {
+          next[key] = names
+          changed = true
+        }
+      } else if (value && typeof value === 'object') {
+        const name = nameOf(value)
+        next[key] = name ?? (Array.isArray(value) ? [] : '')
+        changed = true
+      }
+    }
+    return next
+  })
+
+  if (!changed) return record
+  return { ...record, data: { ...data, items: safeItems } } as T
+}
+
 function readStore(): LevelRecord[] {
   try {
     const stat = fs.statSync(STORE_PATH)
@@ -211,8 +260,9 @@ function readStore(): LevelRecord[] {
       /* An intentionally EMPTY store stays empty — the demo defaults are only
          seeded when the file is missing or unreadable. Otherwise a wiped
          workspace would immediately repopulate with the sample records. */
-      storeCache = { mtimeMs: stat.mtimeMs, size: stat.size, records: parsed }
-      return parsed
+      const records = parsed.map((r: any) => sanitizeRecord(r))
+      storeCache = { mtimeMs: stat.mtimeMs, size: stat.size, records }
+      return records
     }
   } catch (e) {
     console.error('Failed to read level records store:', e)

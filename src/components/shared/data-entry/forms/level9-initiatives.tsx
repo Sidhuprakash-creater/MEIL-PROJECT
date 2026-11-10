@@ -135,7 +135,9 @@ export interface StagedInitiativeItem {
   supportingEvidence: string
   remarks: string
   evidenceIds: string[]
-  evidenceFiles: EvidenceItem[]
+  /* File NAMES only — never the whole evidence row (a persisted object
+     crashes every screen that renders the item: React error #31). */
+  evidenceFiles: string[]
   savings: number
   pctSaved: number
 }
@@ -273,7 +275,7 @@ export function Level9InitiativesForm({
       supportingEvidence,
       remarks,
       evidenceIds: selectedEvidenceIds,
-      evidenceFiles: attFiles,
+      evidenceFiles: attFiles.map((f) => f.fileName),
       savings: diff,
       pctSaved,
     }

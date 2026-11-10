@@ -19,6 +19,7 @@ import {
   BarChart3, Compass, ShieldAlert, Wallet
 } from 'lucide-react'
 import { useApp } from '@/lib/pu/auth-context'
+import { useOrgTree } from '@/lib/pu/org-tree'
 import {
   MEIL_BUSINESS_UNITS,
   MEIL_SUBSIDIARIES,
@@ -26,8 +27,6 @@ import {
   type MeilBusinessUnit,
   type MeilProject,
   type MeilSubsidiary,
-  getBusinessUnitById,
-  getBusinessUnitsBySubsidiary,
 } from '@/lib/pu/meil-portfolio'
 
 type Stage = 'welcome' | 'project' | 'role' | 'login'
@@ -117,9 +116,21 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
   }, [])
 
   // Subsidiary & Business Unit selection state
+  /* The legacy seed ids ('bu-iwen' / 'prj-klip') never existed in the
+     database, so a selection made here could not be resolved server-side
+     and the portal silently fell back to the user's own project. The ids
+     below are now only a pre-selection hint — the authenticated user's own
+     scope always overrides them (see applyUserScope in the app context). */
   const [selectedOrgId, setSelectedOrgId] = useState<string>('MEIL')
-  const [activeBuId, setActiveBuId] = useState<string>(selectedBuId || 'bu-iwen')
-  const [activeProjectId, setActiveProjectId] = useState<string>(selectedProjectId || 'prj-klip')
+  const [activeBuId, setActiveBuId] = useState<string>(selectedBuId || '')
+  const [activeProjectId, setActiveProjectId] = useState<string>(selectedProjectId || '')
+
+  /* ── The organisation tree comes from the DATABASE ────────────────────
+     The static portfolio below only carried presentation details (icons,
+     colours, descriptions). The ids now come from /api/pu/organization/tree
+     so every selection resolves to a real project — a contributor always
+     ends up on the project they are actually assigned to. */
+  const { businessUnits, findBu, busOfSub } = useOrgTree()
 
   // Role & login state
   const [selectedRole, setSelectedRole] = useState<RoleCardDef | null>(null)
@@ -132,7 +143,7 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
 
   // Current active BU & Project objects
   const currentBu = useMemo(
-    () => getBusinessUnitById(activeBuId) || MEIL_BUSINESS_UNITS[0],
+    () => findBu(activeBuId) || businessUnits[0],
     [activeBuId]
   )
 
@@ -143,7 +154,7 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
 
   const handleSelectSub = (subId: string) => {
     setSelectedOrgId(subId)
-    const bus = getBusinessUnitsBySubsidiary(subId)
+    const bus = busOfSub(subId)
     if (bus.length > 0) {
       handleSelectBu(bus[0].id)
     }
@@ -153,7 +164,7 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
   const handleSelectBu = (buId: string) => {
     setActiveBuId(buId)
     setSelectedBuId(buId)
-    const bu = getBusinessUnitById(buId)
+    const bu = findBu(buId)
     if (bu && bu.projects.length > 0) {
       setActiveProjectId(bu.projects[0].id)
       setSelectedProjectId(bu.projects[0].id)
@@ -648,6 +659,7 @@ function WelcomePanel({
 }) {
   const [buDropdownOpen, setBuDropdownOpen] = useState(false)
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false)
+  const { businessUnits, busOfSub } = useOrgTree()
 
   const activeSub = useMemo(
     () => MEIL_SUBSIDIARIES.find(o => o.id === selectedOrgId || o.code === selectedOrgId) || MEIL_SUBSIDIARIES[0],
@@ -655,13 +667,13 @@ function WelcomePanel({
   )
 
   const availableBus = useMemo(
-    () => getBusinessUnitsBySubsidiary(activeSub.code),
+    () => busOfSub(activeSub.code),
     [activeSub.code]
   )
 
   const activeBu = useMemo(() => {
     const found = availableBus.find(b => b.id === activeBuId)
-    return found || availableBus[0] || MEIL_BUSINESS_UNITS[0]
+    return found || availableBus[0] || businessUnits[0]
   }, [availableBus, activeBuId])
 
   const BuIcon = BU_ICONS[activeBu.iconName] ?? Building2
@@ -764,7 +776,7 @@ function WelcomePanel({
               >
                 {MEIL_SUBSIDIARIES.map(sub => {
                   const isSelected = sub.id === activeSub.id
-                  const subBus = getBusinessUnitsBySubsidiary(sub.code)
+                  const subBus = busOfSub(sub.code)
                   return (
                     <motion.div
                       variants={rowVariants}
@@ -1034,6 +1046,7 @@ function ProjectSelectionScreen({
 }) {
   const [search, setSearch] = useState('')
   const BuIcon = BU_ICONS[currentBu.iconName] ?? Building2
+  const { businessUnits } = useOrgTree()
 
   // Filter projects based on search query
   const filteredProjects = useMemo(() => {
@@ -1105,7 +1118,7 @@ function ProjectSelectionScreen({
 
       {/* Business Unit Rail — sliding gradient pill indicator */}
       <div className="flex items-center gap-2 overflow-x-auto scroll-elegant pb-1">
-        {MEIL_BUSINESS_UNITS.map(bu => {
+        {businessUnits.map(bu => {
           const Icon = BU_ICONS[bu.iconName] ?? Building2
           const isSelected = bu.id === currentBu.id
           return (

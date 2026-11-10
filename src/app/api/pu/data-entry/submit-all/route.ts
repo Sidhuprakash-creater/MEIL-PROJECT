@@ -4,6 +4,7 @@ import { db } from '@/lib/pu/db'
 import { saveManyLevelRecords } from '@/lib/pu/level-records'
 import { appendActivity, appendAudit, appendHistory, primaryRoleLabel } from '@/lib/pu/workflow'
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
+import { resolveProjectForUser } from '@/lib/pu/scope'
 import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
@@ -154,12 +155,17 @@ export async function POST(req: NextRequest) {
       include: { businessUnit: { include: { subsidiary: true } } },
     }) : null
 
-    if (!project) {
-      const userProjId = user.scopes.find((s) => s.scopeType === 'PROJECT')?.scopeId
-      project = await db.project.findFirst({
-        where: userProjId ? { id: userProjId } : { status: 'ACTIVE' },
+    /* SCOPE: a project-scoped contributor may ONLY submit for their own
+       project — the server decides, never the client. */
+    try {
+      const scoped = await resolveProjectForUser(user, projectId, true)
+      project = await db.project.findUnique({
+        where: { id: scoped.id },
         include: { businessUnit: { include: { subsidiary: true } } },
       })
+    } catch (e: any) {
+      if (e?.status) return NextResponse.json({ error: e.message }, { status: e.status })
+      throw e
     }
 
     if (!project) {

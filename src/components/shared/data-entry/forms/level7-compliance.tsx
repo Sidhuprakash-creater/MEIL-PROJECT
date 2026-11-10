@@ -107,7 +107,9 @@ export interface StagedPermitItem {
   closureDate: string
   supportingEvidence: string
   evidenceIds: string[]
-  evidenceFiles: EvidenceItem[]
+  /* File NAMES only — never the whole evidence row (a persisted object
+     crashes every screen that renders the item: React error #31). */
+  evidenceFiles: string[]
   daysRemaining: number
 }
 
@@ -243,7 +245,7 @@ export function Level7ComplianceForm({
       closureDate,
       supportingEvidence,
       evidenceIds: selectedEvidenceIds,
-      evidenceFiles: attFiles,
+      evidenceFiles: attFiles.map((f) => f.fileName),
       daysRemaining,
     }
   }

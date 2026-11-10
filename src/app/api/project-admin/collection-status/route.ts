@@ -10,6 +10,7 @@ import {
   invalidatePaServerCache,
   paSubmissionScope,
   paSoSubmissionScope,
+  paOwnsSubmission,
 } from "@/lib/project-admin/server";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import { getLevelRecords, updateLevelRecordStatus } from "@/lib/pu/level-records";
@@ -434,6 +435,11 @@ export async function POST(req: NextRequest) {
     const { action, submissionId, comments, category, assignedUserId } = body;
 
     if (!submissionId) return paFail("submissionId is required.", 400);
+
+    /* SCOPE: a Project Admin may only act on reports of THEIR project. */
+    if (!(await paOwnsSubmission(ctx, submissionId))) {
+      return paFail("This report belongs to another project — you can only review your own project's disclosures.", 403);
+    }
 
     invalidatePaServerCache(); // Invalidate server cache on mutation
     invalidatePaConsolidatedReportCache();

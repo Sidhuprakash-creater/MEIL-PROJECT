@@ -20,6 +20,7 @@ import {
 } from '@/lib/pu/workflow'
 
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
+import { resolveProjectForUser } from '@/lib/pu/scope'
 import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache, getPuCorrectionsCache, setPuCorrectionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
@@ -246,10 +247,14 @@ export async function POST(req: NextRequest) {
         projectId = undefined
       }
     }
-    if (!projectId) {
-      const userProjId = user.scopes.find((s) => s.scopeType === 'PROJECT')?.scopeId
-      projectId = userProjId || (await db.project.findFirst({ where: { code: 'PRJ-ZOJ' }, select: { id: true, name: true, code: true } }))?.id || (await db.project.findFirst({ where: { status: 'ACTIVE' }, select: { id: true, name: true, code: true } }))?.id
-      if (projectId) verifiedProjectIds.add(projectId)
+    /* SCOPE: a project-scoped contributor may ONLY write into their own
+       project. The client can send any project id — the server decides. */
+    try {
+      const scoped = await resolveProjectForUser(user, projectId, true)
+      projectId = scoped.id
+    } catch (e: any) {
+      if (e?.status) return NextResponse.json({ error: e.message }, { status: e.status })
+      throw e
     }
 
     if (reportingPeriodId && !verifiedPeriodIds.has(reportingPeriodId)) {

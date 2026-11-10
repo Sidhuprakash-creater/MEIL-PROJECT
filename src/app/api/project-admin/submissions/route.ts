@@ -10,6 +10,7 @@ import {
   invalidatePaServerCache,
   paSubmissionScope,
   paSoSubmissionScope,
+  paOwnsSubmission,
 } from "@/lib/project-admin/server";
 
 import { getLevelRecords, updateLevelRecordStatus, type LevelRecord } from "@/lib/pu/level-records";
@@ -503,6 +504,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (!submissionId) return paFail("submissionId is required.", 400);
+
+    /* SCOPE: a Project Admin may only act on reports of THEIR project. */
+    if (!(await paOwnsSubmission(ctx, submissionId))) {
+      return paFail("This report belongs to another project — you can only review your own project's disclosures.", 403);
+    }
 
     // Invalidate caches immediately so all views reflect updates instantly
     invalidatePaServerCache();
