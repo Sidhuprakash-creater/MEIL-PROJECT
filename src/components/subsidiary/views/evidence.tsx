@@ -6,8 +6,9 @@
 import { useEffect, useState } from "react";
 import {
   ArrowRight, CheckCircle2, Download, Eye, FileText,
-  Image as ImageIcon, Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { AlarmAlertIcon, CheckSealIcon, FilesIcon } from "@/components/workspace/premium-icons";
 import {
   Chip, CountUp, DataTable, EmptyState, ErrorState, ExportButton, GlassDialog,
@@ -358,7 +359,7 @@ export default function EvidenceView() {
               disabled={downloadingId === d.id}
               onClick={() => download(d)}
             >
-              {downloadingId === d.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {downloadingId === d.id ? <Ring className="h-4 w-4" /> : <Download className="h-4 w-4" />}
             </Button>
           </>
         )}
@@ -427,7 +428,7 @@ export default function EvidenceView() {
                 Downloads in this sandbox produce a metadata receipt — no file bytes are stored on the platform.
               </p>
               <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" disabled={!detailData || downloadingId === detailData.id} onClick={() => { if (detailData) download(detailData); }}>
-                {downloadingId === detailData.id ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+                {downloadingId === detailData.id ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
                 Download receipt
               </Button>
             </div>

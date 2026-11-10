@@ -22,174 +22,68 @@ import {
   ShieldQuestion,
 } from "lucide-react";
 import type { SessionPayload, VerifiedUser } from "@/lib/platform-config";
+import { MeilLoader } from "@/components/shared/meil-loader";
+
+function PortalSplash({ role, label }: { role?: string; label: string }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
+      <div className="glass glass-sheen rounded-3xl px-6 py-5">
+        <MeilLoader compact size={40} role={role} label={label} />
+      </div>
+    </div>
+  );
+}
 
 const LandingPage = dynamic(() => import("@/components/landing/landing-page"), {
   ssr: false,
-  loading: () => <div className="ep-root" aria-busy="true" aria-label="Loading" />,
+  loading: () => <div className="ep-root flex min-h-screen items-center justify-center" aria-busy="true" aria-label="Loading"><MeilLoader size={48} label="Loading MEIL ESG…" /></div>,
 });
 
 const EnterPlatform = dynamic(
   () => import("@/components/enter-platform/enter-platform"),
-  { ssr: false, loading: () => <div className="ep-root" aria-busy="true" aria-label="Loading secure gateway" /> }
+  { ssr: false, loading: () => <div className="ep-root flex min-h-screen items-center justify-center" aria-busy="true" aria-label="Loading secure gateway"><MeilLoader size={48} variant="ring" label="Loading secure gateway…" /></div> }
 );
 
 const WorkspaceShell = dynamic(
   () => import("@/components/workspace/shell").then((m) => m.WorkspaceShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#3a7bff] to-[#6a5bff] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
-            <div className="text-xs text-[#66778d]">Loading Group Admin workspace…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="GROUP_ADMIN" label="Loading Group Admin workspace…" /> }
 );
 
 const SaWorkspaceShell = dynamic(
   () => import("@/components/subsidiary/shell").then((m) => m.SaWorkspaceShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#20a779] to-[#3a7bff] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
-            <div className="text-xs text-[#66778d]">Loading Subsidiary Admin workspace…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="SUBSIDIARY_ADMIN" label="Loading Subsidiary Admin workspace…" /> }
 );
 
 const SmWorkspaceShell = dynamic(
   () => import("@/components/manager/shell").then((m) => m.SmWorkspaceShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#7c5cff] to-[#3a7bff] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
-            <div className="text-xs text-[#66778d]">Loading Subsidiary Manager workspace…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="SUBSIDIARY_MANAGER" label="Loading Subsidiary Manager workspace…" /> }
 );
 
 const BmWorkspaceShell = dynamic(
   () => import("@/components/bm/shell").then((m) => m.BmWorkspaceShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#0284c7] to-[#0ea5e9] bg-clip-text text-[15px] font-extrabold text-transparent">BM</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL — Business Unit Manager</div>
-            <div className="text-xs text-[#66778d]">Loading Business Unit Manager workspace…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="BU_MANAGER" label="Loading Business Unit Manager workspace…" /> }
 );
 
 const BaWorkspaceShell = dynamic(
   () => import("@/components/ba/shell").then((m) => m.BaWorkspaceShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#0284c7] to-[#8b5cf6] bg-clip-text text-[15px] font-extrabold text-transparent">BA</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL — Business Unit Admin</div>
-            <div className="text-xs text-[#66778d]">Loading Business Unit Admin workspace…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="BU_ADMIN" label="Loading Business Unit Admin workspace…" /> }
 );
 
 const ProjectAdminWorkspaceShell = dynamic(
   () => import("@/components/project-admin/shell").then((m) => m.ProjectAdminWorkspaceShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#315CFF] to-[#8700E8] bg-clip-text text-[15px] font-extrabold text-transparent">PA</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL — Project Command Center</div>
-            <div className="text-xs text-[#66778d]">Loading Project Admin workspace…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="PROJECT_ADMIN" label="Loading Project Admin workspace…" /> }
 );
 
 const SiteOpsShell = dynamic(
   () => import("@/components/site-ops/shell").then((m) => m.SiteOpsShell),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-        <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-          <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-            <span className="bg-gradient-to-br from-[#f97316] to-[#0ea5e9] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
-          </span>
-          <div>
-            <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
-            <div className="text-xs text-[#66778d]">Loading Project User portal…</div>
-          </div>
-        </div>
-      </div>
-    ),
-  }
+  { ssr: false, loading: () => <PortalSplash role="ENV_DATA_USER" label="Loading Project User portal…" /> }
 );
 
 /* Project User Portal — the portal's own native experience (org → project →
    role → sign-in → workspace), mounted as its own gated surface. */
 const PuApp = dynamic(() => import("@/components/pu/pu-app"), {
   ssr: false,
-  loading: () => (
-    <div className="flex min-h-screen items-center justify-center bg-[#eef6fd]">
-      <div className="glass glass-sheen flex items-center gap-3 rounded-3xl px-6 py-5">
-        <span className="glass-strong flex h-10 w-10 items-center justify-center rounded-2xl">
-          <span className="bg-gradient-to-br from-[#f97316] to-[#0ea5e9] bg-clip-text text-[15px] font-extrabold text-transparent">ME</span>
-        </span>
-        <div>
-          <div className="text-sm font-semibold text-[#17263d]">MEIL ESG &amp; BRSR Platform</div>
-          <div className="text-xs text-[#66778d]">Opening Project User portal…</div>
-        </div>
-      </div>
-    </div>
-  ),
+  loading: () => <PortalSplash role="PROJECT_USER" label="Opening Project User portal…" />,
 });
 
 type Gate = "landing" | "enter" | "workspace" | "project-portal";

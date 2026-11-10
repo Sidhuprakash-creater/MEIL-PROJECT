@@ -33,8 +33,9 @@
 import * as React from "react";
 import {
   AlertTriangle, ArrowLeftRight, CheckCircle2, Download, FileText,
-  GitCompareArrows, Loader2, MessageSquare, ShieldCheck, Sparkles, XCircle,
+  GitCompareArrows, MessageSquare, ShieldCheck, Sparkles, XCircle,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -555,7 +556,7 @@ export function ReportReviewWorkspace({
                           <div className="flex shrink-0 items-center gap-2">
                             <Chip tone={doc.status === "VALID" ? "green" : doc.status === "EXPIRED" ? "red" : "amber"}>{doc.status}</Chip>
                             <Button variant="outline" size="sm" className="glass-subtle h-8 rounded-xl" onClick={() => { setActiveDoc(doc); void downloadDoc(doc); }} disabled={docLoading}>
-                              {docLoading && activeDoc?.id === doc.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                              {docLoading && activeDoc?.id === doc.id ? <Ring className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
                               <span className="ml-1.5">Download</span>
                             </Button>
                           </div>
@@ -629,7 +630,7 @@ export function ReportReviewWorkspace({
                     className="btn-bum-action rounded-2xl cursor-pointer"
                     onClick={() => setApproveOpen(true)}
                   >
-                    {decision.pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
+                    {decision.pending ? <Ring className="mr-1.5 h-4 w-4" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
                     {sub.status === "BU_APPROVED" ? "Approved (BU Sign-off)" : "Approve"}
                   </Button>
                 </div>
@@ -753,7 +754,7 @@ export function ReportReviewWorkspace({
                   });
                 }}
               >
-                {decision.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                {decision.pending && <Ring className="mr-1.5 h-4 w-4" />}
                 Confirm return for correction
               </Button>
             </div>
@@ -847,7 +848,7 @@ export function ReportReviewWorkspace({
                   });
                 }}
               >
-                {decision.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                {decision.pending && <Ring className="mr-1.5 h-4 w-4" />}
                 Confirm rejection
               </Button>
             </div>

@@ -2,7 +2,8 @@
 
 // ── SCREEN 08 — Roles & Permissions (People & Access) ──
 import { useMemo, useState } from "react";
-import { Check, Info, Loader2, RotateCcw, Save, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { Check, Info, RotateCcw, Save, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -264,7 +265,7 @@ export default function RolesView() {
                       <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset to defaults
                     </Button>
                     <Button size="sm" className="rounded-2xl" onClick={() => void save()} disabled={saveMut.pending}>
-                      {saveMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                      {saveMut.pending ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
                       Save permissions
                     </Button>
                   </div>

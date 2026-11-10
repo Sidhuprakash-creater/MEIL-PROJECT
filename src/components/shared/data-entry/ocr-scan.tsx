@@ -9,7 +9,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, ScanLine, X, CheckCircle2, Loader2, AlertTriangle, KeyRound } from 'lucide-react'
+import { Sparkles, ScanLine, X, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react'
+import { Ring } from '@/components/ring'
 
 export interface OcrFields {
   docType: string | null
@@ -135,7 +136,7 @@ export function OcrScanButton({
       >
         {scanning ? (
           <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-600" />
+            <Ring className="size-3.5 text-sky-600" />
             <span className="bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 bg-clip-text text-transparent font-extrabold">
               Scanning…
             </span>

@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Eye,
   Info,
-  Loader2,
   Mail,
   Megaphone,
   MessageSquare,
@@ -18,6 +17,7 @@ import {
   Users as UsersIcon,
   XCircle,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -315,7 +315,7 @@ export default function CommsView() {
               <>
                 <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setScheduleMode(false)} disabled={sendMut.pending}>Send instead</Button>
                 <Button variant="outline" className="glass-subtle rounded-2xl border-white/60" disabled={sendMut.pending} onClick={() => void submit("SCHEDULED")}>
-                  {sendMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="mr-1.5 h-3.5 w-3.5" />} Schedule
+                  {sendMut.pending ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <CalendarClock className="mr-1.5 h-3.5 w-3.5" />} Schedule
                 </Button>
               </>
             ) : (

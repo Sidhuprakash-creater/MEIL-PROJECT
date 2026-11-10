@@ -19,8 +19,9 @@ import { toast } from 'sonner'
 import {
   FileText, Upload, Filter, RefreshCw, AlertOctagon, ShieldCheck, XCircle,
   History, Eye, CheckCircle2, Hash, Link2, User, Calendar, FileCheck2,
-  FileType2, Building2, FolderOpen, ArrowRight, Inbox, Loader2, Info,
+  FileType2, Building2, FolderOpen, ArrowRight, Inbox, Info,
 } from 'lucide-react'
+import { Ring } from '@/components/ring'
 import { useApp } from '@/lib/pu/auth-context'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
@@ -536,7 +537,7 @@ export function EvidenceModule() {
               disabled={verifyBusy}
               className="btn-glass-primary rounded-full"
             >
-              {verifyBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              {verifyBusy ? <Ring className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
               Confirm Verify
             </Button>
           </DialogFooter>
@@ -576,7 +577,7 @@ export function EvidenceModule() {
               disabled={rejectBusy}
               className="rounded-full bg-rose-500 text-white hover:bg-rose-600"
             >
-              {rejectBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+              {rejectBusy ? <Ring className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
               Confirm Reject
             </Button>
           </DialogFooter>
@@ -1191,7 +1192,7 @@ function UploadForm({
       <div className="flex items-center justify-end gap-2 border-t border-white/60 pt-3">
         <Button variant="ghost" onClick={onClose} className="text-slate-600">Cancel</Button>
         <Button onClick={submit} disabled={busy || !file} className="btn-glass-primary rounded-full">
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+          {busy ? <Ring className="h-3.5 w-3.5" /> : <Upload className="h-3.5 w-3.5" />}
           {busy ? 'Uploading…' : 'Upload'}
         </Button>
       </div>

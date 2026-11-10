@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, AlertCircle, CheckCircle2, Clock, X, ChevronRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, X, ChevronRight } from "lucide-react";
+import { Ring } from "@/components/ring";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
 import type { ContributorRole } from "@/lib/project-admin/types";
 
@@ -74,7 +75,7 @@ export function PaButton({
   }[variant];
 
   const renderIcon = () => {
-    if (loading) return <Loader2 className="animate-spin" size={size === "sm" ? 14 : 16} />;
+    if (loading) return <Ring className={size === "sm" ? "size-3.5" : "size-4"} />;
     if (!Icon) return null;
     if (React.isValidElement(Icon)) return Icon;
     if (typeof Icon === "function") {

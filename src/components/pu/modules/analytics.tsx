@@ -12,8 +12,9 @@ import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import {
   Flame, Zap, Droplet, Recycle, Users, ShieldCheck, Building2,
   AlertOctagon, RefreshCw, TrendingUp, TrendingDown, Battery, Leaf,
-  HardHat, Activity, Gauge, Filter, Loader2
+  HardHat, Activity, Gauge, Filter
 } from 'lucide-react'
+import { Ring } from '@/components/ring'
 import {
   AreaChart, Area, LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -116,7 +117,7 @@ export function AnalyticsModule() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold tracking-tight text-slate-800">ESG Analytics</h1>
             <span className="status-pill status-approved"><Activity className="h-3 w-3" /> Live</span>
-            {refreshing && <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />}
+            {refreshing && <Ring className="h-3.5 w-3.5 text-blue-500" />}
           </div>
           <p className="mt-1 text-sm text-slate-500">
             Group-wide consolidated analytics · {k.orgs} group(s) · {k.projects} project(s) · {data.periods.length} periods

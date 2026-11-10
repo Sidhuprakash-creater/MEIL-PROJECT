@@ -12,7 +12,6 @@ import {
   History,
   KeyRound,
   ListChecks,
-  Loader2,
   Mail,
   Moon,
   MoreHorizontal,
@@ -23,6 +22,7 @@ import {
   UserPlus,
   Users as UsersIcon,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1243,7 +1243,7 @@ export default function UsersView() {
               disabled={bulkMut.pending}
               onClick={() => setBulkConfirmOpen(true)}
             >
-              {bulkMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ShieldOff className="mr-1.5 h-3.5 w-3.5" />} Suspend
+              {bulkMut.pending ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <ShieldOff className="mr-1.5 h-3.5 w-3.5" />} Suspend
             </Button>
             <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" disabled={bulkMut.pending} onClick={() => void bulkReactivate()}>
               <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Reactivate

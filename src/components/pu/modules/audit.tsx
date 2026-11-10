@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MeilBoxLoader } from '@/components/shared/meil-loader'
 import { toast } from 'sonner'
 import {
-  History, Search, AlertOctagon, RefreshCw, Loader2, GitBranch, ShieldCheck,
+  History, Search, AlertOctagon, RefreshCw, GitBranch, ShieldCheck,
   Database, Link2, Calculator, Send, FileCheck2, AlertTriangle, ArrowDown,
   ChevronRight, ChevronLeft, Building2, User, Clock, Filter, FileText,
   ArrowRight, Leaf, X, Calendar

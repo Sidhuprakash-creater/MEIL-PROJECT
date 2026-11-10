@@ -34,7 +34,6 @@ import {
   HardHat,
   Info,
   KeyRound,
-  Loader2,
   LockKeyhole,
   Network,
   ScrollText,
@@ -44,6 +43,7 @@ import {
   Workflow,
   X,
 } from "lucide-react";
+import { Ring } from "@/components/ring";
 import {
   PORTAL_ROLES,
   ROLES,
@@ -307,7 +307,7 @@ function SubsidiaryCombobox({
           >
             {loading ? (
               <li className="ep-combo-empty" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
-                <Loader2 size={14} className="ep-spin" style={{ animation: "ep-spin 0.7s linear infinite" }} />
+                <Ring className="size-3.5 text-amber-500" style={{ ["--duration" as string]: "0.7s" }} />
                 Loading subsidiaries…
               </li>
             ) : filtered.length === 0 ? (

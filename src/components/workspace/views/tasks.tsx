@@ -13,13 +13,13 @@ import {
   ClipboardList,
   Clock,
   Eye,
-  Loader2,
   MoreHorizontal,
   Plus,
   Trash2,
   TrendingUp,
   Users as UsersIcon,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -635,7 +635,7 @@ export default function TasksView() {
               void runRemind(t);
             }}
           >
-            {remindMut.pending ? <Loader2 className="h-3.5 w-3.5 animate-spin text-[color:var(--esg-blue)]" /> : <Bell className="h-3.5 w-3.5 text-[color:var(--esg-blue)]" />}
+            {remindMut.pending ? <Ring className="h-3.5 w-3.5 text-[color:var(--esg-blue)]" /> : <Bell className="h-3.5 w-3.5 text-[color:var(--esg-blue)]" />}
           </button>
         </span>
       ),

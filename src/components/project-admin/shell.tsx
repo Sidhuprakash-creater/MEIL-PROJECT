@@ -35,6 +35,7 @@ import { prefetchProjectAdminData } from "@/lib/project-admin/client";
 import type { PaViewId } from "@/lib/project-admin/types";
 import { PaButton, PaStatusBadge } from "./ui";
 import { PA_VIEW_COMPONENTS } from "./view-registry";
+import { LoaderRoleProvider } from "@/components/shared/meil-loader";
 import "./project-admin.css";
 
 /* Map view ids to Lucide icons (LayoutGrid for dashboard per reference) */
@@ -146,7 +147,8 @@ export function ProjectAdminWorkspaceShell({
     : "PA";
 
   return (
-    <div className="pa-root flex h-screen w-screen overflow-hidden">
+    <LoaderRoleProvider role="PROJECT_ADMIN">
+      <div className="pa-root flex h-screen w-screen overflow-hidden">
       {/* ── Atmospheric Glow Orbs ── */}
       <div className="pa-atmosphere" aria-hidden="true">
         <div className="pa-orb-1" />
@@ -446,7 +448,8 @@ export function ProjectAdminWorkspaceShell({
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </LoaderRoleProvider>
   );
 }
 

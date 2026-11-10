@@ -11,11 +11,11 @@ import {
   FileText,
   Layers,
   ListChecks,
-  Loader2,
   MessageSquare,
   Undo2,
   UserCheck,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -301,7 +301,7 @@ function ReviewDetail({ id }: { id: string }) {
               ) : (
                 <div className="flex flex-col gap-2">
                   <Button className="rounded-2xl" disabled={reviewMut.pending} onClick={() => { setComment(""); setDialog("approve"); }}>
-                    {reviewMut.pending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />} Approve
+                    {reviewMut.pending ? <Ring className="mr-1.5 h-4 w-4" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />} Approve
                   </Button>
                   <Button variant="outline" className="glass-subtle rounded-2xl border-white/60" disabled={reviewMut.pending} onClick={() => { setComment(""); setDialog("request_changes"); }}>
                     Request changes
@@ -337,7 +337,7 @@ function ReviewDetail({ id }: { id: string }) {
           <>
             <Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setDialog(null)} disabled={reviewMut.pending}>Cancel</Button>
             <Button className="rounded-2xl" disabled={reviewMut.pending} onClick={() => void runReview("approve", undefined, comment || undefined)}>
-              {reviewMut.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />} Approve submission
+              {reviewMut.pending && <Ring className="mr-1.5 h-4 w-4" />} Approve submission
             </Button>
           </>
         }
@@ -638,7 +638,7 @@ export default function ApprovalsView() {
           <div className="glass-strong glass-sheen flex flex-wrap items-center gap-2 rounded-3xl border-white/70 px-4 py-3 shadow-xl">
             <span className="mr-1 text-sm font-medium text-[color:var(--ink)]">{selectedIds.length} selected</span>
             <Button size="sm" className="rounded-2xl" disabled={bulkMut.pending || !approveableIds.length} onClick={() => setBulkApproveOpen(true)}>
-              {bulkMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
+              {bulkMut.pending ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
               Approve selected{approveableIds.length !== selectedIds.length ? ` (${approveableIds.length} eligible)` : ""}
             </Button>
             <Button variant="outline" size="sm" className="glass-subtle rounded-2xl border-white/60" onClick={exportSelected}>

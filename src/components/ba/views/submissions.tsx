@@ -8,7 +8,8 @@
 // return) belong to the BU Manager.
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CloudUpload, Loader2, Plus, RotateCcw, Save, ShieldAlert, Trash2, Workflow, X } from "lucide-react";
+import { CheckCircle2, CloudUpload, Plus, RotateCcw, Save, ShieldAlert, Trash2, Workflow, X } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { FilesIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -548,7 +549,7 @@ function SubmitDialog({
         <div className="flex gap-2">
           <Button variant="outline" className="rounded-2xl" onClick={() => onOpenChange(false)} disabled={busy}>Cancel</Button>
           <Button className="btn-ba-action rounded-2xl" onClick={() => void run()} disabled={busy}>
-            {busy && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            {busy && <Ring className="mr-1.5 h-4 w-4" />}
             {uploading ? "Uploading evidence…" : busy ? "Working…" : actionLabel}
           </Button>
         </div>

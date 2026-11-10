@@ -9,12 +9,12 @@ import {
   Download,
   FileText,
   Layers,
-  Loader2,
   MessageSquare,
   Plus,
   Send,
   Trash2,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -217,7 +217,7 @@ function SubmissionDetail({ id }: { id: string }) {
                 Reopen
               </Button>
             )}
-            {reviewMut.pending && <Loader2 className="h-4 w-4 animate-spin text-[color:var(--esg-blue)]" />}
+            {reviewMut.pending && <Ring className="h-4 w-4 text-[color:var(--esg-blue)]" />}
           </div>
         </GlassCard>
       ) : (
@@ -229,7 +229,7 @@ function SubmissionDetail({ id }: { id: string }) {
           </p>
           {s.status === "DRAFT" && (
             <Button variant="destructive" size="sm" className="rounded-2xl" disabled={discardMut.pending} onClick={() => setDialog({ kind: "discard" })}>
-              {discardMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />} Discard draft
+              {discardMut.pending ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <Trash2 className="mr-1.5 h-3.5 w-3.5" />} Discard draft
             </Button>
           )}
         </GlassCard>
@@ -382,7 +382,7 @@ function SubmissionDetail({ id }: { id: string }) {
                 disabled={!canComment || reviewMut.pending || comment.trim().length < 4}
                 onClick={() => void runReview("request_changes", comment.trim())}
               >
-                {reviewMut.pending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
+                {reviewMut.pending ? <Ring className="mr-1.5 h-3.5 w-3.5" /> : <Send className="mr-1.5 h-3.5 w-3.5" />}
                 Add comment & request changes
               </Button>
             </div>

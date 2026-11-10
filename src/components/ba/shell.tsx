@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import {
-  ChevronDown, ChevronsLeft, ChevronsRight, Command, LogOut, Menu, RefreshCw, Search, Settings, Sparkles, X,
+  ChevronDown, ChevronsLeft, ChevronsRight, Command, LogOut, Menu, Search, Settings, Sparkles, X,
 } from "lucide-react";
+import { LoaderRoleProvider, MeilLoader } from "@/components/shared/meil-loader";
 import {
   BellIcon, DatabaseIcon, FileCheckIcon, FilesIcon, GearIcon, GaugeIcon,
   HourglassIcon, MegaphoneIcon, PeopleIcon, ProjectsIcon, PulseIcon, ReportChartIcon,
@@ -447,6 +448,7 @@ export function BaWorkspaceShell({
   return (
     <SessionUserContext.Provider value={sessionUser}>
       <SignOutContext.Provider value={onSignOut ?? (() => undefined)}>
+        <LoaderRoleProvider role="BU_ADMIN">
         <div className="liquid-sky-ba relative h-dvh overflow-hidden">
           <div className="liquid-grain" aria-hidden="true" />
 
@@ -497,9 +499,7 @@ export function BaWorkspaceShell({
                 <React.Suspense
                   fallback={
                     <div className="glass-ba glass-sheen flex h-64 items-center justify-center rounded-3xl">
-                      <span className="flex items-center gap-2 text-sm text-[color:var(--ink-faint)]">
-                        <RefreshCw className="h-4 w-4 animate-spin" /> Loading module…
-                      </span>
+                      <MeilLoader size={48} role="BU_ADMIN" label="Loading module…" />
                     </div>
                   }
                 >
@@ -509,6 +509,7 @@ export function BaWorkspaceShell({
             </div>
           </div>
         </div>
+        </LoaderRoleProvider>
       </SignOutContext.Provider>
     </SessionUserContext.Provider>
   );

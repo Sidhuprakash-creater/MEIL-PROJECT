@@ -5,7 +5,8 @@
 // real file upload (stored bytes) and byte-accurate downloads.
 
 import { useMemo, useState } from "react";
-import { CloudUpload, Download, FileCheck2, Files, Inbox, Loader2 } from "lucide-react";
+import { CloudUpload, Download, FileCheck2, Files, Inbox } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { FileCheckIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -288,7 +289,7 @@ function UploadDialog({
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="outline" className="rounded-2xl" onClick={() => onOpenChange(false)} disabled={pending}>Cancel</Button>
         <Button className="btn-ba-action rounded-2xl" onClick={() => void submit()} disabled={pending || !file}>
-          {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+          {pending && <Ring className="mr-1.5 h-4 w-4" />}
           {pending ? "Uploading…" : "Upload"}
         </Button>
       </div>

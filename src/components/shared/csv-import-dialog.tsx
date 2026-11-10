@@ -14,9 +14,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload, FileSpreadsheet, Download, ArrowRight, ArrowLeft, CheckCircle2,
-  AlertTriangle, AlertOctagon, X, FileUp, Sparkles, Loader2, RefreshCw,
+  AlertTriangle, AlertOctagon, X, FileUp, Sparkles, RefreshCw,
   ListChecks, Inbox, type LucideIcon,
 } from 'lucide-react'
+import { Ring } from '@/components/ring'
 import { Dialog, DialogContent, DialogOverlay } from '@/components/ui/dialog'
 import { Progress } from '@/components/ui/progress'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
@@ -783,7 +784,7 @@ export function CsvImportDialog({
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                        <Ring className="size-4 text-blue-600" />
                         <span className="text-[12px] font-semibold text-slate-700">Importing rows…</span>
                       </div>
                       <span className="tabular-nums text-[11px] font-bold text-slate-700">{importProgress}%</span>

@@ -7,9 +7,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, CalendarClock, CheckCheck, Eye, Loader2, Megaphone, Plus, Search,
+  AlertTriangle, CalendarClock, CheckCheck, Eye, Megaphone, Plus, Search,
   Send, Users,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { MegaphoneIcon, ShieldIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -346,7 +347,7 @@ export default function CommsView() {
               Cancel
             </Button>
             <Button className="btn-action rounded-2xl" onClick={submit} disabled={sendMut.pending}>
-              {sendMut.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {sendMut.pending && <Ring className="mr-1.5 h-4 w-4" />}
               {form.sendMode === "schedule" ? "Schedule message" : "Send now"}
             </Button>
           </>

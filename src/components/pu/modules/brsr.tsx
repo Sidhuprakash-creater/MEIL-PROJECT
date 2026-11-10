@@ -20,9 +20,10 @@ import { toast } from 'sonner'
 import {
   FileCheck2, ChevronDown, ChevronRight, Sparkles, AlertOctagon, AlertTriangle,
   CheckCircle2, Clock, ShieldCheck, Database, Link2, Calculator, GitBranch,
-  Download, Eye, Loader2, Layers, ListChecks, RefreshCw, FileBarChart,
+  Download, Eye, Layers, ListChecks, RefreshCw, FileBarChart,
   ArrowRight, BookOpen, Building2, Hash, FileText, ChevronLeft, X
 } from 'lucide-react'
+import { Ring } from '@/components/ring'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription
 } from '@/components/ui/sheet'
@@ -306,7 +307,7 @@ export function BrsrModule() {
             disabled={generating}
             className="btn-glass-primary flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold disabled:opacity-60"
           >
-            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {generating ? <Ring className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}
             Generate BRSR Report
           </button>
         </div>

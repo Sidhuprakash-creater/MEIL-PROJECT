@@ -2,7 +2,8 @@
 
 // ── BU MANAGER · SCREEN 06 — Evidence Review ──
 import { useMemo, useState } from "react";
-import { Download, FileCheck2, Loader2 } from "lucide-react";
+import { Download, FileCheck2 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { FileCheckIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { fmtNumber, timeAgo, useBmApi } from "@/lib/bm/client";
@@ -173,7 +174,7 @@ export default function EvidenceView() {
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center gap-2">
                 <Button className="btn-bum-action rounded-2xl" onClick={() => void download(doc)} disabled={downloading}>
-                  {downloading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
+                  {downloading ? <Ring className="mr-1.5 h-4 w-4" /> : <Download className="mr-1.5 h-4 w-4" />}
                   Secure download
                 </Button>
                 {doc.parentReportId && (

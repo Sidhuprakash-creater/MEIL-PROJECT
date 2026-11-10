@@ -2,8 +2,10 @@
 
 // ── MEIL ESG workspace — reusable Liquid-Glass component library ──
 import * as React from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Inbox, Loader2, RotateCcw, Search } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Download, Inbox, RotateCcw, Search } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
+import { InlineLoader } from "@/components/shared/meil-loader";
+import { Ring } from "@/components/ring";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -230,12 +232,12 @@ export function KpiCard({
 
 /* ────────────────────────────── Loading / empty / error ────────────────────────────── */
 
-export function LoadingBlock({ rows = 3, label = "Loading data…" }: { rows?: number; label?: string }) {
+export function LoadingBlock({ rows = 3, label = "Loading data…", role }: { rows?: number; label?: string; role?: string }) {
   return (
     <div className="flex flex-col gap-3 p-5" role="status" aria-live="polite">
-      <div className="flex items-center gap-2 text-sm text-[color:var(--ink-faint)]">
-        <Loader2 className="h-4 w-4 animate-spin text-[color:var(--esg-blue)]" />
-        {label}
+      <div className="flex items-center gap-2.5 text-sm text-[color:var(--ink-faint)]">
+        <InlineLoader role={role} className="size-4" />
+        <span>{label}</span>
       </div>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="skeleton-shimmer h-10 rounded-2xl bg-white/40" />
@@ -674,7 +676,7 @@ export function ConfirmDialog({
             disabled={!canConfirm || pending}
             onClick={() => onConfirm(requireReason ? reason.trim() : undefined)}
           >
-            {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+            {pending && <Ring className="mr-1.5 size-4" />}
             {confirmLabel}
           </Button>
         </>
@@ -934,7 +936,7 @@ export function ActionButton({
 }: React.ComponentProps<typeof Button> & { pending?: boolean }) {
   return (
     <Button className={cn("rounded-2xl", className)} disabled={pending || props.disabled} {...props}>
-      {pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+      {pending && <Ring className="mr-1.5 size-4" />}
       {children}
     </Button>
   );

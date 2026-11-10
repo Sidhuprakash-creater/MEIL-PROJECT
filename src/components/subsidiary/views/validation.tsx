@@ -8,8 +8,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, History, Loader2, MoreHorizontal, UserPlus,
+  AlertTriangle, ArrowRight, CheckCircle2, History, MoreHorizontal, UserPlus,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { AlarmAlertIcon, CheckSealIcon, UserPlusIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -408,7 +409,7 @@ export default function ValidationView() {
               Cancel
             </Button>
             <Button className="btn-action rounded-2xl" onClick={submitAssign} disabled={assignMut.pending}>
-              {assignMut.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {assignMut.pending && <Ring className="mr-1.5 h-4 w-4" />}
               Assign owner
             </Button>
           </>
@@ -463,7 +464,7 @@ export default function ValidationView() {
               Cancel
             </Button>
             <Button className="btn-action rounded-2xl" onClick={submitResolve} disabled={resolveMut.pending}>
-              {resolveMut.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {resolveMut.pending && <Ring className="mr-1.5 h-4 w-4" />}
               Mark resolved
             </Button>
           </>

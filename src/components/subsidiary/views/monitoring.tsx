@@ -5,8 +5,9 @@
 // This view monitors BU & project reports and surfaces review outcomes read-only.
 import { useEffect, useState } from "react";
 import {
-  ArrowRight, FileText, FolderOpen, Loader2, Radar, ShieldAlert,
+  ArrowRight, FileText, FolderOpen, Radar, ShieldAlert,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import {
   AlarmAlertIcon, CheckSealIcon, FilesIcon, HourglassIcon, ProjectsIcon,
   UnitsIcon,
@@ -536,7 +537,7 @@ export default function MonitoringView() {
               <FolderOpen className="mr-1.5 h-4 w-4" /> Open Evidence &amp; Documents
             </Button>
             <p className="mt-2 flex items-center justify-center gap-1.5 text-[11px] text-[color:var(--ink-faint)]">
-              {sheetOpen && detailLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              {sheetOpen && detailLoading && <Ring className="h-3 w-3" />}
               Opens the evidence repository filtered to {detailData?.ref ?? "this report"}
             </p>
           </div>

@@ -7,9 +7,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Loader2, MinusCircle,
+  AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, MinusCircle,
   Package, Quote, RefreshCcw,
 } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { DatabaseIcon, FilesIcon, ReportChartIcon, ShieldIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -403,7 +404,7 @@ export default function EsgView() {
               Cancel
             </Button>
             <Button className="btn-action rounded-2xl" onClick={submitPackage} disabled={!hasApprovedChecked || submitMut.pending}>
-              {submitMut.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+              {submitMut.pending && <Ring className="mr-1.5 h-4 w-4" />}
               Submit to Group Admin
             </Button>
           </>

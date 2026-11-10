@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, StatusBadge } from "@/components/workspace/ui";
+import { LoaderRoleProvider, MeilLoader } from "@/components/shared/meil-loader";
 import { getViewComponent, VIEW_COMPONENTS } from "@/components/workspace/view-registry";
 import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useWorkspace } from "@/lib/esg/store";
 import type { ViewId } from "@/lib/esg/types";
@@ -419,6 +420,7 @@ export function WorkspaceShell({
   return (
     <SessionUserContext.Provider value={sessionUser ?? DEMO_SESSION_USER}>
       <SignOutContext.Provider value={onSignOut ?? (() => undefined)}>
+        <LoaderRoleProvider role={sessionUser?.role ?? "GROUP_ADMIN"}>
     <div className="relative h-dvh overflow-hidden">
       {/* Ambient orbs are intentionally static — animating them would force every
           backdrop-filter glass surface to re-sample its backdrop every frame. */}
@@ -476,9 +478,7 @@ export function WorkspaceShell({
             <React.Suspense
               fallback={
                 <div className="glass glass-sheen flex h-64 items-center justify-center rounded-3xl">
-                  <span className="flex items-center gap-2 text-sm text-[color:var(--ink-faint)]">
-                    <Command className="h-4 w-4 animate-pulse" /> Loading module…
-                  </span>
+                  <MeilLoader size={48} role={sessionUser?.role ?? "GROUP_ADMIN"} label="Loading module…" />
                 </div>
               }
             >
@@ -488,6 +488,7 @@ export function WorkspaceShell({
         </div>
       </div>
     </div>
+        </LoaderRoleProvider>
       </SignOutContext.Provider>
     </SessionUserContext.Provider>
   );

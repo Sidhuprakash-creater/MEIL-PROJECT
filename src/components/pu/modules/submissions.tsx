@@ -24,12 +24,13 @@ import {
 } from '@/components/shared/submission-review-window'
 import { toast } from 'sonner'
 import {
-  ClipboardList, RefreshCw, Filter, AlertOctagon, Inbox, Loader2,
+  ClipboardList, RefreshCw, Filter, AlertOctagon, Inbox,
   Send, ShieldCheck, XCircle, Lock, History, ChevronRight, CheckCircle2,
   Clock, AlertTriangle, FileCheck2, Files, ListChecks, Calculator, MessageSquare,
   Building2, CalendarDays, FolderOpen, Layers, Plus, Trash2, Eye, RotateCcw,
   FileText, FileSpreadsheet, BookOpen, Printer, Search,
 } from 'lucide-react'
+import { Ring } from '@/components/ring'
 import { useApp } from '@/lib/pu/auth-context'
 import { fieldLabel, fmtValue, itemFieldEntries, itemTitle } from '@/components/shared/field-labels'
 import {
@@ -1114,7 +1115,7 @@ export function SubmissionsModule() {
           <DialogFooter className="pt-2">
             <Button variant="ghost" onClick={() => { setApproveTarget(null); setApproveComment('') }} className="text-slate-600">Cancel</Button>
             <Button onClick={submitApprove} disabled={approveBusy} className="btn-glass-primary rounded-full">
-              {approveBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+              {approveBusy ? <Ring className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
               Confirm Approve
             </Button>
           </DialogFooter>
@@ -1233,7 +1234,7 @@ export function SubmissionsModule() {
           <DialogFooter className="pt-2">
             <Button variant="ghost" onClick={() => setRejectTarget(null)} className="text-slate-600">Cancel</Button>
             <Button onClick={submitReject} disabled={rejectBusy} className="rounded-full bg-rose-500 text-white hover:bg-rose-600">
-              {rejectBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <XCircle className="h-3.5 w-3.5" />}
+              {rejectBusy ? <Ring className="h-3.5 w-3.5" /> : <XCircle className="h-3.5 w-3.5" />}
               Request Corrections
             </Button>
           </DialogFooter>
@@ -1354,7 +1355,7 @@ export function SubmissionsModule() {
                       className="group flex flex-col items-start gap-2 rounded-xl border border-white/70 bg-white/70 p-3.5 text-left transition hover:border-blue-200 hover:bg-white hover:shadow-sm disabled:cursor-wait disabled:opacity-60"
                     >
                       <div className={`flex h-9 w-9 items-center justify-center rounded-xl border ${f.iconBox}`}>
-                        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+                        {busy ? <Ring className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
                       </div>
                       <div>
                         <div className="text-xs font-bold text-slate-800">

@@ -11,7 +11,6 @@
    own liquid-glass design system never leaks into the main platform.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { ArrowLeft } from "lucide-react";
 import { AppProvider, useApp } from "@/lib/pu/auth-context";
 import { WelcomeScreen } from "@/components/pu/welcome/welcome-screen";
 import { AppShell } from "@/components/pu/shell/app-shell";
@@ -26,7 +25,7 @@ import { EsgAnalystDashboard } from "@/components/pu/dashboard/esg-analyst-dashb
 import { FinanceDashboard } from "@/components/pu/dashboard/finance-dashboard";
 import { ModuleRouter } from "@/components/pu/modules/module-router";
 import { ErrorBoundary } from "@/components/pu/error-boundary";
-import { MeilLoader } from "@/components/shared/meil-loader";
+import { MeilLoader, LoaderRoleProvider } from "@/components/shared/meil-loader";
 import "./pu.css";
 
 /* Per-role dashboard mapping — each role gets a UNIQUE dashboard
@@ -69,8 +68,8 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
             style={{ width: 360, height: 360, top: "20%", left: "30%", background: "radial-gradient(circle, rgba(125,181,255,0.5), transparent 70%)" }}
           />
         </div>
-        <div className="glass-strong relative z-10 flex items-center justify-center rounded-2xl px-6 py-4">
-          <MeilLoader size={90} label="Loading MEIL ESG…" />
+        <div className="glass-strong relative z-10 flex items-center justify-center rounded-2xl px-8 py-6">
+          <MeilLoader size={64} label="Loading MEIL ESG…" />
         </div>
       </div>
     );
@@ -104,11 +103,13 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
 
 
   return (
-    <AppShell>
-      <ErrorBoundary label={activeModule}>
-        {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
-      </ErrorBoundary>
-    </AppShell>
+    <LoaderRoleProvider role={roleKey || "PROJECT_USER"}>
+      <AppShell>
+        <ErrorBoundary label={activeModule}>
+          {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
+        </ErrorBoundary>
+      </AppShell>
+    </LoaderRoleProvider>
   );
 }
 

@@ -22,6 +22,7 @@ import { EsgAnalystDashboard } from '@/components/site-ops/dashboard/esg-analyst
 import { FinanceDashboard } from '@/components/site-ops/dashboard/finance-dashboard'
 import { ModuleRouter } from '@/components/site-ops/modules/module-router'
 import { ErrorBoundary } from '@/components/site-ops/error-boundary'
+import { LoaderRoleProvider } from '@/components/shared/meil-loader'
 import type { ShellSessionUser } from '@/components/site-ops/context'
 
 // Per-role dashboard mapping — each role gets a UNIQUE dashboard
@@ -70,9 +71,11 @@ export function SiteOpsShell({
       {/* The portal owns its sky background (scoped, does not touch <body>). */}
       <div className="so-sky-bg">
         <AppProvider sessionUser={sessionUser} onSignOut={onSignOut}>
-          <ErrorBoundary label="root">
-            <Root />
-          </ErrorBoundary>
+          <LoaderRoleProvider role={sessionUser.role}>
+            <ErrorBoundary label="root">
+              <Root />
+            </ErrorBoundary>
+          </LoaderRoleProvider>
         </AppProvider>
       </div>
       {/* Ported modules emit toasts via sonner's programmatic API. */}

@@ -14,7 +14,8 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { AlertTriangle, Download, FileText, Loader2, MessageSquare, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Download, FileText, MessageSquare, ShieldCheck } from "lucide-react";
+import { Ring } from '@/components/ring'
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -194,7 +195,7 @@ export function ReportReviewDialog({
                   className="rounded-2xl bg-[#20a779] text-white hover:bg-[#168b65]"
                   onClick={() => setApproveOpen(true)}
                 >
-                  {decision.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  {decision.pending && <Ring className="mr-1.5 h-4 w-4" />}
                   Approve
                 </Button>
               </div>
@@ -370,7 +371,7 @@ export function ReportReviewDialog({
                       <div className="flex shrink-0 items-center gap-2">
                         <Chip tone={doc.status === "VALID" ? "green" : doc.status === "EXPIRED" ? "red" : "amber"}>{doc.status}</Chip>
                         <Button variant="outline" size="sm" className="glass-subtle h-8 rounded-xl" onClick={() => downloadDoc(doc)} disabled={docLoading}>
-                          {docLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                          {docLoading ? <Ring className="h-3.5 w-3.5" /> : <Download className="h-3.5 w-3.5" />}
                           <span className="ml-1.5">Download</span>
                         </Button>
                       </div>
@@ -442,7 +443,7 @@ export function ReportReviewDialog({
                 disabled={!rejectReasonValid || decision.pending}
                 onClick={() => void decide("reject", rejectReason.trim(), rejectInstructions.trim())}
               >
-                {decision.pending && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                {decision.pending && <Ring className="mr-1.5 h-4 w-4" />}
                 Confirm rejection
               </Button>
             </div>
