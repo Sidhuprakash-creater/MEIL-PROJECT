@@ -515,7 +515,9 @@ export async function POST(req: NextRequest) {
       const now = new Date();
       const approvalNote = comments?.trim() || "Approved by Project Admin with complete data verification.";
 
-      // Fetch submission to get submitter & record details
+      // Fetch submission to get submitter & record details. We also read the
+      // forward flags: a re-approval must NOT resurrect an item the PA already
+      // sent to the Business Unit (it would reappear in the Approved Dataset).
       const sub = await db.submission.findUnique({
         where: { id: submissionId },
         select: {
@@ -525,13 +527,18 @@ export async function POST(req: NextRequest) {
           module: true,
           submittedById: true,
           recordIds: true,
+          status: true,
+          forwardedToBu: true,
         },
       });
+      const alreadyForwarded = !!sub?.forwardedToBu;
 
-      // Update db.submission — status flips to APPROVED and the item is staged
-      // in the Approved Dataset + Consolidated Report. It is NOT auto-forwarded
-      // to the Business Unit: the PA decides when to send the whole batch from
-      // the Approved Dataset view (action "forward-to-bu").
+      // Update db.submission — status flips to APPROVED and, for a fresh
+      // (never-forwarded) item, it is staged in the Approved Dataset +
+      // Consolidated Report. It is NOT auto-forwarded to the Business Unit:
+      // the PA decides when to send the whole batch from the Approved Dataset
+      // view (action "forward-to-bu"). Items already delivered to the BU keep
+      // their forward state and stay hidden from the staging view.
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
@@ -541,8 +548,7 @@ export async function POST(req: NextRequest) {
           reviewedAt: now,
           updatedAt: now,
           inConsolidatedReport: true,
-          forwardedToBu: false,
-          forwardedToBuAt: null,
+          ...(alreadyForwarded ? {} : { forwardedToBu: false, forwardedToBuAt: null }),
         },
       });
 
@@ -560,7 +566,9 @@ export async function POST(req: NextRequest) {
         actorRole: "Project Admin",
         at: now.toISOString(),
         createdAt: now.toISOString(),
-        note: `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
+        note: alreadyForwarded
+          ? `${approvalNote} — re-approved after an earlier Business Unit handoff; the item stays with the BU and is not re-staged.`
+          : `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
         comment: approvalNote,
       });
       await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });

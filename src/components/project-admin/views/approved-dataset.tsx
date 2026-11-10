@@ -262,31 +262,26 @@ export default function ApprovedDatasetView() {
   const pendingForward = totalApproved;
 
   const handleForwardToBu = async () => {
-    if (!confirm("Submit the consolidated approved dataset to the Business Unit for review? These submissions will be forwarded at once.")) return;
+    if (!confirm("Send ALL staged approved submissions to the Business Unit in one consolidated batch?")) return;
     setConfirmOpen(false);
     setActionLoading(true);
     try {
       const res: any = await paApiPost("/api/project-admin/submissions", {
         action: "forward-to-bu",
-        comments: "Consolidated approved dataset submitted to Business Unit for review.",
+        comments: "Consolidated approved dataset sent to Business Unit in one batch.",
       });
       const n = res?.forwardedCount ?? 0;
       showToast(
         n > 0
-          ? `Submitted ${n} approved submission${n === 1 ? "" : "s"} to the Business Unit.`
-          : "No approved submissions were waiting to be forwarded."
+          ? `Sent ${n} approved submission${n === 1 ? "" : "s"} to the Business Unit together as one package.`
+          : "No staged submissions were waiting to be sent."
       );
       await load(true);
     } catch (err: any) {
-      alert(err.message || "Submit to Business Unit failed.");
+      alert(err.message || "Send to Business Unit failed.");
     } finally {
       setActionLoading(false);
     }
-  };
-
-  const getForwardedLabel = (item: SubmissionItem) => {
-    if (!forwardedCount[item.id]) return "Stage";
-    return "Forwarded";
   };
 
   if (loading) {
@@ -303,7 +298,7 @@ export default function ApprovedDatasetView() {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PaPageHeader
         title="Approved Dataset"
-        subtitle="Consolidated approved submissions staged for Business Unit handoff — grouped stepwise by module (Environment → Energy → Water → Waste, then Finance, HR, EHS, Procurement, CSR, Compliance)"
+        subtitle="Approved & staged submissions waiting for a single consolidated Business Unit handoff — grouped stepwise by module (Environment → Energy → Water → Waste, then Finance, HR, EHS, Procurement, CSR, Compliance). Once sent, items leave this list and reach the BU as one project package."
         actions={
           <div className="flex items-center gap-2">
             <PaButton
@@ -324,7 +319,7 @@ export default function ApprovedDatasetView() {
               className="flex items-center gap-1.5 bg-gradient-to-r from-[#315CFF] to-[#6542F5] hover:from-[#4768ff] hover:to-[#7653ff]"
             >
               <Send size={14} />
-              <span>Submit {pendingForward > 0 ? `${pendingForward} items` : "to BU"}</span>
+              <span>Send all {pendingForward > 0 ? `${pendingForward} items` : "to BU"}</span>
             </PaButton>
           </div>
         }
@@ -340,22 +335,22 @@ export default function ApprovedDatasetView() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <PaKpiCard
-          title="Total Approved"
+          title="Approved & Staged"
           value={totalApproved}
           icon={CheckCircle2}
           accentColor="#16A67A"
         />
         <PaKpiCard
-          title="Pending BU Handoff"
-          value={pendingForward}
-          icon={Clock}
-          accentColor="#E89B2D"
-        />
-        <PaKpiCard
-          title="Already Forwarded"
+          title="Sent to BU (hidden)"
           value={alreadyForwarded}
           icon={Send}
           accentColor="#315CFF"
+        />
+        <PaKpiCard
+          title="All-Time Approved"
+          value={totalApproved + alreadyForwarded}
+          icon={Clock}
+          accentColor="#E89B2D"
         />
         <PaKpiCard
           title="Module Groups"
@@ -369,9 +364,11 @@ export default function ApprovedDatasetView() {
         <PaGlassCard className="p-12 text-center">
           <div className="flex flex-col items-center justify-center gap-4">
             <AlertCircle size={40} className="text-slate-400" />
-            <div className="text-slate-800 font-bold">No approved submissions yet</div>
+            <div className="text-slate-800 font-bold">Nothing staged right now</div>
             <div className="text-slate-500 text-sm max-w-md">
-              Approve submissions from the Submissions view — they will appear here grouped by module. Once ready, submit them all to the Business Unit at once.
+              Approve reports from Data Collection Status, Submissions or Review & Corrections — they appear here, grouped by module.
+              When they're ready, press "Send all items" once and ALL of them go to the Business Unit together as one package. Items
+              already sent are removed from this view.
             </div>
             <PaButton variant="primary" size="sm" onClick={() => navigate("submissions")}>
               Go to Submissions
@@ -499,10 +496,10 @@ export default function ApprovedDatasetView() {
       {confirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="glass rounded-2xl p-6 w-full max-w-lg">
-            <h3 className="text-lg font-bold text-[#202938] mb-2">Submit to Business Unit</h3>
+            <h3 className="text-lg font-bold text-[#202938] mb-2">Send to Business Unit</h3>
             <p className="text-sm text-slate-600 mb-4">
-              The {pendingForward} pending approved submission{pendingForward === 1 ? "" : "s"} will be forwarded to the Business Unit as a single consolidated dataset.
-              The BU Manager will then review and approve each one. This action cannot be undone.
+              All {pendingForward} staged approved submission{pendingForward === 1 ? "" : "s"} will be delivered to the Business Unit AT ONCE as a single consolidated package — not one by one.
+              The BU sees them grouped under this project's name and can open the package to review every report inside. This action cannot be undone.
             </p>
             <div className="flex items-center justify-end gap-2.5">
               <PaButton variant="secondary" onClick={() => setConfirmOpen(false)}>Cancel</PaButton>

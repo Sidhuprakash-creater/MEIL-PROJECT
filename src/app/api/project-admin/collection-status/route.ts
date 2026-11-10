@@ -448,16 +448,20 @@ export async function POST(req: NextRequest) {
       const sub = await db.submission.findUnique({
         where: { id: submissionId },
         /* history is read so the approval trail can be appended exactly like
-           the /submissions approve flow does. */
-        select: { id: true, title: true, submittedById: true, recordIds: true, subsidiaryId: true, status: true, history: true },
+           the /submissions approve flow does. The forward flags matter too: a
+           re-approval must NOT resurrect an item the PA already sent to the
+           Business Unit (it would reappear in the Approved Dataset). */
+        select: { id: true, title: true, submittedById: true, recordIds: true, subsidiaryId: true, status: true, history: true, forwardedToBu: true },
       });
 
       // 1. Update Submission — mirror the /submissions approve semantics: the
-      //    item is stamped APPROVED and STAGED in the Approved Dataset +
-      //    Consolidated Report (inConsolidatedReport). It is NOT auto-forwarded
-      //    to the Business Unit — the PA sends the whole batch from the
-      //    Approved Dataset view, so the BU only ever receives one grouped,
-      //    consolidated handoff per project.
+      //    item is stamped APPROVED and, when it was never forwarded before,
+      //    STAGED in the Approved Dataset + Consolidated Report
+      //    (inConsolidatedReport). It is NOT auto-forwarded to the Business
+      //    Unit — the PA sends the whole batch from the Approved Dataset
+      //    view, so the BU only ever receives one grouped, consolidated
+      //    handoff per project. Items already delivered to the BU keep their
+      //    forward state and stay hidden from the staging view.
       await db.submission.updateMany({
         where: { id: submissionId },
         data: {
@@ -467,8 +471,7 @@ export async function POST(req: NextRequest) {
           reviewedAt: now,
           updatedAt: now,
           inConsolidatedReport: true,
-          forwardedToBu: false,
-          forwardedToBuAt: null,
+          ...(sub?.forwardedToBu ? {} : { forwardedToBu: false, forwardedToBuAt: null }),
         },
       });
 
@@ -488,7 +491,9 @@ export async function POST(req: NextRequest) {
           actorRole: "Project Admin",
           at: now.toISOString(),
           createdAt: now.toISOString(),
-          note: `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
+          note: sub.forwardedToBu
+            ? `${approvalNote} — re-approved after an earlier Business Unit handoff; the item stays with the BU and is not re-staged.`
+            : `${approvalNote} — staged in the Approved Dataset, pending consolidated Business Unit handoff.`,
           comment: approvalNote,
         });
         await db.submission.update({ where: { id: submissionId }, data: { history: JSON.stringify(hist) } });

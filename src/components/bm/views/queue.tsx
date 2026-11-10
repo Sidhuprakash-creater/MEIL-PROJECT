@@ -2,7 +2,7 @@
 
 // ── BU MANAGER · SCREEN 03 — Review Queue (primary work area) ──
 import { useMemo, useState } from "react";
-import { Landmark } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Inbox, Landmark } from "lucide-react";
 import { CheckSealIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { useBmWorkspace } from "@/lib/bm/store";
@@ -54,6 +54,50 @@ export default function QueueView() {
     if (evidenceFilter === "attached") list = list.filter((s) => s.evidenceCount > 0);
     return list;
   }, [data, search, projectFilter, evidenceFilter]);
+
+  /* ── Project inbox (queue tab only) ─────────────────────────────────────
+     Reports the Project Admin already approved and SENT to this business
+     unit arrive as one package per project. Group them under the project's
+     name; clicking a package expands every report inside. Those rows are
+     removed from the flat table below so nothing is double-listed. */
+  const forwardedPending = useMemo(
+    () =>
+      tab === "queue"
+        ? rows.filter(
+            (s) =>
+              s.projectId &&
+              s.forwardedToBu &&
+              (s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING"),
+          )
+        : [],
+    [rows, tab],
+  );
+  const forwardedIds = useMemo(() => new Set(forwardedPending.map((r) => r.id)), [forwardedPending]);
+  const tableRows = useMemo(() => rows.filter((r) => !forwardedIds.has(r.id)), [rows, forwardedIds]);
+
+  const projectPackages = useMemo(() => {
+    const byProject = new Map<string, BmSubmissionRow[]>();
+    forwardedPending.forEach((r) => {
+      const key = r.projectName || "Unassigned project";
+      if (!byProject.has(key)) byProject.set(key, []);
+      byProject.get(key)!.push(r);
+    });
+    return [...byProject.entries()]
+      .map(([projectName, items]) => ({
+        projectName,
+        items,
+        latestForwardAt: items
+          .map((s) => s.forwardedToBuAt ?? s.lastUpdated)
+          .filter(Boolean)
+          .sort()
+          .slice(-1)[0] as string | undefined,
+      }))
+      .sort((a, b) => (b.latestForwardAt ?? "").localeCompare(a.latestForwardAt ?? ""));
+  }, [forwardedPending]);
+
+  const [openPackages, setOpenPackages] = useState<Record<string, boolean>>({});
+  const togglePackage = (name: string) =>
+    setOpenPackages((prev) => ({ ...prev, [name]: !prev[name] }));
 
   const projectOptions = useMemo(() => {
     const map = new Map<string, string>();
@@ -166,16 +210,93 @@ export default function QueueView() {
         })}
       </div>
 
+      {/* Project inbox — consolidated packages forwarded by Project Admins */}
+      {tab === "queue" && projectPackages.length > 0 && (
+        <div className="glass-bum glass-sheen rounded-2xl p-3 space-y-2.5">
+          <div className="flex items-center gap-2 px-1 pt-1">
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[rgba(139,92,246,0.14)]">
+              <Inbox className="h-4 w-4 text-[color:var(--bum-purple-deep)]" />
+            </span>
+            <div className="text-[13.5px] font-bold text-[color:var(--ink)]">Project report packages</div>
+            <Chip tone="purple">{projectPackages.length} project{projectPackages.length === 1 ? "" : "s"}</Chip>
+            <div className="ml-auto text-[11px] text-[color:var(--ink-faint)]">Sent by Project Admins — click a project to open its reports</div>
+          </div>
+          {projectPackages.map((pkg) => {
+            const open = !!openPackages[pkg.projectName];
+            return (
+              <div key={pkg.projectName} className="glass-subtle rounded-2xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => togglePackage(pkg.projectName)}
+                  aria-expanded={open}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/50"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(139,92,246,0.12)]">
+                    <Building2 className="h-4.5 w-4.5 text-[color:var(--bum-purple-deep)]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-[13.5px] font-bold text-[color:var(--ink)]">{pkg.projectName}</span>
+                      <Chip tone="purple">{pkg.items.length} report{pkg.items.length === 1 ? "" : "s"}</Chip>
+                      {open && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[color:var(--ink-faint)]">
+                          received {pkg.latestForwardAt ? fmtDate(pkg.latestForwardAt) : "recently"}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-[color:var(--ink-faint)]">
+                      Reports have arrived from this project — approved by the Project Admin, awaiting your review
+                    </div>
+                  </div>
+                  <span className="text-[color:var(--bum-purple-deep)]">
+                    {open ? <ChevronDown className="h-4.5 w-4.5" /> : <ChevronRight className="h-4.5 w-4.5" />}
+                  </span>
+                </button>
+                {open && (
+                  <div className="divide-y divide-[rgba(139,92,246,0.08)] border-t border-[rgba(139,92,246,0.12)] bg-white/40">
+                    {pkg.items.map((r) => (
+                      <div key={r.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="truncate font-mono text-[11.5px] font-semibold text-[color:var(--bum-purple-deep)]">{r.ref}</span>
+                            <Chip tone="purple">{r.category}</Chip>
+                            <StatusChip status={r.status} />
+                          </div>
+                          <div className="truncate text-[12.5px] font-medium text-[color:var(--ink)]">{r.title}</div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[10.5px] text-[color:var(--ink-faint)]">
+                            <span>{r.period} · {r.fiscalQuarter}</span>
+                            <span>·</span>
+                            <span>forwarded {fmtDate(r.forwardedToBuAt ?? r.lastUpdated)}</span>
+                            <EvidenceChip count={r.evidenceCount} />
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px]">{fmtDate(r.reviewDeadline)}</span>
+                          <UrgencyChip days={r.daysRemaining} />
+                          <Button size="sm" className="btn-bum-action h-8 rounded-xl" onClick={() => openReview(r.id)}>
+                            Review
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <DataTable
         columns={columns}
-        rows={rows}
+        rows={tableRows}
         loading={loading && !data}
         error={error}
         onRetry={refetch}
         pageSize={10}
         onRowClick={(r) => openReview(r.id)}
-        emptyTitle="The review queue is clear"
-        emptyMessage="No reports match this tab right now. New submissions from project teams appear here within seconds."
+        emptyTitle="Only packaged reports remain"
+        emptyMessage="Every report in this queue arrived via the project packages above — open a package to review it. Non-packaged reports would appear here."
         emptyAction={<Button className="btn-bum-action rounded-2xl" variant="outline" onClick={() => navigate("corrections")}>Check corrections &amp; rejections</Button>}
         toolbar={
           <Toolbar
@@ -187,7 +308,7 @@ export default function QueueView() {
               { key: "evidence", label: "Evidence", value: evidenceFilter, onChange: setEvidenceFilter, options: [{ value: "ALL", label: "Any" }, { value: "attached", label: "Evidence attached" }, { value: "none", label: "Missing evidence" }] },
             ]}
             onReset={() => { setSearch(""); setProjectFilter("ALL"); setEvidenceFilter("ALL"); }}
-            resultCount={rows.length}
+            resultCount={tableRows.length}
             right={<Chip tone="purple">{data?.counts.queue ?? 0} in queue</Chip>}
           />
         }
