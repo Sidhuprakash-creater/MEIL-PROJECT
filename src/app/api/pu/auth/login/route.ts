@@ -130,7 +130,8 @@ export async function POST(req: NextRequest) {
     })
     res.headers.set('Set-Cookie', cookie)
     return res
-  } catch {
-    return NextResponse.json({ error: 'Login failed' }, { status: 500 })
+  } catch (err: any) {
+    console.error('[PU_AUTH_LOGIN_ERROR]', err)
+    return NextResponse.json({ error: err?.message || 'Login failed' }, { status: 500 })
   }
 }
