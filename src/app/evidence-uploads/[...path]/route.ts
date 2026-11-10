@@ -125,3 +125,4 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to serve file', detail: e?.message }, { status: 500 })
   }
 }
+
