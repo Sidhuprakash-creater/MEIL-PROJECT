@@ -171,7 +171,7 @@ export default function DashboardView() {
       <div>
         <div className="mb-2.5 flex items-center gap-2">
           <ProjectsIcon className="h-4 w-4 text-[color:var(--esg-purple)]" />
-          <h2 className="text-[13px] font-bold uppercase tracking-widest text-[color:var(--ink-soft)]">Project Reports — {data.period}</h2>
+          <h2 className="text-[13px] font-bold uppercase tracking-widest text-[color:var(--ink-soft)]">Subsidiary Reports — {data.period}</h2>
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           <StatusCard icon={CheckSealIcon} hue={STATUS_HUE.SUBMITTED} label="Project Submitted" hint="Awaiting first look" value={k.prjSubmitted} onClick={() => navigate("reports-project", { statusFilter: "submitted" })} />

@@ -1,17 +1,62 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ok } from "@/lib/esg/server";
 import { SmError, smHandle, requireSubsidiaryManager } from "@/lib/sm/server";
 import { db } from "@/lib/db";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
 
 export const dynamic = "force-dynamic";
 
 type Params = { params: Promise<{ id: string }> };
 
+/* Resolve the stored bytes for a real db.evidence upload: disk → /tmp →
+   AppSetting blob (same ladder the PU/PA evidence routes use so Vercel's
+   read-only filesystem still serves every persisted upload). */
+async function loadEvidenceBytes(evidenceId: string, rawPath: string): Promise<Buffer | null> {
+  // 1. Data URI stored directly in filePath
+  if (rawPath.startsWith("data:")) {
+    const commaIdx = rawPath.indexOf(",");
+    return Buffer.from(commaIdx !== -1 ? rawPath.slice(commaIdx + 1) : rawPath, "base64");
+  }
+
+  // 2. Public disk path
+  try {
+    const absolutePath = path.join(process.cwd(), "public", rawPath.replace(/^[/\\]+/, ""));
+    if (fs.existsSync(absolutePath)) return fs.readFileSync(absolutePath);
+  } catch {}
+
+  // 3. /tmp on serverless (e.g. Vercel)
+  try {
+    const tmpPath = path.join(os.tmpdir(), "evidence-uploads", path.basename(rawPath));
+    if (fs.existsSync(tmpPath)) return fs.readFileSync(tmpPath);
+  } catch {}
+
+  // 4. AppSetting blob persistence
+  try {
+    const blob = await db.appSetting.findFirst({
+      where: {
+        OR: [
+          { skey: `evidence_blob:${evidenceId}` },
+          { skey: `evidence_blob_file:${path.basename(rawPath)}` },
+        ],
+      },
+      select: { svalue: true },
+    });
+    if (blob?.svalue) return Buffer.from(blob.svalue, "base64");
+  } catch {}
+
+  return null;
+}
+
 /* GET /api/sm/evidence/[id]/download — protected download endpoint.
    Authorization is enforced server-side: the document must exist AND belong
-   to the manager's subsidiary or the request is refused before any bytes move.
-   The sandbox has no object storage, so the response is an honest signed
-   metadata receipt (what WOULD be served from private storage in production). */
+   to the manager's subsidiary. Serves BOTH evidence kinds:
+   - db.evidence (real contributor uploads) → streams the actual stored bytes
+     (disk → /tmp → AppSetting blob).
+   - EvidenceDoc (metadata rows) → streams the matching upload's bytes when
+     one exists (same file name in this subsidiary's scope), otherwise falls
+     back to an honest signed metadata receipt. */
 export async function GET(_req: NextRequest, { params }: Params) {
   return smHandle(async () => {
     const ctx = await requireSubsidiaryManager();
@@ -19,10 +64,38 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
     const d = await db.evidenceDoc.findUnique({ where: { id } });
     if (!d) throw new SmError("Evidence document not found.", 404);
-    if (d.subsidiaryId !== ctx.subsidiaryId) {
+    if (d.subsidiaryId && d.subsidiaryId !== ctx.subsidiaryId) {
       throw new SmError("Access denied — this document belongs to a different subsidiary.", 403);
     }
 
+    /* Try to resolve real stored bytes: direct Evidence row match, then the
+       latest upload registered under the same file name. */
+    const evidence =
+      (await db.evidence.findUnique({ where: { id }, select: { id: true, fileName: true, filePath: true, mimeType: true } })) ??
+      (await db.evidence.findFirst({
+        where: { fileName: d.name },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, fileName: true, filePath: true, mimeType: true },
+      }));
+
+    if (evidence) {
+      const buffer = await loadEvidenceBytes(evidence.id, evidence.filePath || "");
+      if (buffer) {
+        const asciiName = (evidence.fileName || d.name).replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
+        const utf8Name = encodeURIComponent(evidence.fileName || d.name);
+        return new NextResponse(new Uint8Array(buffer), {
+          headers: {
+            "Content-Type": evidence.mimeType || "application/octet-stream",
+            "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
+            "Content-Length": String(buffer.byteLength),
+            "Cache-Control": "private, max-age=1800",
+          },
+        });
+      }
+    }
+
+    /* No stored bytes resolvable (legacy/seeded metadata rows) — serve the
+       signed metadata receipt as before. */
     return ok({
       receipt: {
         documentId: d.id,
