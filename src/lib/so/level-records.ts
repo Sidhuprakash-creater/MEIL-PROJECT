@@ -66,7 +66,7 @@ const STORE_PATH = path.join(process.cwd(), 'prisma', 'level-records-store.json'
    one store, two entry points. */
 const BLOB_SKEY = 'level_records_blob'
 let blobRecords: LevelRecord[] | null = null
-let blobHydrationStarted = false
+let lastSelfWriteAt = 0
 
 async function persistLevelRecordsToDb(records: LevelRecord[]): Promise<void> {
   try {
@@ -82,10 +82,10 @@ async function persistLevelRecordsToDb(records: LevelRecord[]): Promise<void> {
   }
 }
 
-/** Call ONCE per request in server handlers before reading/writing the store. */
+/** Re-reads the DB blob per request unless this lambda wrote it moments ago —
+   hydrate-once made warm lambdas miss records submitted after warm-up. */
 export async function ensureSoLevelRecordsLoaded(): Promise<void> {
-  if (blobHydrationStarted) return
-  blobHydrationStarted = true
+  if (Date.now() - lastSelfWriteAt < 5000) return
   try {
     const { db } = await import('@/lib/db')
     const row = await db.appSetting.findUnique({ where: { skey: BLOB_SKEY }, select: { svalue: true } })
@@ -124,6 +124,7 @@ function writeStore(records: LevelRecord[]): void {
   /* DB blob is the durable copy — always written, even when the file write
      fails on a read-only filesystem. */
   blobRecords = records
+  lastSelfWriteAt = Date.now()
   void persistLevelRecordsToDb(records)
   try {
     const dir = path.dirname(STORE_PATH)
