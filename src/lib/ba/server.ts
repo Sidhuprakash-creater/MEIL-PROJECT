@@ -13,7 +13,8 @@ import type { SessionPayload } from "@/lib/platform-config";
    every query below is filtered by the session's businessUnitId.
 
    Role boundary (enforced here, not in the UI):
-     · BU_ADMIN: read/monitor + operational coordination (manage BU users,
+     · BU_ADMIN: read/monitor + operational coordination (create projects within
+       its own BU, manage BU users,
        assign project deadlines within policy, monitor submissions + evidence,
        send reminders, prepare the BU reporting package).
      · Approval / rejection transitions are NEVER exposed on /api/ba/*.

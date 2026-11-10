@@ -1,16 +1,16 @@
 "use client";
 
-// ── BU ADMIN · SCREEN 05 — Project Directory (read-only) ──
-// Projects are created by the Subsidiary Admin. The BU Admin may monitor,
-// inspect and assign deadlines — but never create or delete.
+// ── BU ADMIN · SCREEN 05 — Project Directory ──
+// The BU Admin registers projects under its own business unit, monitors
+// reporting, inspects teams and assigns deadlines.
 
 import { useMemo, useState } from "react";
-import { Building2, ShieldAlert } from "lucide-react";
+import { Building2, Plus } from "lucide-react";
 import { ProjectsIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useBaApi, fmtDate, timeAgo, fmtDateTime } from "@/lib/ba/client";
+import { useBaApi, apiPost, fmtDate, timeAgo, fmtDateTime } from "@/lib/ba/client";
 import { useBaWorkspace } from "@/lib/ba/store";
 import type { ProjectRow } from "@/lib/ba/types";
 import {
@@ -40,6 +40,40 @@ export default function ProjectsView() {
   const [ptype, setPtype] = useState("ALL");
   const [status, setStatus] = useState("ALL");
   const [detailId, setDetailId] = useState<string | null>(null);
+
+  /* New-project dialog */
+  const [createOpen, setCreateOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", code: "", location: "", ptype: "SITE", capacityMw: "", frequency: "MONTHLY" });
+
+  const openCreate = () => {
+    setForm({ name: "", code: "", location: "", ptype: "SITE", capacityMw: "", frequency: "MONTHLY" });
+    setCreateError(null);
+    setCreateOpen(true);
+  };
+  const submitCreate = async () => {
+    if (!form.name.trim()) { setCreateError("Project name is required."); return; }
+    setCreating(true);
+    setCreateError(null);
+    try {
+      await apiPost("/api/ba/projects", {
+        name: form.name.trim(),
+        code: form.code.trim() || undefined,
+        location: form.location.trim(),
+        ptype: form.ptype,
+        capacityMw: form.capacityMw ? Number(form.capacityMw) : 0,
+        frequency: form.frequency,
+        status: "ACTIVE",
+      });
+      setCreateOpen(false);
+      refetch();
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Failed to create project.");
+    } finally {
+      setCreating(false);
+    }
+  };
 
   const q = search.toLowerCase();
   const apiQ = `/api/ba/projects?q=${encodeURIComponent(q)}&ptype=${ptype}&status=${status}&period=${encodeURIComponent(reportingYear)}`;
@@ -75,20 +109,79 @@ export default function ProjectsView() {
     <div className="view-in space-y-4 pb-6">
       <PageHeader
         title="Project Directory"
-        description={`${reportingYear} · Projects under your BU. Projects are created by the Subsidiary Admin — the BU Admin monitors them and assigns project deadlines within policy.`}
+        description={`${reportingYear} · Projects under your BU. Register new projects here, monitor reporting and assign project deadlines within policy.`}
         icon={ProjectsIcon}
+        actions={
+          <Button className="btn-ba-action rounded-2xl" onClick={openCreate}>
+            <Plus className="mr-1 h-4 w-4" /><span>New project</span>
+          </Button>
+        }
       />
 
-      {/* Boundary notice */}
-      <div className="glass-ba glass-sheen flex items-start gap-3 rounded-3xl p-4">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[rgba(197,121,38,0.12)] text-[#c57926]"><ShieldAlert className="h-4 w-4" /></span>
-        <div className="min-w-0">
-          <div className="text-[13px] font-semibold text-[color:var(--ink)]">Administrative boundary — Projects are read-only</div>
-          <p className="mt-0.5 text-[12px] text-[color:var(--ink-soft)]">
-            Your Subsidiary Admin owns project creation, profile editing and deactivation. From this workspace you can monitor each project's reporting, inspect teams and submissions, and assign project-level reporting deadlines inside the subsidiary mandatory window.
-          </p>
+      {/* Create project dialog */}
+      {createOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => !creating && setCreateOpen(false)}>
+          <div className="glass-ba glass-sheen w-full max-w-lg rounded-3xl p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center gap-2">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[rgba(52,139,232,0.12)] text-[#348BE8]"><Building2 className="h-4 w-4" /></span>
+              <div>
+                <div className="text-[14px] font-bold text-[color:var(--ink)]">Register a new project</div>
+                <div className="text-[11px] text-[color:var(--ink-faint)]">The project is created under your business unit.</div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">Project name *</label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Kaleshwaram Lift Irrigation Package-09" disabled={creating} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">Code (optional)</label>
+                  <Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Auto-generated" disabled={creating} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">Location</label>
+                  <Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Telangana" disabled={creating} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">Type</label>
+                  <Select value={form.ptype} onValueChange={(v) => setForm({ ...form, ptype: v })}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ptypeFacets.length > 0 ? ptypeFacets.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      )) : <SelectItem value="SITE">Site</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">Capacity (MW)</label>
+                  <Input type="number" min="0" value={form.capacityMw} onChange={(e) => setForm({ ...form, capacityMw: e.target.value })} placeholder="0" disabled={creating} />
+                </div>
+                <div>
+                  <label className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-soft)]">Frequency</label>
+                  <Select value={form.frequency} onValueChange={(v) => setForm({ ...form, frequency: v })}>
+                    <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MONTHLY">Monthly</SelectItem>
+                      <SelectItem value="QUARTERLY">Quarterly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {createError && <div className="rounded-xl bg-[rgba(227,93,106,0.1)] px-3 py-2 text-[12px] font-semibold text-[#E35D6A]">{createError}</div>}
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" className="rounded-2xl" onClick={() => setCreateOpen(false)} disabled={creating}>Cancel</Button>
+                <Button className="btn-ba-action rounded-2xl" onClick={submitCreate} disabled={creating}>
+                  {creating ? "Creating…" : "Create project"}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       <Toolbar
         search={search}
@@ -112,7 +205,7 @@ export default function ProjectsView() {
         pageSize={10}
         onRowClick={(r) => setDetailId(r.id)}
         emptyTitle={data?.total === 0 ? "No projects in your BU" : "No matches"}
-        emptyMessage={data?.total === 0 ? "Ask your Subsidiary Admin to register the BU's projects." : "Try adjusting the search or filters."}
+        emptyMessage={data?.total === 0 ? "Register the BU's first project with the 'New project' button." : "Try adjusting the search or filters."}
         mobileCard={(r) => (
           <div className="flex flex-col gap-2 p-3">
             <div className="flex items-center justify-between"><span className="text-[13px] font-semibold">{r.name}</span><StatusBadge status={r.status} /></div>
