@@ -613,14 +613,17 @@ function PortalFlow({
       { label: "BU Admin — Gopal Rao", employeeId: "BU-1002", role: "BU_ADMIN", subId: MEIL_SUB, buId: MEIL_IWEN_BU },
     ],
     project: [
-      { label: "Project Admin — K. Venkataramana", employeeId: "ADM-1001", role: "PROJECT_ADMIN", projCode: "PRJ-RIG-HH300" },
-      { label: "Environment — Rohit Kumar", employeeId: "PU-ENV-014", role: "ENV_DATA_USER", projCode: "PRJ-PVG-SOL" },
-      { label: "Finance — Rahul Verma", employeeId: "PU-FIN-015", role: "FIN_RESOURCE_USER", projCode: "PRJ-MONG" },
-      { label: "HR — Sunita Rao", employeeId: "PU-HR-016", role: "HR_USER", projCode: "PRJ-ZOJ" },
-      { label: "EHS — K. Venkat", employeeId: "PU-EHS-017", role: "EHS_USER", projCode: "PRJ-MONG" },
-      { label: "Procurement — Priya Nair", employeeId: "PU-PRC-018", role: "PROCUREMENT_USER", projCode: "PRJ-TBTT" },
-      { label: "CSR — Imran Sheikh", employeeId: "PU-CSR-019", role: "CSR_USER", projCode: "PRJ-KLIP" },
-      { label: "Compliance — Deepika Joshi", employeeId: "PU-CMP-020", role: "COMPLIANCE_USER", projCode: "PRJ-POLA" },
+      /* The one-click demo logins follow the Kaleshwaram project (the BU's
+         reference project) — each account is the real user of THAT project,
+         so the console shows the matching project and role. */
+      { label: "Project Admin — Kaleshwaram", employeeId: "ADM-KLIP-01", role: "PROJECT_ADMIN", projCode: "PRJ-KLIP" },
+      { label: "Environment — Ramesh Iyer", employeeId: "PU-KLIP-ENV", role: "ENV_DATA_USER", projCode: "PRJ-KLIP" },
+      { label: "Finance — Anil Kumar", employeeId: "PU-KLIP-FIN", role: "FIN_RESOURCE_USER", projCode: "PRJ-KLIP" },
+      { label: "HR — S. Rao", employeeId: "PU-KLIP-HR", role: "HR_USER", projCode: "PRJ-KLIP" },
+      { label: "EHS — Prakash Reddy", employeeId: "PU-KLIP-EHS", role: "EHS_USER", projCode: "PRJ-KLIP" },
+      { label: "Procurement — Sravani Lakshmi", employeeId: "PU-KLIP-PRC", role: "PROCUREMENT_USER", projCode: "PRJ-KLIP" },
+      { label: "CSR — Imran Sheikh", employeeId: "PU-KLIP-CSR", role: "CSR_USER", projCode: "PRJ-KLIP" },
+      { label: "Compliance — Vinay Kumar", employeeId: "PU-KLIP-CMP", role: "COMPLIANCE_USER", projCode: "PRJ-KLIP" },
       { label: "ESG Analyst — Sameer Khan", employeeId: "PU-ANA-021", role: "ESG_ANALYST", projCode: "PRJ-MONG" },
     ],
   };

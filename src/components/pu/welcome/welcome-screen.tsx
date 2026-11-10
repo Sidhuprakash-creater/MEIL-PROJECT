@@ -132,6 +132,82 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
      ends up on the project they are actually assigned to. */
   const { businessUnits, findBu, busOfSub } = useOrgTree()
 
+  /* ── The role cards show the REAL person of the selected project ────────
+     The demo roster above is only a fallback: when the picked project has a
+     user for that role, that user's name + email are used — so
+     "Environment Data User" on Kaleshwaram shows the Kaleshwaram
+     environment officer, not a demo name from another project. */
+  const [projectUsers, setProjectUsers] = useState<{ name: string; email: string; role: string }[]>([])
+
+  /* The portal role-card key → the database role of the account. */
+  const ROLE_TO_DB: Record<string, string[]> = {
+    PROJECT_USER: ['ENV_DATA_USER'],
+    FINANCE_USER: ['FIN_RESOURCE_USER'],
+    HR_USER: ['HR_USER'],
+    EHS_USER: ['EHS_USER'],
+    PROCUREMENT_USER: ['PROCUREMENT_USER'],
+    CSR_USER: ['CSR_USER'],
+    COMPLIANCE_USER: ['COMPLIANCE_USER'],
+    PROJECT_ADMIN: ['PROJECT_ADMIN'],
+  }
+
+  /* ── Drop a stale selection ─────────────────────────────────────────────
+     The browser may still hold a legacy seed id ('prj-klip' / 'bu-iwen') in
+     localStorage. Those rows do not exist in the database, so the portal
+     silently worked with an unresolvable project. When the real tree loads,
+     a selection that is not part of it is mapped by CODE (the seed ids carry
+     the same codes: 'prj-klip' → PRJ-KLIP) and otherwise falls back to the
+     first project of the selected business unit. */
+  useEffect(() => {
+    if (!businessUnits.length) return
+    const allProjects = businessUnits.flatMap((b) => b.projects)
+    const projectValid = !!activeProjectId && allProjects.some((p) => p.id === activeProjectId)
+    const buValid = !!activeBuId && businessUnits.some((b) => b.id === activeBuId)
+    if (projectValid && buValid) return
+
+    /* Legacy ids → the real row with the same CODE. */
+    const legacyBu = MEIL_BUSINESS_UNITS.find((b) => b.id === activeBuId)
+    const legacyProject = legacyBu?.projects.find((p) => p.id === activeProjectId)
+      ?? MEIL_BUSINESS_UNITS.flatMap((b) => b.projects).find((p) => p.id === activeProjectId)
+
+    let bu = buValid ? businessUnits.find((b) => b.id === activeBuId)! : undefined
+    if (!bu && legacyBu?.code) bu = businessUnits.find((b) => b.code === legacyBu.code)
+    if (!bu) bu = businessUnits[0]
+
+    let project = bu.projects.find((p) => p.id === activeProjectId)
+    if (!project && legacyProject?.code) {
+      const byCode = businessUnits.flatMap((b) => b.projects).find((p) => p.code === legacyProject.code)
+      if (byCode && byCode.buId === bu.id) project = byCode
+    }
+    if (!project) project = bu.projects[0]
+    if (!project) return
+
+    setActiveBuId(bu.id)
+    setActiveProjectId(project.id)
+    setSelectedBuId(bu.id)
+    setSelectedProjectId(project.id)
+  }, [businessUnits, activeBuId, activeProjectId])
+
+  useEffect(() => {
+    const pid = activeProjectId
+    if (!pid) { setProjectUsers([]); return }
+    let alive = true
+    fetch(`/api/pu/project-users?projectId=${encodeURIComponent(pid)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (alive) setProjectUsers(d?.users ?? []) })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [activeProjectId])
+
+  const rolesForProject = useMemo<RoleCardDef[]>(() => {
+    if (!projectUsers.length) return ROLES
+    return ROLES.map((r) => {
+      const wanted = ROLE_TO_DB[r.key] ?? [r.key]
+      const match = projectUsers.find((u) => wanted.includes(u.role))
+      return match ? { ...r, name: match.name, email: match.email } : r
+    })
+  }, [projectUsers])
+
   // Role & login state
   const [selectedRole, setSelectedRole] = useState<RoleCardDef | null>(null)
   const [hoveredRole, setHoveredRole] = useState<string | null>(null)
@@ -275,7 +351,7 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
             <RolePickerScreen
               project={currentProject}
               bu={currentBu}
-              roles={ROLES}
+              roles={rolesForProject}
               hovered={hoveredRole}
               setHovered={setHoveredRole}
               onPick={handlePickRole}

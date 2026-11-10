@@ -9,9 +9,9 @@ export const runtime = 'nodejs'
 // Single tenant: one group (MEIL Group) → subsidiaries → business units → projects.
 export async function GET() {
   try {
-    const user = await getCurrentUser()
-    if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
-
+    /* The organisation tree is REFERENCE data (ids, codes, names) — it is
+       read before a user signs in, exactly like the /api/master/* endpoints
+       the gateway uses. Only structure is exposed, never any reporting data. */
     const cached = getPuTreeCache()
     if (cached) {
       return NextResponse.json(cached)

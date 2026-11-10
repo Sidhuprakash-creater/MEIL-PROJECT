@@ -14,6 +14,7 @@ import {
   Users, MessageSquare, Pencil, Trash2, Send, X, Circle, MoreVertical,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useApp } from '@/lib/pu/auth-context'
 
 // ============================================================
 // Types
@@ -30,7 +31,7 @@ interface TeamMember {
   roleLabel: string
   employeeCode: string
   active: boolean
-  demo: true
+  demo: boolean
 }
 
 interface ChatMessage {
@@ -63,6 +64,19 @@ const ROLE_TINT: Record<RoleKey, string> = {
   CSR_USER: 'from-rose-500 to-pink-600',
   COMPLIANCE_USER: 'from-emerald-500 to-green-600',
   ESG_ANALYST: 'from-emerald-500 to-teal-600',
+}
+
+/* Database role → portal role key (the team list speaks the portal's
+   vocabulary). */
+const DB_ROLE_TO_KEY: Record<string, RoleKey> = {
+  ENV_DATA_USER: 'PROJECT_USER',
+  FIN_RESOURCE_USER: 'FINANCE_USER',
+  HR_USER: 'HR_USER',
+  EHS_USER: 'EHS_USER',
+  PROCUREMENT_USER: 'PROCUREMENT_USER',
+  CSR_USER: 'CSR_USER',
+  COMPLIANCE_USER: 'COMPLIANCE_USER',
+  ESG_ANALYST: 'ESG_ANALYST',
 }
 
 const TEAM_MEMBERS: TeamMember[] = [
@@ -121,6 +135,7 @@ function seedThread(member: TeamMember): ChatMessage[] {
 // Module
 // ============================================================
 export function TeamModule() {
+  const { selectedProjectId } = useApp()
   const [loading, setLoading] = useState(true)
   const [members, setMembers] = useState<TeamMember[]>([])
   const [activeId, setActiveId] = useState<string>('')
@@ -130,18 +145,53 @@ export function TeamModule() {
   const [sending, setSending] = useState(false)
   const threadRef = useRef<HTMLDivElement | null>(null)
 
-  // Simulated fetch (local data) — preserves loading skeleton UX
+  // Load the REAL team of the selected project (the demo roster below is
+  // only the fallback) — a colleague from another project must never show up
+  // in this project's team.
   useEffect(() => {
-    const t = setTimeout(() => {
+    let alive = true
+    const pid = selectedProjectId
+    if (!pid) {
       setMembers(TEAM_MEMBERS)
       const seed: Record<string, ChatMessage[]> = {}
       for (const m of TEAM_MEMBERS) seed[m.id] = seedThread(m)
       setThreads(seed)
       setActiveId(TEAM_MEMBERS[0].id)
       setLoading(false)
-    }, 350)
-    return () => clearTimeout(t)
-  }, [])
+      return
+    }
+    fetch(`/api/pu/project-users?projectId=${encodeURIComponent(pid)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!alive) return
+        const raw = (d?.users ?? []) as { name: string; email: string; role: string }[]
+        const mapped: TeamMember[] = raw
+          .filter((u) => DB_ROLE_TO_KEY[u.role])
+          .map((u) => ({
+            id: u.email,
+            name: u.name,
+            email: u.email,
+            roleKey: DB_ROLE_TO_KEY[u.role],
+            roleLabel: ROLE_LABEL[DB_ROLE_TO_KEY[u.role]],
+            employeeCode: (u.email.split('@')[0] || '').toUpperCase(),
+            active: true,
+            demo: false,
+          }))
+        const list = mapped.length ? mapped : TEAM_MEMBERS
+        setMembers(list)
+        const seed: Record<string, ChatMessage[]> = {}
+        for (const m of list) seed[m.id] = seedThread(m)
+        setThreads(seed)
+        setActiveId(list[0]?.id ?? '')
+        setLoading(false)
+      })
+      .catch(() => {
+        if (!alive) return
+        setMembers(TEAM_MEMBERS)
+        setLoading(false)
+      })
+    return () => { alive = false }
+  }, [selectedProjectId])
 
   const activeMember = useMemo(
     () => members.find(m => m.id === activeId) ?? null,
