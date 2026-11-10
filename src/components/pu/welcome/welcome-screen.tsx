@@ -84,8 +84,15 @@ const BU_ICONS: Record<string, typeof Building2> = {
   ShieldCheck,
 }
 
-export function WelcomeScreen() {
+export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
   const { login, selectedBuId, setSelectedBuId, selectedProjectId, setSelectedProjectId } = useApp()
+  const handleBackToGateway = () => {
+    if (onBack) {
+      onBack()
+    } else if (typeof window !== 'undefined') {
+      window.location.href = '/?enter=1'
+    }
+  }
   const [stage, setStage] = useState<Stage>(() => {
     if (typeof window !== 'undefined') {
       const p = new URLSearchParams(window.location.search).get('stage')
@@ -199,7 +206,7 @@ export function WelcomeScreen() {
         
         {/* Top Header inside viewport */}
         <header className="mx-auto flex w-full max-w-[1380px] items-center justify-between pb-2 pt-1">
-          {/* Left: Official MEIL Logo from Screenshot */}
+          {/* Left: Official MEIL Logo + Back to Roles Button */}
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#DC2626] text-white shadow-md shadow-red-500/25 font-black text-xl">
               M
@@ -207,6 +214,15 @@ export function WelcomeScreen() {
             <div className="flex items-baseline gap-1.5">
               <span className="text-2xl font-black tracking-tight text-slate-900">meil</span>
             </div>
+            <button
+              type="button"
+              onClick={stage === 'welcome' ? handleBackToGateway : () => setStage(stage === 'role' ? 'project' : stage === 'login' ? 'role' : 'welcome')}
+              className="ml-2 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-slate-600 glass-subtle hover:bg-white hover:text-slate-900 transition shadow-xs border border-slate-200/70"
+              title={stage === 'welcome' ? 'Back to Roles Gateway' : 'Go Back'}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>{stage === 'welcome' ? 'Back to Roles' : 'Back'}</span>
+            </button>
           </div>
 
           {/* Right: Project Site context + Motto */}
@@ -282,6 +298,7 @@ export function WelcomeScreen() {
                         activeBuId={activeBuId}
                         onSelectBu={handleSelectBu}
                         onContinue={() => setStage('project')}
+                        onBack={handleBackToGateway}
                       />
                     </div>
                   </motion.div>
@@ -613,12 +630,14 @@ function WelcomePanel({
   activeBuId,
   onSelectBu,
   onContinue,
+  onBack,
 }: {
   selectedOrgId: string
   onSelectSub: (id: string) => void
   activeBuId: string
   onSelectBu: (id: string) => void
   onContinue: () => void
+  onBack?: () => void
 }) {
   const [buDropdownOpen, setBuDropdownOpen] = useState(false)
   const [orgDropdownOpen, setOrgDropdownOpen] = useState(false)
@@ -652,6 +671,20 @@ function WelcomePanel({
 
   return (
     <div className="flex flex-col space-y-6">
+      {onBack && (
+        <div className="-mb-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="glass-subtle flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-900 transition shadow-xs border border-slate-200/70"
+            title="Back to Roles Gateway"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>Back to Roles</span>
+          </button>
+        </div>
+      )}
+
       {/* Header Tag & Title — staged entrance */}
       <motion.div
         initial={{ opacity: 0, y: 14 }}

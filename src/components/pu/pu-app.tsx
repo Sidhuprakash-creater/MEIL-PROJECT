@@ -92,7 +92,7 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
     );
   }
 
-  if (!user) return <WelcomeScreen />;
+  if (!user) return <WelcomeScreen onBack={onExit} />;
 
   const roleKey = user?.roles?.[0]?.key ?? "";
 
