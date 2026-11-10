@@ -63,26 +63,32 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     const d = await db.evidenceDoc.findUnique({ where: { id } });
-    if (!d) throw new SmError("Evidence document not found.", 404);
-    if (d.subsidiaryId && d.subsidiaryId !== ctx.subsidiaryId) {
+    const directEvidence = await db.evidence.findUnique({
+      where: { id },
+      select: { id: true, fileName: true, filePath: true, mimeType: true },
+    });
+    if (!d && !directEvidence) throw new SmError("Evidence document not found.", 404);
+    if (d && d.subsidiaryId && d.subsidiaryId !== ctx.subsidiaryId) {
       throw new SmError("Access denied — this document belongs to a different subsidiary.", 403);
     }
 
     /* Try to resolve real stored bytes: direct Evidence row match, then the
        latest upload registered under the same file name. */
     const evidence =
-      (await db.evidence.findUnique({ where: { id }, select: { id: true, fileName: true, filePath: true, mimeType: true } })) ??
-      (await db.evidence.findFirst({
-        where: { fileName: d.name },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, fileName: true, filePath: true, mimeType: true },
-      }));
+      directEvidence ??
+      (d
+        ? await db.evidence.findFirst({
+            where: { fileName: d.name },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, fileName: true, filePath: true, mimeType: true },
+          })
+        : null);
 
     if (evidence) {
       const buffer = await loadEvidenceBytes(evidence.id, evidence.filePath || "");
       if (buffer) {
-        const asciiName = (evidence.fileName || d.name).replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
-        const utf8Name = encodeURIComponent(evidence.fileName || d.name);
+        const asciiName = (evidence.fileName || d?.name || "evidence").replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
+        const utf8Name = encodeURIComponent(evidence.fileName || d?.name || "evidence");
         return new NextResponse(new Uint8Array(buffer), {
           headers: {
             "Content-Type": evidence.mimeType || "application/octet-stream",
@@ -94,8 +100,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
       }
     }
 
-    /* No stored bytes resolvable (legacy/seeded metadata rows) — serve the
-       signed metadata receipt as before. */
+    /* No stored bytes resolvable — bare db.evidence ids with no resolvable
+       bytes have nothing to serve; metadata rows get the receipt. */
+    if (!d) throw new SmError("Stored file bytes could not be resolved for this evidence.", 404);
     return ok({
       receipt: {
         documentId: d.id,

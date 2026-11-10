@@ -63,22 +63,30 @@ export async function GET(_req: NextRequest, { params }: Params) {
     const { id } = await params;
 
     /* EvidenceDoc metadata row — null businessUnitId rows (uploads that did
-       not carry a BU at the time) stay visible instead of hard-failing. */
+       not carry a BU at the time) stay visible instead of hard-failing.
+       Real uploads (db.evidence) referenced by the review drawer have no
+       EvidenceDoc row, so the 404 only fires when BOTH lookups miss. */
     const d = await db.evidenceDoc.findUnique({ where: { id } });
-    if (!d) throw new BmError("Evidence document not found.", 404);
-    if (d.businessUnitId && d.businessUnitId !== ctx.businessUnitId) {
+    const directEvidence = await db.evidence.findUnique({
+      where: { id },
+      select: { id: true, fileName: true, filePath: true, mimeType: true },
+    });
+    if (!d && !directEvidence) throw new BmError("Evidence document not found.", 404);
+    if (d && d.businessUnitId && d.businessUnitId !== ctx.businessUnitId) {
       throw new BmError("Access denied — this document belongs to a different business unit.", 403);
     }
 
     /* Try to resolve real stored bytes: direct Evidence row match, then the
        latest upload registered under the same file name. */
     const evidence =
-      (await db.evidence.findUnique({ where: { id }, select: { id: true, fileName: true, filePath: true, mimeType: true } })) ??
-      (await db.evidence.findFirst({
-        where: { fileName: d.name },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, fileName: true, filePath: true, mimeType: true },
-      }));
+      directEvidence ??
+      (d
+        ? await db.evidence.findFirst({
+            where: { fileName: d.name },
+            orderBy: { createdAt: "desc" },
+            select: { id: true, fileName: true, filePath: true, mimeType: true },
+          })
+        : null);
 
     if (evidence) {
       const buffer = await loadEvidenceBytes(evidence.id, evidence.filePath || "");
@@ -93,10 +101,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
                 action: "EVIDENCE_DOWNLOAD",
                 targetType: "Evidence",
                 targetId: evidence.id,
-                targetLabel: d.name,
+                targetLabel: d?.name ?? evidence.fileName,
                 orgScope: bu.code,
                 before: "{}",
-                after: JSON.stringify({ ref: d.submissionRef, fileType: d.fileType, version: d.version, bytes: buffer.byteLength }),
+                after: JSON.stringify({ ref: d?.submissionRef ?? null, fileType: d?.fileType ?? null, version: d?.version ?? null, bytes: buffer.byteLength }),
                 reason: "file streamed",
                 outcome: "SUCCESS",
                 correlation: `bm-dl-${Math.random().toString(36).slice(2, 10)}`,
@@ -107,8 +115,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
           /* audit failure must never block the download */
         }
 
-        const asciiName = (evidence.fileName || d.name).replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
-        const utf8Name = encodeURIComponent(evidence.fileName || d.name);
+        const asciiName = (evidence.fileName || d?.name || "evidence").replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "_");
+        const utf8Name = encodeURIComponent(evidence.fileName || d?.name || "evidence");
         return new NextResponse(new Uint8Array(buffer), {
           headers: {
             "Content-Type": evidence.mimeType || "application/octet-stream",
@@ -120,8 +128,10 @@ export async function GET(_req: NextRequest, { params }: Params) {
       }
     }
 
-    /* No stored bytes resolvable (legacy/seeded metadata rows) — serve the
-       signed metadata receipt as before. */
+    /* No stored bytes resolvable — metadata-only rows get the receipt; a
+       bare db.evidence id with no resolvable bytes has nothing to serve. */
+    if (!d) throw new BmError("Stored file bytes could not be resolved for this evidence.", 404);
+    /* legacy/seeded metadata rows — serve the signed metadata receipt as before. */
 
     /* Append an access-trail row (audit only — no PII, just the document ref
        and the manager identity). */
