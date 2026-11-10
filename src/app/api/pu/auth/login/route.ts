@@ -98,6 +98,16 @@ export async function POST(req: NextRequest) {
     if (user.businessUnitId) scopes.push({ scopeType: 'BUSINESS_UNIT', scopeId: user.businessUnitId })
     if (user.subsidiaryId) scopes.push({ scopeType: 'SUBSIDIARY', scopeId: user.subsidiaryId })
 
+    const scopeNames = {
+      project: user.project ? { id: user.project.id, name: user.project.name, code: user.project.code } : null,
+      businessUnit: user.businessUnit
+        ? { id: user.businessUnit.id, name: user.businessUnit.name, code: user.businessUnit.code }
+        : null,
+      subsidiary: user.subsidiary
+        ? { id: user.subsidiary.id, name: user.subsidiary.name, code: user.subsidiary.code }
+        : null,
+    }
+
     // Populate session user in memory cache immediately for instant subsequent calls
     setPuCachedUser({
       id: user.id,
@@ -109,6 +119,7 @@ export async function POST(req: NextRequest) {
       demo: false,
       roles: [{ id: `role-${role.key}`, key: role.key, name: role.name, phase: 1 }],
       scopes: scopes.map((s) => ({ id: `sc-${s.scopeId}`, ...s })),
+      ...scopeNames,
     })
 
     // Run audit and timestamp update asynchronously without blocking login response
@@ -127,6 +138,7 @@ export async function POST(req: NextRequest) {
       demo: false,
       roles: [{ key: role.key, name: role.name, phase: 1 }],
       scopes,
+      ...scopeNames,
     })
     res.headers.set('Set-Cookie', cookie)
     return res

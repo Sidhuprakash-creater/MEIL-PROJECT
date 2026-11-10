@@ -21,6 +21,11 @@ export interface SessionUser {
   demo: boolean
   roles: { id: string; key: string; name: string; phase: number }[]
   scopes: { id: string; scopeType: string; scopeId: string }[]
+  /** Scope NAMES — the Project Admin console renders the assigned site,
+      business unit and subsidiary from these (never hard-coded). */
+  project: { id: string; name: string; code: string } | null
+  businessUnit: { id: string; name: string; code: string } | null
+  subsidiary: { id: string; name: string; code: string } | null
 }
 
 const SESSION_COOKIE = 'meil_pu_session'
@@ -153,6 +158,13 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     demo: false,
     roles: [{ id: `role-${role.key}`, key: role.key, name: role.name, phase: 1 }],
     scopes,
+    project: user.project ? { id: user.project.id, name: user.project.name, code: user.project.code } : null,
+    businessUnit: user.businessUnit
+      ? { id: user.businessUnit.id, name: user.businessUnit.name, code: user.businessUnit.code }
+      : null,
+    subsidiary: user.subsidiary
+      ? { id: user.subsidiary.id, name: user.subsidiary.name, code: user.subsidiary.code }
+      : null,
   }
   puUserCache.set(resolvedUserId, { user: sessionUser, expiresAt: Date.now() + 60000 })
   return sessionUser

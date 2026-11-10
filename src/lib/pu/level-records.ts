@@ -207,7 +207,10 @@ function readStore(): LevelRecord[] {
     }
     const data = fs.readFileSync(STORE_PATH, 'utf-8')
     const parsed = JSON.parse(data)
-    if (Array.isArray(parsed) && parsed.length > 0) {
+    if (Array.isArray(parsed)) {
+      /* An intentionally EMPTY store stays empty — the demo defaults are only
+         seeded when the file is missing or unreadable. Otherwise a wiped
+         workspace would immediately repopulate with the sample records. */
       storeCache = { mtimeMs: stat.mtimeMs, size: stat.size, records: parsed }
       return parsed
     }

@@ -88,9 +88,11 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
           email: user.email,
           role: "PROJECT_ADMIN",
           roleLabel: "Project Admin",
-          subsidiary: null,
-          businessUnit: null,
-          project: null,
+          /* The console header must show THIS admin's own site / BU /
+             subsidiary — never a hard-coded placeholder. */
+          project: user.project ?? null,
+          businessUnit: user.businessUnit ?? null,
+          subsidiary: user.subsidiary ?? null,
         }}
         onSignOut={async () => {
           await logout();

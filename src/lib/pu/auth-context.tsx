@@ -15,6 +15,10 @@ export interface SessionUser {
   demo: boolean
   roles: { key: string; name: string; phase: number }[]
   scopes: { scopeType: string; scopeId: string }[]
+  /** Scope names — used by the Project Admin console header. */
+  project: { id: string; name: string; code: string } | null
+  businessUnit: { id: string; name: string; code: string } | null
+  subsidiary: { id: string; name: string; code: string } | null
 }
 
 export type ModuleKey =
