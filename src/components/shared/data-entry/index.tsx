@@ -578,38 +578,34 @@ export function DataEntryModule({
 
         {/* Project + Period Pickers */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <div className="glass-subtle flex items-center gap-2 rounded-full py-1.5 pl-3.5 pr-2.5 text-xs shadow-sm">
+          {/* Static Project Badge — Fixed to chosen project, no dropdown */}
+          <div
+            className="glass-subtle flex items-center gap-2 rounded-full py-1.5 px-3.5 text-xs shadow-sm"
+            title={selectedProject?.projectName || selectedProject?.projectCode || 'Selected Project Site'}
+          >
             <Building2 className="h-3.5 w-3.5 shrink-0 text-blue-600" />
-            <select
-              value={selectedProjectId ?? ''}
-              disabled={readOnly}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="max-w-[180px] cursor-pointer appearance-none bg-transparent text-[13px] font-bold text-slate-800 outline-none"
-            >
-              {projects.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.projectCode}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <span className="text-[13px] font-bold text-slate-800">
+              {selectedProject?.projectCode || 'PRJ-KKD-RIG'}
+            </span>
           </div>
 
+          {/* Month Selector Dropdown */}
           <div className="glass-subtle flex items-center gap-2 rounded-full py-1.5 pl-3.5 pr-2.5 text-xs shadow-sm">
             <CalendarClock className="h-3.5 w-3.5 shrink-0 text-blue-600" />
             <select
               value={selectedPeriodId ?? ''}
               disabled={readOnly}
               onChange={(e) => setSelectedPeriodId(e.target.value)}
-              className="cursor-pointer appearance-none bg-transparent text-[13px] font-bold text-slate-800 outline-none"
+              className="cursor-pointer appearance-none bg-transparent text-[13px] font-bold text-slate-800 outline-none pr-1"
+              aria-label="Select Reporting Month"
             >
               {periods.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option key={p.id} value={p.id} className="text-slate-900 bg-white py-1">
                   {p.label}
                 </option>
               ))}
             </select>
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400 pointer-events-none" />
           </div>
 
           {/* Bulk CSV Import Button */}

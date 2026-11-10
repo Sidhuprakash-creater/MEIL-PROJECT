@@ -120,16 +120,11 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
 
 
   return (
-    <>
-      {/* Floating exit button — fixed top-right via .pu-exit-btn so it is
-          always reachable above the AppShell header. */}
-      {onExit && <ExitPortalButton onExit={onExit} />}
-      <AppShell>
-        <ErrorBoundary label={activeModule}>
-          {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
-        </ErrorBoundary>
-      </AppShell>
-    </>
+    <AppShell>
+      <ErrorBoundary label={activeModule}>
+        {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
+      </ErrorBoundary>
+    </AppShell>
   );
 }
 
