@@ -150,8 +150,30 @@ export function ReportReviewDialog({
     setDocLoading(true);
     setDocReceipt(null);
     try {
-      const r = await apiGet<{ receipt: { name: string; access: string } }>(`/api/sm/evidence/${doc.id}/download`);
-      setDocReceipt(`${r.receipt.name} — ${r.receipt.access}`);
+      /* The endpoint streams REAL file bytes for actual uploads and returns a
+         JSON receipt only for legacy metadata-only rows — inspect the content
+         type instead of blindly JSON-parsing (a PDF body parsed as JSON yields
+         null and crashed on `r.receipt`). */
+      const res = await fetch(`/api/sm/evidence/${doc.id}/download`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const ctype = res.headers.get("Content-Type") ?? "";
+      if (ctype.includes("application/json")) {
+        const r = (await res.json()) as { data?: { receipt?: { name: string; access: string } }; receipt?: { name: string; access: string } };
+        const receipt = r.data?.receipt ?? r.receipt;
+        setDocReceipt(receipt ? `${receipt.name} — ${receipt.access}` : "Authorized — no file bytes stored for this document.");
+      } else {
+        /* Original bytes — save as a file download. */
+        const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? doc.name;
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        setDocReceipt(`${name} — original file downloaded`);
+      }
     } catch (e) {
       setDocReceipt(e instanceof Error ? e.message : "Download failed");
     } finally {

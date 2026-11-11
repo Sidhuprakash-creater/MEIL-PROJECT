@@ -50,8 +50,25 @@ export default function EvidenceView() {
     setDownloading(true);
     setReceipt(null);
     try {
-      const r = await apiGet<{ receipt: { name: string; access: string } }>(`/api/sm/evidence/${d.id}/download`);
-      setReceipt(`${r.receipt.name} — ${r.receipt.access}`);
+      /* Streams real bytes for actual uploads; JSON receipt for legacy rows. */
+      const res = await fetch(`/api/sm/evidence/${d.id}/download`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Download failed (${res.status})`);
+      const ctype = res.headers.get("Content-Type") ?? "";
+      if (ctype.includes("application/json")) {
+        const r = (await res.json()) as { receipt?: { name: string; access: string } };
+        setReceipt(r.receipt ? `${r.receipt.name} — ${r.receipt.access}` : "Authorized — no file bytes stored for this document.");
+      } else {
+        const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? d.name;
+        const url = URL.createObjectURL(await res.blob());
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 4000);
+        setReceipt(`${name} — original file downloaded`);
+      }
     } catch (e) {
       setReceipt(e instanceof Error ? e.message : "Download failed");
     } finally {
