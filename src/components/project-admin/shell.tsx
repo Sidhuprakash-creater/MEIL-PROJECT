@@ -90,22 +90,26 @@ export function ProjectAdminWorkspaceShell({
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   /* Blue review badge on "Data Collection Status" — live count of rows
      awaiting THIS admin's decision (contributor SUBMITTED / UNDER_REVIEW).
+     Green badge on "Consolidated Report" — approved rows staged for the
+     BU hand-off, so after approving here the next step is obvious.
      Refreshes on a short poll + whenever the window regains focus, so a
      fresh contributor submission surfaces without a full reload. */
   const [pendingReviewCount, setPendingReviewCount] = useState(0);
+  const [readyToConsolidateCount, setReadyToConsolidateCount] = useState(0);
   useEffect(() => {
     if (!sessionUser?.id) return;
     let alive = true;
     const load = () =>
-      paApiGet<{ items?: Array<{ submissionStatus?: string }>; summary?: { pending?: number } }>(
+      paApiGet<{ items?: Array<{ submissionStatus?: string }> }>(
         "/api/project-admin/collection-status"
       )
         .then((d) => {
           if (!alive) return;
-          const n = (d.items ?? []).filter((i) =>
+          const items = d.items ?? [];
+          setPendingReviewCount(items.filter((i) =>
             ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"].includes(i.submissionStatus ?? "")
-          ).length;
-          setPendingReviewCount(n);
+          ).length);
+          setReadyToConsolidateCount(items.filter((i) => i.submissionStatus === "APPROVED").length);
         })
         .catch(() => {});
     load();
@@ -289,6 +293,14 @@ export function ProjectAdminWorkspaceShell({
                         )}
                         {sidebarCollapsed && vId === "collection-status" && pendingReviewCount > 0 && (
                           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#315CFF] ring-2 ring-white/80" title={`${pendingReviewCount} awaiting review`} />
+                        )}
+                        {!sidebarCollapsed && vId === "consolidated-report" && readyToConsolidateCount > 0 && (
+                          <span
+                            className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#10B981] to-[#059669] px-1.5 text-[10px] font-extrabold text-white shadow-md shadow-[rgba(16,185,129,0.35)] ring-2 ring-white/60"
+                            title={`${readyToConsolidateCount} approved record${readyToConsolidateCount === 1 ? "" : "s"} ready for the consolidated BU hand-off`}
+                          >
+                            {readyToConsolidateCount}
+                          </span>
                         )}
                         {!sidebarCollapsed && vId === "notifications" && unreadNotificationsCount > 0 && (
                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-500 text-white">
