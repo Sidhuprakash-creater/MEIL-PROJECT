@@ -306,8 +306,25 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    /* Delivered (already forwarded) items must NOT fall back to PENDING once
+       they leave the staging list — Energy, Water etc. stay COMPLETED while
+       the BU reviews them and after the BU approves them. */
+    for (const s of sentToBuSubmissions) {
+      const role = (s.submittedById ? submitterMap.get(s.submittedById)?.role : undefined) as ContributorRole | undefined;
+      if (role && categoriesStatus[role]) {
+        categoriesStatus[role] = "COMPLETED";
+      }
+    }
+
     const completedCategories = Object.values(categoriesStatus).filter(s => s === "COMPLETED").length;
-    const isEligible = completedCategories >= 1; // At least one category has data
+
+    /* FINAL SUBMISSION ELIGIBILITY — the project report becomes eligible to
+       move on to the Subsidiary ONLY after the Business Unit approves the
+       consolidated dossier (the decision route syncs the Report row to
+       APPROVED). Staged-but-unsubmitted data alone is not enough. */
+    const consolidatedApprovedByBu =
+      existingReport?.status === "APPROVED" || existingReport?.status === "BU_APPROVED";
+    const isEligible = consolidatedApprovedByBu;
 
     // Build report response
     const report: PaConsolidatedReport = {
