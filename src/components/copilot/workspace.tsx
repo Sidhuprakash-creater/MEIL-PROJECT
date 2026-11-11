@@ -452,6 +452,89 @@ function MessageList() {
 
 /* ───────────────────────────── Composer ───────────────────────────── */
 
+/** Live seconds remaining on the provider cooldown (0 = ready). */
+function useRateLimitSeconds(): number {
+  const rateLimitUntil = useCopilot((s) => s.rateLimitUntil);
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    if (!rateLimitUntil || rateLimitUntil <= Date.now()) return;
+    const t = window.setInterval(() => {
+      setNow(Date.now());
+      if (rateLimitUntil <= Date.now()) window.clearInterval(t);
+    }, 1000);
+    return () => window.clearInterval(t);
+  }, [rateLimitUntil]);
+  if (!rateLimitUntil) return 0;
+  return Math.max(0, Math.ceil((rateLimitUntil - now) / 1000));
+}
+
+/** Premium countdown banner — warns the user while the Groq one-per-minute
+ *  window cools down. Auto-disappears when the countdown reaches zero. */
+function RateLimitBanner({ seconds }: { seconds: number }) {
+  if (seconds <= 0) return null;
+  const pct = Math.min(Math.max((60 - seconds) / 60, 0.02), 1);
+  return (
+    <div
+      className="mc-rate-banner"
+      role="status"
+      aria-live="polite"
+      style={{
+        marginBottom: 8,
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 14px",
+        borderRadius: 14,
+        border: "1px solid rgba(217, 119, 6, 0.28)",
+        background: "linear-gradient(90deg, rgba(217,119,6,0.10), rgba(217,119,6,0.04))",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
+      {/* draining cooldown bar */}
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: 0,
+          bottom: 0,
+          height: 3,
+          width: `${pct * 100}%`,
+          background: "linear-gradient(90deg, #d97706, #f59e0b)",
+          transition: "width 1s linear",
+          borderRadius: 3,
+        }}
+      />
+      <span
+        aria-hidden="true"
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 30,
+          height: 30,
+          flexShrink: 0,
+          borderRadius: 10,
+          background: "linear-gradient(150deg, #d97706 20%, #92400e 100%)",
+          boxShadow: "0 4px 10px rgba(217,119,6,0.35), inset 0 1px 0 rgba(255,255,255,0.35)",
+          color: "#fff",
+          fontSize: 11,
+          fontWeight: 800,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {seconds}s
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45 }}>
+        Rate limit active — the AI provider allows one request per minute.
+        <span style={{ opacity: 0.75, fontWeight: 500 }}>
+          {" "}You can ask your next question in <strong style={{ fontVariantNumeric: "tabular-nums" }}>{seconds}s</strong>.
+        </span>
+      </span>
+    </div>
+  );
+}
+
 function Composer({
   text,
   setText,
@@ -462,6 +545,8 @@ function Composer({
   variant?: CopilotVariant;
 }) {
   const { streaming, stopStreaming, error, resetError, provider, providerConfigured, theme } = useCopilot();
+  const rateSeconds = useRateLimitSeconds();
+  const rateLimited = provider === "groq" && rateSeconds > 0;
 
   return (
     <div className="mc-composer-zone">
@@ -471,6 +556,8 @@ function Composer({
           <button type="button" className="mc-chip-btn" onClick={resetError} aria-label="Dismiss error">Dismiss</button>
         </div>
       ) : null}
+
+      <RateLimitBanner seconds={rateLimited ? rateSeconds : 0} />
 
       <ChatInputArea className="mc-input-pill relative bg-card border-border">
         <BorderBeam
@@ -486,20 +573,22 @@ function Composer({
           value={text}
           disabled={!providerConfigured}
           placeholder={
-            providerConfigured
-              ? variant === "panel"
-                ? "Ask about subsidiaries, reports, deadlines…"
-                : "Ask about subsidiaries, submissions, deadlines, analytics…"
-              : "AI provider is not configured — set GEMINI_API_KEY."
+            !providerConfigured
+              ? "AI provider is not configured — set GEMINI_API_KEY."
+              : rateLimited
+                ? `Cooling down — next question available in ${rateSeconds}s…`
+                : variant === "panel"
+                  ? "Ask about subsidiaries, reports, deadlines…"
+                  : "Ask about subsidiaries, submissions, deadlines, analytics…"
           }
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
           aria-label="Message MEIL Intelligence"
         />
         <ChatInputSubmit
           type={streaming ? "button" : "submit"}
-          aria-label={streaming ? "Stop generating" : "Send message"}
-          title={streaming ? "Stop generating" : "Send"}
-          disabled={!streaming && (!text.trim() || !providerConfigured)}
+          aria-label={streaming ? "Stop generating" : rateLimited ? "Rate limited — wait for cooldown" : "Send message"}
+          title={streaming ? "Stop generating" : rateLimited ? `Wait ${rateSeconds}s — one request per minute` : "Send"}
+          disabled={!streaming && (!text.trim() || !providerConfigured || rateLimited)}
           className={streaming ? "mc-submit-stop" : undefined}
           onClick={(e) => {
             if (streaming) {
@@ -523,7 +612,7 @@ function Composer({
         <span className="mc-composer-hint">
           {variant === "panel" ? "Enter to send · Shift+Enter newline" : "Enter to send · Shift+Enter for a new line"}
         </span>
-        <span className="mc-provider-tag">{provider === "gemini" ? "Gemini" : provider === "groq" ? "Groq" : provider} · grounded via tools</span>
+        <span className="mc-provider-tag">{provider === "gemini" ? "Gemini" : provider === "groq" ? "Groq · 1 req/min" : provider} · grounded via tools</span>
       </div>
     </div>
   );
@@ -564,6 +653,8 @@ export function CopilotWorkspace({ variant = "fullscreen" }: { variant?: Copilot
   const handleChatSubmit = (e: ChatSubmitEvent) => {
     e.preventDefault();
     if (streaming || !providerConfigured) return;
+    const st = useCopilot.getState();
+    if (st.rateLimitUntil && st.rateLimitUntil > Date.now()) return; // cooldown active
     const msg = e.message.trim();
     if (!msg) return;
     setDraft("");

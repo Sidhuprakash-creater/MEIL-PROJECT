@@ -246,7 +246,7 @@ export type ChatStreamEvent =
   | { kind: "block"; block: ContentBlock }
   | { kind: "sources"; sources: SourceReference[] }
   | { kind: "message_done"; messageId: string; avatarState: AvatarState }
-  | { kind: "error"; message: string; code?: string }
+  | { kind: "error"; message: string; code?: string; retryAfter?: number }
   | { kind: "done" };
 
 export type AvatarState =

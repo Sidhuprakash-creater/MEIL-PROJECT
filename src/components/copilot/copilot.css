@@ -929,6 +929,69 @@
   color: var(--mc-ink);
 }
 .mc-float-launcher:hover { transform: translateY(-2px); border-color: var(--mc-border-strong); }
+
+/* Premium sheen — a soft dark layer sweeps left → right across the pill.
+   Light theme: smoked-black glass shine. Dark theme: luminous white shine. */
+.mc-launcher-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  overflow: hidden;
+  pointer-events: none;
+}
+.mc-launcher-sheen::before {
+  content: "";
+  position: absolute;
+  top: -40%;
+  bottom: -40%;
+  left: 0;
+  width: 46%;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(9, 9, 11, 0.05) 28%,
+    rgba(9, 9, 11, 0.16) 46%,
+    rgba(9, 9, 11, 0.28) 50%,
+    rgba(9, 9, 11, 0.16) 54%,
+    rgba(9, 9, 11, 0.05) 72%,
+    transparent 100%
+  );
+  filter: blur(1px);
+  transform: translateX(-120%) skewX(-8deg);
+  animation: mc-shine-sweep 5.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+.mc-dark .mc-launcher-sheen::before {
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 28%,
+    rgba(255, 255, 255, 0.16) 46%,
+    rgba(255, 255, 255, 0.3) 50%,
+    rgba(255, 255, 255, 0.16) 54%,
+    rgba(255, 255, 255, 0.06) 72%,
+    transparent 100%
+  );
+}
+@keyframes mc-shine-sweep {
+  0% { transform: translateX(-120%) skewX(-8deg); }
+  38% { transform: translateX(360%) skewX(-8deg); }
+  100% { transform: translateX(360%) skewX(-8deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mc-launcher-sheen::before { animation: none; opacity: 0; }
+}
+
+/* Dragging state — freeze transitions so the pill tracks the pointer 1:1 */
+.mc-float-launcher.mc-dragging {
+  transition: none !important;
+  transform: none !important;
+  cursor: grabbing !important;
+  user-select: none;
+  box-shadow: 0 18px 44px rgba(9, 9, 11, 0.22);
+  z-index: 70;
+}
+.mc-float-launcher.mc-draggable { touch-action: none; }
 .mc-float-panel {
   position: fixed;
   right: 22px;

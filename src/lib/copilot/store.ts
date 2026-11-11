@@ -53,6 +53,8 @@ interface CopilotState {
   reportingYear: string; // mirrored from the workspace store during bootstrap; blocks read it without importing the esg store
   loadingHistory: boolean;
   error: string | null;
+  /** Epoch-ms until which the provider cooldown blocks new questions (null = free). */
+  rateLimitUntil: number | null;
 
   setOpen: (open: boolean) => void;
   setFullscreen: (f: boolean) => void;
@@ -96,6 +98,7 @@ export const useCopilot = create<CopilotState>((set, get) => ({
   reportingYear: "FY 2025-26",
   loadingHistory: false,
   error: null,
+  rateLimitUntil: null,
 
   setOpen: (open) => set({ open }),
   setFullscreen: (fullscreen) => set({ fullscreen, open: fullscreen ? true : get().open }),
@@ -243,6 +246,12 @@ export const useCopilot = create<CopilotState>((set, get) => ({
       set({ error: "Start a conversation first." });
       return;
     }
+    // Provider cooldown — block the send while the countdown is running.
+    const until = get().rateLimitUntil;
+    if (until && until > Date.now()) {
+      set({ error: `Rate limit active — next request available in ${Math.ceil((until - Date.now()) / 1000)}s.` });
+      return;
+    }
     const userMsg: UiMessage = {
       id: `local-u-${Date.now()}`,
       role: "user",
@@ -267,6 +276,10 @@ export const useCopilot = create<CopilotState>((set, get) => ({
       avatarState: "listening",
       statusLabel: "Listening",
       activity: [],
+      /* Groq free tier: one request per minute. Start the visible cooldown as
+         soon as the request is dispatched so the user sees the countdown while
+         the answer streams and afterwards. */
+      rateLimitUntil: get().provider === "groq" ? Date.now() + 60_000 : s.rateLimitUntil,
       error: null,
     }));
 
@@ -321,7 +334,19 @@ export const useCopilot = create<CopilotState>((set, get) => ({
             break;
           case "error":
             patchAssistant((m) => ({ ...m, content: m.content || e.message, streaming: false, error: true }));
-            set({ avatarState: "error", statusLabel: "", streaming: false, error: e.message });
+            if (e.code === "RATE_LIMITED" && typeof e.retryAfter === "number" && e.retryAfter > 0) {
+              // Remove the optimistic empty assistant bubble and start the visible countdown.
+              set((s) => ({
+                messages: s.messages.filter((m) => m.id !== assistantMsg.id),
+                streaming: false,
+                avatarState: "idle",
+                statusLabel: "",
+                error: null,
+                rateLimitUntil: Date.now() + e.retryAfter! * 1000,
+              }));
+            } else {
+              set({ avatarState: "error", statusLabel: "", streaming: false, error: e.message });
+            }
             break;
           case "done":
             set((s) => ({ streaming: false }));

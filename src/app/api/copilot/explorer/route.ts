@@ -9,7 +9,9 @@ import { db } from "@/lib/db";
 import { requireCopilotUser, copilotResponseError, CopilotError } from "@/lib/copilot/server";
 import { parseJson } from "@/lib/esg/server";
 
-export const EXPLORER_CATEGORIES = [
+/* Route files may only export handlers + config; the category list stays
+   module-private (it is consumed nowhere else). */
+const EXPLORER_CATEGORIES = [
   "subsidiaries", "business_units", "projects", "users", "submissions", "approvals",
   "evidence", "activities", "deadlines", "analytics", "brsr", "compliance",
 ] as const;

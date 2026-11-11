@@ -143,11 +143,15 @@ export const copilotApi = {
         });
         if (!res.ok || !res.body) {
           let msg = `Copilot request failed (${res.status})`;
+          let code: string | undefined;
+          let retryAfter: number | undefined;
           try {
             const j = await res.json();
             msg = j.error ?? msg;
+            code = j.code;
+            retryAfter = typeof j.retryAfter === "number" ? j.retryAfter : undefined;
           } catch { /* keep default */ }
-          onEvent({ kind: "error", message: msg });
+          onEvent({ kind: "error", message: msg, code, retryAfter });
           onEvent({ kind: "done" });
           return;
         }

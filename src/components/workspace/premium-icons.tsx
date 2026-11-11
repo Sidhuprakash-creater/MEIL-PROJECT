@@ -457,3 +457,112 @@ export function GearIcon(props: PremiumIconProps) {
     />
   );
 }
+
+/* ────────────────────────────── 23. Command Center status set ──────────────────────────────
+   Richer executive glyphs for the dashboard status strip — deeper two-tone
+   layering (solid accent + fine line work) for a premium, professional feel. */
+
+/** Submissions — document flowing into an intake tray. */
+export function SubmissionFlowIcon(props: PremiumIconProps) {
+  return (
+    <IosIcon
+      {...props}
+      fills={(c) => (
+        <>
+          <path d="M12.9 2.9 L17.6 2.9 L17.6 8.3 L12.9 8.3 Z" opacity={0.85} />
+          <path d="M4.3 15.6 L10.1 15.6 L12 17.7 L13.9 15.6 L19.7 15.6 L19.7 20.9 L4.3 20.9 Z" opacity={0.5} />
+        </>
+      )}
+      lines={(c) => (
+        <>
+          {/* incoming document */}
+          <path d="M7.2 8.6 V4.9 H12.4" />
+          <path d="M12.4 4.9 L16.1 8.5 V11.6" />
+          {/* flow arrow into the tray */}
+          <path d="M12 11.1 L12 14.2" />
+          <path d="M9.9 12.3 L12 14.4 L14.1 12.3" />
+          {/* intake tray */}
+          <path d="M4.3 15.6 H10.1 L12 17.7 L13.9 15.6 H19.7" />
+          <path d="M4.3 15.6 V19.1 A1.8 1.8 0 0 0 6.1 20.9 H17.9 A1.8 1.8 0 0 0 19.7 19.1 V15.6" />
+        </>
+      )}
+    />
+  );
+}
+
+/** Approved — executive rosette seal with ribbon tails. */
+export function ApprovalRosetteIcon(props: PremiumIconProps) {
+  return (
+    <IosIcon
+      {...props}
+      fills={(c) => (
+        <>
+          <circle cx={12} cy={9.4} r={4.4} opacity={0.85} />
+          <path d="M9.2 13.1 L7.6 20.6 L10.4 18.9 L12 20.9 L13.6 18.9 L16.4 20.6 L14.8 13.1 Z" opacity={0.5} />
+        </>
+      )}
+      lines={(c) => (
+        <>
+          {/* scalloped seal edge */}
+          <path d="M12 4.9 A4.4 4.4 0 0 1 16.4 9.4 A4.4 4.4 0 0 1 12 13.9 A4.4 4.4 0 0 1 7.6 9.4 A4.4 4.4 0 0 1 12 4.9 Z" />
+          {/* ribbon tails */}
+          <path d="M9.2 13.1 L7.6 20.6 L10.4 18.9 L12 20.9 L13.6 18.9 L16.4 20.6 L14.8 13.1" />
+          {/* check inside the seal */}
+          <path d="M9.9 9.4 L11.4 10.9 L14.3 8" />
+        </>
+      )}
+    />
+  );
+}
+
+/** Pending review — clock face with a circular review sweep arrow. */
+export function ReviewPendingIcon(props: PremiumIconProps) {
+  return (
+    <IosIcon
+      {...props}
+      fills={(c) => (
+        <>
+          <path d="M12 6.8 A5.2 5.2 0 1 1 7.4 14.8 L9.4 13.7 A3 3 0 1 0 12 8.9 Z" opacity={0.55} />
+          <circle cx={12} cy={12} r={1.1} />
+        </>
+      )}
+      lines={(c) => (
+        <>
+          <path d="M12 4.1 A7.9 7.9 0 1 1 4.1 12" />
+          {/* sweep arrow head (counterclockwise open arc) */}
+          <path d="M4.1 12 L2.9 9.7 M4.1 12 L6.4 12.8" />
+          {/* clock hands */}
+          <path d="M12 8.9 V12 L14.2 13.4" />
+          <circle cx={12} cy={12} r={1.1} />
+        </>
+      )}
+    />
+  );
+}
+
+/** Overdue — alarm bell firing an alert pulse. */
+export function OverdueSirenIcon(props: PremiumIconProps) {
+  return (
+    <IosIcon
+      {...props}
+      fills={(c) => (
+        <>
+          <path d="M11.7 5.3 A5.9 5.9 0 0 1 17.6 11.2 L17.6 14.2 L5.8 14.2 L5.8 11.2 A5.9 5.9 0 0 1 11.7 5.3 Z" opacity={0.8} />
+          <path d="M10.6 16.9 A1.4 1.4 0 0 0 13.3 16.9 Z" />
+        </>
+      )}
+      lines={(c) => (
+        <>
+          {/* bell body */}
+          <path d="M11.7 3.4 A7.9 7.9 0 0 1 19.5 11.2 L19.5 15.1 L3.9 15.1 L3.9 11.2 A7.9 7.9 0 0 1 11.7 3.4 Z" />
+          <path d="M9.9 18.1 A1.9 1.9 0 0 0 13.5 18.1" />
+          {/* alert pulses top-right */}
+          <path d="M19.2 4.2 L20.9 2.9" />
+          <path d="M20.9 7.1 L22.4 7.1" opacity={0.65} />
+          {/* clapper */}
+          <circle cx={19.9} cy={19.7} r={2} />
+        </>
+      )}
+    />
+  );
+}

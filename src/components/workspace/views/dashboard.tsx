@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   AlarmAlertIcon,
+  ApprovalRosetteIcon,
   CheckSealIcon,
   DatabaseIcon,
   FileCheckIcon,
@@ -24,10 +25,13 @@ import {
   HourglassIcon,
   MegaphoneIcon,
   OrgIcon,
+  OverdueSirenIcon,
   PeopleIcon,
   ProjectsIcon,
   PulseIcon,
   ReportChartIcon,
+  ReviewPendingIcon,
+  SubmissionFlowIcon,
   TaskCheckIcon,
   TrendIcon,
   UnitsIcon,
@@ -184,7 +188,8 @@ function MiniRing({ value, tone, size = 58, stroke = 7 }: { value: number; tone:
   );
 }
 
-/** Clickable submission-status card for the Command Center strip. */
+/** Clickable submission-status card for the Command Center strip — executive
+ *  glass treatment: dual-layer icon tile, hover sheen, refined hierarchy. */
 function StatusCard({
   icon: Icon,
   hue,
@@ -209,36 +214,55 @@ function StatusCard({
     <button
       onClick={onClick}
       aria-label={`${label}: ${value}`}
-      className="glass group relative overflow-hidden rounded-[24px] border-white/60 p-4 text-left shadow-[0_2px_10px_rgba(23,38,61,0.05)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/85 hover:shadow-[0_12px_30px_rgba(23,38,61,0.12)]"
+      className="status-card group relative overflow-hidden rounded-[24px] border border-white/60 bg-white/55 p-[18px] text-left shadow-[0_2px_10px_rgba(23,38,61,0.05)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/90 hover:bg-white/85 hover:shadow-[0_16px_38px_rgba(23,38,61,0.14)]"
     >
+      {/* top hairline + hover sheen */}
       <span
         aria-hidden="true"
         className="absolute inset-x-0 top-0 h-[3px]"
         style={{ background: `linear-gradient(90deg, ${hue}, ${hue}22)` }}
       />
-      <div className="flex items-start justify-between gap-3">
-        <span
-          className="flex h-10 w-10 items-center justify-center rounded-[14px] text-white"
-          style={{
-            background: `linear-gradient(150deg, ${hue} 20%, color-mix(in srgb, ${hue} 72%, #17263D) 100%)`,
-            boxShadow: `0 4px 10px ${hue}44, inset 0 1px 0 rgba(255,255,255,0.4)`,
-          }}
-        >
-          <Icon className="h-[18px] w-[18px] text-white" />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+        style={{ background: `radial-gradient(120% 90% at 85% -10%, ${hue}1f, transparent 55%)` }}
+      />
+
+      <div className="relative flex items-start justify-between gap-3">
+        {/* dual-layer icon tile — outer gradient ring + inner accent core */}
+        <span className="relative flex h-[46px] w-[46px] items-center justify-center">
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 rounded-[16px] transition-transform duration-300 group-hover:scale-105"
+            style={{
+              background: `linear-gradient(150deg, ${hue} 18%, color-mix(in srgb, ${hue} 62%, #17263D) 100%)`,
+              boxShadow: `0 6px 16px ${hue}3d, inset 0 1px 0 rgba(255,255,255,0.45), inset 0 -1px 0 rgba(9,9,11,0.12)`,
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-[3px] rounded-[13px] border border-white/25"
+          />
+          <Icon className="relative h-[22px] w-[22px] text-white" hue="#ffffff" />
         </span>
         <MiniRing value={sharePct} tone={hue} size={54} stroke={6} />
       </div>
-      <CountUp value={value} className="tabular mt-3 block text-[28px] font-semibold leading-8 text-[color:var(--ink)]" />
-      <div className="mt-0.5 text-[13px] font-semibold" style={{ color: hue }}>
-        {label}
+
+      <CountUp value={value} className="tabular relative mt-3.5 block text-[30px] font-semibold leading-9 tracking-tight text-[color:var(--ink)]" />
+      <div className="relative mt-1 flex items-center gap-1.5">
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full" style={{ background: hue, boxShadow: `0 0 6px ${hue}88` }} />
+        <span className="text-[13px] font-bold uppercase tracking-[0.04em]" style={{ color: hue }}>
+          {label}
+        </span>
       </div>
-      <p className={`mt-0.5 text-[11.5px] leading-snug ${INK_FAINT}`}>{hint}</p>
-      <div className="mt-3 flex items-center justify-between border-t border-[rgba(125,177,216,0.22)] pt-2.5">
+      <p className={`relative mt-1 text-[11.5px] leading-snug ${INK_FAINT}`}>{hint}</p>
+
+      <div className="relative mt-3.5 flex items-center justify-between border-t border-[rgba(125,177,216,0.22)] pt-2.5">
         <span className={`text-[11px] font-medium ${INK_FAINT}`}>{footerNote ?? `${Math.round(sharePct)}% of group total`}</span>
-        <span className="inline-flex items-center gap-0.5 text-[11.5px] font-semibold text-[color:var(--esg-blue)]">
+        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11.5px] font-semibold text-[color:var(--esg-blue)] transition-colors group-hover:bg-[rgba(58,123,255,0.08)]">
           View
           <ArrowUpRight
-            className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
             aria-hidden="true"
           />
         </span>
@@ -544,7 +568,7 @@ export default function DashboardView() {
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatusCard
-            icon={FilesIcon}
+            icon={SubmissionFlowIcon}
             hue="#3a7bff"
             label="Submissions"
             hint="All ESG filings across the group"
@@ -554,7 +578,7 @@ export default function DashboardView() {
             onClick={() => navigate("submissions")}
           />
           <StatusCard
-            icon={CheckSealIcon}
+            icon={ApprovalRosetteIcon}
             hue="#238653"
             label="Approved"
             hint="Approved & eligible for consolidation"
@@ -563,7 +587,7 @@ export default function DashboardView() {
             onClick={() => navigate("submissions", { statusFilter: "APPROVED" })}
           />
           <StatusCard
-            icon={HourglassIcon}
+            icon={ReviewPendingIcon}
             hue="#c57926"
             label="Pending review"
             hint="Awaiting an admin review decision"
@@ -572,7 +596,7 @@ export default function DashboardView() {
             onClick={() => navigate("approvals")}
           />
           <StatusCard
-            icon={AlarmAlertIcon}
+            icon={OverdueSirenIcon}
             hue="#c34a4a"
             label="Overdue"
             hint="Past due date — escalate now"
