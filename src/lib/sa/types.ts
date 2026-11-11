@@ -17,6 +17,7 @@ export type SaViewId =
   | "evidence"
   | "comms"
   | "esg"
+  | "brsrData"
   | "validation"
   | "analytics"
   | "activity"

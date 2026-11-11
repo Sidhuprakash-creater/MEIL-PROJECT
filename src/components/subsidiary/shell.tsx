@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { LoaderRoleProvider, MeilLoader } from "@/components/shared/meil-loader";
 import {
-  AlarmAlertIcon, BellIcon, CheckSealIcon, FileCheckIcon, FilesIcon, GaugeIcon, GearIcon,
+  AlarmAlertIcon, BellIcon, CheckSealIcon, FileCheckIcon, FilesIcon, GaugeIcon, GearIcon, WorkflowIcon,
   HourglassIcon, MegaphoneIcon, PeopleIcon, ProjectsIcon, PulseIcon, ReportChartIcon, ShieldIcon,
   TrendIcon, UnitsIcon,
 } from "@/components/workspace/premium-icons";
@@ -38,6 +38,7 @@ export const SA_VIEW_ICONS: Record<SaViewId, React.ComponentType<{ className?: s
   evidence: FileCheckIcon,
   comms: MegaphoneIcon,
   esg: ReportChartIcon,
+  brsrData: WorkflowIcon,
   validation: AlarmAlertIcon,
   analytics: TrendIcon,
   activity: PulseIcon,

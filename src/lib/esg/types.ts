@@ -14,6 +14,7 @@ export type ViewId =
   | "tasks"
   | "comms"
   | "brsr"
+  | "brsrChecklist"
   | "consolidation"
   | "analytics"
   | "activity"
