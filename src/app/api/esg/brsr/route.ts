@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
     /* Export — record and return file content */
     if (b.action === "export") {
       const format = (b.format || "CSV").toUpperCase();
-      if (!["CSV", "JSON", "TXT"].includes(format)) return fail("Unsupported export format. Supported: CSV, JSON, TXT.");
+      if (!["CSV", "JSON", "TXT", "PDF"].includes(format)) return fail("Unsupported export format. Supported: CSV, JSON, TXT, PDF.");
       const d = await decorate(r);
       const exportsList = parseJson<{ format: string; at: string; by: string }[]>(r.exports, []);
       const rec = { format, at: new Date().toISOString(), by: ACTOR.name };

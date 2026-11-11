@@ -37,6 +37,7 @@ export async function GET(req: NextRequest) {
       status: row?.status ?? "NOT_STARTED",
       submittedAt: row?.submittedAt ? row.submittedAt.toISOString() : null,
       submittedBy: row?.submittedBy || "",
+      sections,
       completeness: {
         filledFields,
         totalFields,

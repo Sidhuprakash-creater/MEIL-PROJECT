@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useWorkspace, REPORTING_YEARS } from "@/lib/esg/store";
+import { BRSR_SECTIONS } from "@/lib/brsr/sections";
 import {
   apiDelete,
   apiPatch,
@@ -129,6 +130,112 @@ const sectionOfCode = (code: string) =>
 
 /* ─────────────────────────── export helpers (real downloads) ─────────────────────────── */
 
+interface ChecklistSubData {
+  subsidiaryName: string;
+  subsidiaryCode: string;
+  status: string;
+  sections: Record<string, Record<string, string>>;
+  completeness: { filledFields: number; totalFields: number; pct: number };
+}
+
+/* Fetch the subsidiaries' BRSR data so the printed report carries the
+   section-wise inputs alongside the report content. */
+async function loadChecklist(period: string): Promise<ChecklistSubData[]> {
+  try {
+    const res = await fetch(`/api/esg/brsr-checklist?period=${encodeURIComponent(period)}`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as { subsidiaries?: ChecklistSubData[] };
+    return json.subsidiaries ?? [];
+  } catch {
+    return [];
+  }
+}
+
+const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
+  const secRows = r.sections.map((s, i) => `
+    <h3>${i + 1}. ${esc(s.title)}</h3><p>${esc(s.content)}</p>`).join("");
+  const discRows = ["GENERAL", "ENVIRONMENT", "SOCIAL", "GOVERNANCE"].map((group) => {
+    const items = r.disclosures.filter((d) => sectionOfCode(d.code) === group);
+    if (!items.length) return "";
+    return `<h3>${group === "GENERAL" ? "General disclosures" : group.charAt(0) + group.slice(1).toLowerCase() + " disclosures"}</h3>
+      <table><thead><tr><th>Code</th><th>Disclosure</th><th>Value</th><th>Unit</th><th>Status</th></tr></thead><tbody>
+      ${items.map((d) => `<tr><td>${esc(d.code)}</td><td>${esc(d.title)}</td><td>${d.value !== null ? fmtNumber(d.value, 2) : "—"}</td><td>${esc(d.unit)}</td><td>${esc(d.status)}</td></tr>`).join("")}
+      </tbody></table>`;
+  }).join("");
+  const subAnnex = subs.map((s) => `
+    <div class="page-break"></div>
+    <h2>Annexure — BRSR data: ${esc(s.subsidiaryName)} (${esc(s.subsidiaryCode)})</h2>
+    <p class="muted">${s.completeness.filledFields}/${s.completeness.totalFields} fields · ${esc(s.status)}</p>
+    ${BRSR_SECTIONS.map((sec) => {
+      const vals = s.sections?.[sec.key] ?? {};
+      const filled = sec.fields.filter((f) => (vals[f.key] ?? "").trim() !== "");
+      if (!filled.length) return "";
+      return `<h3>${esc(sec.title)}</h3><table><thead><tr><th>Field</th><th>Response</th></tr></thead><tbody>
+        ${filled.map((f) => `<tr><td class="k">${esc(f.label)}</td><td>${esc(vals[f.key]).replace(/\n/g, "<br/>")}</td></tr>`).join("")}
+      </tbody></table>`;
+    }).join("")}`).join("");
+
+  return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(r.title)}</title><style>
+    @page { size: A4; margin: 18mm 16mm; }
+    body { font-family: Georgia, 'Times New Roman', serif; color: #1a2332; line-height: 1.55; }
+    .cover { text-align: center; padding-top: 120px; page-break-after: always; }
+    .cover .group { font-size: 13px; letter-spacing: 6px; color: #16588e; font-weight: bold; }
+    .cover h1 { font-size: 30px; margin: 26px 0 8px; }
+    .cover .sub { font-size: 15px; color: #475569; }
+    .cover table { margin: 48px auto 0; border-collapse: collapse; font-size: 13px; text-align: left; }
+    .cover td { padding: 7px 14px; border-bottom: 1px solid #e2e8f0; }
+    .cover td.k { color: #64748b; font-weight: bold; width: 240px; }
+    h2 { font-size: 19px; border-bottom: 2px solid #16588e; padding-bottom: 6px; margin-top: 30px; page-break-after: avoid; }
+    h3 { font-size: 14.5px; margin: 22px 0 6px; page-break-after: avoid; }
+    p { font-size: 13px; }
+    .muted { color: #64748b; font-size: 12px; }
+    table.data, table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0 18px; }
+    th { background: #16588e; color: #fff; text-align: left; padding: 7px 9px; font-weight: bold; }
+    td { border: 1px solid #e2e8f0; padding: 6px 9px; vertical-align: top; }
+    td.k { width: 34%; color: #334155; font-weight: bold; }
+    .page-break { page-break-before: always; }
+    .sign { margin-top: 34px; }
+  </style></head><body>
+    <div class="cover">
+      <div class="group">MEIL GROUP</div>
+      <h1>BUSINESS RESPONSIBILITY AND<br/>SUSTAINABILITY REPORT</h1>
+      <div class="sub">${esc(r.framework)}</div>
+      <table>
+        <tr><td class="k">Reporting Financial Year</td><td>${esc(r.financialYear)}</td></tr>
+        <tr><td class="k">Reporting Boundary</td><td>Consolidated — all active subsidiaries</td></tr>
+        <tr><td class="k">Report Reference</td><td>${esc(r.ref)} · Version ${r.version}</td></tr>
+        <tr><td class="k">Prepared By</td><td>${esc(r.ownerName)}</td></tr>
+        <tr><td class="k">Reviewed By</td><td>${r.signoffs.map((s) => esc(s.name)).join(", ") || "Subsidiary & BU reviewers (platform trail)"}</td></tr>
+        <tr><td class="k">Status</td><td>${esc(r.status)}${r.finalizedAt ? ` · Finalized ${fmtDateTime(r.finalizedAt)}` : ""}</td></tr>
+        <tr><td class="k">Generated</td><td>${fmtDateTime(new Date().toISOString())}</td></tr>
+      </table>
+    </div>
+    <h2>1. Report Sections</h2>
+    ${secRows || "<p class='muted'>No narrative sections recorded.</p>"}
+    <div class="page-break"></div>
+    <h2>2. Disclosure Register</h2>
+    ${discRows || "<p class='muted'>No disclosures mapped yet.</p>"}
+    <h2>3. Sign-offs</h2>
+    ${r.signoffs.length ? `<table><thead><tr><th>Role</th><th>Name</th><th>Decision</th><th>At</th><th>Comment</th></tr></thead><tbody>
+      ${r.signoffs.map((s) => `<tr><td>${esc(s.role)}</td><td>${esc(s.name)}</td><td>${esc(s.decision)}</td><td>${fmtDateTime(s.at)}</td><td>${esc(s.comment)}</td></tr>`).join("")}
+    </tbody></table>` : "<p class='muted'>(none recorded)</p>"}
+    ${subs.length ? `<h2>4. Subsidiary BRSR Data Annexure</h2><p class="muted">Section-wise inputs captured from each subsidiary via the platform BRSR Data form.</p>${subAnnex}` : ""}
+  </body></html>`;
+}
+
+function printBrsrPdf(r: BrsrReport, subs: ChecklistSubData[]) {
+  const w = window.open("", "_blank", "width=900,height=1000");
+  if (!w) return false;
+  w.document.open();
+  w.document.write(buildBrsrHtml(r, subs));
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+  return true;
+}
+
 function buildCsv(r: BrsrReport): string {
   const rows: Record<string, unknown>[] = r.disclosures.map((d) => ({
     Type: "Disclosure",
@@ -182,7 +289,7 @@ function buildTxt(r: BrsrReport): string {
 function useBrsrExport(onDone?: (r: BrsrReport) => void) {
   const { toast } = useToast();
   const [busyKey, setBusyKey] = React.useState<string | null>(null);
-  const doExport = async (report: BrsrReport, format: "CSV" | "JSON" | "TXT") => {
+  const doExport = async (report: BrsrReport, format: "CSV" | "JSON" | "TXT" | "PDF") => {
     const key = `${report.id}:${format}`;
     setBusyKey(key);
     try {
@@ -191,7 +298,12 @@ function useBrsrExport(onDone?: (r: BrsrReport) => void) {
         { action: "export", id: report.id, format }
       );
       const safe = report.ref.replace(/[^\w.-]+/g, "_");
-      if (format === "JSON") downloadFile(`${safe}.json`, JSON.stringify(res.file, null, 2), "application/json");
+      if (format === "PDF") {
+        /* Print-ready A4 layout (browser "Save as PDF") with the cover page,
+           disclosures, sign-offs and the subsidiaries' BRSR data annexure. */
+        const subs = await loadChecklist(report.financialYear);
+        printBrsrPdf(report, subs);
+      } else if (format === "JSON") downloadFile(`${safe}.json`, JSON.stringify(res.file, null, 2), "application/json");
       else if (format === "CSV") downloadFile(`${safe}.csv`, buildCsv(report), "text/csv");
       else downloadFile(`${safe}.txt`, buildTxt(report), "text/plain");
       toast({ title: `Report exported as ${format}`, description: `Recorded by the server at ${fmtDateTime(res.export.at)}.` });
@@ -216,9 +328,9 @@ function ExportMenu({ report, size = "sm" }: { report: BrsrReport; size?: "sm" |
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="glass-strong rounded-2xl border-white/70">
-        {(["CSV", "JSON", "TXT"] as const).map((f) => (
+        {(["PDF", "CSV", "JSON", "TXT"] as const).map((f) => (
           <DropdownMenuItem key={f} onClick={() => doExport(report, f)}>
-            <Download className="mr-2 h-3.5 w-3.5" /> {f} file
+            <Download className="mr-2 h-3.5 w-3.5" /> {f === "PDF" ? "PDF report (print-ready)" : `${f} file`}
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>
@@ -1469,7 +1581,7 @@ function StepReview({ report, onChanged }: { report: BrsrReport; onChanged: (r: 
 function StepFinalize({ report, onChanged }: { report: BrsrReport; onChanged: (r: BrsrReport) => void }) {
   const { toast } = useToast();
   const finMut = useMutation<{ report: BrsrReport; message: string }>();
-  const [format, setFormat] = React.useState<"CSV" | "JSON" | "TXT">("JSON");
+  const [format, setFormat] = React.useState<"CSV" | "JSON" | "TXT" | "PDF">("PDF");
   const { doExport, busyKey } = useBrsrExport((r) => onChanged(r));
   const locked = report.status === "FINALIZED";
   const unresolved = unresolvedOf(report);
@@ -1523,6 +1635,7 @@ function StepFinalize({ report, onChanged }: { report: BrsrReport; onChanged: (r
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="glass-strong rounded-2xl border-white/70">
+                    <SelectItem value="PDF">PDF — print-ready final report</SelectItem>
                     <SelectItem value="JSON">JSON — full snapshot</SelectItem>
                     <SelectItem value="CSV">CSV — disclosures &amp; sections</SelectItem>
                     <SelectItem value="TXT">TXT — pretty report</SelectItem>
@@ -1535,7 +1648,9 @@ function StepFinalize({ report, onChanged }: { report: BrsrReport; onChanged: (r
             </ActionButton>
           </div>
           <p className="mt-3 text-xs text-[color:var(--ink-faint)]">
-            {format === "JSON"
+            {format === "PDF"
+              ? "Opens a print-ready A4 layout (cover page, disclosures, sign-offs and the subsidiaries' BRSR data annexure) — choose \"Save as PDF\" in the print dialog."
+              : format === "JSON"
               ? "JSON contains the complete server snapshot: metadata, scope, disclosures, sections, sign-offs."
               : format === "CSV"
                 ? "CSV lists all disclosures with values/status plus the report sections."
