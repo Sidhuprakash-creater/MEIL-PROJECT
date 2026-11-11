@@ -453,74 +453,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, submissionId, comments, priority, dueDate } = body;
 
-    /* 0. FORWARD-TO-BU WORKFLOW — consolidated handoff from the Approved
-       Dataset view. Forwards ALL approved, not-yet-forwarded submissions in
-       one shot; BU then re-reviews each (APPROVED → BU_APPROVED). */
+    /* 0. FORWARD-TO-BU — DISABLED. The Business Unit now reviews ONE
+       consolidated dossier per submission cycle. Individual approved
+       disclosures are never sent to the BU one by one; the Project Admin
+       must compile them via the Consolidated Report flow instead. */
     if (action === "forward-to-bu") {
-      const now = new Date();
-      const note = comments?.trim() || `Consolidated dataset forwarded to Business Unit by ${ctx.userName}.`;
-
-      const pending = await db.submission.findMany({
-        where: { ...paSubmissionScope(ctx), status: "APPROVED", forwardedToBu: false },
-        select: { id: true, title: true, category: true, history: true },
-        orderBy: { updatedAt: "asc" },
-      });
-
-      if (pending.length === 0) {
-        return paFail("No approved submissions are waiting to be forwarded.", 400);
-      }
-
-      await Promise.all(
-        pending.map((s) => {
-          let hist: any[] = [];
-          try { hist = JSON.parse(s.history || "[]"); if (!Array.isArray(hist)) hist = []; } catch {}
-          hist.push({ action: "FORWARDED_TO_BU", actor: ctx.userName, at: now.toISOString(), note });
-          return db.submission.update({
-            where: { id: s.id },
-            data: { forwardedToBu: true, forwardedToBuAt: now, history: JSON.stringify(hist), updatedAt: now },
-          });
-        }),
-      );
-
-      // Notify BU reviewers that a consolidated dataset is waiting for review
-      const buUsers = await db.user.findMany({
-        where: { role: { in: ["BU_MANAGER", "BU_ADMIN"] }, businessUnitId: ctx.businessUnitId },
-        select: { id: true },
-      });
-      for (const bu of buUsers) {
-        await db.notification.create({
-          data: {
-            ntype: "APPROVAL_PENDING",
-            title: `Approved Dataset Forwarded: ${pending.length} submission${pending.length === 1 ? "" : "s"}`,
-            body: `Project Admin ${ctx.userName} forwarded the approved dataset for ${ctx.projectName} to Business Unit for review. Note: "${note}"`,
-            severity: "INFO",
-            linkView: "queue",
-            refId: bu.id,
-            subsidiaryId: ctx.subsidiaryId,
-          },
-        });
-      }
-
-      await logProjectActivity({
-        actorName: ctx.userName,
-        actorRole: "Project Admin",
-        action: "DATASET_FORWARDED_TO_BU",
-        targetType: "Submission",
-        targetLabel: `${pending.length} approved submission${pending.length === 1 ? "" : "s"}`,
-        category: "Consolidated Dataset",
-        severity: "SUCCESS",
-      });
-
-      /* Bust every cache so the forwarded rows appear in the BU queue at once
-         (this branch returns before the shared invalidation block below). */
-      invalidatePaServerCache();
-      invalidatePuSubmissionsCache();
-      invalidatePuOverviewCache();
-      invalidateSubmittedReportsCache();
-
-      return paOk(
-        { forwardedCount: pending.length, forwardedAt: now.toISOString() },
-        `${pending.length} approved submission${pending.length === 1 ? "" : "s"} forwarded to Business Unit for review.`,
+      return paFail(
+        "Individual forwarding is disabled — compile the approved disclosures into the Consolidated Report and submit that single dossier to the Business Unit.",
+        400,
       );
     }
 

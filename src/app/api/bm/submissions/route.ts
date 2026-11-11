@@ -86,6 +86,15 @@ export async function GET(req: NextRequest) {
     if (level === "BU") scoped = scoped.filter((s) => !s.projectId);
     else if (level === "PROJECT") scoped = scoped.filter((s) => !!s.projectId);
 
+    /* CONSOLIDATED HANDOFF: when the Project Admin submits a consolidated
+       report, every included individual disclosure is folded into ONE dossier
+       row (category CONSOLIDATED, id = report id). The BU reviews only that
+       dossier — the individual rows are hidden from every tab and count.
+       They re-surface for the Project Admin if the dossier is returned. */
+    scoped = scoped.filter(
+      (s) => !(s.inConsolidatedReport && s.consolidatedReportId && s.id !== s.consolidatedReportId),
+    );
+
     const inTab = (list: typeof scoped, t: string) =>
       list.filter(TAB_FILTERS[t] ?? TAB_FILTERS.all);
 

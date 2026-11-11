@@ -17,7 +17,7 @@ import {
   MessageSquare,
   Sparkles,
   Layers,
-  Send,
+
 } from "lucide-react";
 import { usePaStore } from "@/lib/project-admin/store";
 import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/project-admin/client";
@@ -98,29 +98,6 @@ export default function SubmissionsView() {
       loadSubmissions(true);
     });
   }, []);
-
-  // Quick Action: Forward the approved dataset to the Business Unit
-  const handleForwardToBu = async () => {
-    if (!confirm("Forward all approved, not-yet-forwarded submissions to the Business Unit for review?")) return;
-    setActionLoading(true);
-    try {
-      const res: any = await paApiPost("/api/project-admin/submissions", {
-        action: "forward-to-bu",
-        comments: "Approved dataset forwarded to Business Unit for review.",
-      });
-      const n = res?.forwardedCount ?? 0;
-      showToast(
-        n > 0
-          ? `Forwarded ${n} approved submission${n === 1 ? "" : "s"} to the Business Unit.`
-          : "No approved submissions were waiting to be forwarded."
-      );
-      await loadSubmissions(true);
-    } catch (err: any) {
-      alert(err.message || "Forward to Business Unit failed.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   // Quick Action: Approve
   const handleApprove = async (sub: any, note?: string) => {
@@ -321,16 +298,6 @@ export default function SubmissionsView() {
         subtitle="Review, approve, and manage disclosure packages from site contributors (Environment, Energy, Water, Waste) and quarterly consolidated reports"
         actions={
           <div className="flex items-center gap-2">
-            <PaButton
-              variant="secondary"
-              size="sm"
-              onClick={handleForwardToBu}
-              disabled={loading || actionLoading}
-              className="flex items-center gap-1.5"
-            >
-              <Send size={13} />
-              <span>Forward to BU</span>
-            </PaButton>
             <PaButton
               variant="secondary"
               size="sm"

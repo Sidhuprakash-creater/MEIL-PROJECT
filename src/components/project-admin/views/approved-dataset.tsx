@@ -173,7 +173,6 @@ export default function ApprovedDatasetView() {
   const [forwardedAt, setForwardedAt] = useState<Record<string, string | null>>({});
   const [actionLoading, setActionLoading] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -270,29 +269,6 @@ export default function ApprovedDatasetView() {
   const alreadyForwarded = submissions.filter((s) => isApproved(s) && s.forwardedToBu).length;
   const pendingForward = totalApproved;
 
-  const handleForwardToBu = async () => {
-    if (!confirm("Send ALL staged approved submissions to the Business Unit in one consolidated batch?")) return;
-    setConfirmOpen(false);
-    setActionLoading(true);
-    try {
-      const res: any = await paApiPost("/api/project-admin/submissions", {
-        action: "forward-to-bu",
-        comments: "Consolidated approved dataset sent to Business Unit in one batch.",
-      });
-      const n = res?.forwardedCount ?? 0;
-      showToast(
-        n > 0
-          ? `Sent ${n} approved submission${n === 1 ? "" : "s"} to the Business Unit together as one package.`
-          : "No staged submissions were waiting to be sent."
-      );
-      await load(true);
-    } catch (err: any) {
-      alert(err.message || "Send to Business Unit failed.");
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="glass rounded-2xl p-6">
@@ -307,7 +283,7 @@ export default function ApprovedDatasetView() {
     <div className="space-y-6 animate-in fade-in duration-300">
       <PaPageHeader
         title="Approved Dataset"
-        subtitle="Approved & staged submissions waiting for a single consolidated Business Unit handoff — grouped stepwise by module (Environment → Energy → Water → Waste, then Finance, HR, EHS, Procurement, CSR, Compliance). Once sent, items leave this list and reach the BU as one project package."
+        subtitle="Approved & staged submissions waiting to be compiled into the Consolidated Report — grouped stepwise by module (Environment → Energy → Water → Waste, then Finance, HR, EHS, Procurement, CSR, Compliance). Use the Consolidated Report page to submit everything to the BU as ONE dossier."
         actions={
           <div className="flex items-center gap-2">
             <PaButton
@@ -322,16 +298,6 @@ export default function ApprovedDatasetView() {
             >
               <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
               <span>Refresh</span>
-            </PaButton>
-            <PaButton
-              variant="primary"
-              size="sm"
-              onClick={() => setConfirmOpen(true)}
-              disabled={actionLoading || pendingForward < 1}
-              className="flex items-center gap-1.5 bg-gradient-to-r from-[#315CFF] to-[#6542F5] hover:from-[#4768ff] hover:to-[#7653ff]"
-            >
-              <Send size={14} />
-              <span>Send all {pendingForward > 0 ? `${pendingForward} items` : "to BU"}</span>
             </PaButton>
           </div>
         }
@@ -379,7 +345,7 @@ export default function ApprovedDatasetView() {
             <div className="text-slate-800 font-bold">Nothing staged right now</div>
             <div className="text-slate-500 text-sm max-w-md">
               Approve reports from Data Collection Status, Submissions or Review & Corrections — they appear here, grouped by module.
-              When they're ready, press "Send all items" once and ALL of them go to the Business Unit together as one package. Items
+              When they're ready, open the Consolidated Report page and submit them to the Business Unit as one single dossier. Items
               already sent are removed from this view.
             </div>
             <PaButton variant="primary" size="sm" onClick={() => navigate("submissions")}>
@@ -501,30 +467,6 @@ export default function ApprovedDatasetView() {
               </div>
             </PaGlassCard>
           ))}
-        </div>
-      )}
-
-      {/* Confirm forward modal */}
-      {confirmOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="glass rounded-2xl p-6 w-full max-w-lg">
-            <h3 className="text-lg font-bold text-[#202938] mb-2">Send to Business Unit</h3>
-            <p className="text-sm text-slate-600 mb-4">
-              All {pendingForward} staged approved submission{pendingForward === 1 ? "" : "s"} will be delivered to the Business Unit AT ONCE as a single consolidated package — not one by one.
-              The BU sees them grouped under this project's name and can open the package to review every report inside. This action cannot be undone.
-            </p>
-            <div className="flex items-center justify-end gap-2.5">
-              <PaButton variant="secondary" onClick={() => setConfirmOpen(false)}>Cancel</PaButton>
-              <PaButton
-                variant="primary"
-                onClick={handleForwardToBu}
-                disabled={actionLoading}
-                className="bg-gradient-to-r from-[#315CFF] to-[#6542F5]"
-              >
-                {actionLoading ? "Submitting…" : "Confirm Submit"}
-              </PaButton>
-            </div>
-          </div>
         </div>
       )}
     </div>
