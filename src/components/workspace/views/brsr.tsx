@@ -180,12 +180,12 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
   return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(r.title)}</title><style>
     @page { size: A4; margin: 22mm 16mm 18mm; }
     body { font-family: Georgia, 'Times New Roman', serif; color: #1a2332; line-height: 1.55; }
-    /* MEIL watermark — repeats behind every printed page (enable "Background
-       graphics" in the print dialog for the watermark to appear). */
-    body::before {
-      content: ""; position: fixed; inset: 0; z-index: -1;
+    /* MEIL watermark — a fixed overlay repeated on every printed page. */
+    .wm {
+      position: fixed; inset: 0; z-index: 999; pointer-events: none;
       background: url('/meil-logo.jpg') center 55% / 46% auto no-repeat;
-      opacity: 0.05; pointer-events: none;
+      opacity: 0.07;
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }
     /* Letterhead — repeats at the top of every printed page. */
     .letterhead { position: fixed; top: -14mm; left: 0; right: 0; height: 14mm;
@@ -212,6 +212,7 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
     .page-break { page-break-before: always; }
     .sign { margin-top: 34px; }
   </style></head><body>
+    <div class="wm"></div>
     <div class="letterhead">
       <img src="/meil-logo.jpg" alt="MEIL" onerror="this.style.display='none'"/>
       <span class="tag">Business Responsibility &amp; Sustainability Report</span>
