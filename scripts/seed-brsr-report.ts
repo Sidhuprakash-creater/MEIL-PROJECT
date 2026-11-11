@@ -55,6 +55,10 @@ const NOTES: Record<string, string> = {
   "BRSR-C2-GOV-01": "Board-approved policies mapped to NGRBC P1–P9 in the policy register.",
 };
 
+/* Every disclosure carries a note so the review transition never blocks on
+   "mapped but unvalidated without note" after a consolidation recompute. */
+const DEFAULT_NOTE = "Consolidated from subsidiary BRSR data forms and approved platform disclosures — methodology in Annexure 1.";
+
 const SECTIONS = [
   { id: "SEC-01", title: "Executive Summary", content: "MEIL Group's FY 2025-26 BRSR consolidates operations across 7 subsidiaries spanning engineering & infrastructure, power generation (hydro & solar), city gas distribution, e-mobility and international drilling services. The group recorded 2.79 million GJ of energy consumption, a 13.1% renewable share, zero fatalities, and 100% CSR obligation utilisation across India-registered entities. All quantitative disclosures were captured through the platform's subsidiary → BU → project disclosure workflow with BU Manager and Subsidiary Manager sign-offs." },
   { id: "SEC-02", title: "Reporting Boundary & Methodology", content: "Operational control approach. Boundary includes all 7 active subsidiaries: Megha Engineering & Infrastructures Ltd (MEIL Core), Drillmec S.p.A., MEIL Hydro Power Limited, MEIL Solar Energy Limited, Megha City Gas Distribution Holding, Petreven S.p.A. and Olectra Greentech Limited. GHG accounting follows the GHG Protocol Corporate Standard with CEA v20 grid emission factor (0.716 tCO2/MWh) and IPCC 2006 fuel factors. JV entities are excluded (equity-accounted)." },
@@ -79,7 +83,7 @@ async function main() {
 
   const disclosures = MASTER.map((d) => ({
     code: d.code, title: d.title, mapped: true, status: "VALIDATED",
-    value: VALUES[d.code] ?? 0, unit: d.unit, note: NOTES[d.code] ?? "",
+    value: VALUES[d.code] ?? 0, unit: d.unit, note: NOTES[d.code] ?? DEFAULT_NOTE,
   }));
 
   const base = {
