@@ -184,7 +184,7 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
        graphics" in the print dialog for the watermark to appear). */
     body::before {
       content: ""; position: fixed; inset: 0; z-index: -1;
-      background: url('/meil-logo.png') center 55% / 46% auto no-repeat;
+      background: url('/meil-logo.jpg') center 55% / 46% auto no-repeat;
       opacity: 0.05; pointer-events: none;
     }
     /* Letterhead — repeats at the top of every printed page. */
@@ -213,11 +213,11 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
     .sign { margin-top: 34px; }
   </style></head><body>
     <div class="letterhead">
-      <img src="/meil-logo.png" alt="MEIL" onerror="this.style.display='none'"/>
+      <img src="/meil-logo.jpg" alt="MEIL" onerror="this.style.display='none'"/>
       <span class="tag">Business Responsibility &amp; Sustainability Report</span>
     </div>
     <div class="cover">
-      <img class="logo" src="/meil-logo.png" alt="MEIL Group" onerror="this.style.display='none'"/>
+      <img class="logo" src="/meil-logo.jpg" alt="MEIL Group" onerror="this.style.display='none'"/>
       <div class="group">MEIL GROUP</div>
       <h1>BUSINESS RESPONSIBILITY AND<br/>SUSTAINABILITY REPORT</h1>
       <div class="sub">${esc(r.framework)}</div>
