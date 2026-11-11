@@ -78,7 +78,7 @@ const NAV_LABELS: Record<SmViewId, string> = {
   notifications: "Notifications",
   queue: "Review Queue",
   "reports-bu": "BU Reports",
-  "reports-project": "Subsidiary Reports",
+  "reports-project": "Business Unit Reports",
   evidence: "Evidence Review",
   corrections: "Corrections",
   deadlines: "Tasks & Deadlines",

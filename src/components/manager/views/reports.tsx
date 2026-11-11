@@ -1,6 +1,6 @@
 "use client";
 
-// ── SUBSIDIARY MANAGER · SCREENS 04 & 05 — BU Reports / Subsidiary Reports ──
+// ── SUBSIDIARY MANAGER · SCREENS 04 & 05 — BU Reports / Business Unit Reports ──
 import { useMemo, useState } from "react";
 import { Building2, ChevronDown, ChevronRight, FileText, Landmark, Sigma } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -221,7 +221,7 @@ function ReportsDirectory({ level }: { level: "BU" | "PROJECT" }) {
     },
   ];
 
-  const title = level === "PROJECT" ? "Subsidiary Reports" : "BU Reports";
+  const title = level === "PROJECT" ? "Business Unit Reports" : "BU Reports";
   const description = level === "PROJECT"
     ? "Directory of project / site submissions with their review state. Read full content, inspect evidence, and decide when authorized."
     : "Directory of business-unit reporting records with their review state. Read full content, inspect evidence, and decide when authorized.";
