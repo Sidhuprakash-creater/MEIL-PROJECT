@@ -5,6 +5,8 @@ import { FileText, CheckCircle2, Clock, Link2, Check, Upload, Download, Eye, Fil
 import { toast } from 'sonner'
 import { type EvidenceItem, useApiBase } from './core'
 import { OcrScanButton, type OcrFields } from './ocr-scan'
+import { EvidenceSecurityNotice } from '@/components/shared/evidence/evidence-security-notice'
+import { uploadEvidenceFile, type DuplicateInfo, type UploadRejection } from '@/lib/evidence/upload-client'
 
 /* ============================================================
    IN-FORM EVIDENCE ATTACH SECTION (AFTER REMARKS)
@@ -47,6 +49,8 @@ export function FormEvidenceAttachSection({
 
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
+  const [rejection, setRejection] = useState<UploadRejection | null>(null)
+  const [retryFile, setRetryFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Derive active attached IDs (combining single and array props)
@@ -73,52 +77,74 @@ export function FormEvidenceAttachSection({
     }
   }
 
+  const uploadOne = async (file: File, allowDuplicate = false): Promise<EvidenceItem | null> => {
+    const outcome = await uploadEvidenceFile({
+      apiBase,
+      file,
+      allowDuplicate,
+      fields: {
+        documentType: 'INVOICE',
+        module: moduleKey,
+        projectId: projectId || undefined,
+        periodId: periodId || undefined,
+      },
+    })
+    if (!outcome.ok) {
+      setRejection(outcome.rejection)
+      setRetryFile(file)
+      return null
+    }
+    setRejection(null)
+    setRetryFile(null)
+    const data = outcome.data as { id?: string } & EvidenceItem
+    return data
+  }
+
   const handleUploadFiles = async (files: FileList | File[]) => {
     const fileList = Array.from(files)
     if (fileList.length === 0 || readOnly) return
     setUploading(true)
+    setRejection(null)
     const toastId = toast.loading(`Uploading ${fileList.length} evidence document(s)...`)
     try {
       const newIds: string[] = []
       let lastUploaded: EvidenceItem | null = null
+      let uploadedCount = 0
 
       for (const file of fileList) {
-        const fd = new FormData()
-        fd.append('file', file)
-        fd.append('documentType', 'INVOICE')
-        fd.append('module', moduleKey)
-        if (projectId) fd.append('projectId', projectId)
-        if (periodId) fd.append('periodId', periodId)
-
-        const res = await fetch(`${apiBase}/evidence`, { method: 'POST', body: fd })
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}))
-          throw new Error(err?.error || `Failed to upload ${file.name}`)
-        }
-        const uploaded = await res.json()
+        const uploaded = await uploadOne(file)
+        if (!uploaded) continue
+        uploadedCount++
         if (uploaded?.id) {
           newIds.push(uploaded.id)
           lastUploaded = uploaded
         }
       }
 
-      toast.success(`${fileList.length} document(s) uploaded & verified!`, {
-        id: toastId,
-        description: 'Stored in Evidence Vault (SHA-256 hash created) and attached below.',
-      })
-      await onUploaded()
+      if (uploadedCount > 0) {
+        toast.success(`${uploadedCount} document(s) uploaded & verified!`, {
+          id: toastId,
+          description: 'Stored in Evidence Vault (SHA-256 hash created) and attached below.',
+        })
+        await onUploaded()
 
-      if (newIds.length > 0) {
-        const combined = Array.from(new Set([...activeIds, ...newIds]))
-        if (onSelectEvidenceIds) {
-          onSelectEvidenceIds(combined)
+        if (newIds.length > 0) {
+          const combined = Array.from(new Set([...activeIds, ...newIds]))
+          if (onSelectEvidenceIds) {
+            onSelectEvidenceIds(combined)
+          }
+          if (onSelectEvidence) {
+            onSelectEvidence(combined[combined.length - 1])
+          }
+          if (lastUploaded && onReview) {
+            onReview(lastUploaded)
+          }
         }
-        if (onSelectEvidence) {
-          onSelectEvidence(combined[combined.length - 1])
-        }
-        if (lastUploaded && onReview) {
-          onReview(lastUploaded)
-        }
+      } else {
+        toast.error('Upload rejected', {
+          id: toastId,
+          description: 'See the security notice below for details.',
+        })
       }
     } catch (e: any) {
       toast.error('Upload failed', {
@@ -128,6 +154,29 @@ export function FormEvidenceAttachSection({
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  /** The user confirmed the duplicate is intentional — file it as a new version. */
+  const handleUploadAsNewVersion = async (_duplicate: DuplicateInfo) => {
+    if (!retryFile) return
+    setUploading(true)
+    const toastId = toast.loading('Uploading as a new version...')
+    try {
+      const uploaded = await uploadOne(retryFile, true)
+      if (uploaded?.id) {
+        toast.success('Uploaded as a new version', { id: toastId })
+        await onUploaded()
+        if (onSelectEvidenceIds) {
+          onSelectEvidenceIds(Array.from(new Set([...activeIds, uploaded.id])))
+        }
+        if (onSelectEvidence) onSelectEvidence(uploaded.id)
+        if (onReview) onReview(uploaded)
+      } else {
+        toast.error('Upload rejected', { id: toastId })
+      }
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -258,9 +307,20 @@ export function FormEvidenceAttachSection({
           {uploading ? 'Processing & hashing file(s)…' : 'Upload document(s) for this record (Multi-file enabled)'}
         </div>
         <div className="text-[9px] text-slate-500">
-          Select single or multiple files · PDF, PNG, JPG, XLSX, CSV (Max 25MB · SHA-256 tamper-evident)
+          Select single or multiple files · PDF, PNG, JPG, XLSX, CSV (Max 25MB · SHA-256 tamper-evident · malware-scanned)
         </div>
       </div>
+
+      {/* Security scan / duplicate notice */}
+      <EvidenceSecurityNotice
+        rejection={rejection}
+        busy={uploading}
+        onUploadAsNewVersion={handleUploadAsNewVersion}
+        onDismiss={() => {
+          setRejection(null)
+          setRetryFile(null)
+        }}
+      />
 
       {/* Stored evidence cards — attach / review / download */}
       {evidence.length > 0 && (

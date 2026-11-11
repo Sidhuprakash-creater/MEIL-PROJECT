@@ -22,6 +22,7 @@ import {
 
 import { invalidatePaServerCache } from '@/lib/project-admin/server'
 import { resolveProjectForUser } from '@/lib/pu/scope'
+import { describeRecordDuplicate, findDuplicateRecord, type DuplicateRecord } from '@/lib/evidence/duplicates'
 import { invalidatePuOverviewCache, invalidatePuSubmissionsCache, invalidatePuNotificationsCache, getPuCorrectionsCache, setPuCorrectionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
@@ -1021,6 +1022,25 @@ export async function POST(req: NextRequest) {
     const validationStatus = hasErrors ? 'FAILED' : hasWarnings ? 'WARNING' : 'PASSED'
 
     const recId = recordId || `rec-l${level}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+
+    /* ── DUPLICATE RECORD CHECK ──────────────────────────────────────────────
+       The same logical record (same project, period and level) captured with
+       identical values is a double entry. It is flagged rather than silently
+       merged so the contributor decides — the user can confirm the entry is
+       intentional (e.g. a genuine repeat reading) and save anyway. */
+    let duplicateRecord: DuplicateRecord | null = null
+    try {
+      duplicateRecord = await findDuplicateRecord({
+        projectId,
+        reportingPeriodId,
+        level: Number(level),
+        data,
+        excludeId: recId,
+      })
+    } catch {
+      duplicateRecord = null
+    }
+
     const record: LevelRecord = {
       id: recId,
       level: Number(level),
@@ -1390,6 +1410,18 @@ export async function POST(req: NextRequest) {
       issues,
       calculation,
       derivedLtifr: calculation?.derivedLtifr,
+      /* A repeated capture of the same values — surfaced so the contributor
+         can confirm it is intentional. The record is still saved so nothing
+         is silently dropped; the client shows the warning. */
+      duplicateRecord: duplicateRecord
+        ? {
+            id: duplicateRecord.id,
+            levelName: duplicateRecord.levelName,
+            enteredBy: duplicateRecord.enteredBy,
+            enteredAt: duplicateRecord.enteredAt,
+            message: describeRecordDuplicate(duplicateRecord),
+          }
+        : null,
       submission: synchedSubmission
         ? { ...synchedSubmission, project: synchedSubmission.project ? withProjectCompat(synchedSubmission.project) : { ...SAFE_PROJECT } }
         : null,

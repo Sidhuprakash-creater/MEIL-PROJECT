@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { runGeminiOcr } from '@/lib/ai/gemini'
+import { scanForMalware, summarizeScan } from '@/lib/evidence/security'
 
 export const runtime = 'nodejs'
 
@@ -24,6 +25,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only PNG / JPEG / WEBP / HEIC / PDF can be scanned' }, { status: 415 })
     }
     const buffer = Buffer.from(await file.arrayBuffer())
+
+    /* Security gate — a file that fails the malware scan is never handed to
+       the AI provider, and never stored. */
+    const scan = scanForMalware({ fileName: file.name, buffer })
+    if (!scan.clean) {
+      return NextResponse.json(
+        {
+          error: `Scan blocked — the file failed the security scan. ${summarizeScan(scan)}`,
+          code: 'MALWARE_DETECTED',
+          findings: scan.findings,
+        },
+        { status: 422 },
+      )
+    }
+
     const result = await runGeminiOcr(buffer, mimeType)
     if (!result.ok) {
       return NextResponse.json(

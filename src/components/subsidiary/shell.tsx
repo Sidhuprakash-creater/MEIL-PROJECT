@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, StatusBadge } from "@/components/workspace/ui";
 import { SA_VIEWS, type SaViewComponent } from "@/components/subsidiary/view-registry";
+import { CalculatorDock } from "@/components/shared/calculator/calculator-dock";
 import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useSaWorkspace } from "@/lib/sa/store";
 import type { SaViewId, SaNotification } from "@/lib/sa/types";
 import { apiGet, timeAgo, useSaApi } from "@/lib/sa/client";
@@ -505,6 +506,9 @@ export function SaWorkspaceShell({
               </main>
             </div>
           </div>
+
+          {/* Calculator dock — right-edge vertical rail, available to every role */}
+          <CalculatorDock />
         </div>
         </LoaderRoleProvider>
       </SignOutContext.Provider>

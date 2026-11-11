@@ -74,6 +74,56 @@ export const EMISSION_FACTOR_REGISTRY: Record<string, FactorDetail> = {
     factor: '1.9 Kg CO2e/Kg',
     scope: 'Scope 1',
   },
+  'Coal (anthracite)': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2',
+    factor: '2.62 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Coal (bituminous)': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2',
+    factor: '2.44 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Coal (lignite)': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2',
+    factor: '1.2 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Coal (sub-bituminous)': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2',
+    factor: '1.82 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Diesel (per kg)': {
+    source: 'IPCC 2006, Vol 2, Ch 2 (converted to a per-kg basis)',
+    factor: '3.13 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Furnace Oil (per kg)': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2 (converted to a per-kg basis)',
+    factor: '3.13 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'LPG (per kg)': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2',
+    factor: '3.0 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Pet coke': {
+    source: 'IPCC 2006, Vol 2, Ch 2, Table 2.2',
+    factor: '3.17 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Rice husk': {
+    source: 'IPCC 2006, Vol 2, Ch 2 (biomass, non-CO2 excluded)',
+    factor: '1.5 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
+  'Wood': {
+    source: 'IPCC 2006, Vol 2, Ch 2 (biomass, non-CO2 excluded)',
+    factor: '1.75 Kg CO2e/Kg',
+    scope: 'Scope 1',
+  },
   'Lignite Coal': {
     source: 'CEA / IPCC 2006, Vol 2, Ch 2',
     factor: '1.40 Kg CO2e/Kg',

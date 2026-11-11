@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { db } from "@/lib/db";
+import { scanForMalware, summarizeScan } from "@/lib/evidence/security";
+import { describeEvidenceDuplicate, findDuplicateEvidence } from "@/lib/evidence/duplicates";
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Evidence file storage — shared by every console API family.
@@ -44,6 +46,28 @@ export class UploadError extends Error {
   }
 }
 
+/**
+ * Raised when the uploaded content already exists in the vault. Carries the
+ * details of the existing copy so the UI can name it for the user instead of
+ * showing a generic failure.
+ */
+export class DuplicateUploadError extends UploadError {
+  duplicate: {
+    duplicateId: string;
+    fileName: string;
+    uploaderName: string;
+    createdAt: string;
+  };
+  constructor(
+    message: string,
+    status: number,
+    duplicate: DuplicateUploadError["duplicate"]
+  ) {
+    super(message, status);
+    this.duplicate = duplicate;
+  }
+}
+
 export function classifyUpload(name: string, mime: string): { ext: string; fileType: string; mimeType: string } {
   const dot = name.lastIndexOf(".");
   const ext = dot >= 0 ? name.slice(dot + 1).toLowerCase() : "";
@@ -66,6 +90,12 @@ export interface StoreEvidenceArgs {
   disclosureRef?: string;
   uploadedBy: { id: string; name: string; role: string };
   /** Override the notification broadcast (per-console helpers usually do it). */
+  /**
+   * Set when the user has explicitly confirmed that re-uploading an already
+   * stored file is intentional (e.g. filing it against a different scope as a
+   * new version). When false — the default — an identical file is rejected.
+   */
+  allowDuplicate?: boolean;
 }
 
 export interface StoredEvidence {
@@ -125,6 +155,37 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
   const storedName = `${Date.now()}-${safeName}`;
   const filePath = `/evidence-uploads/${storedName}`;
 
+  /* ── SECURITY GATE ────────────────────────────────────────────────────────
+     Every byte that reaches disk passes the malware scanner first, and the
+     content hash is checked against the vault so the same file cannot be
+     filed twice under the same scope. Both checks run BEFORE anything is
+     written, so a rejected file never leaves a trace on the server. */
+  const scan = scanForMalware({ fileName: name, buffer: buf });
+  if (!scan.clean) {
+    const detail = summarizeScan(scan);
+    throw new UploadError(
+      `Upload blocked — the file failed the security scan. ${detail}`,
+      422,
+    );
+  }
+
+  const duplicate = await findDuplicateEvidence(scan.sha256, {
+    projectId: args.projectId ?? projectId ?? null,
+    submissionId: args.submissionId ?? null,
+  });
+  if (duplicate && !args.allowDuplicate) {
+    throw new DuplicateUploadError(
+      describeEvidenceDuplicate(duplicate),
+      409,
+      {
+        duplicateId: duplicate.id,
+        fileName: duplicate.fileName,
+        uploaderName: duplicate.uploaderName,
+        createdAt: duplicate.createdAt.toISOString(),
+      },
+    );
+  }
+
   /* Store the bytes on disk (or /tmp on serverless environments like Vercel) … */
   try {
     const uploadDir = path.join(process.cwd(), "public", "evidence-uploads");
@@ -139,8 +200,7 @@ export async function storeEvidenceFile(args: StoreEvidenceArgs): Promise<Stored
   }
 
   /* … and index it with the unified Evidence model. */
-  const { createHash } = await import("crypto");
-  const hash = createHash("sha256").update(buf).digest("hex");
+  const hash = `sha256:${scan.sha256}`;
   const stored = await db.evidence.create({
     data: {
       fileName: name,
@@ -309,6 +369,16 @@ export async function serveEvidenceBytes(
 
 /** Standard error mapping for upload endpoints that don't have their own. */
 export function uploadErrorResponse(e: unknown): NextResponse | null {
+  if (e instanceof DuplicateUploadError) {
+    return NextResponse.json(
+      {
+        error: e.message,
+        code: "DUPLICATE_EVIDENCE",
+        duplicate: e.duplicate,
+      },
+      { status: e.status },
+    );
+  }
   if (e instanceof UploadError) {
     return NextResponse.json({ error: e.message }, { status: e.status });
   }

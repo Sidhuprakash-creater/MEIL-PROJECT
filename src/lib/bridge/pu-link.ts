@@ -484,17 +484,23 @@ export async function pushTaskToPortalUsers(task: {
       select: { id: true },
     });
     const dueLabel = task.dueDate.toISOString().slice(0, 10);
-    for (const u of users) {
-      await db.notification.create({
-        data: {
-          ntype: "DEADLINE",
-          title: `New task: ${task.title}`,
-          body: `${task.description || "ESG reporting task"} — due ${dueLabel} (priority ${task.priority}). Reference ${task.ref}.`,
-          severity: task.priority === "CRITICAL" || task.priority === "HIGH" ? "WARNING" : "INFO",
-          linkView: "dashboard",
-          refId: task.id,
-        },
-      }).catch(() => undefined);
+    // Insert the deadline notifications in ONE statement. The portal DB is a
+    // remote pooler where each round trip costs ~1s, so a per-recipient loop
+    // stalled the whole task-creation request for the better part of a minute.
+    // Each row is independent and the insert is already best-effort.
+    if (users.length > 0) {
+      await db.notification
+        .createMany({
+          data: users.map(() => ({
+            ntype: "DEADLINE",
+            title: `New task: ${task.title}`,
+            body: `${task.description || "ESG reporting task"} — due ${dueLabel} (priority ${task.priority}). Reference ${task.ref}.`,
+            severity: task.priority === "CRITICAL" || task.priority === "HIGH" ? "WARNING" : "INFO",
+            linkView: "dashboard",
+            refId: task.id,
+          })),
+        })
+        .catch(() => undefined);
     }
     log(`task ${task.ref} pushed to ${users.length} site user(s) across ${targets.length} project(s)`);
     return { notified: users.length };

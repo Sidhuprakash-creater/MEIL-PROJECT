@@ -18,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, StatusBadge } from "@/components/workspace/ui";
 import { BM_VIEWS, type BmViewComponent } from "@/components/bm/view-registry";
+import { CalculatorDock } from "@/components/shared/calculator/calculator-dock";
 import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useBmWorkspace } from "@/lib/bm/store";
 import type { BmViewId, SaNotification } from "@/lib/bm/types";
 import { timeAgo, useBmApi } from "@/lib/bm/client";
@@ -534,6 +535,9 @@ export function BmWorkspaceShell({
               </main>
             </div>
           </div>
+
+          {/* Calculator dock — right-edge vertical rail, available to every role */}
+          <CalculatorDock />
         </div>
         </LoaderRoleProvider>
       </SignOutContext.Provider>

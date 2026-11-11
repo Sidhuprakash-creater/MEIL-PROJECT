@@ -23,6 +23,7 @@ import { FinanceDashboard } from '@/components/site-ops/dashboard/finance-dashbo
 import { ModuleRouter } from '@/components/site-ops/modules/module-router'
 import { ErrorBoundary } from '@/components/site-ops/error-boundary'
 import { LoaderRoleProvider } from '@/components/shared/meil-loader'
+import { CalculatorDock } from '@/components/shared/calculator/calculator-dock'
 import type { ShellSessionUser } from '@/components/site-ops/context'
 
 // Per-role dashboard mapping — each role gets a UNIQUE dashboard
@@ -80,6 +81,9 @@ export function SiteOpsShell({
       </div>
       {/* Ported modules emit toasts via sonner's programmatic API. */}
       <SonnerToaster position="top-right" richColors closeButton />
+
+      {/* Calculator dock — right-edge vertical rail, available to every role */}
+      <CalculatorDock />
     </>
   )
 }

@@ -20,6 +20,7 @@ import { Avatar, StatusBadge } from "@/components/workspace/ui";
 import { LoaderRoleProvider, MeilLoader } from "@/components/shared/meil-loader";
 import { getViewComponent, VIEW_COMPONENTS } from "@/components/workspace/view-registry";
 import { CopilotFloating } from "@/components/copilot/floating";
+import { CalculatorDock } from "@/components/shared/calculator/calculator-dock";
 import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useWorkspace } from "@/lib/esg/store";
 import type { ViewId } from "@/lib/esg/types";
 import { useApi, timeAgo } from "@/lib/esg/client";
@@ -493,6 +494,9 @@ export function WorkspaceShell({
 
       {/* MEIL Intelligence — floating assistant on non-intelligence views */}
       {view !== "intelligence" && <CopilotFloating />}
+
+      {/* Calculator dock — right-edge vertical rail, available to every role */}
+      <CalculatorDock />
     </div>
         </LoaderRoleProvider>
       </SignOutContext.Provider>

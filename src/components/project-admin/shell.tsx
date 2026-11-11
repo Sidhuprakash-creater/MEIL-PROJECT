@@ -36,6 +36,7 @@ import type { PaViewId } from "@/lib/project-admin/types";
 import { PaButton, PaStatusBadge } from "./ui";
 import { PA_VIEW_COMPONENTS } from "./view-registry";
 import { LoaderRoleProvider } from "@/components/shared/meil-loader";
+import { CalculatorDock } from "@/components/shared/calculator/calculator-dock";
 import "./project-admin.css";
 
 /* Map view ids to Lucide icons (LayoutGrid for dashboard per reference) */
@@ -451,6 +452,9 @@ export function ProjectAdminWorkspaceShell({
           </div>
         </div>
       )}
+
+      {/* Calculator dock — right-edge vertical rail, available to every role */}
+      <CalculatorDock />
       </div>
     </LoaderRoleProvider>
   );

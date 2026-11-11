@@ -9,6 +9,8 @@ import * as crypto from 'crypto'
 import * as os from 'os'
 
 import { puEvidenceCache, invalidatePuEvidenceCache } from '@/lib/portal-cache'
+import { scanForMalware, summarizeScan } from '@/lib/evidence/security'
+import { describeEvidenceDuplicate, findDuplicateEvidence } from '@/lib/evidence/duplicates'
 
 // GET /api/evidence?projectId=&periodId=&module=&status=
 // Paginated list including uploader.
@@ -107,7 +109,10 @@ export async function POST(req: NextRequest) {
     const moduleKey = String(formData.get('module') || 'ENERGY')
     const requestedProjectId = formData.get('projectId') as string | null || undefined
     const periodId = formData.get('periodId') as string | null || undefined
-    const sourceRecordId = formData.get('sourceRecordId') as string | null || undefined
+    const sourceRecordId = formData.get('sourceRecordId') as string | null | undefined
+    /* The user can confirm that re-filing an identical document is intentional
+       (e.g. the same invoice attached to a different submission). */
+    const allowDuplicate = String(formData.get('allowDuplicate') || '') === 'true'
 
     /* SCOPE: evidence may only be filed for the contributor's own project. */
     let projectId: string | undefined
@@ -126,6 +131,39 @@ export async function POST(req: NextRequest) {
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
 
+    /* ── SECURITY GATE ──────────────────────────────────────────────────────
+       The file is scanned for malware and checked against the vault for
+       identical content BEFORE any bytes are written to disk. A duplicate is
+       rejected unless the user explicitly confirms it as a new version. */
+    const scan = scanForMalware({ fileName: file.name, buffer })
+    if (!scan.clean) {
+      return NextResponse.json(
+        {
+          error: `Upload blocked — the file failed the security scan. ${summarizeScan(scan)}`,
+          code: 'MALWARE_DETECTED',
+          findings: scan.findings,
+        },
+        { status: 422 },
+      )
+    }
+
+    const duplicate = await findDuplicateEvidence(scan.sha256, { projectId })
+    if (duplicate && !allowDuplicate) {
+      return NextResponse.json(
+        {
+          error: describeEvidenceDuplicate(duplicate),
+          code: 'DUPLICATE_EVIDENCE',
+          duplicate: {
+            duplicateId: duplicate.id,
+            fileName: duplicate.fileName,
+            uploaderName: duplicate.uploaderName,
+            createdAt: duplicate.createdAt.toISOString(),
+          },
+        },
+        { status: 409 },
+      )
+    }
+
     // Save to disk when writable, or fallback to /tmp on serverless (e.g. Vercel read-only filesystem)
     try {
       const uploadDir = path.join(process.cwd(), 'public', 'evidence-uploads')
@@ -140,7 +178,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Compute SHA-256 hash
-    const hash = `sha256:${crypto.createHash('sha256').update(buffer).digest('hex')}`
+    const hash = `sha256:${scan.sha256}`
 
     // Determine version for same file name if replacing
     const existing = await db.evidence.findFirst({

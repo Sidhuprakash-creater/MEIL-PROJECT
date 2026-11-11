@@ -7,6 +7,8 @@ import * as path from 'path'
 import * as crypto from 'crypto'
 import * as os from 'os'
 import { soEvidenceCache, invalidateSoEvidenceCache } from '@/lib/portal-cache'
+import { scanForMalware, summarizeScan } from '@/lib/evidence/security'
+import { describeEvidenceDuplicate, findDuplicateEvidence } from '@/lib/evidence/duplicates'
 
 export const runtime = 'nodejs'
 
@@ -110,6 +112,8 @@ export async function POST(req: NextRequest) {
     const projectId = formData.get('projectId') as string | null || undefined
     const periodId = formData.get('periodId') as string | null || undefined
     const sourceRecordId = formData.get('sourceRecordId') as string | null || undefined
+    /* The user can confirm that re-filing an identical document is intentional. */
+    const allowDuplicate = String(formData.get('allowDuplicate') || '') === 'true'
 
     const safeOrigName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_')
     const uniqueName = `${Date.now()}-${safeOrigName}`
@@ -117,6 +121,38 @@ export async function POST(req: NextRequest) {
 
     const arrayBuffer = await file.arrayBuffer()
     const buffer = Buffer.from(arrayBuffer)
+
+    /* ── SECURITY GATE ──────────────────────────────────────────────────────
+       The file is scanned for malware and checked against the vault for
+       identical content BEFORE any bytes are written to disk. */
+    const scan = scanForMalware({ fileName: file.name, buffer })
+    if (!scan.clean) {
+      return NextResponse.json(
+        {
+          error: `Upload blocked — the file failed the security scan. ${summarizeScan(scan)}`,
+          code: 'MALWARE_DETECTED',
+          findings: scan.findings,
+        },
+        { status: 422 },
+      )
+    }
+
+    const duplicate = await findDuplicateEvidence(scan.sha256, { projectId })
+    if (duplicate && !allowDuplicate) {
+      return NextResponse.json(
+        {
+          error: describeEvidenceDuplicate(duplicate),
+          code: 'DUPLICATE_EVIDENCE',
+          duplicate: {
+            duplicateId: duplicate.id,
+            fileName: duplicate.fileName,
+            uploaderName: duplicate.uploaderName,
+            createdAt: duplicate.createdAt.toISOString(),
+          },
+        },
+        { status: 409 },
+      )
+    }
 
     // Save to disk when writable, or fallback to /tmp on serverless (e.g. Vercel read-only filesystem)
     try {
@@ -132,7 +168,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Compute SHA-256 hash
-    const hash = `sha256:${crypto.createHash('sha256').update(buffer).digest('hex')}`
+    const hash = `sha256:${scan.sha256}`
 
     // Determine version for same file name if replacing
     const existing = await db.evidence.findFirst({

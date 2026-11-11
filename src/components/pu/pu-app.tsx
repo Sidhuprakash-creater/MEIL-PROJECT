@@ -26,6 +26,7 @@ import { FinanceDashboard } from "@/components/pu/dashboard/finance-dashboard";
 import { ModuleRouter } from "@/components/pu/modules/module-router";
 import { ErrorBoundary } from "@/components/pu/error-boundary";
 import { MeilLoader, LoaderRoleProvider } from "@/components/shared/meil-loader";
+import { CalculatorDock } from "@/components/shared/calculator/calculator-dock";
 import "./pu.css";
 
 /* Per-role dashboard mapping — each role gets a UNIQUE dashboard
@@ -111,6 +112,11 @@ function PortalRoot({ onExit }: { onExit?: () => void }) {
           {activeModule === "overview" ? getRoleDashboard(roleKey) : <ModuleRouter />}
         </ErrorBoundary>
       </AppShell>
+
+      {/* Calculator dock — right-edge vertical rail, available to every role.
+          The PROJECT_ADMIN branch above renders the Project Admin console,
+          which mounts its own dock. */}
+      <CalculatorDock />
     </LoaderRoleProvider>
   );
 }

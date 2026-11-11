@@ -23,6 +23,8 @@ import {
 } from 'lucide-react'
 import { Ring } from '@/components/ring'
 import { useApp } from '@/lib/pu/auth-context'
+import { EvidenceSecurityNotice } from '@/components/shared/evidence/evidence-security-notice'
+import { uploadEvidenceFile, type UploadRejection } from '@/lib/evidence/upload-client'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription,
 } from '@/components/ui/sheet'
@@ -1034,6 +1036,8 @@ function UploadForm({
   const [perId, setPerId] = useState(periods[0]?.id ?? '')
   const [busy, setBusy] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [rejection, setRejection] = useState<UploadRejection | null>(null)
+  const [allowDuplicate, setAllowDuplicate] = useState(false)
 
   useEffect(() => {
     if (!projId && projects.length > 0) {
@@ -1060,18 +1064,28 @@ function UploadForm({
       return
     }
     setBusy(true)
+    setRejection(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('documentType', docType)
-      if (docDate) fd.append('documentDate', docDate)
-      fd.append('module', mod)
-      if (projId && projId !== 'none') fd.append('projectId', projId)
-      if (perId && perId !== 'none') fd.append('periodId', perId)
+      const outcome = await uploadEvidenceFile({
+        apiBase: '/api/pu',
+        file,
+        allowDuplicate,
+        fields: {
+          documentType: docType,
+          documentDate: docDate || undefined,
+          module: mod,
+          projectId: projId && projId !== 'none' ? projId : undefined,
+          periodId: perId && perId !== 'none' ? perId : undefined,
+        },
+      })
 
-      const res = await fetch('/api/pu/evidence', { method: 'POST', body: fd })
-      const j = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(j.error || `Upload failed (${res.status})`)
+      if (!outcome.ok) {
+        setRejection(outcome.rejection)
+        // A duplicate can be re-filed deliberately; a malware hit cannot.
+        if (outcome.rejection.kind === 'duplicate') setAllowDuplicate(false)
+        toast.error('Upload rejected', { description: outcome.rejection.message })
+        return
+      }
 
       toast.success('Evidence uploaded', {
         description: `${file.name} uploaded and saved successfully.`,
@@ -1188,6 +1202,21 @@ function UploadForm({
           </SelectContent>
         </Select>
       </div>
+
+      {/* Security scan / duplicate notice */}
+      <EvidenceSecurityNotice
+        rejection={rejection}
+        busy={busy}
+        onUploadAsNewVersion={() => {
+          // Confirm the duplicate is intentional and re-file it as a new version.
+          setAllowDuplicate(true)
+          void submit()
+        }}
+        onDismiss={() => {
+          setRejection(null)
+          setAllowDuplicate(false)
+        }}
+      />
 
       <div className="flex items-center justify-end gap-2 border-t border-white/60 pt-3">
         <Button variant="ghost" onClick={onClose} className="text-slate-600">Cancel</Button>
