@@ -70,6 +70,7 @@ export const VIEW_META: Record<ViewId, { title: string; description: string; gro
   tasks: { title: "Tasks & Deadlines", description: "Assign reporting tasks to users, roles, BUs, or subsidiaries.", group: "ESG Operations" },
   comms: { title: "Communication Center", description: "Announcements, reminders, and role-group communications.", group: "ESG Operations" },
   brsr: { title: "BRSR Reporting Center", description: "Create, review, sign-off, finalize, and export the consolidated BRSR report.", group: "BRSR Reporting" },
+  brsrChecklist: { title: "BRSR Data Checklist", description: "Section-wise BRSR template data received from each subsidiary.", group: "BRSR Reporting" },
   consolidation: { title: "Data Consolidation & Validation", description: "Missing data, duplicates, anomalies, lineage, and aggregation.", group: "BRSR Reporting" },
   analytics: { title: "ESG Analytics", description: "Interactive E, S, and G performance dashboards.", group: "Insights & Governance" },
   intelligence: { title: "MEIL Intelligence", description: "Enterprise AI copilot grounded in live platform records — analysis, exploration, and guarded actions.", group: "Insights & Governance" },
@@ -83,6 +84,6 @@ export const VIEW_ORDER: { group: string; views: ViewId[] }[] = [
   { group: "Organization", views: ["hierarchy", "subsidiaries", "units", "projects"] },
   { group: "People & Access", views: ["users", "roles"] },
   { group: "ESG Operations", views: ["submissions", "approvals", "tasks", "comms"] },
-  { group: "BRSR Reporting", views: ["brsr", "consolidation"] },
+  { group: "BRSR Reporting", views: ["brsr", "brsrChecklist", "consolidation"] },
   { group: "Insights & Governance", views: ["analytics", "intelligence", "activity", "audit", "settings"] },
 ];

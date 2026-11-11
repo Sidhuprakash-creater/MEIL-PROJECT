@@ -207,6 +207,17 @@ export async function POST(req: NextRequest) {
         "BRSR-SOC-02": ["WORKFORCE"],
         "BRSR-GOV-01": ["COMPLIANCE"],
         "BRSR-GOV-02": ["PROCUREMENT"],
+        /* BRSR Core (C2) disclosure codes — same category aggregations. */
+        "BRSR-C2-GEN-01": ["EMISSIONS"],
+        "BRSR-C2-GEN-02": ["EMISSIONS"],
+        "BRSR-C2-GEN-03": ["ENERGY"],
+        "BRSR-C2-ENV-01": ["WATER"],
+        "BRSR-C2-ENV-03": ["WASTE"],
+        "BRSR-C2-SOC-01": ["WORKFORCE"],
+        "BRSR-C2-SOC-02": ["WORKFORCE"],
+        "BRSR-C2-SOC-07": ["CSR"],
+        "BRSR-C2-SOC-08": ["CSR"],
+        "BRSR-C2-GOV-01": ["COMPLIANCE"],
       };
       const disclosures: BrsrDisclosure[] = catalog.map((d) => {
         const prev = existing.find((e) => e.code === d.code);
@@ -233,7 +244,7 @@ export async function POST(req: NextRequest) {
     /* Export — record and return file content */
     if (b.action === "export") {
       const format = (b.format || "CSV").toUpperCase();
-      if (!["CSV", "JSON", "TXT"].includes(format)) return fail("Unsupported export format. Supported: CSV, JSON, TXT.");
+      if (!["CSV", "JSON", "TXT", "PDF"].includes(format)) return fail("Unsupported export format. Supported: CSV, JSON, TXT, PDF.");
       const d = await decorate(r);
       const exportsList = parseJson<{ format: string; at: string; by: string }[]>(r.exports, []);
       const rec = { format, at: new Date().toISOString(), by: ACTOR.name };

@@ -42,6 +42,7 @@ export const VIEW_ICONS: Record<ViewId, React.ComponentType<{ className?: string
   tasks: TaskCheckIcon,
   comms: MegaphoneIcon,
   brsr: ReportChartIcon,
+  brsrChecklist: FileCheckIcon,
   consolidation: DatabaseIcon,
   analytics: TrendIcon,
   intelligence: Sparkles,

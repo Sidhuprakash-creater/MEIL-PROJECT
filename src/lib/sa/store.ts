@@ -72,6 +72,7 @@ export const VIEW_META: Record<SaViewId, { title: string; description: string; g
   evidence: { title: "Evidence & Documents", description: "Central evidence repository with versions, gaps and downloads.", group: "Report Operations" },
   comms: { title: "Communication Center", description: "Announcements, reminders and role-group messages within your subsidiary.", group: "Report Operations" },
   esg: { title: "ESG Reporting", description: "Subsidiary consolidation, disclosure readiness and package submission to Group.", group: "Reporting & Insights" },
+  brsrData: { title: "BRSR Data", description: "Structured BRSR template inputs for the Group Admin's consolidated report.", group: "Reporting & Insights" },
   validation: { title: "Data Validation", description: "Validation issues across the subsidiary with correction workflow.", group: "Reporting & Insights" },
   analytics: { title: "ESG Analytics", description: "Interactive E, S and G analytics for your subsidiary.", group: "Reporting & Insights" },
   activity: { title: "Activity & Audit", description: "Operational activity feed and authoritative audit trail.", group: "Governance" },
@@ -82,7 +83,7 @@ export const VIEW_ORDER: { group: string; views: SaViewId[] }[] = [
   { group: "Overview", views: ["dashboard", "notifications"] },
   { group: "Organization & Access", views: ["units", "projects", "users", "roles"] },
   { group: "Report Operations", views: ["timelines", "submissions", "monitoring", "evidence", "comms"] },
-  { group: "Reporting & Insights", views: ["esg", "validation", "analytics"] },
+  { group: "Reporting & Insights", views: ["esg", "brsrData", "validation", "analytics"] },
   { group: "Governance", views: ["activity"] },
   { group: "Configuration", views: ["settings"] },
 ];

@@ -195,9 +195,21 @@ export async function POST(req: NextRequest, { params }: Params) {
       },
     });
 
-    /* If this submission was part of a consolidated project report, sync the report status */
+    /* If this submission is the consolidated dossier, sync the whole package:
+       the Report row and every individual disclosure folded into the dossier
+       move with the BU's decision. */
     if (s.consolidatedReportId) {
       try {
+        /* Approve: fold the BU approval onto every included disclosure
+           (they were queued as APPROVED by the dossier submission) so the
+           Sent-to-BU list and eligibility checks reflect the decision. */
+        if (action === "approve") {
+          await db.submission.updateMany({
+            where: { consolidatedReportId: s.consolidatedReportId, id: { not: id }, inConsolidatedReport: true },
+            data: { status: "BU_APPROVED", updatedAt: now },
+          });
+        }
+
         const siblingSubs = await db.submission.findMany({
           where: { consolidatedReportId: s.consolidatedReportId },
           select: { id: true, status: true },

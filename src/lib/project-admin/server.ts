@@ -189,7 +189,11 @@ export async function getProjectAdminContext(): Promise<ProjectAdminContext | nu
         },
       })
     : await db.user.findFirst({
-        where: { role: "PROJECT_ADMIN" },
+        /* Deterministic + project-bound only: never silently adopt a PA
+           account that has no project — that is how one PA ended up bound to
+           the wrong project (e.g. Polavaram) instead of their own. */
+        where: { role: "PROJECT_ADMIN", projectId: { not: null } },
+        orderBy: { createdAt: "asc" },
         select: {
           id: true,
           name: true,
@@ -236,9 +240,14 @@ export async function getProjectAdminContext(): Promise<ProjectAdminContext | nu
     return ctx;
   }
 
-  // 3. Fallback: Query first active project
+  // 3. Fallback: the signing-in PA's OWN business unit's first project —
+  // never an arbitrary project. Without this scope a Kaleshwaram admin could
+  // get bound to Polavaram (or vice versa) purely by creation order.
+  const buId = user?.scope.businessUnit?.id ?? (user as unknown as { businessUnitId?: string } | undefined)?.businessUnitId;
+  const ownBuFilter = buId ? { businessUnitId: buId } : {};
   const firstProject = await db.project.findFirst({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", ...ownBuFilter },
+    orderBy: { createdAt: "asc" },
     select: {
       id: true,
       code: true,

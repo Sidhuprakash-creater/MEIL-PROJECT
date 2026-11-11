@@ -296,6 +296,27 @@ model Disclosure {
   description String @default("")
 }
 
+/* ─── BRSR subsidiary data capture (Tata-style editable template inputs) ───
+   One row per subsidiary per reporting period. `sections` is a JSON map of
+   { [sectionKey]: { [fieldKey]: string } } matching the section registry in
+   src/lib/brsr/sections.ts. Group Admin reads these rows to build the final
+   consolidated BRSR report. */
+model BrsrSubsidiaryData {
+  id             String    @id @default(cuid())
+  subsidiaryId   String
+  subsidiaryName String    @default("")
+  period         String    @default("FY 2025-26")
+  status         String    @default("DRAFT") // DRAFT | SUBMITTED
+  sections       String    @default("{}")
+  submittedAt    DateTime?
+  submittedBy    String    @default("")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([subsidiaryId, period])
+  @@index([subsidiaryId])
+}
+
 // ─── Governance: activity feed & authoritative audit trail ───
 
 model ActivityEvent {
