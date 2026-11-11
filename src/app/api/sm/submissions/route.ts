@@ -55,6 +55,13 @@ export async function GET(req: NextRequest) {
     if (level === "BU") scoped = scoped.filter((s) => !s.projectId);
     else if (level === "PROJECT") scoped = scoped.filter((s) => !!s.projectId);
 
+    /* CONSOLIDATED HANDOFF: disclosures folded into the BU's consolidated
+       dossier are hidden — the manager reviews that ONE dossier instead of
+       each disclosure individually. */
+    scoped = scoped.filter(
+      (s) => !((s as any).inConsolidatedReport && (s as any).consolidatedReportId && s.id !== (s as any).consolidatedReportId),
+    );
+
     /* Tab-strip counts over the level-scoped period set. */
     const inTab = (list: typeof scoped, t: string) => list.filter(TAB_FILTERS[t] ?? TAB_FILTERS.all);
     const counts = {

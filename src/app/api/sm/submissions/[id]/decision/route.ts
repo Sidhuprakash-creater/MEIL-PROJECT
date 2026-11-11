@@ -135,6 +135,33 @@ export async function POST(req: NextRequest, { params }: Params) {
       throw new SmError("Concurrent update detected — the report state changed. Refresh and review again.", 409);
     }
 
+    /* If this submission is the BU's consolidated dossier, sync the whole
+       package: every disclosure folded into the dossier takes the decision
+       too, and the parent Report row mirrors the outcome. Approving the ONE
+       dossier (not item-by-item) is what makes the subsidiary eligible to
+       compile and submit its final report to the Group. */
+    if ((s as any).consolidatedReportId) {
+      try {
+        if (action === "approve") {
+          await db.submission.updateMany({
+            where: { consolidatedReportId: (s as any).consolidatedReportId, id: { not: id }, inConsolidatedReport: true },
+            data: { status: "APPROVED", updatedAt: now },
+          });
+          await db.report.updateMany({
+            where: { id: (s as any).consolidatedReportId },
+            data: { status: "APPROVED" },
+          });
+        } else if (action === "reject") {
+          await db.report.updateMany({
+            where: { id: (s as any).consolidatedReportId },
+            data: { status: "REJECTED" },
+          });
+        }
+      } catch (e) {
+        console.warn("Could not sync consolidated report status:", e);
+      }
+    }
+
     const responsible = s.submittedById
       ? (await db.user.findUnique({ where: { id: s.submittedById }, select: { name: true } }))?.name ?? "the responsible user"
       : "the responsible user";

@@ -183,6 +183,32 @@ export default function EsgView() {
                 </button>
               ))}
             </div>
+            {/* FINAL REPORT GATE — eligible only once the consolidated data
+               coming from the Business Units has been approved (nothing left
+               in review). One approval of the consolidated dossier unlocks
+               the final subsidiary report; no item-by-item sign-off. */}
+            <div className="mt-5">
+              <Button
+                className="h-11 rounded-2xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-[13px] font-bold text-white hover:from-[#23b484] hover:to-[#1d8f68]"
+                disabled={approvedRefs.length === 0 || r.pendingReview > 0}
+                onClick={() => {
+                  setPkgTitle(`${reportingYear} Final Report`);
+                  setTitleError(null);
+                  setSelectedRefs(approvedRefs);
+                  setPrepareOpen(true);
+                }}
+              >
+                <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                Submit Final Report to Group
+              </Button>
+              <p className="mt-1.5 text-[11px] text-[color:var(--ink-faint)]">
+                {r.pendingReview > 0
+                  ? "Locked until the consolidated data from your Business Units is approved."
+                  : approvedRefs.length === 0
+                    ? "No approved records to include yet."
+                    : "All consolidated BU data is approved — ready to hand to the Group Admin."}
+              </p>
+            </div>
           </div>
           <div className="glass-subtle flex items-center gap-4 rounded-3xl p-4">
             <div className="relative h-24 w-24">
