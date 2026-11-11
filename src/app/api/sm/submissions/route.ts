@@ -11,12 +11,17 @@ export const dynamic = "force-dynamic";
    the dashboard KPI cards use the same definitions so every card value equals
    the destination tab count. "overdue" is a deadline state, deliberately kept
    separate from workflow tabs (a report can be UNDER_REVIEW and overdue). */
-const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean }) => boolean> = {
+const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean; projectId: string | null }) => boolean> = {
   all: () => true,
-  queue: (s) => ["SUBMITTED", "UNDER_REVIEW", "BU_APPROVED"].includes(s.status),
+  /* Project-level disclosures reach the manager ONLY after the chain
+     Contributor → Project Admin → BU Manager has run (BU_APPROVED), or via
+     the consolidated dossier. Raw site-level SUBMITTED rows are still with
+     the Project Admin — they must not surface here. BU-level reports
+     (no projectId) keep the legacy SUBMITTED → manager flow. */
+  queue: (s) => s.status === "BU_APPROVED" || (!s.projectId && ["SUBMITTED", "UNDER_REVIEW"].includes(s.status)),
   draft: (s) => ["DRAFT", "ASSIGNED"].includes(s.status),
-  submitted: (s) => s.status === "SUBMITTED" || s.status === "BU_APPROVED",
-  pending: (s) => s.status === "UNDER_REVIEW",
+  submitted: (s) => s.status === "BU_APPROVED" || (!s.projectId && s.status === "SUBMITTED"),
+  pending: (s) => s.status === "UNDER_REVIEW" || (!s.projectId && s.status === "SUBMITTED"),
   /* A report the BU Manager signed off is BU_APPROVED — it is cleared for
      the subsidiary consolidation and must show under "Approved", otherwise
      the manager never sees the reports that are ready to roll up. */
