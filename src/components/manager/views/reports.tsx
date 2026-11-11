@@ -12,7 +12,6 @@ import {
 } from "@/components/workspace/ui";
 import { EvidenceChip, StatusChip, UrgencyChip } from "@/components/manager/shared";
 import { ReportReviewDialog } from "@/components/manager/review-detail";
-import { SmRollupCard } from "@/components/manager/sm-rollup-card";
 
 /* ── Final reports handed up by the business units ───────────────────────── */
 interface SmFinalReport {
@@ -49,12 +48,14 @@ interface SmFinalReport {
   }>;
 }
 
-function FinalReportsFromBu() {
-  const { data, loading } = useSmApi<{ reports: SmFinalReport[] }>("/api/sm/final-reports", {
-    pollMs: 30000,
-  });
+function FinalReportsFromBu({
+  reports,
+  loading,
+}: {
+  reports: SmFinalReport[];
+  loading: boolean;
+}) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
-  const reports = data?.reports ?? [];
 
   if (loading && reports.length === 0) {
     return (
@@ -63,7 +64,17 @@ function FinalReportsFromBu() {
       </div>
     );
   }
-  if (reports.length === 0) return null;
+  if (reports.length === 0) {
+    return (
+      <div className="glass-subtle rounded-2xl">
+        <EmptyState
+          icon={Landmark}
+          title="No final reports received yet"
+          message="Final consolidated ESG reports signed off by Business Unit Managers will appear here."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="glass-subtle rounded-2xl p-4 space-y-2.5">
@@ -148,8 +159,7 @@ function FinalReportsFromBu() {
   );
 }
 
-/* One directory component parameterised by level — the manager must not
-   create or edit BUs/projects here, so there are no creation controls. */
+/* Directory component for project / site submissions (Business Unit Reports). */
 function ReportsDirectory({ level }: { level: "BU" | "PROJECT" }) {
   const { params, reportingYear, navigate } = useSmWorkspace();
   const initialTab = typeof params.statusFilter === "string" ? params.statusFilter : "all";
@@ -234,9 +244,6 @@ function ReportsDirectory({ level }: { level: "BU" | "PROJECT" }) {
         icon={Landmark}
         actions={<ExportButton filename={`${level.toLowerCase()}-reports`} rows={rows.map((r) => ({ ref: r.ref, title: r.title, org: level === "PROJECT" ? r.projectName ?? "" : r.buName ?? "", category: r.category, period: r.period, submittedBy: r.submittedByName ?? "", submittedAt: r.submittedAt ?? "", dueDate: r.dueDate, evidence: r.evidenceCount, status: r.status }))} />}
       />
-
-      {/* Final reports handed up by the business units (BU level only) */}
-      {level === "BU" && <FinalReportsFromBu />}
 
       <GlassTabBar
         value={tab}
@@ -323,7 +330,39 @@ function ReportsDirectory({ level }: { level: "BU" | "PROJECT" }) {
 }
 
 export function BuReportsView() {
-  return <ReportsDirectory level="BU" />;
+  const { data, loading } = useSmApi<{ reports: SmFinalReport[] }>("/api/sm/final-reports", {
+    pollMs: 30000,
+  });
+  const reports = data?.reports ?? [];
+
+  return (
+    <div className="view-in space-y-4 pb-6">
+      <PageHeader
+        title="BU Reports"
+        description="Directory of business-unit reporting records with their review state. Read full content, inspect evidence, and decide when authorized."
+        icon={Landmark}
+        actions={
+          <ExportButton
+            filename="bu-reports"
+            rows={reports.map((r) => ({
+              businessUnit: r.businessUnit,
+              businessUnitCode: r.businessUnitCode,
+              period: r.period,
+              fileName: r.fileName ?? "",
+              submittedBy: r.generatedByName,
+              submittedAt: r.createdAt,
+              sections: r.totals.sections,
+              projects: r.totals.projects,
+              approvedReports: r.totals.confirmedReports,
+              status: r.status,
+            }))}
+          />
+        }
+      />
+
+      <FinalReportsFromBu reports={reports} loading={loading} />
+    </div>
+  );
 }
 
 export function ProjectReportsView() {
