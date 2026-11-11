@@ -178,9 +178,23 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
     }).join("")}`).join("");
 
   return `<!doctype html><html><head><meta charset="utf-8"/><title>${esc(r.title)}</title><style>
-    @page { size: A4; margin: 18mm 16mm; }
+    @page { size: A4; margin: 22mm 16mm 18mm; }
     body { font-family: Georgia, 'Times New Roman', serif; color: #1a2332; line-height: 1.55; }
-    .cover { text-align: center; padding-top: 120px; page-break-after: always; }
+    /* MEIL watermark — repeats behind every printed page (enable "Background
+       graphics" in the print dialog for the watermark to appear). */
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: -1;
+      background: url('/meil-logo.png') center 55% / 46% auto no-repeat;
+      opacity: 0.05; pointer-events: none;
+    }
+    /* Letterhead — repeats at the top of every printed page. */
+    .letterhead { position: fixed; top: -14mm; left: 0; right: 0; height: 14mm;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 4mm; }
+    .letterhead img { height: 9mm; }
+    .letterhead .tag { font-size: 9px; letter-spacing: 2px; color: #16588e; font-weight: bold;
+      text-transform: uppercase; }
+    .cover { text-align: center; padding-top: 40px; page-break-after: always; }
+    .cover .logo { height: 30mm; margin-bottom: 18px; }
     .cover .group { font-size: 13px; letter-spacing: 6px; color: #16588e; font-weight: bold; }
     .cover h1 { font-size: 30px; margin: 26px 0 8px; }
     .cover .sub { font-size: 15px; color: #475569; }
@@ -198,7 +212,12 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
     .page-break { page-break-before: always; }
     .sign { margin-top: 34px; }
   </style></head><body>
+    <div class="letterhead">
+      <img src="/meil-logo.png" alt="MEIL" onerror="this.style.display='none'"/>
+      <span class="tag">Business Responsibility &amp; Sustainability Report</span>
+    </div>
     <div class="cover">
+      <img class="logo" src="/meil-logo.png" alt="MEIL Group" onerror="this.style.display='none'"/>
       <div class="group">MEIL GROUP</div>
       <h1>BUSINESS RESPONSIBILITY AND<br/>SUSTAINABILITY REPORT</h1>
       <div class="sub">${esc(r.framework)}</div>
