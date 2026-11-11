@@ -12,6 +12,7 @@ import {
 } from "@/components/workspace/ui";
 import { EvidenceChip, StatusChip, UrgencyChip } from "@/components/manager/shared";
 import { ReportReviewDialog } from "@/components/manager/review-detail";
+import { SmRollupCard } from "@/components/manager/sm-rollup-card";
 
 /* ── Final reports handed up by the business units ───────────────────────── */
 interface SmFinalReport {

@@ -13,6 +13,7 @@ import {
 } from "@/components/workspace/ui";
 import { EvidenceChip, StatusChip, UrgencyChip } from "@/components/manager/shared";
 import { ReportReviewDialog } from "@/components/manager/review-detail";
+import { SmRollupCard } from "@/components/manager/sm-rollup-card";
 
 export default function QueueView() {
   const { params, navigate, reportingYear } = useSmWorkspace();
@@ -102,6 +103,9 @@ export default function QueueView() {
         icon={Landmark}
         actions={<ExportButton filename="review-queue" rows={rows.map((r) => ({ ref: r.ref, title: r.title, level: r.level, bu: r.buName ?? "", project: r.projectName ?? "", period: r.period, submittedBy: r.submittedByName ?? "", reviewDeadline: r.reviewDeadline, daysRemaining: r.daysRemaining ?? "", evidence: r.evidenceCount, status: r.status }))} />}
       />
+
+      {/* Consolidated rollup: BU → category → project with evidence downloads */}
+      <SmRollupCard period={reportingYear} />
 
       <DataTable
         columns={columns}

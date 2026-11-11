@@ -73,6 +73,10 @@ export async function buildBuRollup(params: {
   /** Projects of THIS business unit — the rollup never aggregates another
    *  BU's projects (that was the group-wide leak in the review queue). */
   buProjectIds?: string[];
+  /** API base for evidence download links — "/api/bm/evidence" by default;
+   *  the subsidiary rollup passes "/api/sm/evidence" so SM users hit their
+   *  own subsidiary-scoped download endpoint. */
+  evidenceDownloadBase?: string;
 }): Promise<BuRollup> {
   const { businessUnitId, subsidiaryId } = params;
   const period = params.period ?? "";
@@ -191,7 +195,7 @@ export async function buildBuRollup(params: {
       sizeKb: doc.sizeKb,
       uploadedAt: doc.uploadedAt.toISOString(),
       submissionRef: doc.submissionRef || "",
-      filePath: `/api/bm/evidence/${doc.id}/download`,
+      filePath: `${params.evidenceDownloadBase ?? "/api/bm/evidence"}/${doc.id}/download`,
       hasFile: true,
     };
     if (doc.submissionId) {
