@@ -82,7 +82,7 @@ export function Level6TrainingForm({
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error || 'Failed to save Training record')
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {

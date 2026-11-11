@@ -1054,7 +1054,7 @@ export function Level3GhgForm({
           ? 'GHG & Air Quality submission sent for BU review!'
           : `GHG inventory saved as ${overallWorkflowStatus}!`
       )
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {

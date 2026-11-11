@@ -481,7 +481,7 @@ export function Level2WaterForm({
       toast.success(
         submitForReview ? 'Water submission sent for Project Admin review!' : 'Water draft saved successfully!'
       )
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {

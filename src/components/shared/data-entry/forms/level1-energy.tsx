@@ -625,7 +625,7 @@ export function Level1EnergyForm({
           ? 'Energy submission sent for Project Admin review!'
           : 'Energy draft saved successfully!'
       )
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {

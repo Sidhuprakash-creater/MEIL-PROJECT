@@ -382,7 +382,7 @@ export function Level7ComplianceForm({
           ? `Permits & Compliance submitted for review (${itemsToSave.length} authorizations)!`
           : `Permit portfolio draft saved (${itemsToSave.length} authorizations).`,
       )
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {

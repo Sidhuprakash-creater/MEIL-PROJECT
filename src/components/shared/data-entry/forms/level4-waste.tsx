@@ -515,7 +515,7 @@ export function Level4WasteForm({
       toast.success(
         submitForReview ? 'Waste submission sent for BU review!' : 'Waste draft saved successfully!'
       )
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {

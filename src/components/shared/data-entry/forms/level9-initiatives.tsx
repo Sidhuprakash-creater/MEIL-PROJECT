@@ -420,7 +420,7 @@ export function Level9InitiativesForm({
           ? `Environmental Initiatives submitted for review (${itemsToSave.length} projects)!`
           : `Initiatives portfolio draft saved (${itemsToSave.length} projects).`,
       )
-      onSaved(d.record, submitForReview)
+      onSaved({ ...d.record, duplicateRecord: d.duplicateRecord ?? null }, submitForReview)
     } catch (e: any) {
       setError(e?.message || 'Save failed')
     } finally {
