@@ -645,7 +645,7 @@ function Stepper({ step, maxReached, canNavigate, onGo }: { step: number; maxRea
       {STEPS.map((s, i) => {
         const active = step === s.n;
         const done = s.n < step;
-        const reachable = canNavigate && s.n <= maxReached;
+        const reachable = canNavigate && s.n <= maxReached + 1;
         const Icon = done ? Check : s.icon;
         return (
           <React.Fragment key={s.n}>
@@ -1246,7 +1246,7 @@ function StepDraft({ report, onChanged, onDone }: { report: BrsrReport; onChange
 
 /* ── Step 6 — Builder ── */
 
-function StepBuilder({ report, onChanged }: { report: BrsrReport; onChanged: (r: BrsrReport) => void }) {
+function StepBuilder({ report, onChanged, onDone }: { report: BrsrReport; onChanged: (r: BrsrReport) => void; onDone?: () => void }) {
   const { toast } = useToast();
   const saveMut = useMutation<{ report: BrsrReport }>();
   const addMut = useMutation<{ report: BrsrReport }>();
@@ -1451,6 +1451,16 @@ function StepBuilder({ report, onChanged }: { report: BrsrReport; onChanged: (r:
         pending={rmMut.pending}
         onConfirm={() => void removeSection()}
       />
+      {onDone && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[rgba(35,134,83,0.3)] bg-[rgba(35,134,83,0.06)] px-4 py-3">
+          <span className="text-[12.5px] font-medium text-[color:var(--ink-soft)]">
+            Sections saved server-side ({sections.length} sections). Next: record the sign-off, then finalize &amp; export.
+          </span>
+          <Button size="sm" className="rounded-xl" onClick={onDone}>
+            Continue to Review &amp; Sign-off <PenLine className="ml-1.5 h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1836,7 +1846,7 @@ function BrsrWizard({ initialReportId }: { initialReportId?: string }) {
             {step === 3 && report && <StepConsolidation report={report} onChanged={onChanged} onContinue={() => goStep(4)} />}
             {step === 4 && report && <StepMapping report={report} catalog={list.data?.catalog ?? []} onChanged={onChanged} onContinue={() => goStep(5)} />}
             {step === 5 && report && <StepDraft report={report} onChanged={onChanged} onDone={() => goStep(6)} />}
-            {step === 6 && report && <StepBuilder report={report} onChanged={onChanged} />}
+            {step === 6 && report && <StepBuilder report={report} onChanged={onChanged} onDone={() => goStep(7)} />}
             {step === 7 && report && <StepReview report={report} onChanged={onChanged} />}
             {step === 8 && report && <StepFinalize report={report} onChanged={onChanged} />}
             {step === 9 && report && <StepHistory report={report} onChanged={onChanged} onGoStep={goStep} />}
