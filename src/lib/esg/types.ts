@@ -16,6 +16,7 @@ export type ViewId =
   | "brsr"
   | "consolidation"
   | "analytics"
+  | "intelligence"
   | "activity"
   | "audit"
   | "settings";

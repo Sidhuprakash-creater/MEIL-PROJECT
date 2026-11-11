@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Avatar, StatusBadge } from "@/components/workspace/ui";
 import { LoaderRoleProvider, MeilLoader } from "@/components/shared/meil-loader";
 import { getViewComponent, VIEW_COMPONENTS } from "@/components/workspace/view-registry";
+import { CopilotFloating } from "@/components/copilot/floating";
 import { REPORTING_YEARS, VIEW_META, VIEW_ORDER, useWorkspace } from "@/lib/esg/store";
 import type { ViewId } from "@/lib/esg/types";
 import { useApi, timeAgo } from "@/lib/esg/client";
@@ -43,6 +44,7 @@ export const VIEW_ICONS: Record<ViewId, React.ComponentType<{ className?: string
   brsr: ReportChartIcon,
   consolidation: DatabaseIcon,
   analytics: TrendIcon,
+  intelligence: Sparkles,
   activity: PulseIcon,
   audit: FileCheckIcon,
   settings: GearIcon,
@@ -487,6 +489,9 @@ export function WorkspaceShell({
           </main>
         </div>
       </div>
+
+      {/* MEIL Intelligence — floating assistant on non-intelligence views */}
+      {view !== "intelligence" && <CopilotFloating />}
     </div>
         </LoaderRoleProvider>
       </SignOutContext.Provider>

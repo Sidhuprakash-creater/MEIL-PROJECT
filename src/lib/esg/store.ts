@@ -72,6 +72,7 @@ export const VIEW_META: Record<ViewId, { title: string; description: string; gro
   brsr: { title: "BRSR Reporting Center", description: "Create, review, sign-off, finalize, and export the consolidated BRSR report.", group: "BRSR Reporting" },
   consolidation: { title: "Data Consolidation & Validation", description: "Missing data, duplicates, anomalies, lineage, and aggregation.", group: "BRSR Reporting" },
   analytics: { title: "ESG Analytics", description: "Interactive E, S, and G performance dashboards.", group: "Insights & Governance" },
+  intelligence: { title: "MEIL Intelligence", description: "Enterprise AI copilot grounded in live platform records — analysis, exploration, and guarded actions.", group: "Insights & Governance" },
   activity: { title: "Activity Monitoring", description: "Chronological user activity feed across the organization.", group: "Insights & Governance" },
   audit: { title: "Audit Logs", description: "Authoritative, append-only audit trail of sensitive operations.", group: "Insights & Governance" },
   settings: { title: "Settings & Configuration", description: "Reporting periods, workflows, reminders, security, and integrations.", group: "Insights & Governance" },
@@ -83,5 +84,5 @@ export const VIEW_ORDER: { group: string; views: ViewId[] }[] = [
   { group: "People & Access", views: ["users", "roles"] },
   { group: "ESG Operations", views: ["submissions", "approvals", "tasks", "comms"] },
   { group: "BRSR Reporting", views: ["brsr", "consolidation"] },
-  { group: "Insights & Governance", views: ["analytics", "activity", "audit", "settings"] },
+  { group: "Insights & Governance", views: ["analytics", "intelligence", "activity", "audit", "settings"] },
 ];

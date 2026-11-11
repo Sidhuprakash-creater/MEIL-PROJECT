@@ -102,6 +102,9 @@ model User {
   soNotifications   SoNotification[]
   soReviewedSubmissions SoSubmission[] @relation("SoSubmissionReviewer")
   reviewedSubmissions   Submission[]   @relation("SubmissionReviewer")
+  copilotToolExecutions CopilotToolExecution[] @relation("CopilotToolExecutions")
+  copilotConfirmations  CopilotConfirmation[]  @relation("CopilotConfirmations")
+  copilotSavedItems     CopilotSavedItem[]     @relation("CopilotSavedItems")
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 }
@@ -1017,6 +1020,97 @@ model SoNotification {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, read])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// MEIL INTELLIGENCE — Copilot conversation & governance tables (additive)
+// These tables never duplicate reporting data: they store only copilot-owned
+// state (conversations, tool-execution records, action confirmations,
+// saved items). All reporting reads/writes stay on the existing tables above.
+// ═════════════════════════════════════════════════════════════════════════════
+
+model CopilotConversation {
+  id         String   @id @default(cuid())
+  userId     String
+  title      String   @default("New conversation")
+  pinned     Boolean  @default(false)
+  provider   String   @default("gemini") // provider id used for this conversation
+  model      String   @default("") // model id used for this conversation
+  context    String   @default("{}") // JSON CopilotConversationContext {viewId, reportingYear, orgScope, explorerState?}
+  archived   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  lastAt     DateTime @default(now()) // last message time, for history sorting
+  messages   CopilotMessage[]
+  executions CopilotToolExecution[]
+
+  @@index([userId, lastAt])
+}
+
+model CopilotMessage {
+  id             String   @id @default(cuid())
+  conversation   CopilotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  role           String   // user | assistant | system
+  content        String   @default("") // assembled markdown/text of the answer
+  blocks         String   @default("[]") // JSON CopilotContentBlock[] — validated structured blocks
+  sources        String   @default("[]") // JSON CopilotSourceReference[]
+  meta           String   @default("{}") // JSON {state?, error?, model?, tokensIn?, tokensOut?, toolEvents?}
+  createdAt      DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model CopilotToolExecution {
+  id             String   @id @default(cuid())
+  conversation   CopilotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  toolName       String
+  args           String   @default("{}") // JSON tool input
+  status         String   @default("RUNNING") // WAITING | RUNNING | COMPLETED | FAILED | CANCELLED
+  resultSummary  String   @default("") // short human-readable summary (never full raw payload)
+  error          String   @default("")
+  startedAt      DateTime @default(now())
+  finishedAt     DateTime?
+  durationMs     Int?
+  user           User     @relation("CopilotToolExecutions", fields: [userId], references: [id], onDelete: Cascade)
+  userId         String
+
+  @@index([conversationId, startedAt])
+}
+
+model CopilotConfirmation {
+  id            String    @id @default(cuid())
+  token         String    @unique @default(cuid())
+  userId        String
+  user          User      @relation("CopilotConfirmations", fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String
+  actionName    String    // prepared action, e.g. prepare_reminder / prepare_report_export
+  riskLevel     String    // L2 | L3 | L4
+  args          String    @default("{}") // JSON exact bound arguments
+  summary       String    @default("") // human-readable impact summary shown in the dialog
+  status        String    @default("PENDING") // PENDING | CONFIRMED | CANCELLED | EXPIRED
+  expiresAt     DateTime
+  resolvedAt    DateTime?
+  executedResult String?  // JSON of the executed action result, set exactly once
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, status])
+}
+
+model CopilotSavedItem {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation("CopilotSavedItems", fields: [userId], references: [id], onDelete: Cascade)
+  conversationId String?
+  kind           String   // NOTE | ANALYSIS | SAVED_SEARCH | RESPONSE_BLOCK
+  title          String
+  body           String   @default("")
+  payload        String   @default("{}") // JSON (blocks, explorer path, filters...)
+  pinned         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // ── Generated reports (versioned, real output) ───────────────────────────────
