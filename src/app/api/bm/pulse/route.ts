@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { ok } from "@/lib/esg/server";
-import { bmHandle, requireBuManager } from "@/lib/bm/server";
+import { bmHandle, requireBuManager, buSubmissionScope } from "@/lib/bm/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return bmHandle(async () => {
     const ctx = await requireBuManager();
-    const [subMax, notifMax, submissionMax, unread, queue] = await Promise.all([
+    const scope = await buSubmissionScope(ctx.businessUnitId);
+    const [subMax, notifMax, submissionMax, unread, queue, projectReports] = await Promise.all([
       db.submission.findFirst({
         where: { businessUnitId: ctx.businessUnitId },
         orderBy: { createdAt: "desc" },
@@ -40,6 +41,15 @@ export async function GET() {
           status: { in: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"] },
         },
       }),
+      /* Project-level reports (site/PA hand-offs) awaiting this BU's
+         decision — powers the "Project Reports" sidebar badge. */
+      db.submission.count({
+        where: {
+          ...scope.where,
+          projectId: { not: null },
+          status: { in: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"] },
+        },
+      }),
     ]);
     const t = (d: Date | null) => (d ? d.getTime() : 0);
     return ok({
@@ -47,6 +57,7 @@ export async function GET() {
       at: new Date().toISOString(),
       unread,
       queueCount: queue,
+      projectReportsCount: projectReports,
     });
   });
 }
