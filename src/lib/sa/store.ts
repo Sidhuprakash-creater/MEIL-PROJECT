@@ -21,6 +21,7 @@ interface SaWorkspaceState {
   mobileNavOpen: boolean;
   commandOpen: boolean;
   unreadCount: number;
+  verificationCount: number;
   lastSyncedAt: string | null;
   live: boolean;
   navigate: (view: SaViewId, params?: SaViewParams) => void;
@@ -30,6 +31,7 @@ interface SaWorkspaceState {
   setMobileNav: (open: boolean) => void;
   setCommandOpen: (open: boolean) => void;
   setUnreadCount: (n: number) => void;
+  setVerificationCount: (n: number) => void;
   setLastSyncedAt: (iso: string) => void;
   setLive: (live: boolean) => void;
 }
@@ -42,6 +44,7 @@ export const useSaWorkspace = create<SaWorkspaceState>((set) => ({
   mobileNavOpen: false,
   commandOpen: false,
   unreadCount: 0,
+  verificationCount: 0,
   lastSyncedAt: null,
   live: true,
   navigate: (view, params = {}) => {
@@ -55,6 +58,7 @@ export const useSaWorkspace = create<SaWorkspaceState>((set) => ({
   setMobileNav: (mobileNavOpen) => set({ mobileNavOpen }),
   setCommandOpen: (commandOpen) => set({ commandOpen }),
   setUnreadCount: (unreadCount) => set({ unreadCount }),
+  setVerificationCount: (verificationCount) => set({ verificationCount }),
   setLastSyncedAt: (lastSyncedAt) => set({ lastSyncedAt }),
   setLive: (live) => set({ live }),
 }));
@@ -73,6 +77,7 @@ export const VIEW_META: Record<SaViewId, { title: string; description: string; g
   comms: { title: "Communication Center", description: "Announcements, reminders and role-group messages within your subsidiary.", group: "Report Operations" },
   esg: { title: "ESG Reporting", description: "Subsidiary consolidation, disclosure readiness and package submission to Group.", group: "Reporting & Insights" },
   brsrData: { title: "BRSR Data", description: "Structured BRSR template inputs for the Group Admin's consolidated report.", group: "Reporting & Insights" },
+  verification: { title: "Verification Desk", description: "Second-step check of the consolidated BU reports approved by the Subsidiary Manager.", group: "Reporting & Insights" },
   validation: { title: "Data Validation", description: "Validation issues across the subsidiary with correction workflow.", group: "Reporting & Insights" },
   analytics: { title: "ESG Analytics", description: "Interactive E, S and G analytics for your subsidiary.", group: "Reporting & Insights" },
   activity: { title: "Activity & Audit", description: "Operational activity feed and authoritative audit trail.", group: "Governance" },
@@ -83,7 +88,7 @@ export const VIEW_ORDER: { group: string; views: SaViewId[] }[] = [
   { group: "Overview", views: ["dashboard", "notifications"] },
   { group: "Organization & Access", views: ["units", "projects", "users", "roles"] },
   { group: "Report Operations", views: ["timelines", "submissions", "monitoring", "evidence", "comms"] },
-  { group: "Reporting & Insights", views: ["esg", "brsrData", "validation", "analytics"] },
+  { group: "Reporting & Insights", views: ["esg", "verification", "brsrData", "validation", "analytics"] },
   { group: "Governance", views: ["activity"] },
   { group: "Configuration", views: ["settings"] },
 ];

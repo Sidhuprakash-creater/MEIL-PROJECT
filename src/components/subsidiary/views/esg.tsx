@@ -145,6 +145,7 @@ export default function EsgView() {
   const r = data.readiness;
   const readinessCounts = [
     { label: "Approved & eligible", value: r.eligibleApproved, text: "text-[#1d6b40]", to: () => navigate("monitoring", { statusFilter: "approved" }) },
+    { label: "Awaiting verification", value: r.awaitingVerification, text: "text-[#1a5fb8]", to: () => navigate("verification") },
     { label: "Pending review", value: r.pendingReview, text: "text-[#9c5d1b]", to: () => navigate("monitoring", { statusFilter: "pending" }) },
     { label: "Missing-data categories", value: r.missingData, text: "text-[#a53b3b]", to: () => navigate("submissions", { tab: "draft" }) },
     { label: "Validation exceptions", value: r.validationExceptions, text: "text-[#a53b3b]", to: () => navigate("validation") },
@@ -190,7 +191,7 @@ export default function EsgView() {
             <div className="mt-5">
               <Button
                 className="h-11 rounded-2xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-[13px] font-bold text-white hover:from-[#23b484] hover:to-[#1d8f68]"
-                disabled={approvedRefs.length === 0 || r.pendingReview > 0}
+                disabled={approvedRefs.length === 0 || r.pendingReview > 0 || r.awaitingVerification > 0}
                 onClick={() => {
                   setPkgTitle(`${reportingYear} Final Report`);
                   setTitleError(null);
@@ -202,7 +203,9 @@ export default function EsgView() {
                 Submit Final Report to Group
               </Button>
               <p className="mt-1.5 text-[11px] text-[color:var(--ink-faint)]">
-                {r.pendingReview > 0
+                {r.awaitingVerification > 0
+                  ? `Locked — ${r.awaitingVerification} consolidated package(s) are awaiting your verification. Verify them in the Verification Desk first.`
+                  : r.pendingReview > 0
                   ? "Locked until the consolidated data from your Business Units is approved."
                   : approvedRefs.length === 0
                     ? "No approved records to include yet."

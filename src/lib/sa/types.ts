@@ -18,6 +18,7 @@ export type SaViewId =
   | "comms"
   | "esg"
   | "brsrData"
+  | "verification"
   | "validation"
   | "analytics"
   | "activity"
@@ -49,6 +50,7 @@ export const SUBMISSION_STATUS_LABELS: Record<string, string> = {
   CHANGES_REQUESTED: "Changes Requested",
   REJECTED: "Rejected",
   APPROVED: "Approved",
+  AWAITING_SA_VERIFICATION: "Awaiting verification",
 };
 
 export const ROLE_LABELS: Record<string, string> = {
@@ -373,6 +375,7 @@ export interface EsgReportingData {
     pct: number;
     eligibleApproved: number;
     pendingReview: number;
+    awaitingVerification: number;
     missingData: number;
     validationExceptions: number;
     evidenceGaps: number;

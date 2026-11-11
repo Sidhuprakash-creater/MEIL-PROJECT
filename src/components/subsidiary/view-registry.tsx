@@ -27,6 +27,7 @@ export const SA_VIEWS: Record<SaViewId, SaViewComponent> = {
   comms: dynamic(() => import("@/components/subsidiary/views/comms"), { ssr: false, loading }),
   esg: dynamic(() => import("@/components/subsidiary/views/esg"), { ssr: false, loading }),
   brsrData: dynamic(() => import("@/components/subsidiary/views/brsr-data"), { ssr: false, loading }),
+  verification: dynamic(() => import("@/components/subsidiary/views/verification"), { ssr: false, loading }),
   validation: dynamic(() => import("@/components/subsidiary/views/validation"), { ssr: false, loading }),
   analytics: dynamic(() => import("@/components/subsidiary/views/analytics"), { ssr: false, loading }),
   activity: dynamic(() => import("@/components/subsidiary/views/activity"), { ssr: false, loading }),

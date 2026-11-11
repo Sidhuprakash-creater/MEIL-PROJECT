@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       overdue: list.filter((s) => isOverdue(s)).length,
       /* BU_APPROVED = signed off by the Business Unit → cleared for the
          subsidiary consolidation, so it counts as approved here. */
-      approved: list.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED").length,
+      approved: list.filter((s) => s.status === "APPROVED" || s.status === "BU_APPROVED" || s.status === "AWAITING_SA_VERIFICATION").length,
       rejected: list.filter((s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status)).length,
     });
     const buSubs = subs.filter((s) => !s.projectId);

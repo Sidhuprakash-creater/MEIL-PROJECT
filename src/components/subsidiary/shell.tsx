@@ -39,6 +39,7 @@ export const SA_VIEW_ICONS: Record<SaViewId, React.ComponentType<{ className?: s
   comms: MegaphoneIcon,
   esg: ReportChartIcon,
   brsrData: WorkflowIcon,
+  verification: CheckSealIcon,
   validation: AlarmAlertIcon,
   analytics: TrendIcon,
   activity: PulseIcon,
@@ -78,10 +79,13 @@ function shortName(name: string): string {
 /* ───────────────────────────── Sidebar ───────────────────────────── */
 
 function NavItem({ view, collapsed }: { view: SaViewId; collapsed: boolean }) {
-  const { view: active, navigate } = useSaWorkspace();
+  const { view: active, navigate, verificationCount } = useSaWorkspace();
   const Icon = SA_VIEW_ICONS[view];
   const meta = VIEW_META[view];
   const isActive = active === view;
+  /* Blue badge on the Verification Desk — consolidated packages awaiting the
+     admin's second-step check. */
+  const showVerificationBadge = view === "verification" && verificationCount > 0;
   const btn = (
     <button
       onClick={() => navigate(view)}
@@ -94,6 +98,17 @@ function NavItem({ view, collapsed }: { view: SaViewId; collapsed: boolean }) {
     >
       <Icon className={cn("h-[18px] w-[18px] shrink-0", isActive ? "text-[color:var(--esg-blue)]" : "text-[color:var(--ink-faint)] group-hover:text-[color:var(--ink-soft)]")} />
       {!collapsed && <span className="truncate">{meta.title.replace(" Management", "").replace(" & ", " & ")}</span>}
+      {!collapsed && showVerificationBadge && (
+        <span
+          className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#315CFF] px-1.5 text-[10px] font-extrabold tabular text-white shadow-md shadow-[rgba(49,92,255,0.35)] ring-2 ring-white/60"
+          title={`${verificationCount} consolidated package${verificationCount === 1 ? "" : "s"} awaiting your verification`}
+        >
+          {verificationCount}
+        </span>
+      )}
+      {collapsed && showVerificationBadge && (
+        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#315CFF] ring-2 ring-white/80" />
+      )}
     </button>
   );
   if (collapsed) {
@@ -418,7 +433,7 @@ export function SaWorkspaceShell({
   sessionUser: SaSessionUser;
   onSignOut?: () => void;
 }) {
-  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen } = useSaWorkspace();
+  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen, setVerificationCount } = useSaWorkspace();
 
   /* ⌘K keyboard shortcut */
   React.useEffect(() => {
@@ -431,6 +446,15 @@ export function SaWorkspaceShell({
     window.addEventListener("keydown", down);
     return () => window.removeEventListener("keydown", down);
   }, [commandOpen, setCommandOpen]);
+
+  /* Live count of consolidated packages awaiting the admin's verification —
+     drives the blue badge on the Verification Desk nav item. */
+  const { data: verificationData } = useSaApi<{ total: number }>("/api/sa/verification", { pollMs: 15000 });
+  React.useEffect(() => {
+    if (verificationData && typeof verificationData.total === "number") {
+      setVerificationCount(verificationData.total);
+    }
+  }, [verificationData, setVerificationCount]);
 
   const ViewComponent = SA_VIEWS[view] as SaViewComponent;
 

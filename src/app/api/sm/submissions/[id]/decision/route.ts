@@ -120,11 +120,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     ];
 
     /* Persist with the eligible status re-asserted in the where-clause so a
-       concurrent decision cannot double-apply. */
+       concurrent decision cannot double-apply.
+
+       TWO-STEP VERIFICATION: when the manager approves a CONSOLIDATED
+       dossier, the package does NOT become final yet — it moves to
+       AWAITING_SA_VERIFICATION so the Subsidiary Admin can re-check the
+       consolidated numbers before the subsidiary may submit to the Group. */
+    const isDossier = !!(s as any).inConsolidatedReport && !!(s as any).consolidatedReportId;
+    const approvedStatus = isDossier ? "AWAITING_SA_VERIFICATION" : "APPROVED";
     const updated = await db.submission.updateMany({
       where: { id, status: { in: ELIGIBLE[action] } },
       data: {
-        status: action === "approve" ? "APPROVED" : "REJECTED",
+        status: action === "approve" ? approvedStatus : "REJECTED",
         reviewedAt: now,
         reviewerId: ctx.userId,
         comments: JSON.stringify(newComment),
@@ -145,11 +152,11 @@ export async function POST(req: NextRequest, { params }: Params) {
         if (action === "approve") {
           await db.submission.updateMany({
             where: { consolidatedReportId: (s as any).consolidatedReportId, id: { not: id }, inConsolidatedReport: true },
-            data: { status: "APPROVED", updatedAt: now },
+            data: { status: approvedStatus, updatedAt: now },
           });
           await db.report.updateMany({
             where: { id: (s as any).consolidatedReportId },
-            data: { status: "APPROVED" },
+            data: { status: approvedStatus === "APPROVED" ? "APPROVED" : "PENDING_VERIFICATION" },
           });
         } else if (action === "reject") {
           await db.report.updateMany({
@@ -173,10 +180,12 @@ export async function POST(req: NextRequest, { params }: Params) {
       title: action === "approve" ? `Report approved: ${s.ref}` : `Report rejected: ${s.ref}`,
       body:
         action === "approve"
-          ? `${s.title} — approved by ${ctx.name} (Subsidiary Manager) and now eligible for subsidiary consolidation.`
+          ? isDossier
+            ? `${s.title} — approved by ${ctx.name} (Subsidiary Manager). It now awaits the Subsidiary Admin's 2-step verification before the subsidiary can submit its final report to the Group.`
+            : `${s.title} — approved by ${ctx.name} (Subsidiary Manager) and now eligible for subsidiary consolidation.`
           : `${s.title} — returned to ${responsible} for correction by ${ctx.name}: ${reason.slice(0, 140)}`,
       severity: action === "approve" ? "SUCCESS" : "CRITICAL",
-      linkView: "monitoring",
+      linkView: isDossier && action === "approve" ? "verification" : "monitoring",
       refId: s.id,
     });
 
@@ -210,8 +219,11 @@ export async function POST(req: NextRequest, { params }: Params) {
       decision: { action: action as "approve" | "reject", at: now.toISOString(), version },
       message:
         action === "approve"
-          ? `${s.ref} approved — ${responsible} and the Subsidiary Admin have been notified.`
+          ? isDossier
+            ? `${s.ref} approved — the consolidated package has been sent to the Subsidiary Admin for 2-step verification before it can travel to the Group.`
+            : `${s.ref} approved — ${responsible} and the Subsidiary Admin have been notified.`
           : `${s.ref} rejected and returned to ${responsible} for correction.`,
+      verificationRequired: action === "approve" && isDossier,
     };
     return ok(payload);
   });

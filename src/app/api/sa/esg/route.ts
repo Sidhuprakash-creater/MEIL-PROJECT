@@ -43,6 +43,11 @@ export async function GET(req: NextRequest) {
         : true; // BU-level rows follow the direct chain
     const approved = subs.filter((s) => s.status === "APPROVED");
     const pendingReview = subs.filter((s) => inSaChain(s) && ["SUBMITTED", "UNDER_REVIEW"].includes(s.status));
+    /* Consolidated packages the Subsidiary Manager approved and that now await
+       the Subsidiary Admin's second-step verification. They are NOT approved
+       yet — the admin must re-check the numbers before the subsidiary may
+       submit its final report to the Group. */
+    const awaitingVerification = subs.filter((s) => s.status === "AWAITING_SA_VERIFICATION").length;
     const totalNonDraft = subs.filter((s) => s.status !== "DRAFT").length;
     const zeroEvidence = subs.filter((s) => s.status !== "DRAFT" && parseJson<string[]>(s.evidence, []).length === 0).length;
 
@@ -50,6 +55,7 @@ export async function GET(req: NextRequest) {
       pct: readinessPctOf(approved.length, totalNonDraft),
       eligibleApproved: approved.length,
       pendingReview: pendingReview.length,
+      awaitingVerification,
       missingData: SA_CATEGORIES.filter((c) => !subs.some((s) => s.category === c)).length,
       validationExceptions: openIssueCount,
       evidenceGaps: missingEvidenceDocs + zeroEvidence,
