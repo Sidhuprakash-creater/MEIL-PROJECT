@@ -53,6 +53,7 @@ export function BuRollupCard({ rollup, loading, submitting, onSubmitFinal, onOpe
   }
 
   const { sections, totals } = rollup;
+  const reportedTotals = rollup.reportedTotals ?? { reports: 0, confirmedReports: 0 };
   const nothing = totals.reports === 0;
 
   return (
@@ -73,6 +74,11 @@ export function BuRollupCard({ rollup, loading, submitting, onSubmitFinal, onOpe
         <div className="ml-auto flex items-center gap-2">
           <Chip tone="gray">{totals.sections} sections</Chip>
           <Chip tone="purple">{totals.projects} projects</Chip>
+          {reportedTotals.reports > 0 && (
+            <Chip tone="green">
+              {reportedTotals.confirmedReports} sent to subsidiary
+            </Chip>
+          )}
           <Chip tone={totals.pendingReports > 0 ? "amber" : "green"}>
             {totals.confirmedReports} confirmed
           </Chip>
@@ -83,9 +89,11 @@ export function BuRollupCard({ rollup, loading, submitting, onSubmitFinal, onOpe
               onClick={onSubmitFinal}
               disabled={submitting || totals.confirmedReports === 0}
               title={
-                totals.confirmedReports === 0
-                  ? "Approve at least one project report first"
-                  : "Send the final consolidated report to your subsidiary"
+                totals.confirmedReports > 0
+                  ? "Send the final consolidated report to your subsidiary"
+                  : reportedTotals.reports > 0
+                    ? "All approved reports are already with the subsidiary — approve something new to submit again"
+                    : "Approve at least one project report first"
               }
             >
               <Send className="mr-1 h-3.5 w-3.5" />
@@ -96,10 +104,19 @@ export function BuRollupCard({ rollup, loading, submitting, onSubmitFinal, onOpe
       </div>
 
       {nothing ? (
-        <div className="rounded-2xl bg-white/50 px-4 py-5 text-center text-[12px] text-[color:var(--ink-faint)]">
-          No project reports have reached your business unit yet. As soon as a Project Admin sends a
-          consolidated package, the section totals appear here.
-        </div>
+        reportedTotals.reports > 0 ? (
+          <div className="flex items-center gap-2 rounded-2xl border border-[rgba(35,134,83,0.25)] bg-[rgba(35,134,83,0.06)] px-4 py-4 text-[12px] text-[#1d6b40]">
+            <Send className="h-4 w-4 shrink-0" />
+            Every approved report of this period has been signed off and sent to the subsidiary —
+            {reportedTotals.confirmedReports} report(s) travelled with the final report. The queue
+            stays clear until new approvals arrive.
+          </div>
+        ) : (
+          <div className="rounded-2xl bg-white/50 px-4 py-5 text-center text-[12px] text-[color:var(--ink-faint)]">
+            No project reports have reached your business unit yet. As soon as a Project Admin sends a
+            consolidated package, the section totals appear here.
+          </div>
+        )
       ) : (
         <div className="space-y-1.5">
           {sections.map((section) => {

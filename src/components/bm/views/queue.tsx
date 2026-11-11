@@ -1,8 +1,9 @@
 "use client";
 
 // ── BU MANAGER · SCREEN 03 — Review Queue (primary work area) ──
-import { useMemo, useState } from "react";
-import { Building2, ChevronDown, ChevronRight, Inbox, Landmark } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Building2, ChevronDown, ChevronRight, Inbox, Landmark, TriangleAlert } from "lucide-react";
 import { CheckSealIcon } from "@/components/workspace/premium-icons";
 import { Button } from "@/components/ui/button";
 import { useBmWorkspace } from "@/lib/bm/store";
@@ -25,6 +26,90 @@ const TABS: { value: string; label: string }[] = [
   { value: "rejected", label: "Rejected" },
   { value: "overdue", label: "Overdue Reviews" },
 ];
+
+/* ── "Submitted" celebration ────────────────────────────────────────────────
+   A small banner that pops in when the final report leaves for the
+   subsidiary: a green seal draws its checkmark, a soft ring expands and a
+   handful of sparkles burst out. Errors get the same banner, in red. */
+function SubmittedBanner({ message, seq }: { message: { ok: boolean; text: string } | null; seq: number }) {
+  return (
+    <AnimatePresence>
+      {message && (
+        <motion.div
+          key={message.ok ? `ok-${seq}` : "err"}
+          initial={{ opacity: 0, y: 10, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.97 }}
+          transition={{ type: "spring", stiffness: 320, damping: 24 }}
+          className={`flex items-center gap-3 rounded-2xl border px-4 py-2.5 ${
+            message.ok
+              ? "border-[rgba(35,134,83,0.3)] bg-[rgba(35,134,83,0.08)]"
+              : "border-[rgba(180,40,40,0.3)] bg-[rgba(180,40,40,0.07)]"
+          }`}
+          role="status"
+        >
+          {message.ok ? <SubmittedBurst /> : <TriangleAlert className="h-5 w-5 shrink-0 text-[#b42828]" />}
+          <span className={`text-[12px] font-medium ${message.ok ? "text-[#1d6b40]" : "text-[#8f2222]"}`}>
+            {message.text}
+          </span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function SubmittedBurst() {
+  const SPARKS = 7;
+  return (
+    <span className="relative flex h-9 w-9 shrink-0 items-center justify-center">
+      {/* expanding ring */}
+      <motion.span
+        aria-hidden
+        className="absolute inset-0 rounded-full bg-[#238653]/35"
+        initial={{ scale: 0.55, opacity: 0.9 }}
+        animate={{ scale: 2, opacity: 0 }}
+        transition={{ duration: 0.85, ease: "easeOut" }}
+      />
+      {/* green seal with the checkmark drawing itself */}
+      <motion.span
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-[#238653] shadow-md shadow-[#238653]/30"
+        initial={{ scale: 0, rotate: -20 }}
+        animate={{ scale: 1, rotate: 0 }}
+        transition={{ type: "spring", stiffness: 400, damping: 17, delay: 0.05 }}
+      >
+        <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden>
+          <motion.path
+            d="M5 12.5l4.2 4.2L19 7.5"
+            fill="none"
+            stroke="white"
+            strokeWidth={2.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 0.35, delay: 0.28, ease: "easeOut" }}
+          />
+        </svg>
+      </motion.span>
+      {/* sparkle burst */}
+      {Array.from({ length: SPARKS }).map((_, i) => {
+        const angle = (i / SPARKS) * Math.PI * 2;
+        return (
+          <motion.span
+            key={i}
+            aria-hidden
+            className={`absolute left-1/2 top-1/2 h-1.5 w-1.5 -ml-[3px] -mt-[3px] rounded-full ${
+              i % 2 ? "bg-[#8B5CF6]" : "bg-[#238653]"
+            }`}
+            initial={{ x: 0, y: 0, opacity: 1, scale: 1 }}
+            animate={{ x: Math.cos(angle) * 28, y: Math.sin(angle) * 28, opacity: 0, scale: 0.3 }}
+            transition={{ duration: 0.65, delay: 0.32, ease: "easeOut" }}
+          />
+        );
+      })}
+    </span>
+  );
+}
 
 export default function QueueView() {
   const { params, navigate, reportingYear } = useBmWorkspace();
@@ -52,7 +137,8 @@ export default function QueueView() {
     { deps: [reportingYear], pollMs: 60000 }
   );
   const [finalSubmitting, setFinalSubmitting] = useState(false);
-  const [finalMessage, setFinalMessage] = useState<string | null>(null);
+  const [finalMessage, setFinalMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [finalSeq, setFinalSeq] = useState(0);
 
   const submitFinalReport = async () => {
     if (!confirm("Submit the final consolidated report of your business unit to the subsidiary?")) return;
@@ -61,18 +147,28 @@ export default function QueueView() {
     try {
       const res = await apiPost<any>("/api/bm/final-report", { period: reportingYear });
       const t = res?.totals;
-      setFinalMessage(
-        `Final report sent to ${res?.report?.scopeName ?? "the subsidiary"} — ${
+      setFinalMessage({
+        ok: true,
+        text: `Final report sent to ${res?.report?.scopeName ?? "the subsidiary"} — ${
           t?.confirmedReports ?? 0
         } approved report(s) across ${t?.projects ?? 0} project(s), ${t?.sections ?? 0} section(s).`,
-      );
+      });
+      setFinalSeq((n) => n + 1);
       await Promise.all([refetch(), refetchRollup()]);
     } catch (err: any) {
-      setFinalMessage(err?.message || "Could not submit the final report.");
+      setFinalMessage({ ok: false, text: err?.message || "Could not submit the final report." });
     } finally {
       setFinalSubmitting(false);
     }
   };
+
+  /* The submitted banner plays its animation once per successful submit and
+     clears itself afterwards. */
+  useEffect(() => {
+    if (!finalMessage) return;
+    const timer = setTimeout(() => setFinalMessage(null), 12000);
+    return () => clearTimeout(timer);
+  }, [finalMessage]);
 
   const rows = useMemo(() => {
     let list = data?.submissions ?? [];
@@ -251,11 +347,7 @@ export default function QueueView() {
             onSubmitFinal={submitFinalReport}
             onOpenReport={(id) => openReview(id)}
           />
-          {finalMessage && (
-            <div className="rounded-2xl border border-[rgba(35,134,83,0.3)] bg-[rgba(35,134,83,0.08)] px-4 py-2.5 text-[12px] font-medium text-[#1d6b40]">
-              {finalMessage}
-            </div>
-          )}
+          <SubmittedBanner message={finalMessage} seq={finalSeq} />
         </>
       )}
 

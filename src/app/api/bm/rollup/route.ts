@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
       buName: bu.name,
       subsidiaryName: bu.subsidiary?.name ?? "",
       buProjectIds: (await buSubmissionScope(ctx.businessUnitId)).projectIds,
+      /* Reports already carried by a submitted final report leave the
+         queue — the BU Manager never sees the same numbers twice. */
+      excludeReported: true,
     });
 
     return ok({ rollup });

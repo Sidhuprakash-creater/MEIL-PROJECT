@@ -83,6 +83,11 @@ export interface BuRollup {
     confirmedValue: number;
   };
   confirmedSubmissionIds: string[];
+  /** Submissions already carried by a previously submitted final report.
+   *  Populated when the caller asked to exclude them — the BU review queue
+   *  uses this to show "already sent to the subsidiary" instead of an
+   *  empty rollup. */
+  reportedTotals?: { reports: number; confirmedReports: number };
 }
 
 export interface BuRollupResponse {

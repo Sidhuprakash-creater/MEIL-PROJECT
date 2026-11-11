@@ -77,6 +77,11 @@ export async function buildBuRollup(params: {
    *  the subsidiary rollup passes "/api/sm/evidence" so SM users hit their
    *  own subsidiary-scoped download endpoint. */
   evidenceDownloadBase?: string;
+  /** When true, submissions already carried by a previously SUBMITTED final
+   *  report (history stamp FINAL_REPORT_SUBMITTED_TO_SUBSIDIARY) are left
+   *  out of the rollup, so the review queue only shows what is still to be
+   *  decided or freshly approved — never the same numbers twice. */
+  excludeReported?: boolean;
 }): Promise<BuRollup> {
   const { businessUnitId, subsidiaryId } = params;
   const period = params.period ?? "";
@@ -109,6 +114,7 @@ export async function buildBuRollup(params: {
       evidence: true,
       forwardedToBuAt: true,
       submittedAt: true,
+      history: true,
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -178,6 +184,31 @@ export async function buildBuRollup(params: {
       (s.status === "BU_APPROVED" || s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING"),
   );
 
+  /* ── 2b. Reports already carried by a submitted final report ────────────
+     When the caller asks to exclude them (the BU review queue does), every
+     submission whose history carries the FINAL_REPORT_SUBMITTED_TO_SUBSIDIARY
+     stamp is dropped from the rollup — once the BU Manager has signed the
+     final report off, those rows leave the queue. */
+  const REPORTED_STAMP = "FINAL_REPORT_SUBMITTED_TO_SUBSIDIARY";
+  let workable = eligible;
+  let reportedSubmissions: typeof eligible = [];
+  if (params.excludeReported) {
+    workable = [];
+    for (const s of eligible) {
+      let hist: any[] = [];
+      try {
+        const parsed = JSON.parse(s.history || "[]");
+        if (Array.isArray(parsed)) hist = parsed;
+      } catch {}
+      if (hist.some((h) => h?.action === REPORTED_STAMP)) reportedSubmissions.push(s);
+      else workable.push(s);
+    }
+  }
+  const reportedTotals = {
+    reports: reportedSubmissions.length,
+    confirmedReports: reportedSubmissions.filter((s) => s.status === "BU_APPROVED").length,
+  };
+
   /* Evidence resolution — TWO repositories, because both are in use:
        · db.Evidence      → the files the Project User Portal actually stores
                             (fileName + filePath, linked through the
@@ -228,7 +259,7 @@ export async function buildBuRollup(params: {
   /* ── 3. Group by section, then by project inside the section ─────────── */
   const sections = new Map<string, BuRollupSection>();
 
-  for (const sub of eligible) {
+  for (const sub of workable) {
     const category = sub.category || "GENERAL";
     if (!sections.has(category)) {
       sections.set(category, {
@@ -348,7 +379,7 @@ export async function buildBuRollup(params: {
   const allProjects = new Set<string>();
   for (const s of sectionList) for (const p of s.projects) allProjects.add(p.projectId);
 
-  const confirmedSubmissionIds = eligible.filter((s) => s.status === "BU_APPROVED").map((s) => s.id);
+  const confirmedSubmissionIds = workable.filter((s) => s.status === "BU_APPROVED").map((s) => s.id);
 
   return {
     buId: businessUnitId,
@@ -366,5 +397,6 @@ export async function buildBuRollup(params: {
       confirmedValue: sectionList.reduce((n, s) => n + s.confirmedValue, 0),
     },
     confirmedSubmissionIds,
+    reportedTotals,
   };
 }

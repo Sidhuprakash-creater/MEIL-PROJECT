@@ -31,6 +31,10 @@ export async function POST(req: NextRequest) {
       buName: bu.name,
       subsidiaryName: bu.subsidiary?.name ?? "",
       buProjectIds: scope.projectIds,
+      /* Only the reports NOT yet carried by a previous final report travel
+         with this submission — a resubmission is incremental, never a
+         double-count of what the subsidiary already received. */
+      excludeReported: true,
     });
 
     if (rollup.totals.confirmedReports === 0) {
