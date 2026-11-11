@@ -204,6 +204,18 @@ export interface SavedRecord {
   evidenceIds?: string[]
   data?: Record<string, any>
   status?: string
+  /**
+   * Set by the server when the same logical record was already captured with
+   * identical values. The record IS saved — this is a warning the user
+   * acknowledges, not a rejection.
+   */
+  duplicateRecord?: {
+    id: string
+    levelName?: string | null
+    enteredBy?: string | null
+    enteredAt?: string | null
+    message: string
+  } | null
 }
 
 // Read-only viewer roles (reviewers / auditors) — currently removed;

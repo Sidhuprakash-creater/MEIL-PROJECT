@@ -435,6 +435,13 @@ export function DataEntryModule({
   // ---- Action Handlers ----
   const handleSaved = (result: SavedRecord, submitted = false) => {
     setSaved(result)
+    /* A repeated capture of identical values is saved but flagged — the
+       contributor can see that the same measurement was already recorded. */
+    if (result.duplicateRecord) {
+      toast.warning('Possible duplicate record', {
+        description: result.duplicateRecord.message,
+      })
+    }
     if (submitted) {
       setStep(4)
       setSubmitResult({ submissionId: result.id, status: 'SUBMITTED' })
