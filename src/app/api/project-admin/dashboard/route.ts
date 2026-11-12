@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getProjectAdminContext, paOk, paFail, getPaServerCache, setPaServerCache } from "@/lib/project-admin/server";
 import type { ContributorRole } from "@/lib/project-admin/types";
 import { CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
+import { ensureLevelRecordsLoaded, getLevelRecords } from "@/lib/pu/level-records";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,35 @@ export async function GET(req: NextRequest) {
 
     if (!project) return paFail("Project not found.", 404);
 
+    /* Contributor evidence lives in the Evidence VAULT (db.evidence) — attached
+       to captured level records (per record / per item) and stamped with the
+       uploader's projectId. The legacy db.evidenceDoc table only holds older
+       compliance documents, so counting it alone reported 0 even when real
+       audit files were uploaded. Count BOTH: vault rows for this project plus
+       every vault row referenced by this project's level records. */
+    await ensureLevelRecordsLoaded().catch(() => {});
+    const levelEvidenceIds = new Set<string>();
+    for (const rec of getLevelRecords(ctx.projectId)) {
+      if (rec.evidenceId) levelEvidenceIds.add(String(rec.evidenceId));
+      for (const eid of Array.isArray(rec.evidenceIds) ? rec.evidenceIds : []) if (eid) levelEvidenceIds.add(String(eid));
+      for (const it of Array.isArray(rec.data?.items) ? rec.data.items : []) {
+        if (it?.evidenceId) levelEvidenceIds.add(String(it.evidenceId));
+        for (const eid of Array.isArray(it?.evidenceIds) ? it.evidenceIds : []) if (eid) levelEvidenceIds.add(String(eid));
+      }
+    }
+    const vaultRows = await db.evidence.findMany({
+      where: {
+        OR: [
+          { projectId: ctx.projectId },
+          ...(levelEvidenceIds.size ? [{ id: { in: [...levelEvidenceIds] } }] : []),
+        ],
+      },
+      select: { id: true, status: true },
+    });
+    const vaultUploaded = vaultRows.filter((e) => e.status !== "REJECTED").length;
+    const vaultVerified = vaultRows.filter((e) => e.status === "VERIFIED").length;
+    const vaultMissing = vaultRows.filter((e) => e.status === "REQUIRED").length;
+
     // Combine standard and SO submissions
     const allSubmissions = [
       ...submissions,
@@ -144,7 +174,7 @@ export async function GET(req: NextRequest) {
         completedMetrics: Math.round((completionPercent / 100) * metricsCount),
         pendingMetrics: metricsCount - Math.round((completionPercent / 100) * metricsCount),
         lastActivity: new Date(Date.now() - 3600000).toISOString(),
-        evidenceCount: evidenceDocs.length > 0 ? Math.ceil(evidenceDocs.length / 7) : 4,
+        evidenceCount: vaultUploaded + evidenceDocs.length,
       };
     });
 
@@ -185,9 +215,9 @@ export async function GET(req: NextRequest) {
       draftSubmissions: draftCount,
       returnedSubmissions: returnedCount,
       totalAssignedUsers: new Set(allSubmissions.map((s: any) => s.submittedById).filter(Boolean)).size || 7,
-      totalEvidenceDocs: evidenceDocs.length,
-      verifiedEvidenceDocs: evidenceDocs.length ? Math.round(evidenceDocs.length * 0.88) : 0,
-      missingEvidenceDocs: 0, /* TODO: derive once a mandatory-evidence matrix exists */
+      totalEvidenceDocs: vaultUploaded + evidenceDocs.length,
+      verifiedEvidenceDocs: vaultVerified + (evidenceDocs.length ? evidenceDocs.filter((d) => d.status === "VALID").length : 0),
+      missingEvidenceDocs: vaultMissing, /* a vault row still REQUIRED = mandatory compliance gap */
       openActionItems: tasks.filter((t) => t.status !== "COMPLETED").length,
       criticalAlerts: 1,
       daysToDeadline: Math.max(0, Math.ceil((new Date("2026-03-31").getTime() - Date.now()) / (1000 * 60 * 60 * 24))),
