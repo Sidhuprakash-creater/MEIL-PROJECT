@@ -9,6 +9,8 @@ import {
   recordSuccess,
 } from "@/lib/rate-limit";
 import { createSession, clientIp, toVerifiedUser } from "@/lib/session";
+import { findUserByIdentifier } from "@/lib/auth/user-lookup";
+import { invalidateAllAuthCaches } from "@/lib/auth/session-utils";
 import { PORTAL_ROLES, type PortalId } from "@/lib/platform-config";
 
 export const dynamic = "force-dynamic";
@@ -31,60 +33,6 @@ function fail(
   extra?: Record<string, unknown>
 ) {
   return NextResponse.json({ ok: false, code, message, ...extra }, { status });
-}
-
-/** Resolve the typed identifier to an account: email first, then employee ID. */
-const authUserCache = new Map<string, any>();
-
-async function findUserByIdentifier(identifier: string) {
-  const raw = identifier.trim();
-  if (!raw) return null;
-  const key = raw.toLowerCase();
-
-  const cached = authUserCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.user;
-  }
-
-  let user: Awaited<ReturnType<typeof db.user.findUnique>> = null;
-  if (raw.includes("@")) {
-    user = await db.user.findUnique({
-      where: { email: raw.toLowerCase() },
-      include: { subsidiary: true, businessUnit: true, project: true },
-    });
-  }
-
-  if (!user) {
-    user = await db.user.findUnique({
-      where: { employeeId: raw.toUpperCase() },
-      include: { subsidiary: true, businessUnit: true, project: true },
-    });
-  }
-
-  if (!user) {
-    user = await db.user.findFirst({
-      where: {
-        OR: [
-          { name: { equals: raw, mode: "insensitive" } },
-          { name: { contains: raw, mode: "insensitive" } },
-          { email: { contains: raw, mode: "insensitive" } },
-        ],
-      },
-      include: { subsidiary: true, businessUnit: true, project: true },
-    });
-  }
-
-  if (!user && (raw.toLowerCase().includes("harish") || raw.toLowerCase().includes("bu-1001"))) {
-    user = await db.user.findFirst({
-      where: { employeeId: "BU-1001" },
-      include: { subsidiary: true, businessUnit: true, project: true },
-    });
-  }
-
-  if (user) {
-    authUserCache.set(key, { user, expiresAt: Date.now() + 120000 });
-  }
-  return user;
 }
 
 export async function POST(request: Request) {
@@ -222,7 +170,7 @@ export async function POST(request: Request) {
   }
 
   /* ── account state ── */
-  if (user.status !== "ACTIVE") {
+  if (user.status !== "ACTIVE" && user.status !== "INVITED") {
     await logAudit({
       eventType: "LOGIN_FAILED",
       result: "FAILURE",
@@ -388,26 +336,31 @@ export async function POST(request: Request) {
     ip,
   });
 
-  await db.user.update({
+  const activatedUser = await db.user.update({
     where: { id: user.id },
-    data: { lastLoginAt: new Date() },
+    data: {
+      lastLoginAt: new Date(),
+      ...(user.status === "INVITED" ? { status: "ACTIVE" } : {}),
+    },
+    include: { subsidiary: true, businessUnit: true, project: true },
   });
+  invalidateAllAuthCaches(user.id);
 
   await logAudit({
     eventType: "LOGIN_SUCCESS",
     result: "SUCCESS",
-    employeeId: user.employeeId ?? user.email,
-    userId: user.id,
+    employeeId: activatedUser.employeeId ?? activatedUser.email,
+    userId: activatedUser.id,
     portal,
     role,
-    scopeRef: user.businessUnit?.code ?? user.subsidiary?.code ?? "GROUP",
+    scopeRef: activatedUser.businessUnit?.code ?? activatedUser.subsidiary?.code ?? "GROUP",
     ip,
     userAgent,
   });
 
   return NextResponse.json({
     ok: true,
-    user: toVerifiedUser(user),
+    user: toVerifiedUser(activatedUser),
     expiresAt: expiresAt.toISOString(),
   });
 }

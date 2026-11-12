@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { getSessionPayload } from "@/lib/session";
 
 export type Json = Record<string, unknown>;
 
@@ -11,11 +12,36 @@ export function fail(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+export class EsgAuthError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export async function requireGroupAdmin(opts?: { readOnly?: boolean }) {
+  const session = await getSessionPayload();
+  if (!session?.authenticated || !session.user) {
+    throw new EsgAuthError("Authentication required.", 401);
+  }
+  const allowed = opts?.readOnly
+    ? session.user.role === "GROUP_ADMIN" || session.user.role === "ORG_MANAGER"
+    : session.user.role === "GROUP_ADMIN";
+  if (!allowed) {
+    throw new EsgAuthError("Group Admin authorization required.", 403);
+  }
+  return session.user;
+}
+
 /** Wrap a handler with uniform error handling. */
 export async function handle(fn: () => Promise<Response>): Promise<Response> {
   try {
     return await fn();
   } catch (e) {
+    if (e instanceof EsgAuthError) {
+      return fail(e.message, e.status);
+    }
     console.error("[api]", e);
     const msg = e instanceof Error ? e.message : "Internal server error";
     return fail(msg, 500);

@@ -1,4 +1,4 @@
-import { randomBytes, scrypt, timingSafeEqual, type ScryptOptions } from "crypto";
+import { randomBytes, randomInt, scrypt, timingSafeEqual, type ScryptOptions } from "crypto";
 
 /** Promise wrapper around scrypt that supports cost options. */
 function scryptAsync(
@@ -61,16 +61,32 @@ export async function verifyPassword(
   }
 }
 
+const TEMP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+
+/** Generate a cryptographically random, easy-to-type temporary password. */
+export function generateTempPassword(length = 12): string {
+  const chars: string[] = [];
+  for (let i = 0; i < length; i++) {
+    chars.push(TEMP_ALPHABET[randomInt(0, TEMP_ALPHABET.length)]);
+  }
+  return chars.join("");
+}
+
 /**
- * Platform-wide demo password. Accepted for every account (in addition to each
- * account's real scrypt hash) so the advertised "Default password" on the
- * gateway and portal sign-in screens always works. Comparison is trimmed and
- * case-insensitive to tolerate typo-level variance (demo, Demo, DEMO, …).
+ * Platform-wide demo password. Accepted ONLY when ALLOW_DEMO_PASSWORDS is enabled
+ * (defaults to false in production; explicit allowlist match only so real wrong
+ * passwords fail verification properly).
  */
 export const DEMO_PASSWORD = "demo";
 
 export function isDemoPassword(password: string): boolean {
-  if (process.env.NODE_ENV !== "production") return true; // dev/demo: any non-empty password is accepted for seamless pairing/testing
+  const flag = process.env.ALLOW_DEMO_PASSWORDS?.trim().toLowerCase();
+  if (flag === "false") return false;
+  if (process.env.NODE_ENV === "production" && flag !== "true") return false;
+  if (flag !== "true") {
+    // Even in non-production without ALLOW_DEMO_PASSWORDS="true", only match explicit demo token.
+    return password.trim().toLowerCase() === "demo";
+  }
   const norm = password.trim().toLowerCase();
   return (
     norm === "demo" ||

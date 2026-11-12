@@ -16,6 +16,7 @@ import {
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import { GoogleLinkDialog } from "@/components/auth/google-link-dialog";
 import {
   AlertCircle,
   ArrowLeft,
@@ -52,6 +53,7 @@ import {
   type PortalId,
   type VerifiedUser,
 } from "@/lib/platform-config";
+import { GOOGLE_AUTH_ERROR_MESSAGES } from "@/lib/auth/google-oauth";
 import "./enter-platform.css";
 
 /* ── types ─────────────────────────────────────────────────────────────────── */
@@ -1110,6 +1112,27 @@ function PortalFlow({
               </>
             )}
           </button>
+          <button
+            type="button"
+            className="ep-btn ep-btn-ghost"
+            style={{ marginTop: 10 }}
+            disabled={loading || !!success}
+            onClick={() => {
+              const qp = new URLSearchParams({
+                portal,
+                ...(remember ? { remember: "1" } : {}),
+              });
+              window.location.href = `/api/auth/google/start?${qp.toString()}`;
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+              <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z" />
+              <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z" />
+              <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z" />
+              <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z" />
+            </svg>
+            Continue with Google
+          </button>
           <button type="button" className="ep-btn ep-btn-ghost" style={{ marginTop: 10 }} onClick={onBackToPortals} disabled={loading}>
             <ArrowLeft size={15} strokeWidth={2.2} />
             Back to All Portals
@@ -1204,7 +1227,26 @@ export default function EnterPlatform({
   const [subsidiaries, setSubsidiaries] = useState<SubsidiaryOpt[] | null>(null);
   const [subsLoading, setSubsLoading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("authError");
+    if (code) {
+      setGoogleAuthError(
+        GOOGLE_AUTH_ERROR_MESSAGES[code] ??
+          "Google Sign-In could not be completed. Please try again or use your Employee ID."
+      );
+      params.delete("authError");
+      const qs = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        window.location.pathname + (qs ? `?${qs}` : "")
+      );
+    }
+  }, []);
 
   /* master data is fetched from the backend when a scoped portal opens */
   const loadSubsidiaries = useCallback(() => {
@@ -1237,6 +1279,7 @@ export default function EnterPlatform({
 
   return (
     <div className="ep-root">
+      <GoogleLinkDialog onCancelRedirect="/?enter=1" />
       <div className="ep-bubbles" aria-hidden="true">
         <span className="ep-bubble ep-bubble-1" />
         <span className="ep-bubble ep-bubble-2" />
@@ -1353,6 +1396,13 @@ export default function EnterPlatform({
                   </p>
                 </div>
 
+                {googleAuthError && (
+                  <div className="ep-alert" role="alert" style={{ marginBottom: 14 }}>
+                    <AlertCircle size={16} strokeWidth={2.1} />
+                    <span>{googleAuthError}</span>
+                  </div>
+                )}
+
                 {notice && (
                   <div className="ep-notice" role="status" aria-live="polite">
                     <Info size={16} strokeWidth={2} />
@@ -1362,6 +1412,25 @@ export default function EnterPlatform({
                     </button>
                   </div>
                 )}
+
+                <div style={{ marginBottom: 16 }}>
+                  <button
+                    type="button"
+                    className="ep-btn ep-btn-ghost"
+                    style={{ justifyContent: "center" }}
+                    onClick={() => {
+                      window.location.href = "/api/auth/google/start?portal=gateway";
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z" />
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z" />
+                      <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z" />
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z" />
+                    </svg>
+                    Continue with Google (Verified Pre-Provisioned SSO)
+                  </button>
+                </div>
 
                 <div className="ep-cards">
                   {PORTALS.map((p, i) => (

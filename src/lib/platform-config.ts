@@ -117,6 +117,10 @@ export interface VerifiedUser {
   id: string;
   employeeId: string;
   name: string;
+  email?: string;
+  googleEmail?: string | null;
+  authProvider?: string;
+  mustChangePassword?: boolean;
   role: string;
   roleLabel: string;
   scope: VerifiedScope;

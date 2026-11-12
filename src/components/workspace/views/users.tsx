@@ -23,6 +23,9 @@ import {
   Users as UsersIcon,
 } from "lucide-react";
 import { Ring } from '@/components/ring'
+import { ResetRequestsPanel } from "@/components/auth/reset-requests-panel";
+import { TempPasswordModal } from "@/components/auth/password-recovery-modals";
+import { CreateUserDialog } from "@/components/workspace/create-user-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -197,6 +200,7 @@ type OrgDialogMode = "invite" | "edit" | "org";
 interface UserFormState {
   name: string;
   email: string;
+  googleEmail: string;
   role: string;
   title: string;
   phone: string;
@@ -208,6 +212,7 @@ interface UserFormState {
 const emptyForm: UserFormState = {
   name: "",
   email: "",
+  googleEmail: "",
   role: "",
   title: "",
   phone: "",
@@ -216,17 +221,24 @@ const emptyForm: UserFormState = {
   projectId: "ALL",
 };
 
+interface UserDossier {
+  user?: User & { employeeId?: string | null; googleEmail?: string | null; authProvider?: string };
+  sessions?: { id: string; ipAddress: string | null; userAgent: string | null; expiresAt: string; createdAt: string }[];
+  lastLogins?: { id: string; actor: string; summary: string; createdAt: string }[];
+}
+
 function DetailPage({ userId }: { userId: string }) {
   const { navigate } = useWorkspace();
   const { toast } = useToast();
   const usersApi = useApi<{ users: User[] }>("/api/esg/users");
+  const dossierApi = useApi<UserDossier>(`/api/esg/users/${userId}`);
   const subsApi = useApi<{ subsidiaries: { id: string; name: string }[] }>("/api/esg/org?type=subsidiaries&light=1");
   const unitsApi = useApi<{ businessUnits: { id: string; name: string; subsidiaryId: string }[] }>("/api/esg/org?type=business-units");
   const projectsApi = useApi<{ projects: { id: string; name: string; businessUnitId: string }[] }>("/api/esg/org?type=projects");
   const submissionsApi = useApi<{ submissions: Submission[] }>("/api/esg/submissions");
   const tasksApi = useApi<{ tasks: Task[] }>("/api/esg/tasks");
 
-  const user = useMemo(() => usersApi.data?.users.find((u) => u.id === userId) ?? null, [usersApi.data, userId]);
+  const user = useMemo(() => usersApi.data?.users.find((u) => u.id === userId) ?? dossierApi.data?.user ?? null, [usersApi.data, dossierApi.data, userId]);
   const mySubmissions = useMemo(
     () => (submissionsApi.data?.submissions ?? []).filter((s) => s.submittedById === userId),
     [submissionsApi.data, userId]
@@ -249,6 +261,7 @@ function DetailPage({ userId }: { userId: string }) {
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<null | "suspend" | "reactivate" | "reset" | "deactivate">(null);
+  const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
   const mut = useMutation();
 
@@ -257,6 +270,7 @@ function DetailPage({ userId }: { userId: string }) {
     setForm({
       name: user.name,
       email: user.email,
+      googleEmail: user.googleEmail ?? "",
       role: user.role,
       title: user.title ?? "",
       phone: user.phone ?? "",
@@ -287,6 +301,7 @@ function DetailPage({ userId }: { userId: string }) {
       apiPatch("/api/esg/users", {
         id: user.id,
         name: form.name.trim(),
+        googleEmail: form.googleEmail.trim().toLowerCase() || null,
         role: form.role,
         title: form.title,
         phone: form.phone,
@@ -299,6 +314,7 @@ function DetailPage({ userId }: { userId: string }) {
       toast({ title: "User updated", description: `${form.name.trim()} was saved successfully.` });
       setDialogOpen(false);
       void usersApi.refetch();
+      void dossierApi.refetch();
     } else {
       toast({ title: "Update failed", description: mut.error ?? "Server rejected the change.", variant: "destructive" });
     }
@@ -313,13 +329,23 @@ function DetailPage({ userId }: { userId: string }) {
     } else {
       res = await mut.run(() => apiPatch("/api/esg/users", { id: user.id, action, reason }));
     }
-    const r = res as { message?: string } | null;
+    const r = res as { message?: string; tempPassword?: string; emailSent?: boolean } | null;
     if (res) {
+      if (action === "reset-credentials" && r?.tempPassword) {
+        setTempPwd({
+          userName: user.name,
+          password: r.tempPassword,
+          note: r.emailSent
+            ? "Temporary password and 15-minute reset link emailed via Resend. User must update it on next login."
+            : "Temporary password generated and all sessions revoked. Share securely — user must update it on next login.",
+        });
+      }
       toast({
         title: action === "reset-credentials" ? "Credentials reset" : action === "reactivate" ? "User reactivated" : action === "suspend" ? "User suspended" : "User deactivated",
         description: r?.message ?? `${user.name} — status updated.`,
       });
       void usersApi.refetch();
+      void dossierApi.refetch();
     } else {
       toast({ title: "Action failed", description: mut.error ?? "Server rejected the action.", variant: "destructive" });
     }
@@ -552,44 +578,73 @@ function DetailPage({ userId }: { userId: string }) {
       )}
 
       {tab === "security" && (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <SectionCard title="Account Security" icon={ShieldCheck} description="Status and recovery controls for this account.">
-            <div className="divide-y divide-[rgba(125,177,216,0.18)]">
-              <InfoRow label="Account status"><StatusBadge status={user.status} /></InfoRow>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                className="glass-subtle rounded-2xl border-white/60"
-                disabled={isGroupAdmin || mut.pending || user.status === "SUSPENDED"}
-                onClick={() => setConfirm("suspend")}
-              >
-                <ShieldOff className="mr-1.5 h-4 w-4" /> Suspend
+        <div className="space-y-5">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <SectionCard title="Account Security & SSO" icon={ShieldCheck} description="Authentication method, status, and recovery controls for this account.">
+              <div className="divide-y divide-[rgba(125,177,216,0.18)]">
+                <InfoRow label="Account status"><StatusBadge status={user.status} /></InfoRow>
+                <InfoRow label="Employee ID"><span className="tabular font-medium">{user.employeeId ?? "—"}</span></InfoRow>
+                <InfoRow label="Auth provider">{user.authProvider ?? "CREDENTIALS"}</InfoRow>
+                <InfoRow label="Google Sign-In Email">{user.googleEmail || "Not linked"}</InfoRow>
+                <InfoRow label="Password rotation">{user.mustChangePassword ? "Required on next login" : "Up to date"}</InfoRow>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="glass-subtle rounded-2xl border-white/60"
+                  disabled={isGroupAdmin || mut.pending || user.status === "SUSPENDED"}
+                  onClick={() => setConfirm("suspend")}
+                >
+                  <ShieldOff className="mr-1.5 h-4 w-4" /> Suspend
+                </Button>
+                <Button
+                  variant="outline"
+                  className="glass-subtle rounded-2xl border-white/60"
+                  disabled={mut.pending || (user.status !== "SUSPENDED" && user.status !== "INACTIVE")}
+                  onClick={() => setConfirm("reactivate")}
+                >
+                  <ShieldCheck className="mr-1.5 h-4 w-4" /> Reactivate
+                </Button>
+                <Button variant="outline" className="glass-subtle rounded-2xl border-white/60" disabled={mut.pending} onClick={() => setConfirm("reset")}>
+                  <KeyRound className="mr-1.5 h-4 w-4" /> Reset credentials
+                </Button>
+                <Button variant="destructive" className="rounded-2xl" disabled={isGroupAdmin || mut.pending} onClick={() => setConfirm("deactivate")}>
+                  <ShieldAlert className="mr-1.5 h-4 w-4" /> Deactivate
+                </Button>
+                {isGroupAdmin && <p className="mt-1 w-full text-xs text-[color:var(--ink-faint)]">The Group Admin account cannot be suspended or deactivated.</p>}
+              </div>
+            </SectionCard>
+            <SectionCard title="Active Sessions" icon={ShieldAlert} description={`${(dossierApi.data?.sessions ?? []).length} live session(s)`}>
+              {(dossierApi.data?.sessions ?? []).length === 0 ? (
+                <p className="text-xs text-[color:var(--ink-faint)]">No active sessions right now.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(dossierApi.data?.sessions ?? []).map((s) => (
+                    <div key={s.id} className="glass-subtle rounded-xl p-2.5 text-xs">
+                      <div className="font-medium text-[color:var(--ink)]">{s.ipAddress ?? "Unknown IP"} · started {timeAgo(s.createdAt)}</div>
+                      <div className="truncate text-[11px] text-[color:var(--ink-faint)]">{s.userAgent ?? "Browser session"} · expires {fmtDate(s.expiresAt)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button variant="outline" className="glass-subtle mt-4 rounded-2xl border-white/60" onClick={() => navigate("audit")}>
+                <ShieldAlert className="mr-1.5 h-4 w-4" /> Open Audit Logs
               </Button>
-              <Button
-                variant="outline"
-                className="glass-subtle rounded-2xl border-white/60"
-                disabled={mut.pending || (user.status !== "SUSPENDED" && user.status !== "INACTIVE")}
-                onClick={() => setConfirm("reactivate")}
-              >
-                <ShieldCheck className="mr-1.5 h-4 w-4" /> Reactivate
-              </Button>
-              <Button variant="outline" className="glass-subtle rounded-2xl border-white/60" disabled={mut.pending} onClick={() => setConfirm("reset")}>
-                <KeyRound className="mr-1.5 h-4 w-4" /> Reset credentials
-              </Button>
-              <Button variant="destructive" className="rounded-2xl" disabled={isGroupAdmin || mut.pending} onClick={() => setConfirm("deactivate")}>
-                <ShieldAlert className="mr-1.5 h-4 w-4" /> Deactivate
-              </Button>
-              {isGroupAdmin && <p className="mt-1 w-full text-xs text-[color:var(--ink-faint)]">The Group Admin account cannot be suspended or deactivated.</p>}
-            </div>
-          </SectionCard>
-          <SectionCard title="Audit Trail" icon={ShieldAlert}>
-            <p className="text-sm leading-relaxed text-[color:var(--ink-soft)]">
-              All security actions on this account (role changes, suspensions, credential resets, deactivations) are recorded in the authoritative audit log with before/after state and reason.
-            </p>
-            <Button variant="outline" className="glass-subtle mt-4 rounded-2xl border-white/60" onClick={() => navigate("audit")}>
-              <ShieldAlert className="mr-1.5 h-4 w-4" /> Open Audit Logs
-            </Button>
+            </SectionCard>
+          </div>
+          <SectionCard title="Recent Login & Security History" icon={History} description="Last recorded sign-ins and credential events.">
+            {(dossierApi.data?.lastLogins ?? []).length === 0 ? (
+              <p className="text-xs text-[color:var(--ink-faint)]">No recent authentication events recorded for this account.</p>
+            ) : (
+              <div className="divide-y divide-[rgba(125,177,216,0.18)]">
+                {(dossierApi.data?.lastLogins ?? []).map((l) => (
+                  <div key={l.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+                    <span className="text-[color:var(--ink)]">{l.summary}</span>
+                    <span className="shrink-0 text-[color:var(--ink-faint)]">{timeAgo(l.createdAt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
         </div>
       )}
@@ -630,6 +685,9 @@ function DetailPage({ userId }: { userId: string }) {
           </Field>
           <Field label="Phone">
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="+91…" />
+          </Field>
+          <Field label="Google Sign-In Email (optional)" hint="Optional Gmail / Workspace alias for Google SSO">
+            <Input value={form.googleEmail} onChange={(e) => setForm({ ...form, googleEmail: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="user@gmail.com" type="email" />
           </Field>
           <Field label="Subsidiary">
             <Select value={form.subsidiaryId} onValueChange={(v) => setForm({ ...form, subsidiaryId: v, businessUnitId: "ALL", projectId: "ALL" })}>
@@ -707,6 +765,7 @@ function DetailPage({ userId }: { userId: string }) {
         pending={mut.pending}
         onConfirm={(reason) => void statusAction("deactivate", reason)}
       />
+      <TempPasswordModal data={tempPwd} onClose={() => setTempPwd(null)} />
     </div>
   );
 
@@ -737,8 +796,9 @@ export default function UsersView() {
   const [presenceFilter, setPresenceFilter] = useState<PresenceFilter>("ALL");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
-  // Auto-open the invite dialog when navigated with params.create (dialog mounts open).
-  const [dialogMode, setDialogMode] = useState<OrgDialogMode | null>(autoCreate ? "invite" : null);
+  // Auto-open the create/invite dialog when navigated with params.create.
+  const [createOpen, setCreateOpen] = useState(autoCreate);
+  const [dialogMode, setDialogMode] = useState<OrgDialogMode | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -746,6 +806,7 @@ export default function UsersView() {
   const [rolePick, setRolePick] = useState("");
   const [confirmAction, setConfirmAction] = useState<null | { kind: "suspend" | "reactivate" | "reset" | "deactivate"; user: User }>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
+  const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
   const createMut = useMutation();
   const editMut = useMutation();
@@ -797,12 +858,17 @@ export default function UsersView() {
   };
 
   const openDialog = (mode: OrgDialogMode, u?: User) => {
+    if (mode === "invite") {
+      setCreateOpen(true);
+      return;
+    }
     setFormErrors({});
     setEditingUser(u ?? null);
     if (u) {
       setForm({
         name: u.name,
         email: u.email,
+        googleEmail: u.googleEmail ?? "",
         role: u.role,
         title: u.title ?? "",
         phone: u.phone ?? "",
@@ -830,6 +896,7 @@ export default function UsersView() {
     const payload = {
       name: form.name.trim(),
       email: form.email.trim().toLowerCase(),
+      googleEmail: form.googleEmail.trim().toLowerCase() || (dialogMode === "invite" ? undefined : null),
       role: form.role,
       title: form.title,
       phone: form.phone,
@@ -843,8 +910,17 @@ export default function UsersView() {
     } else if (editingUser) {
       res = await editMut.run(() => apiPatch("/api/esg/users", { id: editingUser.id, ...payload }));
     }
-    const r = res as { message?: string } | null;
+    const r = res as { message?: string; tempPassword?: string; emailSent?: boolean; emailNote?: string } | null;
     if (res) {
+      if (dialogMode === "invite" && r?.tempPassword) {
+        setTempPwd({
+          userName: form.name.trim(),
+          password: r.tempPassword,
+          note: r.emailSent
+            ? "Temporary password emailed via Resend and shown once here. The user will be prompted to set their own password on first sign-in."
+            : r.emailNote ?? "Share this temporary password securely — user must change it on first sign-in.",
+        });
+      }
       toast({
         title: dialogMode === "invite" ? "Invitation sent" : "User updated",
         description: dialogMode === "invite" ? `${form.name.trim()} was invited as ${roleLabel(form.role)} (status: Invited).` : r?.message ?? "Profile saved.",
@@ -879,8 +955,17 @@ export default function UsersView() {
     } else {
       res = await statusMut.run(() => apiPatch("/api/esg/users", { id: u.id, action: kind, reason }));
     }
-    const r = res as { message?: string } | null;
+    const r = res as { message?: string; tempPassword?: string; emailSent?: boolean } | null;
     if (res) {
+      if (kind === "reset" && r?.tempPassword) {
+        setTempPwd({
+          userName: u.name,
+          password: r.tempPassword,
+          note: r.emailSent
+            ? "Temporary password emailed via Resend and all active sessions revoked."
+            : "Temporary password generated and active sessions revoked. Share securely — user must update it on next login.",
+        });
+      }
       const titles: Record<typeof kind, string> = {
         suspend: "User suspended",
         reactivate: "User reactivated",
@@ -1097,6 +1182,8 @@ export default function UsersView() {
         />
       </div>
 
+      <ResetRequestsPanel onUpdated={() => void usersApi.refetch()} />
+
       <DataTable<User>
         columns={columns}
         rows={filtered}
@@ -1308,7 +1395,9 @@ export default function UsersView() {
           <Field label="Phone">
             <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="+91…" />
           </Field>
-          <div />
+          <Field label="Google Sign-In Email (optional)" hint="Optional Gmail / Workspace alias for Google SSO">
+            <Input value={form.googleEmail} onChange={(e) => setForm({ ...form, googleEmail: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="user@gmail.com" type="email" />
+          </Field>
           <Field label="Subsidiary">
             <Select value={form.subsidiaryId} onValueChange={(v) => setForm({ ...form, subsidiaryId: v, businessUnitId: "ALL", projectId: "ALL" })}>
               <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select subsidiary" /></SelectTrigger>
@@ -1426,6 +1515,29 @@ export default function UsersView() {
         pending={bulkMut.pending}
         onConfirm={(reason) => void bulkSuspend(reason)}
       />
+
+      <CreateUserDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        subsidiaries={subsApi.data?.subsidiaries}
+        businessUnits={unitsApi.data?.businessUnits}
+        projects={projectsApi.data?.projects}
+        onCreated={(outcome) => {
+          if (outcome.tempPassword) {
+            setTempPwd({
+              userName: outcome.userName,
+              password: outcome.tempPassword,
+              note: outcome.emailSent
+                ? "Temporary password emailed via Resend and shown once here. The user will be prompted to set their own password on first sign-in."
+                : outcome.emailNote ??
+                  "Share this temporary password securely — user must change it on first sign-in.",
+            });
+          }
+          void usersApi.refetch();
+        }}
+      />
+
+      <TempPasswordModal data={tempPwd} onClose={() => setTempPwd(null)} />
     </div>
   );
 }

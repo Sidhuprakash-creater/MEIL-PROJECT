@@ -25,6 +25,8 @@ import {
   type Column,
 } from "@/components/workspace/ui";
 import { PeopleIcon, UserPlusIcon } from "@/components/workspace/premium-icons";
+import { ResetRequestsPanel } from "@/components/auth/reset-requests-panel";
+import { TempPasswordModal } from "@/components/auth/password-recovery-modals";
 import { useToast } from "@/hooks/use-toast";
 
 const inputCls = "glass-subtle rounded-2xl border-white/60 text-sm";
@@ -46,8 +48,9 @@ export default function UsersView() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [inviteOpen, setInviteOpen] = useState<boolean>(() => !!params.create);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [confirmAction, setConfirmAction] = useState<{ id: string; name: string; action: "deactivate" | "reactivate" } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ id: string; name: string; action: "deactivate" | "reactivate" | "reset-credential" } | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
   /* consume the deep-link once — the create flag only seeds initial state */
   useEffect(() => {
@@ -60,9 +63,10 @@ export default function UsersView() {
   const apiQ = `/api/ba/users?q=${encodeURIComponent(q)}&role=${roleFilter}&status=${statusFilter}&pageSize=50`;
   const { data, loading, error, refetch } = useBaApi<UsersResponse>(apiQ, { deps: [q, roleFilter, statusFilter] });
 
-  const invite = useMutation();
-  const patch = useMutation();
-  const actions = useMutation();
+  type BaMutRes = { user?: { id: string }; ok?: boolean; tempPassword?: string; emailSent?: boolean; note?: string };
+  const invite = useMutation<BaMutRes>();
+  const patch = useMutation<BaMutRes>();
+  const actions = useMutation<BaMutRes>();
 
   const rows = data?.users ?? [];
   const assignable = (data?.assignableRoles ?? []).map((r) => ({ value: r, label: ROLE_LABELS[r] ?? r }));
@@ -156,6 +160,8 @@ export default function UsersView() {
         right={<ExportButton filename="ba-users" rows={rows as unknown as Record<string, unknown>[]} />}
       />
 
+      <ResetRequestsPanel onUpdated={refetch} />
+
       <DataTable<UserRow>
         columns={columns}
         rows={rows}
@@ -174,7 +180,7 @@ export default function UsersView() {
               <DropdownMenuItem className="rounded-xl text-[13px]" onClick={() => setDetailId(r.id)}><ActivityIcon className="mr-2 h-4 w-4" /> View detail</DropdownMenuItem>
               <DropdownMenuSeparator className="bg-[rgba(125,177,216,0.3)]" />
               {r.status === "INVITED" && (
-                <DropdownMenuItem className="rounded-xl text-[13px]" onClick={() => void actions.run(() => apiPost(`/api/ba/users/${r.id}/actions`, { action: "resend_invite" }).then(() => { refetch(); toast({ title: "Invitation reminder sent", description: `A reminder was dispatched to ${r.name}.` }); }))}>
+                <DropdownMenuItem className="rounded-xl text-[13px]" onClick={() => void actions.run(async () => { const res = await apiPost<BaMutRes>(`/api/ba/users/${r.id}/actions`, { action: "resend_invite" }); refetch(); toast({ title: "Invitation reminder sent", description: `A reminder was dispatched to ${r.name}.` }); return res; })}>
                   <Mail className="mr-2 h-4 w-4" /> Resend invite
                 </DropdownMenuItem>
               )}
@@ -183,6 +189,9 @@ export default function UsersView() {
               ) : (
                 <DropdownMenuItem className="rounded-xl text-[13px] text-[#1d6b40] data-[highlighted]:bg-[rgba(35,134,83,0.08)]" onClick={() => setConfirmAction({ id: r.id, name: r.name, action: "reactivate" })}><UserCheck className="mr-2 h-4 w-4" /> Reactivate</DropdownMenuItem>
               )}
+              <DropdownMenuItem className="rounded-xl text-[13px] text-[#a53b3b] data-[highlighted]:bg-[rgba(195,74,74,0.08)]" onClick={() => setConfirmAction({ id: r.id, name: r.name, action: "reset-credential" })}>
+                <KeyRound className="mr-2 h-4 w-4" /> Reset credential
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -208,9 +217,18 @@ export default function UsersView() {
         assignable={assignable}
         buProjects={buProjects}
         onInvite={async (payload) => {
-          const res = await invite.run(() => apiPost<{ user: { id: string } }>("/api/ba/users", payload));
+          const res = await invite.run(() => apiPost<{ user: { id: string }; tempPassword?: string; emailSent?: boolean; note?: string }>("/api/ba/users", payload));
           if (res) {
             setInviteOpen(false);
+            if (res.tempPassword) {
+              setTempPwd({
+                userName: payload.name,
+                password: res.tempPassword,
+                note: res.emailSent
+                  ? "Temporary password emailed via Resend and shown once here. User must change it on first login."
+                  : res.note ?? "Share securely — user must change it on first sign-in.",
+              });
+            }
             toast({ title: "User invited", description: `${payload.name} was invited as ${ROLE_LABELS[payload.role] ?? payload.role}.` });
             refetch();
           } else {
@@ -224,6 +242,7 @@ export default function UsersView() {
       <EditDialog
         userId={editingId}
         onOpenChange={(o) => { if (!o) setEditingId(null); }}
+        assignable={assignable}
         buProjects={buProjects}
         onSave={async (payload) => {
           if (!editingId) return;
@@ -239,22 +258,50 @@ export default function UsersView() {
         pending={patch.pending}
       />
 
-      {/* Confirm deactivate / reactivate */}
+      {/* Confirm deactivate / reactivate / reset credential */}
       <ConfirmDialog
         open={!!confirmAction}
         onOpenChange={(o) => { if (!o) setConfirmAction(null); }}
-        title={confirmAction?.action === "deactivate" ? "Deactivate user" : "Reactivate user"}
-        message={confirmAction?.action === "deactivate"
-          ? `${confirmAction?.name}'s active sessions will be revoked and the account marked inactive. The user can be reactivated later.`
-          : `${confirmAction?.name}'s account will be reactivated. They can sign in again with their existing credentials.`}
-        confirmLabel={confirmAction?.action === "deactivate" ? "Deactivate" : "Reactivate"}
-        destructive={confirmAction?.action === "deactivate"}
+        title={
+          confirmAction?.action === "reset-credential"
+            ? "Reset credential"
+            : confirmAction?.action === "deactivate"
+              ? "Deactivate user"
+              : "Reactivate user"
+        }
+        message={
+          confirmAction?.action === "reset-credential"
+            ? `Issue a new one-time temporary password for ${confirmAction?.name}? Active sessions will be revoked and reset instructions dispatched.`
+            : confirmAction?.action === "deactivate"
+              ? `${confirmAction?.name}'s active sessions will be revoked and the account marked inactive. The user can be reactivated later.`
+              : `${confirmAction?.name}'s account will be reactivated. They can sign in again with their existing credentials.`
+        }
+        confirmLabel={
+          confirmAction?.action === "reset-credential"
+            ? "Reset credential"
+            : confirmAction?.action === "deactivate"
+              ? "Deactivate"
+              : "Reactivate"
+        }
+        destructive={confirmAction?.action === "deactivate" || confirmAction?.action === "reset-credential"}
         pending={actions.pending}
         onConfirm={async () => {
           if (!confirmAction) return;
-          const res = await actions.run(() => apiPost(`/api/ba/users/${confirmAction.id}/actions`, { action: confirmAction.action }));
+          const res = await actions.run(() => apiPost<{ ok?: boolean; tempPassword?: string; note?: string; emailSent?: boolean }>(`/api/ba/users/${confirmAction.id}/actions`, { action: confirmAction.action }));
           if (res) {
-            toast({ title: confirmAction.action === "deactivate" ? "Account deactivated" : "Account reactivated", description: confirmAction.name });
+            if (confirmAction.action === "reset-credential" && res.tempPassword) {
+              setTempPwd({
+                userName: confirmAction.name,
+                password: res.tempPassword,
+                note: res.emailSent
+                  ? "Temporary password emailed via Resend and active sessions revoked."
+                  : res.note ?? "Share securely — user must update it on next login.",
+              });
+            }
+            toast({
+              title: confirmAction.action === "reset-credential" ? "Credential reset" : confirmAction.action === "deactivate" ? "Account deactivated" : "Account reactivated",
+              description: confirmAction.name,
+            });
             setConfirmAction(null);
             refetch();
           } else {
@@ -270,6 +317,8 @@ export default function UsersView() {
         canEdit={(id) => id !== session.id}
         onEdit={(id) => { setDetailId(null); setEditingId(id); }}
       />
+
+      <TempPasswordModal data={tempPwd} onClose={() => setTempPwd(null)} />
     </div>
   );
 }
@@ -282,11 +331,12 @@ function InviteDialog({
   onOpenChange: (o: boolean) => void;
   assignable: { value: string; label: string }[];
   buProjects: { id: string; name: string }[];
-  onInvite: (payload: { name: string; email: string; role: string; title: string; phone: string; projectId: string }) => void;
+  onInvite: (payload: { name: string; email: string; googleEmail?: string; role: string; title: string; phone: string; projectId: string }) => void;
   pending: boolean;
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
   const [role, setRole] = useState(assignable[0]?.value ?? "");
   const [title, setTitle] = useState("");
   const [phone, setPhone] = useState("");
@@ -301,6 +351,7 @@ function InviteDialog({
     if (open) {
       setName("");
       setEmail("");
+      setGoogleEmail("");
       setRole(assignable[0]?.value ?? "");
       setTitle("");
       setPhone("");
@@ -313,7 +364,15 @@ function InviteDialog({
     if (name.trim().length < 2) return setErr("User name is required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setErr("A valid email is required.");
     if (!role) return setErr("Pick a contributor role.");
-    onInvite({ name: name.trim(), email: email.trim().toLowerCase(), role, title: title.trim(), phone: phone.trim(), projectId });
+    onInvite({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      googleEmail: googleEmail.trim().toLowerCase() || undefined,
+      role,
+      title: title.trim(),
+      phone: phone.trim(),
+      projectId,
+    });
   };
 
   return (
@@ -324,6 +383,9 @@ function InviteDialog({
         </Field>
         <Field label="Email" required error={err && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? err : null}>
           <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputCls} placeholder="user@meil.in" />
+        </Field>
+        <Field label="Google Sign-In Email (optional)" hint="Allow this user to sign in via Google SSO with this Gmail / Workspace address.">
+          <Input type="email" value={googleEmail} onChange={(e) => setGoogleEmail(e.target.value)} className={inputCls} placeholder="user@gmail.com" />
         </Field>
         <Field label="Role" required error={err && !role ? err : null} hint="Operational contributor roles only — Group/Subsidiary/BU Manager roles are managed by higher scopes.">
           <Select value={role} onValueChange={setRole}>
@@ -356,17 +418,19 @@ function InviteDialog({
 
 /* ── Edit dialog ── */
 function EditDialog({
-  userId, onOpenChange, buProjects, onSave, pending,
+  userId, onOpenChange, assignable, buProjects, onSave, pending,
 }: {
   userId: string | null;
   onOpenChange: (o: boolean) => void;
+  assignable: { value: string; label: string }[];
   buProjects: { id: string; name: string }[];
-  onSave: (payload: { title?: string; phone?: string; role?: string; projectId?: string | null }) => void;
+  onSave: (payload: { title?: string; phone?: string; googleEmail?: string | null; role?: string; projectId?: string | null }) => void;
   pending: boolean;
 }) {
   const { data, loading } = useBaApi<{ user: UserRow }>(userId ? `/api/ba/users/${userId}` : null);
   const [title, setTitle] = useState("");
   const [phone, setPhone] = useState("");
+  const [googleEmail, setGoogleEmail] = useState("");
   const [role, setRole] = useState("");
   const [projectId, setProjectId] = useState<string>("");
   const [roleTouched, setRoleTouched] = useState(false);
@@ -380,6 +444,7 @@ function EditDialog({
     setPrevUser(user);
     setTitle(user.title);
     setPhone(user.phone);
+    setGoogleEmail(user.googleEmail ?? "");
     setRole(user.role);
     setProjectId(user.projectId ?? "");
     setRoleTouched(false);
@@ -394,20 +459,19 @@ function EditDialog({
         <div className="grid gap-3">
           <Field label="Name"><Input value={data.user.name} disabled className={inputCls} /></Field>
           <Field label="Email"><Input value={data.user.email} disabled className={inputCls} /></Field>
+          <Field label="Google Sign-In Email (optional)">
+            <Input type="email" value={googleEmail} onChange={(e) => { setGoogleEmail(e.target.value); setDirty(true); }} className={inputCls} placeholder="user@gmail.com" />
+          </Field>
           <Field label="Title"><Input value={title} onChange={(e) => { setTitle(e.target.value); setDirty(true); }} className={inputCls} /></Field>
           <Field label="Phone"><Input value={phone} onChange={(e) => { setPhone(e.target.value); setDirty(true); }} className={inputCls} /></Field>
-          <Field label="Role" hint="Operational contributor roles only — the BU Admin / BU Manager roles are managed by higher scopes.">
+          <Field label="Role" hint="Project Admin and contributor roles only — the BU Admin / BU Manager roles are managed by higher scopes.">
             <Select value={role} onValueChange={(v) => { setRole(v); setRoleTouched(true); setDirty(true); }}>
               <SelectTrigger className={inputCls}><SelectValue /></SelectTrigger>
               <SelectContent className="glass-strong rounded-2xl border-white/70">
                 <SelectItem value={data.user.role}>{ROLE_LABELS[data.user.role] ?? data.user.role} (current)</SelectItem>
-                <SelectItem value="ENV_DATA_USER">Environment Data User</SelectItem>
-                <SelectItem value="FIN_RESOURCE_USER">Finance & Resource Contributor</SelectItem>
-                <SelectItem value="HR_USER">HR User</SelectItem>
-                <SelectItem value="EHS_USER">EHS / Safety User</SelectItem>
-                <SelectItem value="PROCUREMENT_USER">Procurement User</SelectItem>
-                <SelectItem value="CSR_USER">CSR / Community User</SelectItem>
-                <SelectItem value="COMPLIANCE_USER">Compliance User</SelectItem>
+                {assignable
+                  .filter((r) => r.value !== data.user.role)
+                  .map((r) => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </Field>
@@ -427,7 +491,7 @@ function EditDialog({
       ) : <EmptyState title="User not found" />}
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="outline" className="rounded-2xl" onClick={() => onOpenChange(false)}>Cancel</Button>
-        <Button className="btn-ba-action rounded-2xl" disabled={!dirty || pending} onClick={() => onSave({ title, phone, role: roleTouched ? role : undefined, projectId: projectId || null })}>{pending ? "Saving…" : "Save changes"}</Button>
+        <Button className="btn-ba-action rounded-2xl" disabled={!dirty || pending} onClick={() => onSave({ title, phone, googleEmail: googleEmail.trim().toLowerCase() || null, role: roleTouched ? role : undefined, projectId: projectId || null })}>{pending ? "Saving…" : "Save changes"}</Button>
       </div>
     </GlassDialog>
   );
@@ -468,9 +532,39 @@ function UserDetailSheet({
             <div className="px-4 py-2">
               <InfoRow label="Title">{u.title || "—"}</InfoRow>
               <InfoRow label="Phone">{u.phone || "—"}</InfoRow>
+              <InfoRow label="Google SSO">{u.googleEmail || "Not linked"}</InfoRow>
+              <InfoRow label="Auth provider">{u.authProvider ?? "CREDENTIALS"}</InfoRow>
               <InfoRow label="Project">{u.projectName ?? "—"}</InfoRow>
               <InfoRow label="Last active">{u.lastActiveAt ? timeAgo(u.lastActiveAt) : "—"}</InfoRow>
               <InfoRow label="Last login">{u.lastLoginAt ? timeAgo(u.lastLoginAt) : "—"}</InfoRow>
+            </div>
+          </SectionCard>
+          <SectionCard title={`Active Sessions (${data?.sessions.length ?? 0})`} icon={ShieldCheck} noPad>
+            <div className="px-4 py-2">
+              {(data?.sessions ?? []).length === 0 ? <EmptyState title="No active sessions" /> : (
+                <div className="space-y-1.5">
+                  {(data?.sessions ?? []).map((s) => (
+                    <div key={s.id} className="rounded-xl bg-white/50 px-2.5 py-1.5 text-[12px]">
+                      <div className="font-medium text-[color:var(--ink)]">{s.ip || "Unknown IP"} · started {timeAgo(s.createdAt)}</div>
+                      <div className="truncate text-[10.5px] text-[color:var(--ink-faint)]">{s.userAgent} · expires {fmtDateTime(s.expiresAt)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SectionCard>
+          <SectionCard title={`Recent Login History (${data?.lastLogins.length ?? 0})`} icon={KeyRound} noPad>
+            <div className="px-4 py-2">
+              {(data?.lastLogins ?? []).length === 0 ? <EmptyState title="No login logs recorded" /> : (
+                <div className="space-y-1.5">
+                  {(data?.lastLogins ?? []).map((l, idx) => (
+                    <div key={`${l.createdAt}-${idx}`} className="flex items-center justify-between rounded-xl bg-white/50 px-2.5 py-1.5 text-[12px]">
+                      <span className="truncate font-medium text-[color:var(--ink)]">{l.eventType} ({l.result}) · {l.ip}</span>
+                      <span className="shrink-0 text-[10.5px] text-[color:var(--ink-faint)]">{timeAgo(l.createdAt)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </SectionCard>
           <SectionCard title={`Tasks (${data?.tasks.length ?? 0})`} icon={CalendarClock} noPad>

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '@/lib/pu/auth-context'
 import { useOrgTree } from '@/lib/pu/org-tree'
+import { GoogleLinkDialog } from '@/components/auth/google-link-dialog'
 import {
   MEIL_BUSINESS_UNITS,
   MEIL_SUBSIDIARIES,
@@ -286,6 +287,7 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-[#e0f2fe] text-slate-800">
+      <GoogleLinkDialog onCancelRedirect="/?portal=project" />
       <BackgroundAtmosphere />
 
       {/* Outer Viewport Container */}
@@ -1802,6 +1804,47 @@ function LoginScreen({
 }: any) {
   const Icon = role.icon
   const [showPw, setShowPw] = useState(false)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotId, setForgotId] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
+  const [forgotMsg, setForgotMsg] = useState('')
+
+  const handleGoogleSignIn = () => {
+    const qp = new URLSearchParams({
+      portal: 'project',
+      ...(remember ? { remember: '1' } : {}),
+    })
+    window.location.href = `/api/auth/google/start?${qp.toString()}`
+  }
+
+  const handleForgotSubmit = async () => {
+    if (forgotLoading) return
+    const target = (forgotId || email || '').trim()
+    if (!target) {
+      setForgotMsg('Enter your registered email or Employee ID first.')
+      return
+    }
+    setForgotLoading(true)
+    setForgotMsg('')
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: target }),
+      })
+      const d = await res.json().catch(() => ({}))
+      setForgotMsg(
+        d.message ||
+          d.error ||
+          'Reset request logged for admin approval or sent to your verified email.'
+      )
+    } catch {
+      setForgotMsg('Could not submit the reset request. Please try again.')
+    } finally {
+      setForgotLoading(false)
+    }
+  }
+
   return (
     <div className="glass-strong overflow-hidden rounded-[28px] border border-white/80 shadow-2xl">
       <div className="grid md:grid-cols-2">
@@ -1905,8 +1948,51 @@ function LoginScreen({
                 />
                 <span>Remember session</span>
               </label>
-              <span className="text-xs font-semibold text-sky-600">Demo enabled</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotOpen(o => !o)
+                  if (!forgotId && email) setForgotId(email)
+                  setForgotMsg('')
+                }}
+                className="text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline cursor-pointer"
+              >
+                Forgot password?
+              </button>
             </div>
+
+            {forgotOpen && (
+              <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-3 text-xs text-slate-600 space-y-2">
+                <p className="leading-relaxed">
+                  Enter your registered Email or Employee ID. A reset link is emailed if eligible, or routed to your Project / Group Admin for approval.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={forgotId}
+                    onChange={e => {
+                      setForgotId(e.target.value)
+                      setForgotMsg('')
+                    }}
+                    placeholder="user@meil-esg.in or EMP-1001"
+                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-800 outline-none focus:border-sky-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={forgotLoading}
+                    onClick={() => void handleForgotSubmit()}
+                    className="rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-sky-700 disabled:opacity-60 cursor-pointer"
+                  >
+                    {forgotLoading ? 'Sending…' : 'Send Reset'}
+                  </button>
+                </div>
+                {forgotMsg && (
+                  <div className="rounded-lg bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-sky-800 border border-sky-100">
+                    {forgotMsg}
+                  </div>
+                )}
+              </div>
+            )}
 
             {error && (
               <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 rounded-lg bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
@@ -1929,13 +2015,39 @@ function LoginScreen({
                 </>
               )}
             </button>
+
+            <div className="relative flex items-center py-0.5">
+              <div className="flex-grow border-t border-slate-200/80" />
+              <span className="mx-3 shrink-0 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                or
+              </span>
+              <div className="flex-grow border-t border-slate-200/80" />
+            </div>
+
+            <button
+              type="button"
+              disabled={busy}
+              onClick={handleGoogleSignIn}
+              className="flex w-full items-center justify-center gap-2.5 rounded-full border border-slate-200 bg-white/90 py-2.5 text-sm font-semibold text-slate-700 shadow-xs backdrop-blur-md transition hover:bg-white hover:border-slate-300 hover:shadow-sm disabled:opacity-60 cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17Z" />
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24Z" />
+                <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z" />
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z" />
+              </svg>
+              <span>Continue with Google</span>
+            </button>
           </form>
 
-          <div className="mt-5 flex items-center gap-2 rounded-xl bg-sky-50/80 px-3.5 py-2.5 text-[11px] text-slate-600">
-            <Check className="h-4 w-4 text-emerald-600 shrink-0" />
-            <span>
-              Pre-filled demo login. Default password: <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold text-sky-700 shadow-2xs">demo</code>
-            </span>
+          <div className="mt-5 flex items-center justify-between gap-2 rounded-xl bg-sky-50/80 px-3.5 py-2.5 text-[11px] text-slate-600">
+            <div className="flex items-center gap-2">
+              <Check className="h-4 w-4 text-emerald-600 shrink-0" />
+              <span>
+                Pre-filled demo login. Default password: <code className="rounded bg-white px-1.5 py-0.5 font-mono font-bold text-sky-700 shadow-2xs">demo</code>
+              </span>
+            </div>
+            <span className="shrink-0 font-semibold text-sky-600">Demo enabled</span>
           </div>
         </div>
       </div>

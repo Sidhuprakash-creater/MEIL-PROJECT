@@ -6,20 +6,21 @@ import {
   UserPlus,
   Search,
   Bell,
-  CheckCircle2,
   AlertCircle,
-  MoreVertical,
-  Shield,
   Mail,
   UserCheck,
   UserX,
-  X,
+  Eye,
+  Pencil,
+  KeyRound,
+  Trash2,
 } from "lucide-react";
-import { usePaStore, CONTRIBUTOR_CATEGORIES } from "@/lib/project-admin/store";
-import { paApiGet, paApiPost, paApiPatch, getCachedPaData } from "@/lib/project-admin/client";
+import { paApiGet, paApiPost, paApiPatch, paApiDelete, getCachedPaData } from "@/lib/project-admin/client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaDialog, PaKpiCard } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
-import type { PaUserItem, ContributorRole } from "@/lib/project-admin/types";
+import { ResetRequestsPanel } from "@/components/auth/reset-requests-panel";
+import { TempPasswordModal } from "@/components/auth/password-recovery-modals";
+import type { PaUserItem } from "@/lib/project-admin/types";
 
 export default function UsersView() {
   const cached = getCachedPaData<any>("/api/project-admin/users");
@@ -34,12 +35,39 @@ export default function UsersView() {
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteGoogleEmail, setInviteGoogleEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("ENV_DATA_USER");
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
 
-  // Edit / Action modal state
-  const [activeUser, setActiveUser] = useState<PaUserItem | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
+  // Edit / Dossier / Temp Password state
+  const [editingUser, setEditingUser] = useState<PaUserItem | null>(null);
+  const [editRole, setEditRole] = useState("");
+  const [editGoogleEmail, setEditGoogleEmail] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [infoUserId, setInfoUserId] = useState<string | null>(null);
+  const [infoDossier, setInfoDossier] = useState<{
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      googleEmail: string | null;
+      authProvider: string;
+      mustChangePassword: boolean;
+      employeeId: string | null;
+      roleLabel: string;
+      status: string;
+      phone: string;
+      title: string;
+      projectName: string | null;
+      lastActiveAt: string | null;
+      lastLoginAt: string | null;
+    };
+    sessions: { id: string; userAgent: string; ip: string; createdAt: string; expiresAt: string }[];
+    lastLogins: { eventType: string; result: string; createdAt: string; ip: string }[];
+    submissions: { id: string; ref: string; title: string; category: string; status: string; updatedAt: string }[];
+  } | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
   const loadUsers = () => {
     if (!users.length) setLoading(true);
@@ -61,19 +89,102 @@ export default function UsersView() {
     e.preventDefault();
     setInviteSubmitting(true);
     try {
-      await paApiPost("/api/project-admin/users", {
+      const res = await paApiPost<{ tempPassword?: string; emailSent?: boolean; emailNote?: string }>("/api/project-admin/users", {
         name: inviteName,
         email: inviteEmail,
+        googleEmail: inviteGoogleEmail.trim().toLowerCase() || undefined,
         role: inviteRole,
       });
+      if (res?.tempPassword) {
+        setTempPwd({
+          userName: inviteName.trim(),
+          password: res.tempPassword,
+          note: res.emailSent
+            ? "Temporary password emailed via Resend and shown once here. Contributor must change it on first login."
+            : res.emailNote || "Share securely — contributor must change it on first sign-in.",
+        });
+      }
       setInviteModalOpen(false);
       setInviteName("");
       setInviteEmail("");
+      setInviteGoogleEmail("");
       loadUsers();
     } catch (err: any) {
       alert(err.message || "Failed to invite user");
     } finally {
       setInviteSubmitting(false);
+    }
+  };
+
+  const openInfo = async (userId: string) => {
+    setInfoUserId(userId);
+    setInfoDossier(null);
+    setInfoLoading(true);
+    try {
+      const data = await paApiGet<NonNullable<typeof infoDossier>>(`/api/project-admin/users/${userId}`, undefined, { bypassCache: true });
+      setInfoDossier(data);
+    } catch (err: any) {
+      alert(err.message || "Failed to load user details");
+      setInfoUserId(null);
+    } finally {
+      setInfoLoading(false);
+    }
+  };
+
+  const openEdit = (u: PaUserItem) => {
+    setEditingUser(u);
+    setEditRole(u.role);
+    setEditGoogleEmail(u.googleEmail ?? "");
+  };
+
+  const handleEditSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+    setEditSubmitting(true);
+    try {
+      await paApiPatch("/api/project-admin/users", {
+        id: editingUser.id,
+        role: editRole,
+        googleEmail: editGoogleEmail.trim().toLowerCase() || null,
+      });
+      setEditingUser(null);
+      loadUsers();
+    } catch (err: any) {
+      alert(err.message || "Failed to update user");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const handleResetCredential = async (u: PaUserItem) => {
+    if (!confirm(`Generate a new one-time temporary password for ${u.name}? Active sessions will be revoked.`)) return;
+    try {
+      const res = await paApiPatch<{ tempPassword?: string; emailSent?: boolean }>("/api/project-admin/users", {
+        id: u.id,
+        action: "reset-credential",
+      });
+      if (res?.tempPassword) {
+        setTempPwd({
+          userName: u.name,
+          password: res.tempPassword,
+          note: res.emailSent
+            ? "Temporary password emailed via Resend and active sessions revoked."
+            : "Temporary password generated and active sessions revoked. Share securely — user must update it on next login.",
+        });
+      }
+      loadUsers();
+    } catch (err: any) {
+      alert(err.message || "Failed to reset credential");
+    }
+  };
+
+  const handleDeactivate = async (u: PaUserItem) => {
+    if (!confirm(`Deactivate ${u.name}? Active sessions are revoked and historical records are preserved.`)) return;
+    try {
+      await paApiDelete(`/api/project-admin/users?id=${encodeURIComponent(u.id)}`);
+      loadUsers();
+    } catch (err: any) {
+      alert(err.message || "Failed to deactivate user");
     }
   };
 
@@ -165,6 +276,8 @@ export default function UsersView() {
         </div>
       </PaGlassCard>
 
+      <ResetRequestsPanel onUpdated={loadUsers} />
+
       {/* User Table */}
       {loading ? (
         <div className="glass rounded-2xl p-6">
@@ -216,24 +329,62 @@ export default function UsersView() {
                     <PaStatusBadge status={u.status} />
                   </td>
                   <td className="p-4 pr-6 text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleToggleStatus(u)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          u.status === "ACTIVE"
-                            ? "text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-                            : "text-emerald-600 hover:bg-emerald-50"
-                        }`}
-                        title={u.status === "ACTIVE" ? "Deactivate user" : "Activate user"}
+                        onClick={() => void openInfo(u.id)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        title="View User Info & Sessions"
                       >
-                        {u.status === "ACTIVE" ? <UserX size={15} /> : <UserCheck size={15} />}
+                        <Eye size={15} />
                       </button>
+                      {permittedRoles.some((r) => r.code === u.role) && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openEdit(u)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="Edit role & Google SSO"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleResetCredential(u)}
+                            className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+                            title="Reset Credential (Temp Password)"
+                          >
+                            <KeyRound size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStatus(u)}
+                            className={`p-1.5 rounded-lg transition-colors ${
+                              u.status === "ACTIVE"
+                                ? "text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                                : "text-emerald-600 hover:bg-emerald-50"
+                            }`}
+                            title={u.status === "ACTIVE" ? "Mark inactive" : "Activate user"}
+                          >
+                            {u.status === "ACTIVE" ? <UserX size={15} /> : <UserCheck size={15} />}
+                          </button>
+                          {u.status !== "INACTIVE" && (
+                            <button
+                              type="button"
+                              onClick={() => void handleDeactivate(u)}
+                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Soft deactivate & revoke sessions"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleRemind(u.id, u.name)}
                         className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                        title="Send Reminder"
+                        title="Send Reminder (In-App + Email)"
                       >
                         <Bell size={15} />
                       </button>
@@ -280,6 +431,17 @@ export default function UsersView() {
           </div>
 
           <div>
+            <label className="text-[11px] font-bold uppercase text-[#8F9EAF]">Google Sign-In Email (Optional)</label>
+            <input
+              type="email"
+              placeholder="e.g. sunil@gmail.com (for Google SSO)"
+              value={inviteGoogleEmail}
+              onChange={(e) => setInviteGoogleEmail(e.target.value)}
+              className="mt-1 w-full p-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold"
+            />
+          </div>
+
+          <div>
             <label className="text-[11px] font-bold uppercase text-[#8F9EAF]">Assign Contributor Role *</label>
             <select
               value={inviteRole}
@@ -307,6 +469,102 @@ export default function UsersView() {
           </div>
         </form>
       </PaDialog>
+
+      {/* ── Edit Contributor Modal ── */}
+      <PaDialog
+        open={!!editingUser}
+        onClose={() => setEditingUser(null)}
+        title={editingUser ? `Edit ${editingUser.name}` : "Edit Contributor"}
+        subtitle={editingUser ? `${editingUser.email} • ${editingUser.employeeId}` : ""}
+      >
+        <form onSubmit={handleEditSave} className="space-y-4 text-xs">
+          <div>
+            <label className="text-[11px] font-bold uppercase text-[#8F9EAF]">Google Sign-In Email (Optional)</label>
+            <input
+              type="email"
+              placeholder="e.g. user@gmail.com"
+              value={editGoogleEmail}
+              onChange={(e) => setEditGoogleEmail(e.target.value)}
+              className="mt-1 w-full p-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold"
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-bold uppercase text-[#8F9EAF]">Assigned Contributor Role</label>
+            <select
+              value={editRole}
+              onChange={(e) => setEditRole(e.target.value)}
+              className="mt-1 w-full p-3 rounded-xl border border-slate-200 bg-white text-xs font-semibold"
+            >
+              {permittedRoles.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-200/60">
+            <PaButton variant="secondary" onClick={() => setEditingUser(null)}>Cancel</PaButton>
+            <PaButton type="submit" loading={editSubmitting}>Save Changes</PaButton>
+          </div>
+        </form>
+      </PaDialog>
+
+      {/* ── User Info & Security Dossier Modal ── */}
+      <PaDialog
+        open={!!infoUserId}
+        onClose={() => { setInfoUserId(null); setInfoDossier(null); }}
+        title={infoDossier?.user ? `${infoDossier.user.name} — User Info` : "User Info"}
+        subtitle={infoDossier?.user ? `${infoDossier.user.roleLabel} · ${infoDossier.user.employeeId ?? "No Employee ID"}` : "Loading user dossier…"}
+      >
+        {infoLoading || !infoDossier ? (
+          <MeilBoxLoader boxHeight="min-h-[160px]" label="Loading user dossier…" />
+        ) : (
+          <div className="space-y-4 text-xs">
+            <div className="grid grid-cols-2 gap-2.5 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3">
+              <div><span className="text-[#8F9EAF]">Email:</span> <span className="font-semibold text-[#202938]">{infoDossier.user.email}</span></div>
+              <div><span className="text-[#8F9EAF]">Status:</span> <PaStatusBadge status={infoDossier.user.status} /></div>
+              <div><span className="text-[#8F9EAF]">Google SSO:</span> <span className="font-semibold text-[#202938]">{infoDossier.user.googleEmail || "Not linked"}</span></div>
+              <div><span className="text-[#8F9EAF]">Auth Provider:</span> <span className="font-semibold text-[#202938]">{infoDossier.user.authProvider}</span></div>
+              <div><span className="text-[#8F9EAF]">Last Login:</span> <span className="font-semibold text-[#202938]">{infoDossier.user.lastLoginAt ? new Date(infoDossier.user.lastLoginAt).toLocaleString() : "Never"}</span></div>
+              <div><span className="text-[#8F9EAF]">Last Active:</span> <span className="font-semibold text-[#202938]">{infoDossier.user.lastActiveAt ? new Date(infoDossier.user.lastActiveAt).toLocaleString() : "Never"}</span></div>
+            </div>
+
+            <div>
+              <h4 className="mb-1.5 text-[11px] font-bold uppercase text-[#64748B]">Active Sessions ({infoDossier.sessions.length})</h4>
+              {infoDossier.sessions.length === 0 ? (
+                <p className="text-[#8F9EAF]">No active sessions.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {infoDossier.sessions.map((s) => (
+                    <div key={s.id} className="rounded-xl border border-slate-200/70 bg-white px-3 py-2">
+                      <div className="font-semibold text-[#202938]">{s.ip || "Unknown IP"} · started {new Date(s.createdAt).toLocaleString()}</div>
+                      <div className="truncate text-[11px] text-[#64748B]">{s.userAgent || "Browser session"}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h4 className="mb-1.5 text-[11px] font-bold uppercase text-[#64748B]">Recent Login & Security Events ({infoDossier.lastLogins.length})</h4>
+              {infoDossier.lastLogins.length === 0 ? (
+                <p className="text-[#8F9EAF]">No login history recorded yet.</p>
+              ) : (
+                <div className="space-y-1">
+                  {infoDossier.lastLogins.slice(0, 6).map((l, idx) => (
+                    <div key={`${l.createdAt}-${idx}`} className="flex items-center justify-between rounded-xl border border-slate-200/60 bg-white px-3 py-1.5">
+                      <span className="font-medium text-[#202938]">{l.eventType} ({l.result})</span>
+                      <span className="text-[11px] text-[#64748B]">{new Date(l.createdAt).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </PaDialog>
+
+      <TempPasswordModal data={tempPwd} onClose={() => setTempPwd(null)} />
     </div>
   );
 }

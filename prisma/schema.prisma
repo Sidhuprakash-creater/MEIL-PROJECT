@@ -80,6 +80,12 @@ model User {
   id            String      @id @default(cuid())
   name          String
   email         String      @unique
+  googleSub     String?     @unique // verified Google OAuth subject identifier
+  googleEmail   String?     @unique // verified Google Workspace / Gmail address linked to account
+  authProvider  String      @default("CREDENTIALS") // CREDENTIALS | GOOGLE | BOTH
+  mustChangePassword Boolean @default(false)
+  createdById   String?
+  emailVerifiedAt DateTime?
   employeeId    String?     @unique // portal login handle (e.g. GRP-0001) — optional for data users
   passwordHash  String?     // scrypt hash (scrypt$N$r$p$salt$key) — null = no portal credential issued
   role          String      // GROUP_ADMIN | SUBSIDIARY_MANAGER | SUBSIDIARY_ADMIN | BU_MANAGER | BU_ADMIN | ENV_DATA_USER | FIN_RESOURCE_USER | HR_USER | EHS_USER | PROCUREMENT_USER | CSR_USER | COMPLIANCE_USER
@@ -105,8 +111,35 @@ model User {
   copilotToolExecutions CopilotToolExecution[] @relation("CopilotToolExecutions")
   copilotConfirmations  CopilotConfirmation[]  @relation("CopilotConfirmations")
   copilotSavedItems     CopilotSavedItem[]     @relation("CopilotSavedItems")
+  resetRequests         PasswordResetRequest[]
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+}
+
+// ─── Password reset requests & admin approval queue ──
+
+model PasswordResetRequest {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedIdentifier String
+  portal              String    @default("")
+  reason              String    @default("")
+  status              String    @default("PENDING_ADMIN") // PENDING_ADMIN | APPROVED_TEMP | EMAIL_TOKEN_SENT | COMPLETED | REJECTED | EXPIRED
+  approverId          String?
+  approverRole        String?
+  tokenHash           String?   @unique
+  expiresAt           DateTime?
+  ip                  String?
+  userAgent           String?
+  rejectionReason     String?
+  reviewedAt          DateTime?
+  completedAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
 }
 
 // ─── Server-side auth sessions (opaque token; only its SHA-256 hash is stored) ──

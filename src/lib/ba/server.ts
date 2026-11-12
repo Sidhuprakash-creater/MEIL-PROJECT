@@ -214,6 +214,7 @@ export async function assertUserInBuScope(userId: string, businessUnitId: string
 /** Roles a BU Admin may assign within the BU. Never includes GROUP_ADMIN /
  *  ORG_MANAGER / SUBSIDIARY_ADMIN / SUBSIDIARY_MANAGER / BU_ADMIN / BU_MANAGER. */
 export const BA_ASSIGNABLE_ROLES = [
+  "PROJECT_ADMIN",
   "ENV_DATA_USER",
   "FIN_RESOURCE_USER",
   "HR_USER",
@@ -230,6 +231,7 @@ export const ROLE_LABELS: Record<string, string> = {
   SUBSIDIARY_MANAGER: "Subsidiary Manager",
   BU_MANAGER: "BU Manager",
   BU_ADMIN: "BU Admin",
+  PROJECT_ADMIN: "Project Admin",
   ENV_DATA_USER: "Environment Data User",
   FIN_RESOURCE_USER: "Finance & Resource Contributor",
   HR_USER: "HR User",

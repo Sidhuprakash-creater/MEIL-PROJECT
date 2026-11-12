@@ -72,20 +72,24 @@ export async function createSession(
     path: "/",
     expires: expiresAt,
   });
+  // Keep legacy PU session cookie cleared whenever a unified session is minted.
+  jar.delete("meil_pu_session");
 
   return { token, expiresAt };
 }
 
-/** Revoke the current session (delete row + clear cookie). */
+/** Revoke the current session (delete row + clear cookies). */
 export async function destroySession(): Promise<string | undefined> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) {
+    clearSessionCache(token);
     await db.session
       .deleteMany({ where: { tokenHash: hashToken(token) } })
       .catch(() => undefined);
   }
   jar.delete(SESSION_COOKIE);
+  jar.delete("meil_pu_session");
   return token;
 }
 
@@ -189,6 +193,9 @@ export function toVerifiedUser(user: {
   employeeId: string | null;
   name: string;
   email: string;
+  googleEmail?: string | null;
+  authProvider?: string;
+  mustChangePassword?: boolean;
   role: string;
   subsidiary?: { id: string; code: string; name: string } | null;
   businessUnit?: {
@@ -204,6 +211,10 @@ export function toVerifiedUser(user: {
     id: user.id,
     employeeId: user.employeeId ?? user.email,
     name: user.name,
+    email: user.email,
+    googleEmail: user.googleEmail ?? null,
+    authProvider: user.authProvider ?? "CREDENTIALS",
+    mustChangePassword: Boolean(user.mustChangePassword),
     role: user.role,
     roleLabel: roleLabel(user.role),
     scope: {

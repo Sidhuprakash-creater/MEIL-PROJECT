@@ -60,6 +60,7 @@ export const ROLE_LABELS: Record<string, string> = {
   SUBSIDIARY_MANAGER: "Subsidiary Manager",
   BU_MANAGER: "BU Manager",
   BU_ADMIN: "BU Admin",
+  PROJECT_ADMIN: "Project Admin",
   ENV_DATA_USER: "Environment Data User",
   FIN_RESOURCE_USER: "Finance & Resource Contributor",
   HR_USER: "HR User",
@@ -195,6 +196,9 @@ export interface UserRow {
   id: string;
   name: string;
   email: string;
+  googleEmail?: string | null;
+  authProvider?: string;
+  mustChangePassword?: boolean;
   employeeId: string | null;
   role: string;
   roleLabel: string;

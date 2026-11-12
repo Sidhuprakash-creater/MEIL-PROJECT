@@ -24,10 +24,12 @@ export type ViewId =
 
 export const ROLE_LABELS: Record<string, string> = {
   GROUP_ADMIN: "Group Admin",
+  ORG_MANAGER: "Organization Manager",
   SUBSIDIARY_MANAGER: "Subsidiary Manager",
   SUBSIDIARY_ADMIN: "Subsidiary Admin",
   BU_MANAGER: "BU Manager",
   BU_ADMIN: "BU Admin",
+  PROJECT_ADMIN: "Project Admin",
   ENV_DATA_USER: "Environment Data User",
   FIN_RESOURCE_USER: "Finance & Resource Contributor",
   HR_USER: "HR User",
@@ -35,6 +37,7 @@ export const ROLE_LABELS: Record<string, string> = {
   PROCUREMENT_USER: "Procurement User",
   CSR_USER: "CSR / Community User",
   COMPLIANCE_USER: "Compliance User",
+  ESG_ANALYST: "ESG Analyst",
 };
 
 export const DATA_ENTRY_ROLES = [
@@ -128,6 +131,10 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  employeeId?: string | null;
+  googleEmail?: string | null;
+  authProvider?: string;
+  mustChangePassword?: boolean;
   role: string;
   status: string;
   subsidiaryId: string | null;
@@ -140,6 +147,7 @@ export interface User {
   title: string;
   joinedAt: string;
   lastActiveAt: string | null;
+  lastLoginAt?: string | null;
   openTasks?: number;
   submissionStats?: { total: number; approved: number; pending: number; overdue: number };
 }

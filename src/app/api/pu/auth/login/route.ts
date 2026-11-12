@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
     const idLower = identifier.toLowerCase()
     const idUpper = identifier.toUpperCase()
 
-    if (!user && (isDemoPassword(password) || idLower.includes('meil') || idUpper.startsWith('PU-') || idUpper.startsWith('ADM-'))) {
+    const allowAutoDemoUser = process.env.ALLOW_DEMO_PASSWORDS === "true";
+    if (!user && allowAutoDemoUser && isDemoPassword(password) && (idLower.includes('meil') || idUpper.startsWith('PU-') || idUpper.startsWith('ADM-'))) {
       const defProj = await db.project.findFirst({ where: { status: 'ACTIVE' }, include: { businessUnit: true } })
       const prefix = identifier.split('@')[0]
       const cleanName = prefix.charAt(0).toUpperCase() + prefix.slice(1).replace(/[._-]/g, ' ')
@@ -80,9 +81,9 @@ export async function POST(req: NextRequest) {
       await audit('LOGIN_FAILED', 'FAILURE')
       return NextResponse.json({ error: 'This account is inactive. Contact your administrator.' }, { status: 403 })
     }
-    if (user.status !== 'ACTIVE') {
+    if (user.status !== 'ACTIVE' && user.status !== 'INVITED') {
       await audit('LOGIN_FAILED', 'FAILURE')
-      return NextResponse.json({ error: 'This account has not been activated yet. Check your invite email.' }, { status: 403 })
+      return NextResponse.json({ error: 'This account is inactive. Contact your administrator.' }, { status: 403 })
     }
 
     /* Password check: the account's real scrypt hash, or the platform-wide demo password */
@@ -124,7 +125,14 @@ export async function POST(req: NextRequest) {
 
     // Run audit and timestamp update asynchronously without blocking login response
     Promise.allSettled([
-      db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date(), lastActiveAt: new Date() } }),
+      db.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: new Date(),
+          lastActiveAt: new Date(),
+          ...(user.status === 'INVITED' ? { status: 'ACTIVE' } : {}),
+        },
+      }),
       audit('LOGIN_SUCCESS', 'SUCCESS'),
     ]).catch(() => {})
 

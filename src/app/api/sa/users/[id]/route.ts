@@ -6,6 +6,7 @@ import {
   assertUserInScope, assertUnitInScope, assertProjectInScope, saLogActivity, saLogAudit, saNotify,
 } from "@/lib/sa/server";
 import { toSubmissionRow, toUserRow } from "@/lib/sa/rows";
+import { invalidateAllAuthCaches, revokeUserSessions } from "@/lib/auth/session-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -58,13 +59,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const sub = await getSubsidiaryOrThrow(ctx.subsidiaryId);
     const user = await assertUserInScope(id, ctx.subsidiaryId);
     const body = (await req.json().catch(() => ({}))) as {
-      title?: string; phone?: string; role?: string; buId?: string | null; projectId?: string | null; status?: string;
+      title?: string; phone?: string; role?: string; buId?: string | null; projectId?: string | null; status?: string; googleEmail?: string | null;
     };
 
-    const before = { role: user.role, status: user.status, businessUnitId: user.businessUnitId, projectId: user.projectId, title: user.title, phone: user.phone };
+    const before = { role: user.role, status: user.status, businessUnitId: user.businessUnitId, projectId: user.projectId, title: user.title, phone: user.phone, googleEmail: user.googleEmail };
     const data: Record<string, string | null> = {};
     if (body.title !== undefined) data.title = body.title.trim();
     if (body.phone !== undefined) data.phone = body.phone.trim();
+    if (body.googleEmail !== undefined) {
+      const nextGoogle = body.googleEmail?.trim().toLowerCase() || null;
+      if (nextGoogle && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextGoogle)) {
+        throw new SaError("Linked Google email address is invalid.", 400);
+      }
+      if (nextGoogle && nextGoogle !== user.googleEmail) {
+        const conflict = await db.user.findFirst({
+          where: { id: { not: id }, OR: [{ googleEmail: nextGoogle }, { email: nextGoogle }] },
+          select: { id: true },
+        });
+        if (conflict) throw new SaError("This Google email is already linked to another user.", 409);
+      }
+      data.googleEmail = nextGoogle;
+      data.authProvider = user.passwordHash && nextGoogle ? "BOTH" : nextGoogle ? "GOOGLE" : "CREDENTIALS";
+    }
 
     if (body.role !== undefined && body.role !== user.role) {
       if (id === ctx.userId) throw new SaError("You cannot change your own role.", 403);
@@ -92,9 +108,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     await saLogActivity(ctx, sub.name, { action: data.role ? "ROLE_CHANGE" : "ACCOUNT_UPDATE", targetType: "User", targetLabel: updated.name, severity: data.status === "SUSPENDED" ? "WARNING" : "INFO" });
     await saLogAudit(ctx, sub.code, { action: data.role ? "ROLE_CHANGE" : "ACCOUNT_UPDATE", targetType: "User", targetId: id, targetLabel: updated.name, before, after: data });
-    if (data.status === "SUSPENDED") {
-      await saNotify({ ntype: "SYSTEM", title: "Account suspended", body: `${updated.name}'s account was suspended by ${ctx.name}.`, severity: "WARNING", subsidiaryId: ctx.subsidiaryId, linkView: "users" });
-      await db.session.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+    if (data.status === "SUSPENDED" || data.status === "INACTIVE") {
+      await saNotify({ ntype: "SYSTEM", title: `Account ${data.status.toLowerCase()}`, body: `${updated.name}'s account was marked ${data.status} by ${ctx.name}.`, severity: "WARNING", subsidiaryId: ctx.subsidiaryId, linkView: "users" });
+      await revokeUserSessions(id);
+    } else {
+      invalidateAllAuthCaches(id);
     }
 
     return ok({ ok: true, role: updated.role, status: updated.status });

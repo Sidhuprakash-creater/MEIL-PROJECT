@@ -152,6 +152,8 @@ export interface PaUserItem {
   id: string;
   name: string;
   email: string;
+  googleEmail?: string | null;
+  authProvider?: string;
   employeeId: string;
   role: string;
   roleLabel: string;

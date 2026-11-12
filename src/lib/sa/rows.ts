@@ -120,6 +120,7 @@ export function toSubmissionRow(
 export function toUserRow(
   u: {
     id: string; name: string; email: string; employeeId: string | null; role: string; status: string;
+    googleEmail?: string | null; authProvider?: string; mustChangePassword?: boolean;
     businessUnitId: string | null; projectId: string | null; title: string; phone: string;
     lastActiveAt: Date | null; lastLoginAt: Date | null;
   },
@@ -138,6 +139,9 @@ export function toUserRow(
           : last && now - last < 36 * 3600000 ? "away" : "offline";
   return {
     id: u.id, name: u.name, email: u.email, employeeId: u.employeeId,
+    googleEmail: u.googleEmail ?? null,
+    authProvider: u.authProvider ?? "CREDENTIALS",
+    mustChangePassword: Boolean(u.mustChangePassword),
     role: u.role, roleLabel: roleLabels[u.role] ?? u.role, status: u.status,
     buId: u.businessUnitId, buName: u.businessUnitId ? buNames.get(u.businessUnitId) ?? null : null,
     projectId: u.projectId, projectName: u.projectId ? projectNames.get(u.projectId) ?? null : null,

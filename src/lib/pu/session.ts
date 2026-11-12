@@ -107,7 +107,15 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
 
   let resolvedUserId: string | null = null
 
-  if (token) {
+  // Prefer unified platform session cookie (meil_esg_session) so logins/switches stay authoritative
+  try {
+    const platformSession = await getSessionPayload()
+    if (platformSession?.user?.id) {
+      resolvedUserId = platformSession.user.id
+    }
+  } catch {}
+
+  if (!resolvedUserId && token) {
     const [encoded, sig] = token.split('.')
     if (encoded && sig) {
       const uId = Buffer.from(encoded, 'base64').toString()
@@ -116,16 +124,6 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
         resolvedUserId = uId
       }
     }
-  }
-
-  // Fallback to platform-wide session cookie (meil_esg_session)
-  if (!resolvedUserId) {
-    try {
-      const platformSession = await getSessionPayload()
-      if (platformSession?.user?.id) {
-        resolvedUserId = platformSession.user.id
-      }
-    } catch {}
   }
 
   if (!resolvedUserId) return null

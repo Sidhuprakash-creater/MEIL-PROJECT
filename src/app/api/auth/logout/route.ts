@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { logAuthAudit as logAudit } from "@/lib/auth-audit";
 import { clientIp, destroySession, getSessionPayload } from "@/lib/session";
+import { invalidateAllAuthCaches } from "@/lib/auth/session-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const payload = await getSessionPayload();
   await destroySession();
+  invalidateAllAuthCaches(payload?.user?.id);
 
   if (payload?.user) {
     await logAudit({

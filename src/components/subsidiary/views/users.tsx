@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useSaWorkspace } from "@/lib/sa/store";
 import { apiPatch, apiPost, fmtDateTime, timeAgo, useMutation, useSaApi } from "@/lib/sa/client";
+import { ResetRequestsPanel } from "@/components/auth/reset-requests-panel";
 import { ROLE_LABELS } from "@/lib/sa/types";
 import type { ActivityRow, SubmissionRow, UserRow } from "@/lib/sa/types";
 import {
@@ -95,6 +96,7 @@ function PresenceCard({
 interface UserFormValues {
   name: string;
   email: string;
+  googleEmail: string;
   role: string;
   title: string;
   phone: string;
@@ -102,7 +104,7 @@ interface UserFormValues {
   projectId: string;
 }
 
-const EMPTY_USER_FORM: UserFormValues = { name: "", email: "", role: "", title: "", phone: "", buId: "", projectId: "" };
+const EMPTY_USER_FORM: UserFormValues = { name: "", email: "", googleEmail: "", role: "", title: "", phone: "", buId: "", projectId: "" };
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function UserFormFields({
@@ -127,7 +129,7 @@ function UserFormFields({
   const [form, setForm] = useState<UserFormValues>(() =>
     mode === "edit" && user
       ? {
-          name: user.name, email: user.email, role: user.role,
+          name: user.name, email: user.email, googleEmail: user.googleEmail ?? "", role: user.role,
           title: user.title ?? "", phone: user.phone ?? "",
           buId: user.buId ?? "", projectId: user.projectId ?? "",
         }
@@ -195,6 +197,9 @@ function UserFormFields({
         </Field>
         <Field label="Phone" htmlFor="sa-usr-phone">
           <Input id="sa-usr-phone" value={form.phone} onChange={(e) => set("phone")(e.target.value)} placeholder="e.g. +91 98480 12345" className={inputCls} />
+        </Field>
+        <Field label="Google Sign-In Email (optional)" htmlFor="sa-usr-google-email" hint="Optional Gmail / Workspace alias for Google SSO">
+          <Input id="sa-usr-google-email" type="email" value={form.googleEmail} onChange={(e) => set("googleEmail")(e.target.value)} placeholder="e.g. user@gmail.com" className={inputCls} />
         </Field>
         <Field label="Business unit" hint="Optional scope assignment">
           <Select value={form.buId || "NONE"} onValueChange={(v) => set("buId")(v === "NONE" ? "" : v)}>
@@ -538,7 +543,7 @@ export default function UsersView() {
   const [confirmTarget, setConfirmTarget] = useState<{ user: UserRow; action: "suspend" | "activate" | "deactivate" | "reset-credential" } | null>(null);
   const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
-  const saveMut = useMutation();
+  const saveMut = useMutation<{ user?: UserRow; tempPassword?: string; emailSent?: boolean }>();
   const actionMut = useMutation<{ ok?: boolean; tempPassword?: string; note?: string }>();
 
   /* deep-link params: create / detailId / role / statusFilter — seeded on mount
@@ -624,6 +629,7 @@ export default function UsersView() {
         apiPost("/api/sa/users", {
           name: values.name,
           email: values.email,
+          googleEmail: values.googleEmail.trim().toLowerCase() || undefined,
           role: values.role,
           title: values.title.trim(),
           phone: values.phone.trim(),
@@ -632,6 +638,15 @@ export default function UsersView() {
         })
       );
       if (res) {
+        if (res.tempPassword) {
+          setTempPwd({
+            userName: values.name,
+            password: res.tempPassword,
+            note: res.emailSent
+              ? "Temporary password emailed via Resend and shown once here. User must update it on first sign-in."
+              : "Temporary password created — share it securely. User must update it on first sign-in.",
+          });
+        }
         toast({ title: "Invite sent", description: `${values.name} was created as INVITED — activation pending first sign-in.` });
         setFormOpen(false);
         refetch();
@@ -641,6 +656,7 @@ export default function UsersView() {
         apiPatch(`/api/sa/users/${editing.id}`, {
           title: values.title.trim(),
           phone: values.phone.trim(),
+          googleEmail: values.googleEmail.trim().toLowerCase() || null,
           role: values.role,
           buId: values.buId || null,
           projectId: values.projectId || null,
@@ -832,6 +848,8 @@ export default function UsersView() {
         <PresenceCard icon={CalendarClock} hue="#c57926" label="Away" hint="12–36 hours" value={presenceCounts.away} active={presenceFilter === "away"} onClick={() => setPresenceFilter(presenceFilter === "away" ? "ALL" : "away")} />
         <PresenceCard icon={Moon} hue="#8595ab" label="Offline" hint="Over 36 hours" value={presenceCounts.offline} active={presenceFilter === "offline"} onClick={() => setPresenceFilter(presenceFilter === "offline" ? "ALL" : "offline")} />
       </div>
+
+      <ResetRequestsPanel onUpdated={refetch} />
 
       <DataTable<UserRow>
         columns={columns}

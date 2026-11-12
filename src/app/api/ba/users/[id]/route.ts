@@ -8,6 +8,7 @@ import {
 } from "@/lib/ba/server";
 import { loadBuProjectNames } from "@/lib/ba/rows";
 import { toUserRow, toSubmissionRow } from "@/lib/ba/rows";
+import { invalidateAllAuthCaches, revokeUserSessions } from "@/lib/auth/session-utils";
 
 export const dynamic = "force-dynamic";
 
@@ -54,13 +55,33 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const bu = await getBuOrThrow(ctx.businessUnitId);
     const user = await assertUserInBuScope(id, ctx.businessUnitId);
     const body = (await req.json().catch(() => ({}))) as {
-      title?: string; phone?: string; role?: string; projectId?: string | null;
+      title?: string; phone?: string; role?: string; projectId?: string | null; status?: string; googleEmail?: string | null;
     };
 
-    const before = { role: user.role, projectId: user.projectId, title: user.title, phone: user.phone };
+    const before = { role: user.role, status: user.status, projectId: user.projectId, title: user.title, phone: user.phone, googleEmail: user.googleEmail };
     const data: Record<string, string | null> = {};
     if (body.title !== undefined) data.title = body.title.trim();
     if (body.phone !== undefined) data.phone = body.phone.trim();
+    if (body.googleEmail !== undefined) {
+      const nextGoogle = body.googleEmail?.trim().toLowerCase() || null;
+      if (nextGoogle && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextGoogle)) {
+        throw new BaError("Linked Google email address is invalid.", 400);
+      }
+      if (nextGoogle && nextGoogle !== user.googleEmail) {
+        const conflict = await db.user.findFirst({
+          where: { id: { not: id }, OR: [{ googleEmail: nextGoogle }, { email: nextGoogle }] },
+          select: { id: true },
+        });
+        if (conflict) throw new BaError("This Google email is already linked to another user.", 409);
+      }
+      data.googleEmail = nextGoogle;
+      data.authProvider = user.passwordHash && nextGoogle ? "BOTH" : nextGoogle ? "GOOGLE" : "CREDENTIALS";
+    }
+    if (body.status !== undefined && body.status !== user.status) {
+      if (id === ctx.userId) throw new BaError("You cannot change your own account status.", 403);
+      if (!["ACTIVE", "SUSPENDED", "INACTIVE"].includes(body.status)) throw new BaError("Invalid account status.", 400);
+      data.status = body.status;
+    }
 
     if (body.role !== undefined && body.role !== user.role) {
       if (id === ctx.userId) throw new BaError("You cannot change your own role.", 403);
@@ -79,6 +100,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     }
 
     const updated = await db.user.update({ where: { id }, data: data as never });
+
+    if (data.status === "SUSPENDED" || data.status === "INACTIVE") {
+      await revokeUserSessions(id);
+    } else {
+      invalidateAllAuthCaches(id);
+    }
 
     await baLogActivity(ctx, bu.name, { action: data.role ? "ROLE_CHANGE" : "ACCOUNT_UPDATE", targetType: "User", targetLabel: updated.name });
     await baLogAudit(ctx, bu.code, { action: data.role ? "ROLE_CHANGE" : "ACCOUNT_UPDATE", targetType: "User", targetId: id, targetLabel: updated.name, before, after: data });

@@ -6,6 +6,7 @@ import {
   getSubsidiaryOrThrow, saLogActivity, saLogAudit, saNotify,
 } from "@/lib/sa/server";
 import { toUserRow } from "@/lib/sa/rows";
+import { ProvisionError, provisionUser } from "@/lib/auth/provision-user";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,7 @@ export async function GET(req: NextRequest) {
     }
 
     let rows = usersAll.map((u) => toUserRow(u, buMap, prjMap, ROLE_LABELS, taskCount.get(u.id) ?? 0, subCount.get(u.id) ?? 0));
-    if (q) rows = rows.filter((r) => `${r.name} ${r.email} ${r.employeeId ?? ""} ${r.title}`.toLowerCase().includes(q));
+    if (q) rows = rows.filter((r) => `${r.name} ${r.email} ${r.googleEmail ?? ""} ${r.employeeId ?? ""} ${r.title}`.toLowerCase().includes(q));
     if (role && role !== "ALL") rows = rows.filter((r) => r.role === role);
     if (status && status !== "ALL") rows = rows.filter((r) => r.status === status);
     if (buId && buId !== "ALL") rows = rows.filter((r) => r.buId === buId);
@@ -67,44 +68,81 @@ export async function POST(req: NextRequest) {
     const ctx = await requireSubsidiaryAdmin();
     const sub = await getSubsidiaryOrThrow(ctx.subsidiaryId);
     const body = (await req.json().catch(() => ({}))) as {
-      name?: string; email?: string; role?: string; title?: string; phone?: string; buId?: string; projectId?: string;
+      name?: string;
+      email?: string;
+      googleEmail?: string;
+      employeeId?: string;
+      role?: string;
+      title?: string;
+      phone?: string;
+      buId?: string;
+      projectId?: string;
+      issueTempPassword?: boolean;
     };
 
-    const name = (body.name ?? "").trim();
-    const email = (body.email ?? "").trim().toLowerCase();
-    if (name.length < 2) throw new SaError("User name is required.", 400);
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new SaError("A valid email address is required.", 400);
-    if (!body.role || !(ASSIGNABLE_ROLES as readonly string[]).includes(body.role)) {
-      throw new SaError("This role cannot be granted from a subsidiary workspace.", 403);
-    }
-    const clash = await db.user.findUnique({ where: { email } });
-    if (clash) throw new SaError(`A user with email ${email} already exists.`, 409);
-
-    if (body.buId) {
-      const bu = await db.businessUnit.findUnique({ where: { id: body.buId } });
-      if (!bu || bu.subsidiaryId !== ctx.subsidiaryId) throw new SaError("Business unit is outside your subsidiary.", 403);
-    }
-    if (body.projectId) {
-      const prj = await db.project.findUnique({ where: { id: body.projectId }, include: { businessUnit: true } });
-      if (!prj || prj.businessUnit.subsidiaryId !== ctx.subsidiaryId) throw new SaError("Project is outside your subsidiary.", 403);
-    }
-
-    const seq = (await db.user.count()) + 1;
-    const employeeId = `EMP-${String(seq).padStart(4, "0")}`;
-    const user = await db.user.create({
-      data: {
-        name, email, role: body.role, status: "INVITED",
-        employeeId, title: (body.title ?? "").trim(), phone: (body.phone ?? "").trim(),
+    try {
+      const origin = new URL(req.url).origin;
+      const provisioned = await provisionUser({
+        name: body.name ?? "",
+        email: body.email ?? "",
+        googleEmail: body.googleEmail,
+        employeeId: body.employeeId,
+        role: body.role ?? "",
         subsidiaryId: ctx.subsidiaryId,
-        businessUnitId: body.buId ?? null,
-        projectId: body.projectId ?? null,
-      },
-    });
+        businessUnitId: body.buId || null,
+        projectId: body.projectId || null,
+        title: body.title,
+        phone: body.phone,
+        issueTempPassword: body.issueTempPassword,
+        actor: { id: ctx.userId, name: ctx.name, role: ctx.role },
+        allowedRoles: ASSIGNABLE_ROLES,
+        origin,
+      });
 
-    await saLogActivity(ctx, sub.name, { action: "USER_CREATE", targetType: "User", targetLabel: `${name} (${ROLE_LABELS[body.role]})` });
-    await saLogAudit(ctx, sub.code, { action: "USER_CREATE", targetType: "User", targetId: user.id, targetLabel: name, before: {}, after: { email, role: body.role, status: "INVITED" } });
-    await saNotify({ ntype: "SYSTEM", title: "User invited", body: `${name} was invited as ${ROLE_LABELS[body.role]}. Activation pending.`, subsidiaryId: ctx.subsidiaryId, linkView: "users" });
+      const user = provisioned.user;
+      await saLogActivity(ctx, sub.name, {
+        action: "USER_CREATE",
+        targetType: "User",
+        targetLabel: `${user.name} (${ROLE_LABELS[user.role] ?? user.role})`,
+      });
+      await saLogAudit(ctx, sub.code, {
+        action: "USER_CREATE",
+        targetType: "User",
+        targetId: user.id,
+        targetLabel: user.name,
+        before: {},
+        after: { email: user.email, googleEmail: user.googleEmail, role: user.role, status: user.status },
+      });
+      await saNotify({
+        ntype: "SYSTEM",
+        title: "User provisioned",
+        body: `${user.name} was provisioned as ${ROLE_LABELS[user.role] ?? user.role}.`,
+        subsidiaryId: ctx.subsidiaryId,
+        linkView: "users",
+      });
 
-    return ok({ user: { id: user.id, name, email, employeeId, role: body.role, status: "INVITED" } }, { status: 201 });
+      return ok(
+        {
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            googleEmail: user.googleEmail,
+            employeeId: user.employeeId,
+            role: user.role,
+            status: user.status,
+          },
+          tempPassword: provisioned.tempPassword,
+          emailSent: provisioned.emailResult.sent,
+          emailNote: provisioned.emailResult.reason,
+        },
+        { status: 201 }
+      );
+    } catch (err) {
+      if (err instanceof ProvisionError) {
+        throw new SaError(err.message, err.status);
+      }
+      throw err;
+    }
   });
 }

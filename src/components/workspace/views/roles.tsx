@@ -2,8 +2,10 @@
 
 // ── SCREEN 08 — Roles & Permissions (People & Access) ──
 import { useMemo, useState } from "react";
-import { Check, Info, RotateCcw, Save, ShieldCheck, Users as UsersIcon } from "lucide-react";
+import { Check, Info, RotateCcw, Save, ShieldCheck, UserPlus, Users as UsersIcon } from "lucide-react";
 import { Ring } from '@/components/ring'
+import { TempPasswordModal } from "@/components/auth/password-recovery-modals";
+import { CreateUserDialog } from "@/components/workspace/create-user-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -12,6 +14,7 @@ import { ROLE_LABELS, type RolesData } from "@/lib/esg/types";
 import { useApi, useMutation } from "@/lib/esg/client";
 import { useToast } from "@/hooks/use-toast";
 import {
+  ActionButton,
   Chip,
   GlassCard,
   LoadingBlock,
@@ -83,6 +86,12 @@ export default function RolesView() {
   const [selectedId, setSelectedId] = useState<string>("GROUP_ADMIN");
   // Local edits keyed by role — fall back to the saved matrix so no sync effect is needed.
   const [drafts, setDrafts] = useState<Record<string, Record<string, boolean>>>({});
+  const [createOpen, setCreateOpen] = useState(false);
+  const [tempPwd, setTempPwd] = useState<{
+    userName: string;
+    password: string;
+    note: string;
+  } | null>(null);
 
   const roles = rolesApi.data?.roles ?? [];
   const permissions = rolesApi.data?.permissions ?? [];
@@ -153,9 +162,14 @@ export default function RolesView() {
     <div className="view-in space-y-5">
       <PageHeader
         title="Roles & Permissions"
-        description="Permission matrix for the 11 defined role types. Changes are enforced server-side for new requests."
+        description={`Permission matrix for the ${roles.length} defined role types. Changes are enforced server-side for new requests.`}
         icon={ShieldCheck}
         breadcrumbs={["Group", "People & Access", "Roles & Permissions"]}
+        actions={
+          <ActionButton onClick={() => setCreateOpen(true)}>
+            <UserPlus className="mr-1.5 h-4 w-4" /> Create user
+          </ActionButton>
+        }
       />
 
       {/* Info banner */}
@@ -167,7 +181,7 @@ export default function RolesView() {
       </div>
 
       {/* Role summary strip */}
-      <SectionCard title="11 role types" description="Users currently holding each role across the group." icon={UsersIcon}>
+      <SectionCard title={`${roles.length} role types`} description="Users currently holding each role across the group." icon={UsersIcon}>
         <div className="flex flex-wrap gap-2">
           {roles.map((r) => (
             <button key={r.id} onClick={() => setSelectedId(r.id)} className={cn("rounded-2xl transition-all", selectedId === r.id && "nav-active")} aria-label={`Select role ${r.label}`}>
@@ -223,6 +237,17 @@ export default function RolesView() {
             title={selectedRole ? `${selectedRole.label} — permissions` : "Permissions"}
             description={selectedRole?.description}
             icon={ShieldCheck}
+            actions={
+              <Button
+                variant="outline"
+                size="sm"
+                className="glass-subtle rounded-2xl border-white/60"
+                onClick={() => setCreateOpen(true)}
+              >
+                <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+                Add {selectedRole?.label ?? "user"}
+              </Button>
+            }
             noPad
           >
             {permissions.length === 0 ? (
@@ -316,6 +341,28 @@ export default function RolesView() {
           </table>
         </div>
       </SectionCard>
+
+      <CreateUserDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultRole={selectedId}
+        onCreated={(outcome) => {
+          setSelectedId(outcome.role);
+          if (outcome.tempPassword) {
+            setTempPwd({
+              userName: outcome.userName,
+              password: outcome.tempPassword,
+              note: outcome.emailSent
+                ? "Temporary password emailed via Resend and shown once here. The user will be prompted to set their own password on first sign-in."
+                : outcome.emailNote ??
+                  "Share this temporary password securely — user must change it on first sign-in.",
+            });
+          }
+          void rolesApi.refetch();
+        }}
+      />
+
+      <TempPasswordModal data={tempPwd} onClose={() => setTempPwd(null)} />
     </div>
   );
 }
