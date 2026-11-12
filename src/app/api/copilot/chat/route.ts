@@ -29,11 +29,22 @@ export async function POST(req: NextRequest) {
     const conv = await db.copilotConversation.findFirst({ where: { id: conversationId, userId: user.id, archived: false } });
     if (!conv) throw new CopilotError("Conversation not found.", 404, "NOT_FOUND");
 
-    // Update the conversation context with the live workspace scope.
+    // Update the conversation context with the live workspace scope — the
+    // existing context is MERGED so the remembered entity (lastEntity) from
+    // the previous turn survives this write.
+    let existingContext: Record<string, unknown> = {};
+    try {
+      existingContext = conv.context ? (JSON.parse(conv.context) as Record<string, unknown>) : {};
+    } catch { /* keep empty */ }
     await db.copilotConversation.update({
       where: { id: conv.id },
       data: {
-        context: JSON.stringify({ reportingYear, viewId: typeof body.viewId === "string" ? body.viewId : undefined, orgScope: typeof body.orgScope === "string" ? body.orgScope : "GROUP" }),
+        context: JSON.stringify({
+          ...existingContext,
+          reportingYear,
+          viewId: typeof body.viewId === "string" ? body.viewId : undefined,
+          orgScope: typeof body.orgScope === "string" ? body.orgScope : "GROUP",
+        }),
       },
     });
 

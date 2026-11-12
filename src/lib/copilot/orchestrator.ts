@@ -215,7 +215,16 @@ async function runConversation(
      router picks the same real tools, executes them against the database, and
      composes the answer strictly from what those tools returned. */
   if (!provider.configured) {
-    const plan = await planOffline(userText, reportingYear);
+    /* Conversation memory — the entity the previous turn was about, so a
+       follow-up ("what evidence is attached?") stays on the same subject. */
+    const convRow = await db.copilotConversation.findUnique({
+      where: { id: conversationId },
+      select: { context: true },
+    });
+    const convCtx = parseContext(convRow?.context);
+    const lastEntity = (convCtx as { lastEntity?: { type: string; name: string; id: string } }).lastEntity ?? null;
+
+    const plan = await planOffline(userText, reportingYear, lastEntity);
     const offline = await executeOffline(plan, ctx, userText, (run) => {
       if (run.status === "RUNNING") {
         send({ kind: "activity", id: `offline-${run.name}`, tool: run.name, label: run.label, status: "RUNNING", startedAt: new Date().toISOString() });
@@ -262,9 +271,21 @@ async function runConversation(
       sources,
       meta: { state: "success", provider: "offline-grounded", model: "grounded-tools", tools: Array.from(usedTools) },
     });
+    /* Remember the entity this turn was about so the NEXT follow-up question
+       ("what evidence is attached?") stays on the same BU / project. */
+    const newContext = {
+      ...convCtx,
+      reportingYear,
+      lastEntity: plan.entity ?? lastEntity ?? null,
+    };
     await db.copilotConversation.update({
       where: { id: conversationId },
-      data: { lastAt: new Date(), provider: "offline-grounded", model: "grounded-tools" },
+      data: {
+        lastAt: new Date(),
+        provider: "offline-grounded",
+        model: "grounded-tools",
+        context: JSON.stringify(newContext),
+      },
     });
     await logCopilotAudit({
       actorName: ctx.userName,

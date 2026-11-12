@@ -62,6 +62,33 @@ function titleCase(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/** "ENERGY" → "Energy", "EHS_SAFETY" → "EHS & Safety" — the module names the
+    contributors actually see on screen. */
+const MODULE_LABELS: Record<string, string> = {
+  ENVIRONMENT: "Environment",
+  ENERGY: "Energy",
+  EMISSIONS: "Emissions",
+  WATER: "Water",
+  WASTE: "Waste",
+  SAFETY: "Safety",
+  EHS: "EHS & Safety",
+  EHS_SAFETY: "EHS & Safety",
+  WORKFORCE: "Workforce",
+  HR: "Workforce",
+  PROCUREMENT: "Procurement",
+  CSR: "CSR / Community",
+  COMPLIANCE: "Compliance",
+  FINANCE: "Finance",
+  CONSOLIDATED: "Consolidated",
+  GENERAL: "General",
+};
+
+function moduleLabel(raw: string): string {
+  const key = (raw || "").trim().toUpperCase();
+  if (!key) return "";
+  return MODULE_LABELS[key] ?? titleCase(key.replace(/_/g, " ").toLowerCase());
+}
+
 function listOf(items: string[], max = 4): string {
   if (items.length === 0) return "";
   if (items.length === 1) return items[0];
@@ -364,7 +391,16 @@ const COMPOSERS: Record<string, Composer> = {
       const d = o[0]?.data as Record<string, unknown> | undefined;
       if (!d) return "Here's the business unit profile.";
       const counts = (d.statusCounts ?? {}) as Record<string, number>;
-      return `**${d.name}** (${d.code}) under ${d.subsidiaryName ?? "its subsidiary"} covers ${num(d.projectCount) ?? 0} project${(num(d.projectCount) ?? 0) === 1 ? "" : "s"} — ${counts["APPROVED"] ?? 0} approved submissions.`;
+      const projects = asArray(d.projects) as Record<string, unknown>[];
+      const sub = String(d.subsidiary ?? "its subsidiary");
+      return `**${d.name}** (${d.code}) under ${sub} covers ${projects.length} project${projects.length === 1 ? "" : "s"} — ${counts["APPROVED"] ?? 0} approved submissions.`;
+    },
+    read: (o) => {
+      const d = o[0]?.data as Record<string, unknown> | undefined;
+      const projects = asArray(d?.projects) as Record<string, unknown>[];
+      if (!projects.length) return "";
+      const names = projects.slice(0, 4).map((p) => String(p.name ?? ""));
+      return `The projects in it are ${listOf(names)}${projects.length > 4 ? ` and ${projects.length - 4} more` : ""}.`;
     },
     next: () => "Want the project list, or its pending approvals?",
   },
@@ -387,12 +423,47 @@ const COMPOSERS: Record<string, Composer> = {
 
   search_evidence: {
     opening: (o) => {
-      const docs = asArray(o.find((x) => x.name === "search_evidence")?.data);
-      if (!docs.length) return "I couldn't find any evidence documents for that — the repository has nothing filed under it yet.";
-      const first = docs[0] as Record<string, unknown>;
-      return `I found **${docs.length}** evidence document${docs.length === 1 ? "" : "s"} — starting with **${first.name ?? first.fileName ?? "an untitled file"}**.`;
+      const d = o.find((x) => x.name === "search_evidence")?.data as Record<string, unknown> | undefined;
+      const items = asArray(d?.items) as Record<string, unknown>[];
+      if (!items.length) {
+        return "There's no evidence filed against this scope yet — not a single document is attached to the submissions in it.";
+      }
+      const modules = asArray(d?.modules) as Record<string, unknown>[];
+      const modNames = modules.map((m) => moduleLabel(String(m.module ?? "General")));
+      const total = num(d?.total) ?? items.length;
+      const first = items[0];
+      const scopeName = String(d?.scopeName ?? "");
+      const scopeKind = String(d?.scopeKind ?? "");
+      const where = scopeName
+        ? ` in **${scopeName}**${scopeKind === "business unit" ? " (business unit)" : scopeKind === "project" ? " (project)" : scopeKind === "subsidiary" ? " (subsidiary)" : ""}`
+        : first?.businessUnit
+          ? ` in **${first.businessUnit}**`
+          : first?.project
+            ? ` for **${first.project}**`
+            : "";
+      const projects = num(d?.projectCount) ?? 0;
+      const projNote = scopeKind === "business unit" && projects > 0
+        ? ` across ${projects} project${projects === 1 ? "" : "s"}`
+        : "";
+      return `**${total} evidence document${total === 1 ? "" : "s"}**${where}${projNote} — covering ${listOf(modNames.map((m) => m.toLowerCase()))}.`;
     },
-    next: () => "Want me to check which of these are still flagged as missing or under review?",
+    read: (o) => {
+      const d = o.find((x) => x.name === "search_evidence")?.data as Record<string, unknown> | undefined;
+      const modules = asArray(d?.modules) as Record<string, unknown>[];
+      if (!modules.length) return "";
+      const lines: string[] = [];
+      for (const m of modules) {
+        const mod = moduleLabel(String(m.module ?? "General"));
+        const list = asArray(m.items) as Record<string, unknown>[];
+        const projects = [...new Set(list.map((x) => String(x.project ?? "")).filter(Boolean))];
+        const names = list.slice(0, 3).map((x) => String(x.name ?? ""));
+        lines.push(
+          `- **${mod}** (${String(m.count ?? list.length)}) — ${projects.length ? `${listOf(projects)}: ` : ""}${listOf(names)}${list.length > 3 ? ` +${list.length - 3} more` : ""}`
+        );
+      }
+      return lines.join("\n");
+    },
+    next: () => "Want me to open any of these in the Evidence Review screen, or check which ones are still under review?",
   },
 
   get_recent_activity: {
@@ -498,7 +569,13 @@ export function composeConversation(
   }
 
   const shape = classifyQuestion(question);
-  const primary = ok.find((o) => COMPOSERS[o.name]) ?? ok[0];
+  /* Pick the composer that matches the QUESTION, not merely the first tool:
+     "what evidence is attached?" must answer from the evidence tool even
+     though the entity profile also ran. */
+  const wantsEvidence = /evidence|document|pdf|attachment|file|proof|supporting/i.test(question);
+  const primary = wantsEvidence
+    ? (ok.find((o) => o.name === "search_evidence") ?? ok.find((o) => COMPOSERS[o.name]) ?? ok[0])
+    : (ok.find((o) => COMPOSERS[o.name]) ?? ok[0]);
   const composer = COMPOSERS[primary.name];
 
   const parts: string[] = [];
