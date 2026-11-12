@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Zap, Users, Flame, CheckCircle2, AlertTriangle, Save, Calculator, Layers, Download, Eye, Plus, Trash2, Edit3, ArrowLeft, Fuel, Wind, Truck, Factory, CloudFog, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormEvidenceAttachSection } from '../evidence-attach'
+import { availableEvidenceIds, ownerOfEvidence } from '../evidence-usage'
 import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, type Period, useApiBase } from '../core'
 
@@ -772,7 +773,23 @@ export function Level3GhgForm({
       })
     }
 
-    const attachedFiles = evidence.filter((e) => selectedEvidenceIds.includes(e.id))
+    /* ONE evidence document may support only ONE source item of this record —
+       the same invoice must not be counted as the proof for two streams. */
+    const { allowed: usableEvidenceIds, blocked: blockedEvidenceIds } = availableEvidenceIds(
+      selectedEvidenceIds,
+      stagedItems,
+      editingItemId
+    )
+    if (blockedEvidenceIds.length > 0) {
+      const owners = blockedEvidenceIds.map((id) => ownerOfEvidence(stagedItems, id)).filter(Boolean)
+      toast.warning('Evidence already used by another source', {
+        description: `The same document cannot support two sources in one record${
+          owners.length ? ` (already attached to ${[...new Set(owners)].join(', ')})` : ''
+        }. It was left on that source only.`,
+      })
+    }
+
+    const attachedFiles = evidence.filter((e) => usableEvidenceIds.includes(e.id))
     const itemPayload: StagedGhgItem = {
       id: editingItemId || `item-ghg-${Date.now()}`,
       sourceCategory,
@@ -824,8 +841,8 @@ export function Level3GhgForm({
       estTco2e: currentCalc.calculatedTco2e,
       supportingEvidence,
       remarks,
-      evidenceId: selectedEvidenceIds[0] || '',
-      evidenceIds: selectedEvidenceIds,
+      evidenceId: usableEvidenceIds[0] || '',
+      evidenceIds: usableEvidenceIds,
       evidenceFileName: attachedFiles.map((f) => f.fileName).join(', ') || undefined,
       /* File NAMES only — the evidence row itself must never enter the
          persisted payload (it breaks every screen that renders the item). */
@@ -854,6 +871,10 @@ export function Level3GhgForm({
 
     setStagedItems(updated)
     setEditingItemId(null)
+
+    /* The evidence selection belongs to the item that was just staged — clear
+       it so the next source does not silently inherit the same document. */
+    setSelectedEvidenceIds([])
   }
 
   const handleEditStagedItem = (item: StagedGhgItem) => {
@@ -1999,6 +2020,16 @@ export function Level3GhgForm({
               onUploaded={onEvidenceUploaded || (async () => {})}
               selectedEvidenceIds={selectedEvidenceIds}
               onSelectEvidenceIds={setSelectedEvidenceIds}
+              evidenceUsedElsewhere={useMemo(() => {
+                const map: Record<string, string> = {}
+                for (const item of stagedItems) {
+                  if (editingItemId && item.id === editingItemId) continue
+                  for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
+                    if (id && !map[id]) map[id] = item.emissionSource
+                  }
+                }
+                return map
+              }, [stagedItems, editingItemId])}
               onReview={onReviewEvidence}
 onOcrApply={(f) => {
                 if (f.quantity) setActivityQuantity(f.quantity)

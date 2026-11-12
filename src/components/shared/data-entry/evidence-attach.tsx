@@ -29,6 +29,12 @@ export interface FormEvidenceAttachSectionProps {
   readOnly: boolean
   /** Gemini OCR: confirmed extracted fields handed to the level form. */
   onOcrApply?: (fields: OcrFields) => void
+  /**
+   * Evidence ids already attached to ANOTHER source item of this record, with
+   * the name of that source. One document may back only one source — the UI
+   * says so instead of silently attaching the same file twice.
+   */
+  evidenceUsedElsewhere?: Record<string, string>
 }
 
 export function FormEvidenceAttachSection({
@@ -44,6 +50,7 @@ export function FormEvidenceAttachSection({
   onReview,
   readOnly,
   onOcrApply,
+  evidenceUsedElsewhere,
 }: FormEvidenceAttachSectionProps) {
   const apiBase = useApiBase()
 
@@ -67,6 +74,15 @@ export function FormEvidenceAttachSection({
   const toggleEvidence = (evId: string) => {
     if (readOnly) return
     const isSelected = activeIds.includes(evId)
+    /* Block attaching a document that already backs another source item of
+       this record — one document, one source. */
+    const usedBy = evidenceUsedElsewhere?.[evId];
+    if (!isSelected && usedBy) {
+      toast.warning('Evidence already used by another source', {
+        description: `“${evidence.find((e) => e.id === evId)?.fileName ?? "This document"}” is already attached to ${usedBy}. A document can support only one source per record.`,
+      })
+      return
+    }
     const nextIds = isSelected ? activeIds.filter((id) => id !== evId) : [...activeIds, evId]
 
     if (onSelectEvidenceIds) {
@@ -331,13 +347,16 @@ export function FormEvidenceAttachSection({
           <div className="max-h-44 space-y-1.5 overflow-y-auto scroll-elegant pr-0.5">
             {evidence.map((ev) => {
               const isSelected = activeIds.includes(ev.id)
+              const usedBy = evidenceUsedElsewhere?.[ev.id]
               return (
                 <div
                   key={ev.id}
                   className={`flex items-center justify-between rounded-xl border p-2 text-xs transition-all ${
                     isSelected
                       ? 'border-violet-300 bg-violet-50/90 shadow-xs'
-                      : 'border-slate-200/80 bg-white/90 hover:bg-violet-50/30'
+                      : usedBy
+                        ? 'border-amber-200 bg-amber-50/50'
+                        : 'border-slate-200/80 bg-white/90 hover:bg-violet-50/30'
                   }`}
                 >
                   <div className="flex min-w-0 items-center gap-2 pr-2">
@@ -362,6 +381,12 @@ export function FormEvidenceAttachSection({
                             <span>{(ev.fileSize / 1024).toFixed(0)} KB</span>
                           </>
                         ) : null}
+                        {usedBy && (
+                          <>
+                            <span>•</span>
+                            <span className="font-semibold text-amber-700">used by {usedBy}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -369,19 +394,32 @@ export function FormEvidenceAttachSection({
                   <div className="flex shrink-0 items-center gap-1">
                     <button
                       type="button"
-                      disabled={readOnly}
+                      disabled={readOnly || (!isSelected && !!usedBy)}
                       onClick={() => toggleEvidence(ev.id)}
                       className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-bold shadow-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${
                         isSelected
                           ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                          : 'bg-violet-600 text-white hover:bg-violet-700'
+                          : usedBy
+                            ? 'bg-amber-100 text-amber-700'
+                            : 'bg-violet-600 text-white hover:bg-violet-700'
                       }`}
-                      title={isSelected ? 'Detach this evidence from the record' : 'Attach this evidence to the record'}
+                      title={
+                        isSelected
+                          ? 'Detach this evidence from the record'
+                          : usedBy
+                            ? `Already attached to ${usedBy} — a document can support only one source per record`
+                            : 'Attach this evidence to the record'
+                      }
                     >
                       {isSelected ? (
                         <>
                           <Check className="h-3 w-3" />
                           <span>Attached</span>
+                        </>
+                      ) : usedBy ? (
+                        <>
+                          <Link2 className="h-3 w-3" />
+                          <span>In use</span>
                         </>
                       ) : (
                         <>

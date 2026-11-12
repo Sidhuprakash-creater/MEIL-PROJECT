@@ -291,6 +291,37 @@ export async function GET(req: NextRequest) {
       // Corrections previously raised on this submission (per-field review notes)
       const corrections = parseJsonArray((s as any).corrections);
 
+      /* DUPLICATE-EVIDENCE THREAD — flag every evidence document that is
+         attached to more than ONE source item of the same record. One
+         document must support only one source; the reviewer must see this
+         before approving, otherwise the numbers double-count one file. */
+      const duplicateEvidenceThreads = (() => {
+        const owner = new Map<string, string>()
+        const dupes: Array<{ evidenceId: string; sources: string[] }> = []
+        for (const rec of sourceRecords) {
+          for (const it of rec.items) {
+            const ids: string[] = Array.isArray(it?.evidenceIds)
+              ? it.evidenceIds.filter(Boolean)
+              : it?.evidenceId
+                ? [it.evidenceId]
+                : []
+            if (!ids.length) continue
+            const label =
+              it?.energySource || it?.waterSource || it?.wasteCategory ||
+              it?.emissionSource || it?.permitConsentType || it?.activityInitiativeName ||
+              "another source";
+            for (const eid of ids) {
+              const prev = owner.get(eid);
+              if (!prev) owner.set(eid, label);
+              else if (prev !== label && !dupes.some((d) => d.evidenceId === eid)) {
+                dupes.push({ evidenceId: eid, sources: [prev, label] });
+              }
+            }
+          }
+        }
+        return dupes;
+      })();
+
       /* Only count as approved what the Project Manager (Subsidiary Manager)
          actually approved — surfaced so the PA "Approved" surfaces mirror the
          PM's decisions instead of the PA's own sign-off stage. Detected via
@@ -342,6 +373,7 @@ export async function GET(req: NextRequest) {
         evidenceFiles,
         sourceRecords,
         corrections,
+        duplicateEvidenceThreads,
         evidenceCount: evidenceList.length || evidenceFiles.length,
         buManagerName: "Er. K. Venkataramana (Project Admin)",
         projectName: s.project?.name || ctx.projectName,
