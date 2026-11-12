@@ -52,7 +52,7 @@ export const ROLES = {
 export type RoleCode = keyof typeof ROLES;
 
 export const PORTAL_ROLES = {
-  group: ["GROUP_ADMIN", "ORG_MANAGER"],
+  group: ["GROUP_ADMIN"],
   subsidiary: ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"],
   business_unit: ["BU_ADMIN", "BU_MANAGER"],
   project: [
@@ -70,12 +70,12 @@ export const PORTAL_ROLES = {
 
 export type PortalId = keyof typeof PORTAL_ROLES;
 
-export const PORTAL_ROLE_LABELS: Record<PortalId, { admin: string; manager: string }> = {
-  group: { admin: "Group Admin", manager: "Organization Manager" },
+export const PORTAL_ROLE_LABELS = {
+  group: { admin: "Group Admin" },
   subsidiary: { admin: "Subsidiary Admin", manager: "Subsidiary Manager" },
   business_unit: { admin: "Business Unit Admin", manager: "Business Unit Manager" },
   project: { admin: "Site Data Entry", manager: "ESG Analyst" },
-};
+} as const;
 
 export const PORTAL_TITLES: Record<PortalId, string> = {
   group: "Group Portal",

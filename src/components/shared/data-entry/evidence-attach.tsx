@@ -7,6 +7,7 @@ import { type EvidenceItem, useApiBase } from './core'
 import { OcrScanButton, type OcrFields } from './ocr-scan'
 import { EvidenceSecurityNotice } from '@/components/shared/evidence/evidence-security-notice'
 import { uploadEvidenceFile, type DuplicateInfo, type UploadRejection } from '@/lib/evidence/upload-client'
+import { MultiEvidenceGallery } from '@/components/shared/multi-evidence-gallery'
 
 /* ============================================================
    IN-FORM EVIDENCE ATTACH SECTION (AFTER REMARKS)
@@ -58,6 +59,7 @@ export function FormEvidenceAttachSection({
   const [dragActive, setDragActive] = useState(false)
   const [rejection, setRejection] = useState<UploadRejection | null>(null)
   const [retryFile, setRetryFile] = useState<File | null>(null)
+  const [showGallery, setShowGallery] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Derive active attached IDs (combining single and array props)
@@ -220,18 +222,30 @@ export function FormEvidenceAttachSection({
             <span className="flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Attached Documents ({attachedList.length})
             </span>
-            {!readOnly && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (onSelectEvidenceIds) onSelectEvidenceIds([])
-                  if (onSelectEvidence) onSelectEvidence(null)
-                }}
-                className="text-[9px] font-bold text-rose-600 hover:underline"
-              >
-                Clear All
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {attachedList.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setShowGallery(true)}
+                  className="flex items-center gap-1 rounded-full bg-violet-600 px-2.5 py-0.5 text-[9px] font-extrabold text-white shadow-2xs hover:bg-violet-700 transition active:scale-95"
+                  title="View all attached evidence documents at once in sequence"
+                >
+                  <Eye className="h-2.5 w-2.5" /> View All ({attachedList.length})
+                </button>
+              )}
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSelectEvidenceIds) onSelectEvidenceIds([])
+                    if (onSelectEvidence) onSelectEvidence(null)
+                  }}
+                  className="text-[9px] font-bold text-rose-600 hover:underline"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
             {attachedList.map((att) => (
@@ -460,6 +474,25 @@ export function FormEvidenceAttachSection({
         <p className="mt-1.5 text-[10px] text-slate-500">
           No documents in the vault for this project yet — upload the source document above after filling the form.
         </p>
+      )}
+
+      {showGallery && (
+        <MultiEvidenceGallery
+          documents={attachedList.map((att) => ({
+            id: att.id,
+            fileName: att.fileName,
+            fileSize: att.fileSize,
+            documentType: att.documentType,
+            status: att.status,
+            hash: att.hash,
+            previewUrl: `${apiBase}/evidence/${encodeURIComponent(att.id)}/file`,
+            downloadUrl: `${apiBase}/evidence/${encodeURIComponent(att.id)}/file?download=true`,
+            uploadedAt: att.createdAt,
+          }))}
+          title="Attached Evidence Documents"
+          subtitle="All attached documents in sequence — inspect proofs side-by-side or scroll together"
+          onClose={() => setShowGallery(false)}
+        />
       )}
     </div>
   )

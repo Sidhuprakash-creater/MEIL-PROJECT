@@ -24,6 +24,7 @@ import { paApiGet, paApiPost, getCachedPaData, clearPaClientCache } from "@/lib/
 import { ensureRevisionPolling, onRevisionChange } from "@/lib/revision-client";
 import { PaGlassCard, PaPageHeader, PaButton, PaStatusBadge, PaTabStrip, PaDialog, PaKpiCard, PaBuDecisionBadge } from "../ui";
 import { MeilBoxLoader } from "@/components/shared/meil-loader";
+import { MultiEvidenceGallery, type MultiEvidenceDoc } from "@/components/shared/multi-evidence-gallery";
 import * as SHARED_FIELD_LABELS from "@/components/shared/field-labels";
 
 /* The shared vocabulary is the single source of truth for field names and
@@ -70,6 +71,7 @@ export default function SubmissionsView() {
   const [itemRejections, setItemRejections] = useState<
     Record<string, { severity: "ERROR" | "WARNING"; reason: string; label: string; recordId: string }>
   >({});
+  const [galleryFiles, setGalleryFiles] = useState<any[] | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -842,9 +844,20 @@ export default function SubmissionsView() {
                         {(realFiles.length || nameOnly.length) === 1 ? "" : "s"})
                       </span>
                     </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
-                      Evidence Vault
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {realFiles.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setGalleryFiles(realFiles)}
+                          className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition shadow-2xs"
+                        >
+                          <Eye size={12} /> View All ({realFiles.length})
+                        </button>
+                      )}
+                      <span className="text-[10px] font-bold text-emerald-700 bg-white px-2 py-0.5 rounded-full border border-emerald-200 shadow-2xs">
+                        Evidence Vault
+                      </span>
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     {realFiles.map((ev) => (
@@ -960,6 +973,27 @@ export default function SubmissionsView() {
           </div>
         )}
       </PaDialog>
+
+      {/* Multi Evidence Gallery Modal (View all attached documents at once in sequence) */}
+      {galleryFiles && (
+        <MultiEvidenceGallery
+          documents={galleryFiles.map((ev) => ({
+            id: ev.id,
+            fileName: ev.fileName,
+            fileSize: ev.fileSize,
+            documentType: ev.documentType,
+            status: ev.status,
+            hash: ev.hash,
+            previewUrl: ev.filePath || `/api/project-admin/evidence/${ev.id}/download?inline=1`,
+            downloadUrl: ev.filePath || `/api/project-admin/evidence/${ev.id}/download?download=true`,
+            uploadedAt: ev.createdAt,
+            uploaderName: ev.uploader?.name,
+          }))}
+          title={`${inspectSubmission?.title || "Submission"} — Attached Evidence Gallery`}
+          subtitle="All attached documents in sequence — inspect proofs side-by-side or scroll together"
+          onClose={() => setGalleryFiles(null)}
+        />
+      )}
 
       {/* Decision Modal (Approve Note or Request Correction Reason) */}
       <PaDialog

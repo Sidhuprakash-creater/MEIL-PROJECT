@@ -14,12 +14,13 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { AlertTriangle, CheckCircle2, Download, FileText, MessageSquare, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileText, MessageSquare, ShieldCheck, Eye } from "lucide-react";
 import { Ring } from '@/components/ring'
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { MultiEvidenceGallery, type MultiEvidenceDoc } from "@/components/shared/multi-evidence-gallery";
 import {
   Chip, ConfirmDialog, EmptyState, ErrorState, GlassDialog, GlassTabBar, InfoRow, LoadingBlock,
 } from "@/components/workspace/ui";
@@ -51,6 +52,7 @@ export function ReportReviewDialog({
   const [tab, setTab] = React.useState(startTab ?? "report");
   const [evidence, setEvidence] = React.useState<EvidenceRow[] | null>(null);
   const [evidenceLoading, setEvidenceLoading] = React.useState(false);
+  const [galleryDocs, setGalleryDocs] = React.useState<MultiEvidenceDoc[] | null>(null);
   const [activeDoc, setActiveDoc] = React.useState<EvidenceRow | null>(null);
   const [docReceipt, setDocReceipt] = React.useState<string | null>(null);
   const [docLoading, setDocLoading] = React.useState(false);
@@ -395,6 +397,30 @@ export function ReportReviewDialog({
                     icon={AlertTriangle}
                   />
                 )}
+                {!evidenceLoading && (evidence ?? []).length > 1 && (
+                  <div className="flex items-center justify-between p-3 rounded-2xl bg-white/70 border border-white/60">
+                    <div className="text-xs font-bold text-[color:var(--ink)]">
+                      {(evidence ?? []).length} supporting documents attached
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => setGalleryDocs((evidence ?? []).map((doc) => ({
+                        id: doc.id,
+                        fileName: doc.name,
+                        fileSize: doc.sizeKb ? doc.sizeKb * 1024 : undefined,
+                        documentType: doc.fileType,
+                        status: doc.status,
+                        previewUrl: `/api/sm/evidence/${doc.id}/download?inline=1`,
+                        downloadUrl: `/api/sm/evidence/${doc.id}/download`,
+                        uploadedAt: doc.uploadedAt,
+                        uploaderName: doc.uploadedBy,
+                      })))}
+                      className="h-8 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                      <Eye className="mr-1.5 h-3.5 w-3.5" /> View All ({(evidence ?? []).length})
+                    </Button>
+                  </div>
+                )}
                 {!evidenceLoading && (evidence ?? []).map((doc) => (
                   <div key={doc.id} className="glass-subtle rounded-2xl p-3.5">
                     <div className="flex flex-wrap items-start justify-between gap-2">
@@ -564,6 +590,16 @@ export function ReportReviewDialog({
           </div>
         )}
       </GlassDialog>
+
+      {/* Multi Evidence Gallery Modal (View all attached documents at once in sequence) */}
+      {galleryDocs && (
+        <MultiEvidenceGallery
+          documents={galleryDocs}
+          title={`${sub?.title || "Report"} — Evidence Verification Gallery`}
+          subtitle="All attached documents in sequence — inspect proofs side-by-side or scroll together"
+          onClose={() => setGalleryDocs(null)}
+        />
+      )}
     </>
   );
 }

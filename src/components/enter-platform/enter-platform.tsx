@@ -378,7 +378,7 @@ function PortalFlow({
   const [projects, setProjects] = useState<ProjectOpt[]>([]);
   const [projectLoading, setProjectLoading] = useState(false);
   const [project, setProject] = useState<ProjectOpt | null>(null);
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState(portal === "group" ? "GROUP_ADMIN" : "");
 
   /* Auto-select the role matching the entered account (email / employee ID).
      The server remains the source of truth at login; this only pre-fills the
@@ -399,7 +399,7 @@ function PortalFlow({
         if (data?.ok && typeof data.role === "string") {
           const portalRoles: readonly string[] =
             portal === "group"
-              ? ["GROUP_ADMIN", "ORG_MANAGER"]
+              ? ["GROUP_ADMIN"]
               : portal === "subsidiary"
                 ? ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"]
                 : portal === "business_unit"
@@ -529,7 +529,10 @@ function PortalFlow({
     let effBusinessUnitId = ov?.businessUnitId !== undefined ? ov.businessUnitId : businessUnit?.id;
     let effProjectId = ov?.projectId !== undefined ? ov.projectId : project?.id;
 
-    // Smart auto-completion for BU Manager demo login
+    // Smart auto-completion for Group and BU Manager demo logins
+    if (portal === "group" && !effRole) {
+      effRole = "GROUP_ADMIN";
+    }
     if (portal === "business_unit" && (rawEmp.toLowerCase().includes("harish") || rawEmp.toUpperCase().includes("BU-1001"))) {
       if (!effRole) effRole = "BU_MANAGER";
       if (!effSubsidiaryId) effSubsidiaryId = MEIL_SUB;
@@ -695,8 +698,7 @@ function PortalFlow({
   const roleOptions: Array<[string, string]> =
     portal === "group"
       ? [
-          ["GROUP_ADMIN", PORTAL_ROLE_LABELS.group.admin],
-          ["ORG_MANAGER", PORTAL_ROLE_LABELS.group.manager],
+          ["GROUP_ADMIN", PORTAL_ROLE_LABELS.group.admin || "Group Admin"],
         ]
       : portal === "subsidiary"
         ? [
