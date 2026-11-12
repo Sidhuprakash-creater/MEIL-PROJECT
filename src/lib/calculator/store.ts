@@ -12,7 +12,7 @@
 
 import { create } from "zustand";
 
-export type CalculatorMode = "std" | "sci" | "car";
+export type CalculatorMode = "std" | "sci" | "car" | "trv";
 export type CalculatorSegment = "biz" | "per";
 
 /**
@@ -25,7 +25,7 @@ export const CALCULATOR_OPEN_EVENT = "meil:calculator-open";
 interface CalculatorDockState {
   /** Panel expanded (rail collapsed). */
   open: boolean;
-  /** Active top-level mode: standard, scientific or carbon footprint. */
+  /** Active top-level mode: standard, scientific, travel or carbon footprint. */
   mode: CalculatorMode;
   /** Active carbon segment: business or personal footprint. */
   segment: CalculatorSegment;

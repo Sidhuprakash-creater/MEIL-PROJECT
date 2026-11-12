@@ -1058,18 +1058,22 @@ function UploadForm({
     if (f) setFile(f)
   }
 
-  const submit = async () => {
+  const submit = async (opts?: { allowDuplicate?: boolean }) => {
     if (!file) {
       toast.error('Please select a file to upload')
       return
     }
+    /* The flag is passed in explicitly rather than read from state — the
+       "upload as a new version" action re-enters this function directly, and a
+       state update would not have been applied yet. */
+    const allowDup = opts?.allowDuplicate ?? allowDuplicate
     setBusy(true)
     setRejection(null)
     try {
       const outcome = await uploadEvidenceFile({
         apiBase: '/api/pu',
         file,
-        allowDuplicate,
+        allowDuplicate: allowDup,
         fields: {
           documentType: docType,
           documentDate: docDate || undefined,
@@ -1210,7 +1214,7 @@ function UploadForm({
         onUploadAsNewVersion={() => {
           // Confirm the duplicate is intentional and re-file it as a new version.
           setAllowDuplicate(true)
-          void submit()
+          void submit({ allowDuplicate: true })
         }}
         onDismiss={() => {
           setRejection(null)
@@ -1220,7 +1224,7 @@ function UploadForm({
 
       <div className="flex items-center justify-end gap-2 border-t border-white/60 pt-3">
         <Button variant="ghost" onClick={onClose} className="text-slate-600">Cancel</Button>
-        <Button onClick={submit} disabled={busy || !file} className="btn-glass-primary rounded-full">
+        <Button onClick={() => void submit()} disabled={busy || !file} className="btn-glass-primary rounded-full">
           {busy ? <Ring className="h-3.5 w-3.5" /> : <Upload className="h-3.5 w-3.5" />}
           {busy ? 'Uploading…' : 'Upload'}
         </Button>

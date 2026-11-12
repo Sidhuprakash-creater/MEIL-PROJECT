@@ -180,9 +180,10 @@ export function CalculatorPanel({ scientific }: CalculatorPanelProps) {
           return;
         case "back": {
           // Delete a whole function name plus its opening paren, else one char.
-          setExpression((prev) =>
-            prev.replace(/(asin|acos|atan|sin|cos|tan|cbrt|abs|log|ln)\($/, "").replace(/.$/, ""),
-          );
+          setExpression((prev) => {
+            const stripped = prev.replace(/(asin|acos|atan|sin|cos|tan|cbrt|abs|log|ln)\($/, "");
+            return stripped !== prev ? stripped : prev.slice(0, -1);
+          });
           setJustEvaluated(false);
           setError(null);
           return;

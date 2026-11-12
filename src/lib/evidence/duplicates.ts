@@ -213,8 +213,16 @@ export function describeEvidenceDuplicate(dup: DuplicateEvidence): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(dup.createdAt);
-  const size = dup.fileSize ? ` (${(dup.fileSize / 1024).toFixed(0)} KB)` : "";
-  return `This exact file was already uploaded as "${dup.fileName}"${size} by ${dup.uploaderName} on ${when}.`;
+  const size = formatFileSize(dup.fileSize);
+  return `This exact file was already uploaded as "${dup.fileName}"${size ? ` (${size})` : ""} by ${dup.uploaderName} on ${when}.`;
+}
+
+/** Human-readable byte size — falls back to bytes for sub-KB files. */
+function formatFileSize(bytes: number | null): string {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 /** Human-friendly description of a record duplicate. */

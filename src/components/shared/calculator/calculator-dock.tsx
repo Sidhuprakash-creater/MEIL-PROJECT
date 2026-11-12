@@ -19,6 +19,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Calculator as CalculatorIcon, Moon, Sun, X } from "lucide-react";
 import { CalculatorPanel } from "@/components/shared/calculator/calculator-panel";
 import { CarbonCalculator } from "@/components/shared/calculator/carbon-calculator";
+import { TravelCalculator } from "@/components/shared/calculator/travel-calculator";
 import { useCalculatorDock, CALCULATOR_OPEN_EVENT } from "@/lib/calculator/store";
 import "./calculator.css";
 
@@ -99,7 +100,7 @@ export function CalculatorDock() {
           aria-expanded={false}
         >
           <span className="mcalc-rail-icon">
-            <CalculatorIcon size={17} strokeWidth={2.2} aria-hidden="true" />
+            <CalculatorIcon size={14} strokeWidth={2.4} aria-hidden="true" />
           </span>
           <span className="mcalc-rail-label">Calculator</span>
         </button>
@@ -144,6 +145,15 @@ export function CalculatorDock() {
                   type="button"
                   role="tab"
                   className="mcalc-tab"
+                  aria-selected={mode === "trv"}
+                  onClick={() => setMode("trv")}
+                >
+                  Travel
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className="mcalc-tab"
                   aria-selected={mode === "car"}
                   onClick={() => setMode("car")}
                 >
@@ -171,7 +181,9 @@ export function CalculatorDock() {
             </div>
 
             <div className="mcalc-body">
-              {mode === "car" ? (
+              {mode === "trv" ? (
+                <TravelCalculator />
+              ) : mode === "car" ? (
                 <>
                   <div className="mcalc-seg" role="group" aria-label="Footprint segment">
                     <button

@@ -66,21 +66,23 @@
   transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 15px 8px 15px 10px;
-  border: 1px solid var(--mcalc-edge);
+  gap: 6px;
+  padding: 9px 6px 9px 7px;
+  /* The outer edge is transparent so the rail hugs the viewport edge with no
+     visible frame; only the glass fill and shadow define its shape. */
+  border: 1px solid transparent;
   border-right: none;
-  border-radius: 18px 0 0 18px;
+  border-radius: 14px 0 0 14px;
   background: var(--mcalc-surface);
   backdrop-filter: blur(18px) saturate(160%);
   -webkit-backdrop-filter: blur(18px) saturate(160%);
-  box-shadow: var(--mcalc-shadow);
+  box-shadow: var(--mcalc-shadow-soft);
   cursor: pointer;
   transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.24s ease;
 }
 .mcalc-rail:hover {
   transform: translateY(-50%) translateX(-3px);
-  box-shadow: 0 22px 58px rgba(38, 84, 124, 0.26);
+  box-shadow: 0 12px 26px rgba(38, 84, 124, 0.2);
 }
 .mcalc-rail:active {
   transform: translateY(-50%) scale(0.97);
@@ -92,9 +94,9 @@
 .mcalc-rail-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  font-size: 10.5px;
+  font-size: 9.5px;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--mcalc-ink-soft);
   white-space: nowrap;
@@ -102,13 +104,13 @@
 .mcalc-rail-icon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   flex: none;
-  border-radius: 9px;
+  border-radius: 7px;
   color: #fff;
   background: linear-gradient(145deg, #4f92ff, var(--mcalc-blue) 60%, #2457c8);
-  box-shadow: 0 4px 12px rgba(58, 123, 255, 0.34);
+  box-shadow: 0 3px 9px rgba(58, 123, 255, 0.3);
 }
 
 /* ── Docked panel (expanded) ─────────────────────────────────────────────── */
@@ -120,7 +122,7 @@
   z-index: 63;
   display: flex;
   flex-direction: column;
-  width: min(430px, 100vw);
+  width: min(360px, 100vw);
   border-left: 1px solid var(--mcalc-edge);
   background: var(--mcalc-surface-strong);
   backdrop-filter: blur(26px) saturate(165%);
@@ -128,8 +130,9 @@
   box-shadow: -22px 0 60px rgba(38, 84, 124, 0.16);
   animation: mcalc-panel-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.mcalc[data-mcalc-mode="car"] .mcalc-panel {
-  width: min(560px, 100vw);
+.mcalc[data-mcalc-mode="car"] .mcalc-panel,
+.mcalc[data-mcalc-mode="trv"] .mcalc-panel {
+  width: min(420px, 100vw);
 }
 @keyframes mcalc-panel-in {
   from {
@@ -207,7 +210,7 @@
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px 14px 16px;
+  padding: 10px 12px 14px;
 }
 .mcalc-body::-webkit-scrollbar {
   width: 8px;
@@ -275,7 +278,7 @@
   margin-top: 10px;
 }
 .mcalc-key {
-  height: 44px;
+  height: 40px;
   border: 1px solid var(--mcalc-key-edge);
   border-radius: 13px;
   font-size: 15px;
@@ -536,14 +539,81 @@
   color: var(--mcalc-red);
 }
 
+/* ── Travel mode ─────────────────────────────────────────────────────────── */
+/* Transport type tiles (Flight / Hotel / Boat / Car) and the One Trip /
+   Multiple Trips / Private Jet radio row. */
+.mcalc-tmode {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.mcalc-tmode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid var(--mcalc-border);
+  border-radius: 12px;
+  padding: 8px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mcalc-ink-faint);
+  background: var(--mcalc-field-soft);
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+}
+.mcalc-tmode-btn:hover {
+  color: var(--mcalc-ink);
+}
+.mcalc-tmode-btn[aria-selected="true"],
+.mcalc-tmode-btn[aria-pressed="true"] {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(145deg, #4f92ff, var(--mcalc-blue));
+}
+.mcalc-tmode-btn:focus-visible {
+  outline: 2px solid var(--mcalc-blue);
+  outline-offset: 2px;
+}
+.mcalc-tradio {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.mcalc-tradio-btn {
+  flex: 1;
+  border: 1px solid var(--mcalc-border);
+  border-radius: 999px;
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mcalc-ink-faint);
+  background: var(--mcalc-field-soft);
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  white-space: nowrap;
+}
+.mcalc-tradio-btn:hover {
+  color: var(--mcalc-ink);
+}
+.mcalc-tradio-btn[aria-pressed="true"] {
+  color: #fff;
+  border-color: transparent;
+  background: linear-gradient(145deg, #4f92ff, var(--mcalc-blue));
+}
+.mcalc-tradio-btn:focus-visible {
+  outline: 2px solid var(--mcalc-blue);
+  outline-offset: 2px;
+}
+
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
-  .mcalc-panel {
+  .mcalc-panel,
+  .mcalc[data-mcalc-mode="car"] .mcalc-panel,
+  .mcalc[data-mcalc-mode="trv"] .mcalc-panel {
     width: 100vw;
     border-left: 0;
-  }
-  .mcalc[data-mcalc-mode="car"] .mcalc-panel {
-    width: 100vw;
   }
 }
 
