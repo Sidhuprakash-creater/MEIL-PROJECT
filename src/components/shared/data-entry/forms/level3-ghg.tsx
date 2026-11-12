@@ -230,7 +230,7 @@ export const GHG_SOURCE_PRESETS: Record<string, GhgPresetConfig> = {
   },
   'Ambient Air Monitoring': {
     category: 'air_monitoring',
-    scope: 'Air pollutant',
+    scope: 'Scope 1 activity',
     fuel: 'Ambient Air',
     unit: 'µg/m³',
     factor: 0,
@@ -246,7 +246,7 @@ export const GHG_SOURCE_PRESETS: Record<string, GhgPresetConfig> = {
   },
   'DG Stack Emissions': {
     category: 'air_monitoring',
-    scope: 'Air pollutant',
+    scope: 'Scope 1 activity',
     fuel: 'DG Flue Gas Exhaust',
     unit: 'mg/Nm³',
     factor: 0,
@@ -367,6 +367,7 @@ export function Level3GhgForm({
   const [overallWorkflowStatus, setOverallWorkflowStatus] = useState<
     'Draft' | 'Submitted' | 'Under Review' | 'Approved' | 'Returned for Correction' | 'Recalculation Required'
   >('Draft')
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], [])
 
   // Level 1 Energy quick-import detection
   const [level1EnergyRecord, setLevel1EnergyRecord] = useState<any | null>(null)
@@ -444,7 +445,7 @@ export function Level3GhgForm({
           factorSource: 'CPCB / NAAQS 2009 Standards',
           factorVersion: 1,
           factorConfigured: true,
-          formula: `${pollutant} concentration monitored at ${valNum} ${u} (Reported separately per CPCB norms — Not mixed with CO2e)`,
+          formula: `${pollutant} concentration monitored at ${valNum} ${u} (Scope 1 Direct Air Quality Monitoring per CPCB norms)`,
           calculatedTco2e: 0,
           complianceStatus: isCompliant ? ('COMPLIANT' as const) : ('EXCEEDANCE' as const),
           timestamp: new Date().toISOString(),
@@ -690,7 +691,7 @@ export function Level3GhgForm({
       handleSelectSource('Purchased Grid Electricity (Scope 2)')
     } else if (newType.includes('Air') && !emissionSource.includes('Air') && !emissionSource.includes('Stack')) {
       handleSelectSource('Ambient Air Monitoring')
-    } else if (newType.includes('1') && (emissionSource.includes('Scope 2') || emissionSource.includes('Scope 3') || emissionSource.includes('Air'))) {
+    } else if (newType.includes('1') && !emissionSource.includes('Ambient Air') && !emissionSource.includes('Stack') && (emissionSource.includes('Scope 2') || emissionSource.includes('Scope 3'))) {
       handleSelectSource('DG Sets & Power Generators')
     }
   }
@@ -766,6 +767,15 @@ export function Level3GhgForm({
 
     if (isAir && !measuredResult) {
       setError(`Please enter the laboratory measured result for ${emissionSource}.`)
+      return
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0]
+    if (isAir && testDate && testDate > todayStr) {
+      setError(`Test date (${testDate}) cannot be in the future. Today is ${todayStr}.`)
+      toast.error('Invalid Test Date', {
+        description: `Test date (${testDate}) cannot be in the future (today is ${todayStr}).`,
+      })
       return
     }
 
@@ -1060,6 +1070,16 @@ export function Level3GhgForm({
       effectiveItems = formStateRef.current[key]?.items || effectiveItems
     }
 
+    for (const it of effectiveItems) {
+      if (it.testDate && it.testDate > todayStr) {
+        setError(`Test date (${it.testDate}) for ${it.emissionSource} cannot be in the future. Today is ${todayStr}.`)
+        toast.error('Invalid Test Date', {
+          description: `Test date cannot be in the future (today is ${todayStr}).`,
+        })
+        return
+      }
+    }
+
     setSubmitting(true)
     try {
       const payloadData: Record<string, any> = {
@@ -1223,10 +1243,10 @@ export function Level3GhgForm({
                   Target Scope Classification
                 </div>
                 <div className="text-base font-extrabold text-emerald-900 mt-0.5">
-                  {sourceCategory === 'air_monitoring'
-                    ? 'Air Pollutant (Separate)'
-                    : emissionDataType.includes('1')
-                    ? 'Scope 1 Direct'
+                  {emissionDataType.includes('1') || sourceCategory === 'air_monitoring'
+                    ? sourceCategory === 'air_monitoring'
+                      ? 'Scope 1 Direct (Ambient Air)'
+                      : 'Scope 1 Direct'
                     : emissionDataType.includes('2')
                     ? 'Scope 2 Indirect'
                     : 'Scope 3 Value Chain'}
@@ -1307,7 +1327,7 @@ export function Level3GhgForm({
               onChange={(e) => handleSelectDataType(e.target.value)}
               className={inputClass}
             >
-              <option value="Scope 1 activity">Scope 1 activity (Direct direct emissions from owned/controlled sources)</option>
+              <option value="Scope 1 activity">Scope 1 activity (Direct emissions from owned/controlled sources &amp; ambient air)</option>
               <option value="Scope 2 activity">Scope 2 activity (Indirect emissions from purchased electricity/steam)</option>
               <option value="Scope 3 activity">Scope 3 activity (Value chain / freight / business travel / upstream &amp; downstream)</option>
               <option value="Air pollutant">Air pollutant (Stack exhaust &amp; ambient air quality — Tracked separately)</option>
@@ -1763,10 +1783,10 @@ export function Level3GhgForm({
               <div className="sm:col-span-2 rounded-xl bg-teal-50/80 border border-teal-200 p-3 text-xs text-teal-950 font-medium">
                 <div className="flex items-center gap-1.5 font-bold text-teal-900">
                   <CloudFog className="h-4 w-4 text-teal-600" />
-                  <span>Ambient Air Monitoring &amp; Stack Emissions (Tracked Separately)</span>
+                  <span>Ambient Air Monitoring (Scope 1 Direct Air Quality)</span>
                 </div>
                 <p className="mt-1 text-[11px] text-teal-800">
-                  Air pollutant measurements (PM10, PM2.5, NOx, SO2) are statutory environmental compliance metrics under CPCB &amp; State Pollution Control Board guidelines. <strong>These values are strictly maintained separate and never mixed into corporate GHG CO2e totals.</strong>
+                  Air pollutant measurements (PM10, PM2.5, NOx, SO2) are statutory environmental compliance metrics under CPCB &amp; State Pollution Control Board guidelines, tracked under Scope 1 direct environmental emissions.
                 </p>
               </div>
 
@@ -1808,12 +1828,20 @@ export function Level3GhgForm({
                 />
               </FormField>
 
-              <FormField label="Test Date" hint="Sampling field test date.">
+              <FormField label="Test Date" hint="Sampling field test date (must not be in future).">
                 <input
                   type="date"
                   value={testDate}
+                  max={todayStr}
                   disabled={readOnly}
-                  onChange={(e) => setTestDate(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value && e.target.value > todayStr) {
+                      toast.warning('Test date cannot be in the future', {
+                        description: `Selected date (${e.target.value}) is after today (${todayStr}).`,
+                      })
+                    }
+                    setTestDate(e.target.value)
+                  }}
                   className={inputClass}
                 />
               </FormField>
@@ -1987,7 +2015,7 @@ export function Level3GhgForm({
                     <span className="text-[9px] uppercase font-bold text-slate-400">Calculated Footprint</span>
                     <div className="font-bold text-emerald-900 mt-0.5">
                       {sourceCategory === 'air_monitoring'
-                        ? '0.00 tCO₂e (Separate)'
+                        ? 'Scope 1 (Air Concentration)'
                         : `${currentCalc.calculatedTco2e.toFixed(3)} tCO₂e`}
                     </div>
                   </div>
@@ -2124,16 +2152,14 @@ onOcrApply={(f) => {
                             <div className="font-bold text-slate-900">{item.emissionSource}</div>
                             <span
                               className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${
-                                isAir
-                                  ? 'bg-teal-100 text-teal-800'
-                                  : item.emissionDataType.includes('1')
+                                isAir || item.emissionDataType.includes('1')
                                   ? 'bg-amber-100 text-amber-800'
                                   : item.emissionDataType.includes('2')
                                   ? 'bg-blue-100 text-blue-800'
                                   : 'bg-purple-100 text-purple-800'
                               }`}
                             >
-                              {isAir ? 'Air Pollutant (Separate)' : item.emissionDataType}
+                              {isAir ? 'Scope 1 (Air Monitoring)' : item.emissionDataType}
                             </span>
                           </td>
                           <td className="py-2.5 px-2.5">
@@ -2277,8 +2303,8 @@ onOcrApply={(f) => {
                   </h3>
                 </div>
                 <p className="text-[11px] text-slate-600 mt-1">
-                  Compiled {stagedItems.length} source streams across Scope 1, Scope 2, Scope 3, and Ambient/Stack Air Quality monitoring.
-                  Air pollutant measurements (PM10, NOx, SO2) are monitored separately and are not combined with GHG CO2e totals.
+                  Compiled {stagedItems.length} source streams across Scope 1 (including Ambient Air Quality), Scope 2, and Scope 3.
+                  Air pollutant measurements (PM10, NOx, SO2) are monitored under Scope 1 direct environmental emissions in line with statutory CPCB norms.
                 </p>
               </div>
 
@@ -2511,10 +2537,10 @@ onOcrApply={(f) => {
                   </div>
                   <div>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-teal-950">
-                      Air Quality &amp; Stack Emission Monitoring (Statutory Separate Record)
+                      Scope 1 Direct Air Quality &amp; Ambient Monitoring
                     </h4>
                     <p className="text-[10px] text-slate-500">
-                      Monitored in compliance with CPCB / State Pollution Control Board guidelines. Strictly segregated from CO2e totals.
+                      Monitored under Scope 1 direct environmental emissions in compliance with CPCB / State Pollution Control Board guidelines.
                     </p>
                   </div>
                 </div>

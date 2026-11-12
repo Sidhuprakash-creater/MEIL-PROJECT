@@ -64,6 +64,11 @@ export function Level6TrainingForm({
       setError('Participants count must be > 0')
       return
     }
+    const todayStr = new Date().toISOString().split('T')[0]
+    if (trainingDate && trainingDate > todayStr) {
+      setError(`Training date (${trainingDate}) cannot be in the future. Today is ${todayStr}.`)
+      return
+    }
     setSubmitting(true)
     try {
       const res = await fetch(`${apiBase}/data-entry`, {
@@ -117,10 +122,11 @@ export function Level6TrainingForm({
         </select>
       </FormField>
 
-      <FormField label="Training Date" hint="Date conducted.">
+      <FormField label="Training Date" hint="Date conducted (must not be in future).">
         <input
           type="date"
           value={trainingDate}
+          max={new Date().toISOString().split('T')[0]}
           disabled={readOnly}
           onChange={(e) => setTrainingDate(e.target.value)}
           className={inputClass}

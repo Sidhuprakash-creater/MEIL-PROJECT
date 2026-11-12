@@ -317,6 +317,13 @@ export function Level9InitiativesForm({
       setError('Initiative name is required')
       return false
     }
+    if (startDate && completionDate && completionDate < startDate) {
+      setError(`Completion date (${completionDate}) cannot be earlier than start date (${startDate}).`)
+      toast.error('Invalid Date Range', {
+        description: `Completion date cannot be earlier than initiative start date.`,
+      })
+      return false
+    }
     setError('')
 
     const item = packageCurrentItem()
@@ -655,10 +662,11 @@ export function Level9InitiativesForm({
               />
             </FormField>
 
-            <FormField label="Completion / Target Date" hint="Date achieved or project milestone.">
+            <FormField label="Completion / Target Date" hint="Date achieved or milestone (must be on or after start date).">
               <input
                 type="date"
                 value={completionDate}
+                min={startDate || undefined}
                 disabled={readOnly}
                 onChange={(e) => setCompletionDate(e.target.value)}
                 className={inputClass}

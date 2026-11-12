@@ -653,8 +653,25 @@ export async function POST(req: NextRequest) {
             let expiringCount = 0
             let nonCompliantCount = 0
             const now = Date.now()
+            const todayStr = new Date().toISOString().split('T')[0]
 
             for (const it of data.items) {
+              if (it.issueDate && it.issueDate > todayStr) {
+                issues.push({
+                  ruleCode: 'ENV-ISSUE-DATE-FUTURE',
+                  severity: 'ERROR',
+                  message: `Issue date (${it.issueDate}) cannot be in the future (today is ${todayStr})`,
+                  field: 'issueDate',
+                })
+              }
+              if (it.issueDate && it.expiryDate && it.expiryDate < it.issueDate) {
+                issues.push({
+                  ruleCode: 'ENV-EXPIRY-BEFORE-ISSUE',
+                  severity: 'ERROR',
+                  message: `Expiry date (${it.expiryDate}) cannot be earlier than issue date (${it.issueDate})`,
+                  field: 'expiryDate',
+                })
+              }
               if (it.nonComplianceIdentified === 'Yes') {
                 nonCompliantCount++
               }
@@ -684,6 +701,23 @@ export async function POST(req: NextRequest) {
           }
 
           // Environmental Compliance & Permits (Single)
+          const todayStr = new Date().toISOString().split('T')[0]
+          if (data.issueDate && data.issueDate > todayStr) {
+            issues.push({
+              ruleCode: 'ENV-ISSUE-DATE-FUTURE',
+              severity: 'ERROR',
+              message: `Issue date (${data.issueDate}) cannot be in the future (today is ${todayStr})`,
+              field: 'issueDate',
+            })
+          }
+          if (data.issueDate && data.expiryDate && data.expiryDate < data.issueDate) {
+            issues.push({
+              ruleCode: 'ENV-EXPIRY-BEFORE-ISSUE',
+              severity: 'ERROR',
+              message: `Expiry date (${data.expiryDate}) cannot be earlier than issue date (${data.issueDate})`,
+              field: 'expiryDate',
+            })
+          }
           if (!data.permitNumber) {
             issues.push({
               ruleCode: 'ENV-PERMIT-NUM',

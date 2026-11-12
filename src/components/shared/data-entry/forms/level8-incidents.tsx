@@ -56,6 +56,15 @@ export function Level8IncidentsForm({
       setError('Date reported is required')
       return
     }
+    const todayStr = new Date().toISOString().split('T')[0]
+    if (dateReported && dateReported > todayStr) {
+      setError(`Date reported (${dateReported}) cannot be in the future. Today is ${todayStr}.`)
+      return
+    }
+    if (resolutionDate && dateReported && resolutionDate < dateReported) {
+      setError(`Resolution date (${resolutionDate}) cannot be earlier than date reported (${dateReported}).`)
+      return
+    }
     if (!description) {
       setError('Factual description is required')
       return
@@ -109,10 +118,11 @@ export function Level8IncidentsForm({
         />
       </FormField>
 
-      <FormField label="Date Reported" hint="Date received or recorded.">
+      <FormField label="Date Reported" hint="Date received or recorded (must not be in future).">
         <input
           type="date"
           value={dateReported}
+          max={new Date().toISOString().split('T')[0]}
           disabled={readOnly}
           onChange={(e) => setDateReported(e.target.value)}
           className={inputClass}
@@ -224,10 +234,11 @@ export function Level8IncidentsForm({
         />
       </FormField>
 
-      <FormField label="Resolution Date" hint="When resolved.">
+      <FormField label="Resolution Date" hint="When resolved (must be on or after date reported).">
         <input
           type="date"
           value={resolutionDate}
+          min={dateReported || undefined}
           disabled={readOnly}
           onChange={(e) => setResolutionDate(e.target.value)}
           className={inputClass}

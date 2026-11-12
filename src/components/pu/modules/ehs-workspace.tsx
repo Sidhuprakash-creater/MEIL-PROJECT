@@ -97,6 +97,19 @@ export function EhsWorkspace() {
   }
 
   const handleSaveDraft = (levelLabel: string) => {
+    const today = new Date().toISOString().split('T')[0]
+    if (ehsData.permits.issueDate && ehsData.permits.issueDate > today) {
+      triggerToast('Error: Permit issue date cannot be in the future.')
+      return
+    }
+    if (ehsData.permits.issueDate && ehsData.permits.expiryDate && ehsData.permits.expiryDate < ehsData.permits.issueDate) {
+      triggerToast('Error: Permit expiry date cannot be earlier than issue date.')
+      return
+    }
+    if (ehsData.water.testDate && ehsData.water.testDate > today) {
+      triggerToast('Error: Water test date cannot be in the future.')
+      return
+    }
     setSaveStatus('Saving...')
     contributorStore.saveEhsData(ehsData)
     setTimeout(() => {
@@ -923,14 +936,21 @@ export function EhsWorkspace() {
               </div>
 
               <div>
-                <label className="ios-label">Test Date</label>
+                <label className="ios-label">Test Date (Max Today)</label>
                 <input
                   type="date"
                   value={ehsData.water.testDate}
-                  onChange={(e) => setEhsData({
-                    ...ehsData,
-                    water: { ...ehsData.water, testDate: e.target.value }
-                  })}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const today = new Date().toISOString().split('T')[0]
+                    if (e.target.value && e.target.value > today) {
+                      triggerToast('Water test date cannot be in the future.')
+                    }
+                    setEhsData({
+                      ...ehsData,
+                      water: { ...ehsData.water, testDate: e.target.value }
+                    })
+                  }}
                   className="ios-field !text-xs font-medium text-slate-800"
                 />
               </div>
@@ -1616,27 +1636,46 @@ export function EhsWorkspace() {
               </div>
 
               <div>
-                <label className="ios-label">Issue Date</label>
+                <label className="ios-label">Issue Date (Max Today)</label>
                 <input
                   type="date"
                   value={ehsData.permits.issueDate}
-                  onChange={(e) => setEhsData({
-                    ...ehsData,
-                    permits: { ...ehsData.permits, issueDate: e.target.value }
-                  })}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const today = new Date().toISOString().split('T')[0]
+                    const val = e.target.value
+                    if (val && val > today) {
+                      triggerToast('Issue date cannot be in the future.')
+                    }
+                    if (val && ehsData.permits.expiryDate && ehsData.permits.expiryDate < val) {
+                      triggerToast('Warning: Expiry date is earlier than the issue date.')
+                    }
+                    setEhsData({
+                      ...ehsData,
+                      permits: { ...ehsData.permits, issueDate: val }
+                    })
+                  }}
                   className="ios-field !text-xs font-medium text-slate-800"
                 />
               </div>
 
               <div>
-                <label className="ios-label">Expiry Date</label>
+                <label className="ios-label">Expiry Date (On/After Issue Date)</label>
                 <input
                   type="date"
                   value={ehsData.permits.expiryDate}
-                  onChange={(e) => setEhsData({
-                    ...ehsData,
-                    permits: { ...ehsData.permits, expiryDate: e.target.value }
-                  })}
+                  min={ehsData.permits.issueDate || undefined}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (ehsData.permits.issueDate && val && val < ehsData.permits.issueDate) {
+                      triggerToast('Expiry date cannot be earlier than issue date.')
+                      return
+                    }
+                    setEhsData({
+                      ...ehsData,
+                      permits: { ...ehsData.permits, expiryDate: val }
+                    })
+                  }}
                   className="ios-field !text-xs font-medium text-slate-800"
                 />
               </div>

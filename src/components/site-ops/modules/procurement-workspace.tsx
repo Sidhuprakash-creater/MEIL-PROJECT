@@ -62,6 +62,15 @@ export function ProcurementWorkspace() {
   }
 
   const handleSaveDraft = (levelLabel: string) => {
+    const today = new Date().toISOString().split('T')[0]
+    if (scData.certifications.issueDate && scData.certifications.issueDate > today) {
+      triggerToast('Error: Certification issue date cannot be in the future.')
+      return
+    }
+    if (scData.certifications.issueDate && scData.certifications.expiryDate && scData.certifications.expiryDate < scData.certifications.issueDate) {
+      triggerToast('Error: Certification expiry date cannot be earlier than issue date.')
+      return
+    }
     setSaveStatus('Saving...')
     contributorStore.saveScData(scData)
     /* Sync a real DRAFT soSubmission to the server — the local store alone is lost on refresh. */
@@ -847,27 +856,46 @@ export function ProcurementWorkspace() {
               </div>
 
               <div>
-                <label className="ios-label">Issue Date</label>
+                <label className="ios-label">Issue Date (Max Today)</label>
                 <input
                   type="date"
                   value={scData.certifications.issueDate}
-                  onChange={(e) => setScData({
-                    ...scData,
-                    certifications: { ...scData.certifications, issueDate: e.target.value }
-                  })}
+                  max={new Date().toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    const today = new Date().toISOString().split('T')[0]
+                    const val = e.target.value
+                    if (val && val > today) {
+                      triggerToast('Issue date cannot be in the future.')
+                    }
+                    if (val && scData.certifications.expiryDate && scData.certifications.expiryDate < val) {
+                      triggerToast('Warning: Expiry date is earlier than the issue date.')
+                    }
+                    setScData({
+                      ...scData,
+                      certifications: { ...scData.certifications, issueDate: val }
+                    })
+                  }}
                   className="ios-field !text-xs font-medium text-slate-800"
                 />
               </div>
 
               <div>
-                <label className="ios-label">Expiry Date</label>
+                <label className="ios-label">Expiry Date (On/After Issue Date)</label>
                 <input
                   type="date"
                   value={scData.certifications.expiryDate}
-                  onChange={(e) => setScData({
-                    ...scData,
-                    certifications: { ...scData.certifications, expiryDate: e.target.value }
-                  })}
+                  min={scData.certifications.issueDate || undefined}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    if (scData.certifications.issueDate && val && val < scData.certifications.issueDate) {
+                      triggerToast('Expiry date cannot be earlier than issue date.')
+                      return
+                    }
+                    setScData({
+                      ...scData,
+                      certifications: { ...scData.certifications, expiryDate: val }
+                    })
+                  }}
                   className="ios-field !text-xs font-medium text-slate-800"
                 />
               </div>
