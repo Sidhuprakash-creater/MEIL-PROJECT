@@ -529,9 +529,9 @@ function RateLimitBanner({ seconds }: { seconds: number }) {
         {seconds}s
       </span>
       <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45 }}>
-        Rate limit active — the AI provider allows one request per minute.
+        The AI provider is momentarily busy.
         <span style={{ opacity: 0.75, fontWeight: 500 }}>
-          {" "}You can ask your next question in <strong style={{ fontVariantNumeric: "tabular-nums" }}>{seconds}s</strong>.
+          {" "}Your question was not lost — press send again, or I will answer from the live platform records in the meantime.
         </span>
       </span>
     </div>
