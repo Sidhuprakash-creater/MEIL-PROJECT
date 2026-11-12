@@ -775,24 +775,45 @@ const search_evidence: ToolHandler = async (args) => {
   const q = str(args.query);
   const status = str(args.status)?.toUpperCase();
   const submissionRef = str(args.submissionRef);
+  const projectId = str(args.projectId);
   const limit = Math.min(Math.max(num(args.limit) ?? 10, 1), 30);
   const where: Record<string, unknown> = {};
   if (q) where.OR = [{ name: { contains: q, mode: "insensitive" } }, { disclosureRef: { contains: q, mode: "insensitive" } }];
   if (status) where.status = status;
   if (submissionRef) where.submissionRef = submissionRef;
-  const [docs, vault, subsidiaries] = await Promise.all([
+  /* Evidence documents attached to this project's submissions. */
+  const projectSubmissionIds = projectId
+    ? (await db.submission.findMany({ where: { projectId }, select: { id: true } })).map((s) => s.id)
+    : [];
+  const [docs, vault, subsidiaries, projectSubs] = await Promise.all([
     db.evidenceDoc.findMany({ where, orderBy: { uploadedAt: "desc" }, take: limit }),
     db.evidence.findMany({
-      where: q ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] } : { id: "none" },
+      where: projectId
+        ? { projectId, ...(q ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] } : {}) }
+        : q
+          ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] }
+          : { id: "none" },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: { uploader: { select: { name: true } } },
     }),
     db.subsidiary.findMany({ select: { id: true, name: true } }),
+    projectSubmissionIds.length
+      ? db.evidenceDoc.findMany({
+          where: { submissionId: { in: projectSubmissionIds } },
+          orderBy: { uploadedAt: "desc" },
+          take: limit,
+        })
+      : Promise.resolve([]),
   ]);
+  /* Merge the project's own evidence documents with the searched ones. */
+  const mergedDocs = [...docs];
+  for (const d of projectSubs) {
+    if (!mergedDocs.some((x) => x.id === d.id)) mergedDocs.push(d);
+  }
   const subName = (id: string | null) => (id ? subsidiaries.find((s) => s.id === id)?.name ?? undefined : undefined);
   const blocks: ContentBlock[] = [
-    ...docs.map((d) => ({
+    ...mergedDocs.map((d) => ({
       type: "evidence",
       evidenceId: d.id,
       name: d.name,

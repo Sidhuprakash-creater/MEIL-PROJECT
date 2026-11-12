@@ -65,7 +65,10 @@ const INTENTS: Intent[] = [
   {
     id: "missing_evidence",
     test: /evidence|missing data|data gap|incomplete|completeness|gap/i,
-    calls: (period) => [{ name: "get_missing_evidence", args: { period, limit: 25 } }],
+    calls: (period) => [
+      { name: "get_missing_evidence", args: { period, limit: 25 } },
+      { name: "search_evidence", args: { limit: 20 } },
+    ],
   },
   {
     id: "compliance",
@@ -124,6 +127,7 @@ const STOP_WORDS = new Set([
   "subsidiary", "the", "and", "for", "with", "all", "any", "how", "what", "who",
   "many", "much", "show", "list", "tell", "give", "please", "report", "reports",
   "submission", "submissions", "status", "data", "review", "current",
+  "admin", "administrator", "manager", "officer", "lead", "site",
 ]);
 
 /** Distinctive tokens of a name — e.g. "Kaleshwaram Lift Irrigation Package-06 & 08" → kaleshwaram, irrigation. */
@@ -133,6 +137,105 @@ function distinctiveTokens(name: string): string[] {
     .split(/[^a-z0-9]+/)
     .filter((t) => t.length >= 5 && !STOP_WORDS.has(t) && !/^\d+$/.test(t));
 }
+
+/**
+ * Alias tokens — shorter words that still identify a record ("MEIL Core",
+ * "Drillmec", "Olectra"). Only used for EXACT word-boundary matches, never
+ * fuzzy, so a short alias cannot hijack another record ("line" must not
+ * match inside "deadlines").
+ */
+function aliasTokens(name: string): string[] {
+  return name
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !/^\d+$/.test(t) && !GENERIC_WORDS.has(t));
+}
+
+/** Consecutive word phrases of a name — "MEIL Core", "S.p.A", "City Gas". */
+function namePhrases(name: string): string[] {
+  const words = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const out: string[] = [];
+  for (let i = 0; i < words.length; i++) {
+    for (let n = 2; n <= 3 && i + n <= words.length; n++) {
+      const phrase = words.slice(i, i + n).join(" ");
+      if (phrase.length >= 8) out.push(phrase);
+    }
+  }
+  return out;
+}
+
+/** True when `phrase` appears in `text` on whole-word boundaries. */
+function containsPhrase(text: string, phrase: string): boolean {
+  const re = new RegExp(`(^|[^a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z0-9]|$)`, "i");
+  return re.test(text);
+}
+
+/** Words too generic to identify anything. */
+const GENERIC_WORDS = new Set([
+  "meil", "group", "core", "ltd", "limited", "india", "project", "projects",
+  "subsidiary", "the", "and", "for", "with", "all", "any", "how", "what", "who",
+  "many", "much", "show", "list", "tell", "give", "please", "report", "reports",
+  "submission", "submissions", "status", "data", "review", "current",
+  "admin", "administrator", "manager", "officer", "lead", "site", "plant",
+  "network", "networks", "energy", "power", "city", "gas", "drill", "rig",
+]);
+
+/** Levenshtein distance (bounded — only called on short tokens). */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  const m = a.length;
+  const n = b.length;
+  let prev = new Array(n + 1).fill(0).map((_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const row = new Array(n + 1).fill(0);
+    row[0] = i;
+    for (let j = 1; j <= n; j++) {
+      row[j] = Math.min(
+        prev[j] + 1,
+        row[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1)
+      );
+    }
+    prev = row;
+  }
+  return prev[n];
+}
+
+/**
+ * Fuzzy containment — "kaleswaram" must still find "Kaleshwaram".
+ * Returns a confidence weight:
+ *   1.0  = exact containment, 0.85 = edit distance 1, 0.7 = distance 2
+ */
+function tokenMatchWeight(queryToken: string, entityToken: string): number {
+  if (entityToken.includes(queryToken)) return 1;
+  if (queryToken.length >= 6) {
+    const d = editDistance(queryToken, entityToken);
+    if (d <= 1) return 0.85;
+    if (d <= 2 && entityToken.length >= 8) return 0.7;
+  }
+  return 0;
+}
+
+/** Query tokens worth matching against entity names. */
+function queryTokens(text: string): string[] {
+  return text
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !STOP_WORDS.has(t));
+}
+
+interface ScoredHit extends EntityHit {
+  score: number;
+}
+
+/* Words that tell us WHICH kind of entity the question is about.
+   A person question ("who is ... admin") wins over a type word. */
+const TYPE_HINTS: { words: string[]; type: EntityHit["type"] }[] = [
+  { words: ["who is", "user", "admin", "employee", "person", "which person"], type: "user" },
+  { words: ["project", "site", "package"], type: "project" },
+  { words: ["business unit", "bu"], type: "business_unit" },
+  { words: ["subsidiary", "company", "entity"], type: "subsidiary" },
+];
 
 async function detectEntity(userText: string): Promise<EntityHit | null> {
   const text = userText.toLowerCase();
@@ -145,34 +248,93 @@ async function detectEntity(userText: string): Promise<EntityHit | null> {
     db.user.findMany({ select: { id: true, name: true } }),
   ]);
 
-  const hits: EntityHit[] = [];
-  const push = (type: EntityHit["type"], id: string, name: string) => {
-    const n = name.trim();
-    if (n.length < 4) return;
-    const lower = n.toLowerCase();
-    let score = 0;
-    /* Full name mentioned → strongest signal. */
-    if (text.includes(lower)) {
-      score = lower.length + 100;
-    } else {
-      /* Otherwise a distinctive token of the name ("kaleshwaram") matches. */
-      const tokens = distinctiveTokens(n);
-      const matched = tokens.filter((t) => text.includes(t));
-      if (matched.length === 0) return;
-      /* Require the most distinctive token of the name to be present. */
-      const best = matched.sort((a, b) => b.length - a.length)[0];
-      score = best.length + matched.length;
-    }
-    hits.push({ type, id, name: n, length: score });
-  };
-  for (const s of subsidiaries) push("subsidiary", s.id, s.name);
-  for (const u of units) push("business_unit", u.id, u.name);
-  for (const p of projects) push("project", p.id, p.name);
-  for (const u of users) push("user", u.id, u.name);
+  type Candidate = { type: EntityHit["type"]; id: string; name: string; tokens: string[] };
+  const candidates: Candidate[] = [
+    ...subsidiaries.map((s) => ({ type: "subsidiary" as const, id: s.id, name: s.name, tokens: distinctiveTokens(s.name) })),
+    ...units.map((u) => ({ type: "business_unit" as const, id: u.id, name: u.name, tokens: distinctiveTokens(u.name) })),
+    ...projects.map((p) => ({ type: "project" as const, id: p.id, name: p.name, tokens: distinctiveTokens(p.name) })),
+    ...users.map((u) => ({ type: "user" as const, id: u.id, name: u.name, tokens: distinctiveTokens(u.name) })),
+  ];
 
-  /* Highest score wins — a project name contains its business unit's words. */
-  hits.sort((a, b) => b.length - a.length);
-  return hits[0] ?? null;
+  const qTokens = queryTokens(text);
+
+  /* ── score every candidate ────────────────────────────────────────────── */
+  const scored: ScoredHit[] = [];
+  for (const c of candidates) {
+    const lower = c.name.toLowerCase();
+
+    /* Full name mentioned → strongest, unambiguous signal. */
+    if (containsPhrase(text, lower)) {
+      scored.push({ type: c.type, id: c.id, name: c.name, length: lower.length, score: 1000 + lower.length });
+      continue;
+    }
+    if (c.tokens.length === 0 && aliasTokens(c.name).length === 0) continue;
+
+    let best = 0;
+    let matched = 0;
+    for (const et of c.tokens) {
+      for (const qt of qTokens) {
+        const w = tokenMatchWeight(qt, et);
+        if (w > 0) {
+          matched += 1;
+          best = Math.max(best, w);
+        }
+      }
+    }
+    /* Short aliases ("MEIL Core", "Drillmec") and multi-word name phrases —
+       matched on whole-word boundaries only. */
+    if (best < 1) {
+      for (const at of aliasTokens(c.name)) {
+        if (containsPhrase(text, at)) {
+          best = Math.max(best, 0.9);
+          matched += 1;
+        }
+      }
+      for (const ph of namePhrases(c.name)) {
+        if (containsPhrase(text, ph)) {
+          best = Math.max(best, 0.95);
+          matched += 1;
+        }
+      }
+    }
+    if (best < 0.7) continue;
+    /* Base score: match strength, then how many of the name's tokens were
+       referenced. The match itself is never discounted — several records may
+       legitimately share a token ("Kaleshwaram" project AND its admins). */
+    scored.push({
+      type: c.type,
+      id: c.id,
+      name: c.name,
+      length: best * 10,
+      score: best * 100 + Math.min(matched, 5),
+    });
+  }
+
+  if (scored.length === 0) return null;
+
+  /* ── disambiguate ──────────────────────────────────────────────────────── */
+  const hinted = TYPE_HINTS.find((h) => h.words.some((w) => text.includes(w)));
+  const wantsUser = hinted?.type === "user";
+
+  scored.sort((a, b) => {
+    /* A question that explicitly names a person wants the user record. */
+    if (wantsUser) {
+      const au = a.type === "user" ? 1 : 0;
+      const bu = b.type === "user" ? 1 : 0;
+      if (au !== bu) return bu - au;
+    } else {
+      /* Otherwise a person record is only a last resort — the same token is
+         often the name of a project or a BU. */
+      const au = a.type === "user" ? 0 : 1;
+      const bu = b.type === "user" ? 0 : 1;
+      if (au !== bu) return bu - au;
+    }
+    if (b.score !== a.score) return b.score - a.score;
+    return b.length - a.length;
+  });
+
+  const top = scored[0];
+  return { type: top.type, name: top.name, id: top.id, length: top.length };
 }
 
 function profileCall(entity: EntityHit): OfflineCall {
@@ -192,15 +354,22 @@ function profileCall(entity: EntityHit): OfflineCall {
 
 export async function planOffline(userText: string, reportingYear: string): Promise<OfflineOutcome> {
   const entity = await detectEntity(userText);
+  const wantsEvidence = /evidence|document|pdf|attachment|file/i.test(userText);
 
-  /* An entity-specific question is answered from that entity's own profile. */
+  /* An entity-specific question is answered from that entity's own records. */
   if (entity) {
     const calls: OfflineCall[] = [profileCall(entity)];
-    /* A "submissions of X" question also needs the ledger for that scope. */
     if (entity.type === "subsidiary") {
       calls.push({ name: "get_submissions", args: { subsidiaryId: entity.id, period: reportingYear, limit: 25 } });
     } else if (entity.type === "project") {
       calls.push({ name: "get_submissions", args: { projectId: entity.id, period: reportingYear, limit: 25 } });
+    }
+    /* "give me the X evidences" → the project's real evidence vault + docs. */
+    if (wantsEvidence && entity.type === "project") {
+      calls.push({ name: "search_evidence", args: { projectId: entity.id, limit: 20 } });
+    }
+    if (wantsEvidence && entity.type === "subsidiary") {
+      calls.push({ name: "search_evidence", args: { limit: 20 } });
     }
     return { calls, entity: { type: entity.type, name: entity.name, id: entity.id } };
   }
