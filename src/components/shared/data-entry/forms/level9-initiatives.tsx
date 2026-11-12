@@ -197,6 +197,21 @@ export function Level9InitiativesForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a conditional branch, and a hook called inside a
+     conditional breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingId && item.id === editingId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : []) {
+        if (id && !map[id]) map[id] = item.activityInitiativeName
+      }
+    }
+    return map
+  }, [stagedItems, editingId])
+
   // Live calculation of current inputs
   const bVal = Number(baselineValue) || 0
   const rVal = Number(reportingPeriodValue) || 0
@@ -705,16 +720,7 @@ export function Level9InitiativesForm({
                 onUploaded={onEvidenceUploaded || (async () => {})}
                 selectedEvidenceIds={selectedEvidenceIds}
                 onSelectEvidenceIds={setSelectedEvidenceIds}
-                evidenceUsedElsewhere={useMemo(() => {
-                  const map: Record<string, string> = {}
-                  for (const item of stagedItems) {
-                    if (editingId && item.id === editingId) continue
-                    for (const id of item.evidenceIds?.length ? item.evidenceIds : []) {
-                      if (id && !map[id]) map[id] = item.activityInitiativeName
-                    }
-                  }
-                  return map
-                }, [stagedItems, editingId])}
+                evidenceUsedElsewhere={evidenceUsedElsewhere}
                 onReview={onReviewEvidence}
                 readOnly={readOnly}
               />

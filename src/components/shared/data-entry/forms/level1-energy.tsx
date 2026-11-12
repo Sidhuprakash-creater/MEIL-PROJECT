@@ -254,6 +254,21 @@ export function Level1EnergyForm({
   // Currently editing item id (if null, creating new source item)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a `{viewStep === 'ENTRY' && …}` branch, and a hook called
+     inside a conditional branch breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingItemId && item.id === editingItemId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
+        if (id && !map[id]) map[id] = item.energySource
+      }
+    }
+    return map
+  }, [stagedItems, editingItemId])
+
   // Active form inputs for the selected Energy Source item — blank until the user types
   const [energySource, setEnergySource] = useState('Grid electricity')
   const [customEnergySource, setCustomEnergySource] = useState('')
@@ -1050,16 +1065,7 @@ export function Level1EnergyForm({
               onUploaded={onEvidenceUploaded || (async () => {})}
               selectedEvidenceIds={selectedEvidenceIds}
               onSelectEvidenceIds={setSelectedEvidenceIds}
-              evidenceUsedElsewhere={useMemo(() => {
-                const map: Record<string, string> = {}
-                for (const item of stagedItems) {
-                  if (editingItemId && item.id === editingItemId) continue
-                  for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
-                    if (id && !map[id]) map[id] = item.energySource
-                  }
-                }
-                return map
-              }, [stagedItems, editingItemId])}
+              evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
 onOcrApply={(f) => {
                 if (f.quantity) setConsumptionQuantity(f.quantity)

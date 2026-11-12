@@ -164,6 +164,21 @@ export function Level7ComplianceForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a conditional branch, and a hook called inside a
+     conditional breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingId && item.id === editingId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : []) {
+        if (id && !map[id]) map[id] = item.permitConsentType
+      }
+    }
+    return map
+  }, [stagedItems, editingId])
+
   // Calculate days remaining
   let daysRemaining = 365
   if (expiryDate) {
@@ -687,16 +702,7 @@ export function Level7ComplianceForm({
                 onUploaded={onEvidenceUploaded || (async () => {})}
                 selectedEvidenceIds={selectedEvidenceIds}
                 onSelectEvidenceIds={setSelectedEvidenceIds}
-                evidenceUsedElsewhere={useMemo(() => {
-                  const map: Record<string, string> = {}
-                  for (const item of stagedItems) {
-                    if (editingId && item.id === editingId) continue
-                    for (const id of item.evidenceIds?.length ? item.evidenceIds : []) {
-                      if (id && !map[id]) map[id] = item.permitConsentType
-                    }
-                  }
-                  return map
-                }, [stagedItems, editingId])}
+                evidenceUsedElsewhere={evidenceUsedElsewhere}
                 onReview={onReviewEvidence}
                 readOnly={readOnly}
               />

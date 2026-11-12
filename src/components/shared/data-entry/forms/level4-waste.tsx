@@ -214,6 +214,21 @@ export function Level4WasteForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a conditional branch, and a hook called inside a
+     conditional breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingItemId && item.id === editingItemId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
+        if (id && !map[id]) map[id] = item.wasteCategory
+      }
+    }
+    return map
+  }, [stagedItems, editingItemId])
+
   // Automatically open and load source item when clicked/dropped from Emission Sequence Journey
   useEffect(() => {
     if (selectedSourceToEdit?.levelKey === 'level4' && selectedSourceToEdit.sourceName) {
@@ -927,16 +942,7 @@ export function Level4WasteForm({
               onUploaded={onEvidenceUploaded || (async () => {})}
               selectedEvidenceIds={selectedEvidenceIds}
               onSelectEvidenceIds={setSelectedEvidenceIds}
-              evidenceUsedElsewhere={useMemo(() => {
-                const map: Record<string, string> = {}
-                for (const item of stagedItems) {
-                  if (editingItemId && item.id === editingItemId) continue
-                  for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
-                    if (id && !map[id]) map[id] = item.wasteCategory
-                  }
-                }
-                return map
-              }, [stagedItems, editingItemId])}
+              evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
 onOcrApply={(f) => {
                 if (f.quantity) setQuantityGenerated(f.quantity)
