@@ -93,7 +93,12 @@ export function CalculatorDock() {
     const w = rect?.width ?? 34;
     const h = rect?.height ?? 150;
     const saved = loadRailPos();
-    setRailPos(saved ?? { left: Math.max(window.innerWidth - w, 4), top: Math.max((window.innerHeight - h) / 2, 4) });
+    setRailPos(
+      saved ?? {
+        left: Math.max(window.innerWidth - w, 4),
+        top: Math.max(window.innerHeight * 0.68 - h / 2, 80),
+      }
+    );
   }, [railPos]);
 
   const onRailPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -204,29 +209,32 @@ export function CalculatorDock() {
         </button>
       ) : null}
 
-      {/* ── Expanded panel docked next to the rail ── */}
+      {/* ── Expanded panel docked cleanly to the right edge with dismiss backdrop ── */}
       <AnimatePresence>
         {open ? (
-          <motion.div
-            key="mcalc-panel"
-            ref={panelRef}
-            className="mcalc-panel"
-            role="dialog"
-            aria-label="Calculator"
-            tabIndex={-1}
-            style={
-              railPos
-                ? {
-                    left: Math.min(Math.max(railPos.left + 34, 8), Math.max(window.innerWidth - 360, 8)),
-                    right: "auto",
-                  }
-                : undefined
-            }
-            initial={{ opacity: 0, x: 34 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 34 }}
-            transition={{ type: "spring", damping: 30, stiffness: 320 }}
-          >
+          <>
+            <motion.div
+              key="mcalc-backdrop"
+              className="mcalc-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18 }}
+              onClick={() => setOpen(false)}
+              aria-hidden="true"
+            />
+            <motion.div
+              key="mcalc-panel"
+              ref={panelRef}
+              className="mcalc-panel"
+              role="dialog"
+              aria-label="Calculator"
+              tabIndex={-1}
+              initial={{ opacity: 0, x: 48 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 48 }}
+              transition={{ type: "spring", damping: 30, stiffness: 320 }}
+            >
             <div className="mcalc-head">
               <div className="mcalc-tabs" role="tablist" aria-label="Calculator mode">
                 <button
@@ -316,7 +324,8 @@ export function CalculatorDock() {
               )}
             </div>
           </motion.div>
-        ) : null}
+        </>
+      ) : null}
       </AnimatePresence>
     </div>
   );

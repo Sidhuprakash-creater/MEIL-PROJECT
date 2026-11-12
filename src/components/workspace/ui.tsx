@@ -380,6 +380,8 @@ export function DataTable<T extends { id: string }>({
   toolbar,
   mobileCard,
   stickyHeader = true,
+  defaultSortKey,
+  defaultSortDir = "asc",
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -398,10 +400,12 @@ export function DataTable<T extends { id: string }>({
   toolbar?: React.ReactNode;
   mobileCard?: (row: T) => React.ReactNode;
   stickyHeader?: boolean;
+  defaultSortKey?: string;
+  defaultSortDir?: "asc" | "desc";
 }) {
   const [page, setPage] = React.useState(1);
-  const [sortKey, setSortKey] = React.useState<string | null>(null);
-  const [sortDir, setSortDir] = React.useState<"asc" | "desc">("asc");
+  const [sortKey, setSortKey] = React.useState<string | null>(defaultSortKey ?? null);
+  const [sortDir, setSortDir] = React.useState<"asc" | "desc">(defaultSortDir);
 
   React.useEffect(() => {
     setPage(1);

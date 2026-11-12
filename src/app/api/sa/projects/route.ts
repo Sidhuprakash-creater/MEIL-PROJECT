@@ -6,6 +6,7 @@ import {
   saLogActivity, saLogAudit, saNotify, resolveEffectiveDeadline,
 } from "@/lib/sa/server";
 import { toProjectRow, unitStats } from "@/lib/sa/rows";
+import { invalidatePuTreeCache, invalidateSoTreeCache, invalidatePuOverviewCache } from "@/lib/portal-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,10 @@ export async function POST(req: NextRequest) {
     await saLogActivity(ctx, sub.name, { action: "PROJECT_CREATE", targetType: "Project", targetLabel: `${project.code} — ${project.name}` });
     await saLogAudit(ctx, sub.code, { action: "PROJECT_CREATE", targetType: "Project", targetId: project.id, targetLabel: project.name, before: {}, after: { code, name, buId: body.buId, status } });
     await saNotify({ ntype: "SYSTEM", title: "Project registered", body: `${project.name} (${project.code}) was registered under ${project.businessUnit.name}.`, subsidiaryId: ctx.subsidiaryId, linkView: "projects" });
+
+    invalidatePuTreeCache();
+    invalidateSoTreeCache();
+    invalidatePuOverviewCache();
 
     return ok({
       project: toProjectRow(

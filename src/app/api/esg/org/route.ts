@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handle, ok, fail, body, parseJson, logActivity, logAudit, ACTOR } from "@/lib/esg/server";
 import type { Subsidiary, BusinessUnit, Project } from "@/lib/esg/types";
+import { invalidatePuTreeCache, invalidateSoTreeCache, invalidatePuOverviewCache } from "@/lib/portal-cache";
 
 type OrgType = "subsidiaries" | "business-units" | "projects";
 
@@ -188,6 +189,9 @@ export async function POST(req: NextRequest) {
         logActivity({ actorName: ACTOR.name, action: "CONFIG_CHANGE", targetType: "Subsidiary", targetLabel: s.name, orgLabel: s.name }),
         logAudit({ actorName: ACTOR.name, action: "ORG_CREATE", targetType: "Subsidiary", targetId: s.id, targetLabel: s.name, after: { code, name: s.name } }),
       ]);
+      invalidatePuTreeCache();
+      invalidateSoTreeCache();
+      invalidatePuOverviewCache();
       return ok({ subsidiary: s }, { status: 201 });
     }
     if (type === "business-unit") {
@@ -205,6 +209,9 @@ export async function POST(req: NextRequest) {
         logActivity({ actorName: ACTOR.name, action: "CONFIG_CHANGE", targetType: "Business Unit", targetLabel: u.name, orgLabel: parent.name }),
         logAudit({ actorName: ACTOR.name, action: "ORG_CREATE", targetType: "BusinessUnit", targetId: u.id, targetLabel: u.name, after: { code, parent: parent.name } }),
       ]);
+      invalidatePuTreeCache();
+      invalidateSoTreeCache();
+      invalidatePuOverviewCache();
       return ok({ businessUnit: u }, { status: 201 });
     }
     if (type === "project") {
@@ -234,6 +241,9 @@ export async function POST(req: NextRequest) {
         logActivity({ actorName: ACTOR.name, action: "CONFIG_CHANGE", targetType: "Project", targetLabel: p.name, orgLabel: parent.name }),
         logAudit({ actorName: ACTOR.name, action: "ORG_CREATE", targetType: "Project", targetId: p.id, targetLabel: p.name, after: { code, parent: parent.name } }),
       ]);
+      invalidatePuTreeCache();
+      invalidateSoTreeCache();
+      invalidatePuOverviewCache();
       return ok({ project: p }, { status: 201 });
     }
     return fail("Unknown create type.");
@@ -327,6 +337,9 @@ export async function PATCH(req: NextRequest) {
         logActivity({ actorName: ACTOR.name, action: "CONFIG_CHANGE", targetType: "Project", targetLabel: p.name }),
         logAudit({ actorName: ACTOR.name, action: "ORG_UPDATE", targetType: "Project", targetId: p.id, targetLabel: p.name, before: { parent: before.businessUnitId, status: before.status }, after: { parent: p.businessUnitId, status: p.status } }),
       ]);
+      invalidatePuTreeCache();
+      invalidateSoTreeCache();
+      invalidatePuOverviewCache();
       return ok({ project: p });
     }
     return fail("Unknown update type.");

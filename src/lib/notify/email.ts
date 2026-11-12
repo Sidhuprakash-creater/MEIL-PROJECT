@@ -1,13 +1,70 @@
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 export interface EmailSendResult {
   sent: boolean;
   skipped?: boolean;
   id?: string;
   reason?: string;
+  previewUrl?: string;
+  transport?: "SMTP" | "RESEND";
 }
 
 let cachedClient: Resend | null | undefined;
+let cachedSmtp: nodemailer.Transporter | null | undefined;
+let currentSmtpKey = "";
+
+export function getSmtpTransporter(): nodemailer.Transporter | null {
+  const host = process.env.SMTP_HOST?.trim();
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.trim();
+  const port = process.env.SMTP_PORT?.trim() || "587";
+  if (!host && !user) {
+    cachedSmtp = null;
+    currentSmtpKey = "";
+    return null;
+  }
+  const key = `${host}:${port}:${user}:${pass}`;
+  if (cachedSmtp && currentSmtpKey === key) return cachedSmtp;
+
+  currentSmtpKey = key;
+  cachedSmtp = nodemailer.createTransport({
+    host: host || "smtp.gmail.com",
+    port: Number(port) || 587,
+    secure: process.env.SMTP_SECURE === "true" || Number(port) === 465,
+    auth: user && pass ? { user, pass } : undefined,
+  });
+  return cachedSmtp;
+}
+
+export async function verifySmtp(): Promise<{
+  connected: boolean;
+  host?: string;
+  user?: string;
+  error?: string;
+}> {
+  const smtp = getSmtpTransporter();
+  if (!smtp) {
+    return {
+      connected: false,
+      error: "SMTP is not configured in .env (missing SMTP_HOST / SMTP_USER)",
+    };
+  }
+  try {
+    await smtp.verify();
+    return {
+      connected: true,
+      host: process.env.SMTP_HOST || "smtp.gmail.com",
+      user: process.env.SMTP_USER,
+    };
+  } catch (err) {
+    return {
+      connected: false,
+      host: process.env.SMTP_HOST,
+      error: err instanceof Error ? err.message : "SMTP connection failed",
+    };
+  }
+}
 
 function getResendClient(): Resend | null {
   if (cachedClient !== undefined) return cachedClient;
@@ -21,7 +78,11 @@ function getResendClient(): Resend | null {
 }
 
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY?.trim());
+  return Boolean(
+    process.env.SMTP_HOST?.trim() ||
+      process.env.SMTP_USER?.trim() ||
+      process.env.RESEND_API_KEY?.trim()
+  );
 }
 
 export function getAppOrigin(fallbackOrigin?: string): string {
@@ -32,6 +93,10 @@ export function getAppOrigin(fallbackOrigin?: string): string {
 }
 
 function fromAddress(): string {
+  if (process.env.SMTP_FROM?.trim()) return process.env.SMTP_FROM.trim();
+  if (process.env.SMTP_USER?.trim()) {
+    return `MEIL ESG Platform <${process.env.SMTP_USER.trim()}>`;
+  }
   return (
     process.env.RESEND_FROM_EMAIL?.trim() ||
     "MEIL ESG Platform <onboarding@resend.dev>"
@@ -79,7 +144,6 @@ export async function sendEmail(opts: {
   html: string;
   text: string;
 }): Promise<EmailSendResult> {
-  const client = getResendClient();
   const recipients = (Array.isArray(opts.to) ? opts.to : [opts.to])
     .map((e) => e.trim())
     .filter(Boolean);
@@ -87,11 +151,42 @@ export async function sendEmail(opts: {
   if (recipients.length === 0) {
     return { sent: false, skipped: true, reason: "No recipient addresses" };
   }
+
+  // 1. Direct SMTP transport (if SMTP_HOST / SMTP_USER configured)
+  const smtp = getSmtpTransporter();
+  if (smtp) {
+    try {
+      const info = await smtp.sendMail({
+        from: fromAddress(),
+        to: recipients,
+        subject: opts.subject,
+        html: opts.html,
+        text: opts.text,
+      });
+      const preview = nodemailer.getTestMessageUrl(info);
+      return {
+        sent: true,
+        id: info.messageId,
+        previewUrl: typeof preview === "string" ? preview : undefined,
+        transport: "SMTP",
+      };
+    } catch (smtpErr) {
+      console.error("SMTP delivery failed:", smtpErr);
+      return {
+        sent: false,
+        reason: smtpErr instanceof Error ? smtpErr.message : "SMTP delivery failed",
+        transport: "SMTP",
+      };
+    }
+  }
+
+  // 2. Resend API transport
+  const client = getResendClient();
   if (!client) {
     return {
       sent: false,
       skipped: true,
-      reason: "RESEND_API_KEY is not configured",
+      reason: "No email service configured (configure RESEND_API_KEY or SMTP credentials in .env)",
     };
   }
 
@@ -104,13 +199,15 @@ export async function sendEmail(opts: {
       text: opts.text,
     });
     if (res.error) {
-      return { sent: false, reason: res.error.message };
+      console.warn(`Resend direct dispatch to ${recipients.join(", ")} rejected:`, res.error.message);
+      return { sent: false, reason: res.error.message, transport: "RESEND" };
     }
-    return { sent: true, id: res.data?.id };
+    return { sent: true, id: res.data?.id, transport: "RESEND" };
   } catch (err) {
     return {
       sent: false,
       reason: err instanceof Error ? err.message : "Email dispatch failed",
+      transport: "RESEND",
     };
   }
 }
@@ -167,6 +264,50 @@ export async function sendUserInviteEmail(opts: {
   return sendEmail({
     to: opts.to,
     subject: `Your MEIL ESG Platform account (${opts.roleLabel})`,
+    html,
+    text,
+  });
+}
+
+export async function sendUserCreatedAdminAlertEmail(opts: {
+  adminEmails: string[];
+  creatorName: string;
+  user: {
+    name: string;
+    email: string;
+    employeeId?: string | null;
+    googleEmail?: string | null;
+    roleLabel: string;
+    orgScopeLabel: string;
+    authProvider: string;
+  };
+  origin?: string;
+}): Promise<EmailSendResult> {
+  const appUrl = getAppOrigin(opts.origin);
+  const usersUrl = `${appUrl}/?dashboard=1&portal=group`;
+  const html = wrapLayout(
+    "New Account Provisioned — MEIL ESG",
+    "Security & Access Audit",
+    `<p>A new user account has been provisioned on the MEIL ESG &amp; BRSR Platform by <strong>${escHtml(opts.creatorName)}</strong>.</p>
+     <table cellpadding="6" cellspacing="0" style="margin:16px 0;width:100%;border-collapse:collapse;font-size:13px;">
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;width:140px;">Full Name:</td><td><strong>${escHtml(opts.user.name)}</strong></td></tr>
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Account Email:</td><td>${escHtml(opts.user.email)}</td></tr>
+       ${opts.user.employeeId ? `<tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Employee / Handle:</td><td><code>${escHtml(opts.user.employeeId)}</code></td></tr>` : ""}
+       ${opts.user.googleEmail ? `<tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Google SSO:</td><td>${escHtml(opts.user.googleEmail)}</td></tr>` : ""}
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Assigned Role:</td><td><strong>${escHtml(opts.user.roleLabel)}</strong></td></tr>
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Organization Scope:</td><td>${escHtml(opts.user.orgScopeLabel)}</td></tr>
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Authentication:</td><td>${escHtml(opts.user.authProvider)}</td></tr>
+     </table>
+     <p style="margin:24px 0;">
+       <a href="${escHtml(usersUrl)}" style="display:inline-block;padding:10px 18px;background:#0f172a;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">View in All Users Directory</a>
+     </p>`
+  );
+
+  const text = `New user provisioned by ${opts.creatorName}: ${opts.user.name} (${opts.user.email}, ${opts.user.roleLabel} — ${opts.user.orgScopeLabel}). View: ${usersUrl}`;
+
+  return sendEmail({
+    to: opts.adminEmails,
+    subject: `[Audit] New account provisioned: ${opts.user.name} (${opts.user.roleLabel})`,
     html,
     text,
   });

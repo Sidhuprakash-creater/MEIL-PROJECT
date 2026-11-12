@@ -246,10 +246,10 @@ export function CreateUserDialog({
           </Field>
           <Field label="Role" required error={errors.role}>
             <Select value={role} onValueChange={setRole}>
-              <SelectTrigger className="glass-subtle rounded-2xl border-white/60">
+              <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
+              <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
                 {ROLE_KEYS.map((r) => (
                   <SelectItem key={r} value={r}>
                     {ROLE_LABELS[r] ?? r}
@@ -300,10 +300,10 @@ export function CreateUserDialog({
               value={credMode}
               onValueChange={(v) => setCredMode(v as CredentialMode)}
             >
-              <SelectTrigger className="glass-subtle rounded-2xl border-white/60">
+              <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
+              <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
                 <SelectItem value="temp_password">
                   Temporary Password (+ Google SSO)
                 </SelectItem>
@@ -351,10 +351,10 @@ export function CreateUserDialog({
                 setProjectId("ALL");
               }}
             >
-              <SelectTrigger className="glass-subtle rounded-2xl border-white/60">
+              <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
                 <SelectValue placeholder="Select subsidiary" />
               </SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
+              <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
                 <SelectItem value="ALL">Group level (none)</SelectItem>
                 {subsidiaries.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
@@ -372,10 +372,10 @@ export function CreateUserDialog({
                 setProjectId("ALL");
               }}
             >
-              <SelectTrigger className="glass-subtle rounded-2xl border-white/60">
+              <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
                 <SelectValue placeholder="Select business unit" />
               </SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
+              <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
                 <SelectItem value="ALL">None</SelectItem>
                 {buOptions.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
@@ -387,10 +387,10 @@ export function CreateUserDialog({
           </Field>
           <Field label="Project / Site">
             <Select value={projectId} onValueChange={setProjectId}>
-              <SelectTrigger className="glass-subtle rounded-2xl border-white/60">
+              <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
                 <SelectValue placeholder="Select project" />
               </SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
+              <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
                 <SelectItem value="ALL">None</SelectItem>
                 {projectOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id}>

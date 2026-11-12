@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowUpRight,
   Building2,
+  CheckCircle2,
   ClipboardList,
   Clock,
   Download,
@@ -15,12 +16,15 @@ import {
   Mail,
   Moon,
   MoreHorizontal,
+  Pencil,
   ShieldAlert,
   ShieldCheck,
   ShieldOff,
+  Trash2,
   UserCog,
   UserPlus,
   Users as UsersIcon,
+  UserX,
 } from "lucide-react";
 import { Ring } from '@/components/ring'
 import { ResetRequestsPanel } from "@/components/auth/reset-requests-panel";
@@ -99,6 +103,13 @@ function presenceOf(u: User): Presence {
   if (mins < 720) return "today";
   if (mins < 2160) return "away";
   return "offline";
+}
+
+function isRecentJoin(joinedAt?: string | null): boolean {
+  if (!joinedAt) return false;
+  const t = new Date(joinedAt).getTime();
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t < 48 * 3600 * 1000;
 }
 
 const PRESENCE_META: Record<Presence, { label: string; color: string; text: string; live?: boolean }> = {
@@ -260,7 +271,7 @@ function DetailPage({ userId }: { userId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<UserFormState>(emptyForm);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [confirm, setConfirm] = useState<null | "suspend" | "reactivate" | "reset" | "deactivate">(null);
+  const [confirm, setConfirm] = useState<null | "suspend" | "reactivate" | "reset" | "deactivate" | "delete">(null);
   const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
   const mut = useMutation();
@@ -301,6 +312,7 @@ function DetailPage({ userId }: { userId: string }) {
       apiPatch("/api/esg/users", {
         id: user.id,
         name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
         googleEmail: form.googleEmail.trim().toLowerCase() || null,
         role: form.role,
         title: form.title,
@@ -320,12 +332,19 @@ function DetailPage({ userId }: { userId: string }) {
     }
   };
 
-  const statusAction = async (action: "suspend" | "reactivate" | "reset-credentials" | "deactivate", reason?: string) => {
+  const statusAction = async (action: "suspend" | "reactivate" | "reset-credentials" | "deactivate" | "delete", reason?: string) => {
     if (!user) return;
     setConfirm(null);
     let res: unknown = null;
-    if (action === "deactivate") {
-      res = await mut.run(() => apiDelete("/api/esg/users", { id: user.id, reason }));
+    if (action === "delete") {
+      res = await mut.run(() => apiDelete("/api/esg/users", { id: user.id, action: "delete", reason }));
+      if (res) {
+        toast({ title: "User permanently deleted", description: `${user.name} has been removed from the directory.` });
+        navigate("users");
+        return;
+      }
+    } else if (action === "deactivate") {
+      res = await mut.run(() => apiDelete("/api/esg/users", { id: user.id, action: "deactivate", reason }));
     } else {
       res = await mut.run(() => apiPatch("/api/esg/users", { id: user.id, action, reason }));
     }
@@ -336,7 +355,7 @@ function DetailPage({ userId }: { userId: string }) {
           userName: user.name,
           password: r.tempPassword,
           note: r.emailSent
-            ? "Temporary password and 15-minute reset link emailed via Resend. User must update it on next login."
+            ? "Temporary password and reset instructions emailed to the user."
             : "Temporary password generated and all sessions revoked. Share securely — user must update it on next login.",
         });
       }
@@ -611,7 +630,10 @@ function DetailPage({ userId }: { userId: string }) {
                 <Button variant="destructive" className="rounded-2xl" disabled={isGroupAdmin || mut.pending} onClick={() => setConfirm("deactivate")}>
                   <ShieldAlert className="mr-1.5 h-4 w-4" /> Deactivate
                 </Button>
-                {isGroupAdmin && <p className="mt-1 w-full text-xs text-[color:var(--ink-faint)]">The Group Admin account cannot be suspended or deactivated.</p>}
+                <Button variant="destructive" className="rounded-2xl bg-rose-600 hover:bg-rose-700 text-white" disabled={isGroupAdmin || mut.pending} onClick={() => setConfirm("delete")}>
+                  <Trash2 className="mr-1.5 h-4 w-4" /> Delete account
+                </Button>
+                {isGroupAdmin && <p className="mt-1 w-full text-xs text-[color:var(--ink-faint)]">The Group Admin account cannot be suspended, deactivated, or deleted.</p>}
               </div>
             </SectionCard>
             <SectionCard title="Active Sessions" icon={ShieldAlert} description={`${(dossierApi.data?.sessions ?? []).length} live session(s)`}>
@@ -667,8 +689,8 @@ function DetailPage({ userId }: { userId: string }) {
           <Field label="Full name" required error={formErrors.name}>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="glass-subtle rounded-2xl border-white/60" />
           </Field>
-          <Field label="Email" required error={formErrors.email} hint="Email is the account identifier and cannot be changed.">
-            <Input value={form.email} disabled className="glass-subtle rounded-2xl border-white/60 opacity-70" />
+          <Field label="Email" required error={formErrors.email} hint="Used as login identifier and for notifications.">
+            <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="glass-subtle rounded-2xl border-white/60" type="email" />
           </Field>
           <Field label="Role" required error={formErrors.role}>
             <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
@@ -765,6 +787,17 @@ function DetailPage({ userId }: { userId: string }) {
         pending={mut.pending}
         onConfirm={(reason) => void statusAction("deactivate", reason)}
       />
+      <ConfirmDialog
+        open={confirm === "delete"}
+        onOpenChange={(o) => !o && setConfirm(null)}
+        title={`Permanently delete ${user.name}?`}
+        message="This will completely remove the user account from the workspace and delete all active sessions. This action cannot be undone."
+        confirmLabel="Permanently delete user"
+        destructive
+        requireReason
+        pending={mut.pending}
+        onConfirm={(reason) => void statusAction("delete", reason)}
+      />
       <TempPasswordModal data={tempPwd} onClose={() => setTempPwd(null)} />
     </div>
   );
@@ -804,7 +837,7 @@ export default function UsersView() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [roleDialogUser, setRoleDialogUser] = useState<User | null>(null);
   const [rolePick, setRolePick] = useState("");
-  const [confirmAction, setConfirmAction] = useState<null | { kind: "suspend" | "reactivate" | "reset" | "deactivate"; user: User }>(null);
+  const [confirmAction, setConfirmAction] = useState<null | { kind: "suspend" | "reactivate" | "reset" | "deactivate" | "delete"; user: User }>(null);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [tempPwd, setTempPwd] = useState<{ userName: string; password: string; note: string } | null>(null);
 
@@ -832,7 +865,14 @@ export default function UsersView() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return users.filter((u) => {
-      if (q && !(`${u.name} ${u.email} ${roleLabel(u.role)}`.toLowerCase().includes(q))) return false;
+      if (
+        q &&
+        !`${u.name} ${u.email} ${u.employeeId ?? ""} ${u.googleEmail ?? ""} ${roleLabel(u.role)}`
+          .toLowerCase()
+          .includes(q)
+      ) {
+        return false;
+      }
       if (roleFilter !== "ALL" && u.role !== roleFilter) return false;
       if (statusFilter !== "ALL" && u.status !== statusFilter) return false;
       if (subFilter !== "ALL" && u.subsidiaryId !== subFilter) return false;
@@ -945,11 +985,13 @@ export default function UsersView() {
     }
   };
 
-  const runStatusAction = async (kind: "suspend" | "reactivate" | "reset" | "deactivate", u: User, reason?: string) => {
+  const runStatusAction = async (kind: "suspend" | "reactivate" | "reset" | "deactivate" | "delete", u: User, reason?: string) => {
     setConfirmAction(null);
     let res: unknown = null;
     if (kind === "deactivate") {
-      res = await statusMut.run(() => apiDelete("/api/esg/users", { id: u.id, reason }));
+      res = await statusMut.run(() => apiDelete("/api/esg/users", { id: u.id, action: "deactivate", reason }));
+    } else if (kind === "delete") {
+      res = await statusMut.run(() => apiDelete("/api/esg/users", { id: u.id, action: "delete", reason }));
     } else if (kind === "reset") {
       res = await statusMut.run(() => apiPatch("/api/esg/users", { id: u.id, action: "reset-credentials" }));
     } else {
@@ -962,7 +1004,7 @@ export default function UsersView() {
           userName: u.name,
           password: r.tempPassword,
           note: r.emailSent
-            ? "Temporary password emailed via Resend and all active sessions revoked."
+            ? "Temporary password emailed to user and active sessions revoked."
             : "Temporary password generated and active sessions revoked. Share securely — user must update it on next login.",
         });
       }
@@ -971,6 +1013,7 @@ export default function UsersView() {
         reactivate: "User reactivated",
         reset: "Credential reset initiated",
         deactivate: "User deactivated",
+        delete: "User permanently deleted",
       };
       toast({ title: titles[kind], description: r?.message ?? `${u.name} — action completed.` });
       void usersApi.refetch();
@@ -1048,20 +1091,37 @@ export default function UsersView() {
       header: "User",
       sortable: true,
       sortValue: (u) => u.name,
-      render: (u) => (
-        <div className="flex items-center gap-2.5">
-          <span className="relative">
-            <Avatar name={u.name} size={32} />
-            <span className="absolute -bottom-0.5 -right-0.5">
-              <PresenceDot presence={presenceOf(u)} />
+      render: (u) => {
+        const isNew = isRecentJoin(u.joinedAt);
+        return (
+          <div className="flex items-center gap-2.5">
+            <span className="relative">
+              <Avatar name={u.name} size={32} />
+              <span className="absolute -bottom-0.5 -right-0.5">
+                <PresenceDot presence={presenceOf(u)} />
+              </span>
             </span>
-          </span>
-          <div className="min-w-0">
-            <div className="truncate font-medium text-[color:var(--ink)]">{u.name}</div>
-            <div className="truncate text-xs text-[color:var(--ink-faint)]">{u.title || "—"}</div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate font-medium text-[color:var(--ink)]">{u.name}</span>
+                {isNew && (
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-300 shadow-xs dark:bg-emerald-950/80 dark:text-emerald-300">
+                    NEW
+                  </span>
+                )}
+              </div>
+              <div className="truncate text-xs text-[color:var(--ink-faint)]">
+                {u.employeeId ? (
+                  <span className="mr-1.5 font-mono text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+                    {u.employeeId} ·
+                  </span>
+                ) : null}
+                {u.title || "—"}
+              </div>
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     { key: "email", header: "Email", render: (u) => <span className="text-xs">{u.email}</span> },
     {
@@ -1083,6 +1143,25 @@ export default function UsersView() {
       ),
     },
     { key: "project", header: "Project", render: (u) => <span className="text-xs">{u.projectName ?? "—"}</span> },
+    {
+      key: "joinedAt",
+      header: "Joined",
+      sortable: true,
+      sortValue: (u) => u.joinedAt ?? "",
+      render: (u) => {
+        const isNew = isRecentJoin(u.joinedAt);
+        return (
+          <div className="text-xs leading-tight">
+            <div className={cn("font-medium", isNew ? "font-semibold text-emerald-600 dark:text-emerald-400" : "text-[color:var(--ink-soft)]")}>
+              {u.joinedAt ? timeAgo(u.joinedAt) : "—"}
+            </div>
+            <div className="text-[11px] text-[color:var(--ink-faint)]">
+              {u.joinedAt ? fmtDate(u.joinedAt) : ""}
+            </div>
+          </div>
+        );
+      },
+    },
     {
       key: "lastActive",
       header: "Presence",
@@ -1114,6 +1193,147 @@ export default function UsersView() {
           <span className="text-xs text-[color:var(--ink-faint)]">0</span>
         ),
     },
+    {
+      key: "actions",
+      header: "Actions",
+      className: "text-right",
+      render: (u) => {
+        const isGroupAdmin = u.role === "GROUP_ADMIN";
+        return (
+          <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            {/* Quick Edit */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0 rounded-xl text-slate-600 hover:text-sky-600 hover:bg-sky-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              title="Edit profile & assignments"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDialog("edit", u);
+              }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+
+            {/* Quick Deactivate / Reactivate */}
+            {!isGroupAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "h-8 w-8 p-0 rounded-xl",
+                  u.status === "ACTIVE"
+                    ? "text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                    : "text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                )}
+                title={u.status === "ACTIVE" ? "Deactivate account" : "Reactivate account"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmAction({
+                    kind: u.status === "ACTIVE" ? "deactivate" : "reactivate",
+                    user: u,
+                  });
+                }}
+              >
+                {u.status === "ACTIVE" ? (
+                  <UserX className="h-3.5 w-3.5" />
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
+
+            {/* Quick Delete */}
+            {!isGroupAdmin && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-xl text-rose-500 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                title="Permanently delete user"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setConfirmAction({ kind: "delete", user: u });
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
+
+            {/* More Options Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52 glass-strong rounded-2xl border-white/70 shadow-2xl z-50">
+                <DropdownMenuLabel className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider px-2 py-1">
+                  Manage Account
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-xs py-1.5 font-medium"
+                  onClick={() => openDialog("edit", u)}
+                >
+                  <Pencil className="h-3.5 w-3.5 text-sky-600" />
+                  Edit User Details
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-xs py-1.5 font-medium"
+                  onClick={() => {
+                    setRolePick(u.role);
+                    setRoleDialogUser(u);
+                  }}
+                >
+                  <UserCog className="h-3.5 w-3.5 text-indigo-600" />
+                  Change Role
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="cursor-pointer gap-2 text-xs py-1.5 font-medium"
+                  onClick={() => setConfirmAction({ kind: "reset", user: u })}
+                >
+                  <KeyRound className="h-3.5 w-3.5 text-amber-600" />
+                  Reset Credentials
+                </DropdownMenuItem>
+                <DropdownMenuSeparator className="bg-slate-200/60 dark:bg-slate-800/60" />
+                {!isGroupAdmin && (
+                  <>
+                    {u.status === "ACTIVE" ? (
+                      <DropdownMenuItem
+                        className="cursor-pointer gap-2 text-xs py-1.5 text-amber-600 hover:text-amber-700 focus:text-amber-700 font-medium"
+                        onClick={() => setConfirmAction({ kind: "deactivate", user: u })}
+                      >
+                        <UserX className="h-3.5 w-3.5" />
+                        Deactivate Account
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem
+                        className="cursor-pointer gap-2 text-xs py-1.5 text-emerald-600 hover:text-emerald-700 focus:text-emerald-700 font-medium"
+                        onClick={() => setConfirmAction({ kind: "reactivate", user: u })}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Reactivate Account
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem
+                      className="cursor-pointer gap-2 text-xs py-1.5 text-rose-600 hover:text-rose-700 focus:text-rose-700 font-medium"
+                      onClick={() => setConfirmAction({ kind: "delete", user: u })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete Permanently
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        );
+      },
+    },
   ];
 
   return (
@@ -1126,7 +1346,7 @@ export default function UsersView() {
         actions={
           <>
             <ExportButton filename="meil-users" rows={filtered.map(csvUserRow)} />
-            <ActionButton onClick={() => openDialog("invite")}>
+            <ActionButton onClick={() => setCreateOpen(true)}>
               <UserPlus className="mr-1.5 h-4 w-4" /> Invite user
             </ActionButton>
           </>
@@ -1191,13 +1411,15 @@ export default function UsersView() {
         error={usersApi.error}
         onRetry={() => void usersApi.refetch()}
         pageSize={10}
+        defaultSortKey="joinedAt"
+        defaultSortDir="desc"
         selectable
         selectedIds={selectedIds}
         onSelectionChange={setSelectedIds}
         onRowClick={(u) => openDetail("users", u.id, "overview")}
         emptyTitle="No users match your filters"
         emptyMessage="Adjust the search or filter criteria, or invite a new user."
-        emptyAction={<Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => openDialog("invite")}><UserPlus className="mr-1.5 h-4 w-4" /> Invite user</Button>}
+        emptyAction={<Button variant="outline" className="glass-subtle rounded-2xl" onClick={() => setCreateOpen(true)}><UserPlus className="mr-1.5 h-4 w-4" /> Invite user</Button>}
         toolbar={
           <Toolbar
             search={search}
@@ -1369,12 +1591,11 @@ export default function UsersView() {
           <Field label="Full name" required error={formErrors.name}>
             <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="glass-subtle rounded-2xl border-white/60" placeholder="e.g. Priya Nair" />
           </Field>
-          <Field label="Email" required error={formErrors.email} hint={dialogMode !== "invite" ? "Email is the account identifier and cannot be changed." : undefined}>
+          <Field label="Email" required error={formErrors.email} hint={dialogMode !== "invite" ? "Used as login identifier and for notifications." : undefined}>
             <Input
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
-              disabled={dialogMode !== "invite"}
-              className={cn("glass-subtle rounded-2xl border-white/60", dialogMode !== "invite" && "opacity-70")}
+              className="glass-subtle rounded-2xl border-white/60"
               placeholder="name@meilgroup.com"
               type="email"
             />
@@ -1503,6 +1724,17 @@ export default function UsersView() {
         pending={statusMut.pending}
         onConfirm={(reason) => confirmAction && void runStatusAction("deactivate", confirmAction.user, reason)}
       />
+      <ConfirmDialog
+        open={confirmAction?.kind === "delete"}
+        onOpenChange={(o) => !o && setConfirmAction(null)}
+        title={`Permanently delete ${confirmAction?.user.name ?? ""}?`}
+        message="This will completely remove the user account from the directory and revoke all active sessions. This action cannot be undone."
+        confirmLabel="Permanently delete user"
+        destructive
+        requireReason
+        pending={statusMut.pending}
+        onConfirm={(reason) => confirmAction && void runStatusAction("delete", confirmAction.user, reason)}
+      />
 
       {/* Bulk suspend confirm */}
       <ConfirmDialog
@@ -1533,6 +1765,12 @@ export default function UsersView() {
                   "Share this temporary password securely — user must change it on first sign-in.",
             });
           }
+          setRoleFilter("ALL");
+          setStatusFilter("ALL");
+          setSubFilter("ALL");
+          setTasksFilter("ALL");
+          setPresenceFilter("ALL");
+          setSearch(outcome.userName);
           void usersApi.refetch();
         }}
       />

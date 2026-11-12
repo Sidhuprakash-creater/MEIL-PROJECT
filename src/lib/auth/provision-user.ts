@@ -3,7 +3,10 @@ import { db } from "@/lib/db";
 import { ROLES, roleLabel } from "@/lib/platform-config";
 import { generateTempPassword, hashPassword } from "@/lib/password";
 import { invalidateAllAuthCaches } from "@/lib/auth/session-utils";
-import { sendUserInviteEmail, type EmailSendResult } from "@/lib/notify/email";
+import {
+  sendUserInviteEmail,
+  type EmailSendResult,
+} from "@/lib/notify/email";
 
 export class ProvisionError extends Error {
   status: number;

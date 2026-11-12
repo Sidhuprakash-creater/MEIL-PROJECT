@@ -9,12 +9,15 @@ import { generateTempPassword, hashPassword } from "@/lib/password";
 import { createResetTokenPair } from "@/lib/auth/password-reset";
 import { getAppOrigin, sendPasswordResetLinkEmail } from "@/lib/notify/email";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const VALID_ROLES = Object.keys(ROLE_LABELS);
 const VALID_STATUSES = ["ACTIVE", "SUSPENDED", "INACTIVE", "INVITED"];
 
 async function decorateUsers(): Promise<User[]> {
   const [users, subs, units, projects, submissions] = await Promise.all([
-    db.user.findMany({ orderBy: { name: "asc" } }),
+    db.user.findMany({ orderBy: [{ joinedAt: "desc" }, { name: "asc" }] }),
     db.subsidiary.findMany({ select: { id: true, name: true } }),
     db.businessUnit.findMany({ select: { id: true, name: true } }),
     db.project.findMany({ select: { id: true, name: true } }),
@@ -48,6 +51,7 @@ export async function GET(req: NextRequest) {
   return handle(async () => {
     await requireGroupAdmin({ readOnly: true });
     const q = req.nextUrl.searchParams.get("q")?.toLowerCase() ?? "";
+    const sort = req.nextUrl.searchParams.get("sort")?.toLowerCase();
     let users = await decorateUsers();
     if (q) {
       users = users.filter(
@@ -59,6 +63,9 @@ export async function GET(req: NextRequest) {
           (ROLE_LABELS[u.role] ?? u.role).toLowerCase().includes(q) ||
           (u.subsidiaryName ?? "").toLowerCase().includes(q)
       );
+    }
+    if (sort === "name") {
+      users.sort((a, b) => a.name.localeCompare(b.name));
     }
     return ok({ users });
   });
@@ -283,6 +290,23 @@ export async function PATCH(req: NextRequest) {
     if (b.role && !VALID_ROLES.includes(b.role)) return fail("Invalid role.");
     if (b.status && !VALID_STATUSES.includes(b.status)) return fail("Invalid status.");
 
+    const nextEmail = b.email ? b.email.trim().toLowerCase() : before.email;
+    if (nextEmail !== before.email) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextEmail)) {
+        return fail("A valid email address is required.");
+      }
+      const emailConflict = await db.user.findFirst({
+        where: {
+          id: { not: before.id },
+          email: nextEmail,
+        },
+        select: { id: true },
+      });
+      if (emailConflict) {
+        return fail("This email address is already in use by another account.", 409);
+      }
+    }
+
     const nextGoogleEmail =
       b.googleEmail !== undefined ? b.googleEmail.trim().toLowerCase() || null : before.googleEmail;
     if (nextGoogleEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(nextGoogleEmail)) {
@@ -311,6 +335,7 @@ export async function PATCH(req: NextRequest) {
       where: { id: b.id },
       data: {
         name: b.name?.trim() || before.name,
+        email: nextEmail,
         role: b.role ?? before.role,
         status: b.status ?? before.status,
         googleEmail: nextGoogleEmail,
@@ -343,8 +368,8 @@ export async function PATCH(req: NextRequest) {
         targetType: "User",
         targetId: u.id,
         targetLabel: u.name,
-        before: { role: before.role, status: before.status, subsidiaryId: before.subsidiaryId, googleEmail: before.googleEmail },
-        after: { role: u.role, status: u.status, subsidiaryId: u.subsidiaryId, googleEmail: u.googleEmail },
+        before: { email: before.email, role: before.role, status: before.status, subsidiaryId: before.subsidiaryId, googleEmail: before.googleEmail },
+        after: { email: u.email, role: u.role, status: u.status, subsidiaryId: u.subsidiaryId, googleEmail: u.googleEmail },
         reason: b.reason,
       }),
     ]);
@@ -367,13 +392,67 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   return handle(async () => {
     const actor = await requireGroupAdmin();
-    const b = await body<Record<string, string>>(req);
+    const b = await body<Record<string, any>>(req);
     if (!b.id) return fail("User id is required.");
-    if (b.id === actor.id) return fail("You cannot deactivate your own active session.", 403);
+    if (b.id === actor.id) return fail("You cannot deactivate or delete your own active session.", 403);
     const before = await db.user.findUnique({ where: { id: b.id } });
     if (!before) return fail("User not found.", 404);
-    if (before.role === "GROUP_ADMIN") return fail("The Group Admin account cannot be deactivated.");
-    // Deactivate instead of delete to preserve report attribution and audit history.
+    if (before.role === "GROUP_ADMIN") return fail("The Group Admin account cannot be deactivated or deleted.", 403);
+
+    const isPermanentDelete =
+      b.action === "delete" ||
+      b.action === "permanent_delete" ||
+      b.permanent === true ||
+      b.permanent === "true";
+
+    if (isPermanentDelete) {
+      // 1. Revoke sessions & cache
+      await revokeUserSessions(b.id);
+      invalidateAllAuthCaches(b.id);
+
+      // 2. Cascade delete dependent tables
+      await db.session.deleteMany({ where: { userId: b.id } });
+      await db.passwordResetRequest.deleteMany({ where: { userId: b.id } });
+      await db.copilotSavedItem.deleteMany({ where: { userId: b.id } });
+      await db.copilotConfirmation.deleteMany({ where: { userId: b.id } });
+      await db.copilotToolExecution.deleteMany({ where: { userId: b.id } });
+      await db.soNotification.deleteMany({ where: { userId: b.id } });
+      await db.soSubmission.updateMany({ where: { currentReviewerId: b.id }, data: { currentReviewerId: null } });
+      await db.submission.updateMany({ where: { reviewerId: b.id }, data: { reviewerId: null } });
+
+      // 3. Delete user record
+      await db.user.delete({ where: { id: b.id } });
+
+      await Promise.all([
+        logActivity({
+          actorName: actor.name,
+          actorRole: actor.role,
+          action: "ACCOUNT_UPDATE",
+          targetType: "User",
+          targetLabel: `${before.name} (${before.email}) permanently deleted`,
+          severity: "WARNING",
+        }),
+        logAudit({
+          actorName: actor.name,
+          actorRole: actor.role,
+          action: "USER_DELETE",
+          targetType: "User",
+          targetId: before.id,
+          targetLabel: before.name,
+          before: { email: before.email, role: before.role, status: before.status },
+          after: null,
+          reason: b.reason ?? "Permanent account deletion requested by Group Administrator.",
+        }),
+      ]);
+
+      return ok({
+        success: true,
+        deleted: true,
+        message: `User ${before.name} has been permanently deleted from the directory.`,
+      });
+    }
+
+    // Default: Soft deactivation (INACTIVE)
     const u = await db.user.update({ where: { id: b.id }, data: { status: "INACTIVE" } });
     await revokeUserSessions(b.id);
     await Promise.all([
@@ -397,6 +476,6 @@ export async function DELETE(req: NextRequest) {
         reason: b.reason ?? "Deactivation preserves report attribution and audit history.",
       }),
     ]);
-    return ok({ success: true, preserved: true, message: "User deactivated and active sessions revoked. Records preserved." });
+    return ok({ success: true, preserved: true, message: "User deactivated and active sessions revoked." });
   });
 }

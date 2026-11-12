@@ -4,6 +4,7 @@ import { ok } from "@/lib/esg/server";
 import { BaError, baHandle, requireBuAdmin, getBuOrThrow } from "@/lib/ba/server";
 import { toProjectRow, unitStats, PTYPE_LABELS } from "@/lib/ba/rows";
 import { resolveEffectiveDeadline, baLogActivity, baLogAudit, baNotify } from "@/lib/ba/server";
+import { invalidatePuTreeCache, invalidateSoTreeCache, invalidatePuOverviewCache } from "@/lib/portal-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +111,10 @@ export async function POST(req: NextRequest) {
     await baLogActivity(ctx, bu.name, { action: "PROJECT_CREATE", targetType: "Project", targetLabel: `${project.code} — ${project.name}` });
     await baLogAudit(ctx, bu.code, { action: "PROJECT_CREATE", targetType: "Project", targetId: project.id, targetLabel: project.name, before: {}, after: { code, name, businessUnitId: ctx.businessUnitId, status } });
     await baNotify({ ntype: "SYSTEM", title: "Project registered", body: `${project.name} (${project.code}) was registered under ${bu.name} by ${ctx.name}.`, linkView: "projects" });
+
+    invalidatePuTreeCache();
+    invalidateSoTreeCache();
+    invalidatePuOverviewCache();
 
     return ok({
       project: toProjectRow(
