@@ -20,6 +20,7 @@ import {
 import type { PreparedActionSpec } from "./tools";
 import { streamProviderTurn, extractFollowUps, getProviderConfig, ProviderError } from "./gateway";
 import type { ProviderMessage } from "./gateway";
+import { planOffline, executeOffline } from "./offline";
 import { createConfirmation } from "./actions";
 import { CopilotError } from "./server";
 import { logCopilotAudit } from "./server";
@@ -155,6 +156,70 @@ async function runConversation(
   let finalText = "";
   let narrative = ""; // every text the user actually saw this turn
   const usedTools = new Set<string>();
+
+  /* ── OFFLINE GROUNDED MODE ────────────────────────────────────────────────
+     No AI provider key is configured on this deployment. Rather than failing
+     with "provider not configured", the assistant still answers: the intent
+     router picks the same real tools, executes them against the database, and
+     composes the answer strictly from what those tools returned. */
+  if (!provider.configured) {
+    const plan = await planOffline(userText, reportingYear);
+    const offline = await executeOffline(plan, ctx, (run) => {
+      if (run.status === "RUNNING") {
+        send({ kind: "activity", id: `offline-${run.name}`, tool: run.name, label: run.label, status: "RUNNING", startedAt: new Date().toISOString() });
+        send({ kind: "status", state: "retrieving", label: run.label });
+      } else {
+        send({
+          kind: "activity",
+          id: `offline-${run.name}`,
+          tool: run.name,
+          label: run.label,
+          status: run.status,
+          detail: run.summary,
+          startedAt: new Date().toISOString(),
+          finishedAt: new Date().toISOString(),
+          error: run.error,
+        });
+        usedTools.add(run.name);
+      }
+    });
+
+    for (const b of offline.blocks) {
+      blocks.push(b);
+      send({ kind: "block", block: b });
+    }
+    for (const s of offline.sources) {
+      if (!sources.some((x) => x.id === s.id && x.kind === s.kind)) sources.push(s);
+    }
+    send({ kind: "sources", sources });
+
+    send({ kind: "status", state: "generating", label: "Composing the answer" });
+    send({ kind: "delta", text: offline.text });
+
+    const saved = await persistMessage(conversationId, {
+      role: "assistant",
+      content: offline.text,
+      blocks,
+      sources,
+      meta: { state: "success", provider: "offline-grounded", model: "grounded-tools", tools: Array.from(usedTools) },
+    });
+    await db.copilotConversation.update({
+      where: { id: conversationId },
+      data: { lastAt: new Date(), provider: "offline-grounded", model: "grounded-tools" },
+    });
+    await logCopilotAudit({
+      actorName: ctx.userName,
+      actorRole: ctx.userRole,
+      action: "CHAT_COMPLETED",
+      targetType: "CopilotConversation",
+      targetId: conversationId,
+      targetLabel: userText.slice(0, 80),
+      after: { tools: Array.from(usedTools), blocks: blocks.length, mode: "offline-grounded" },
+    });
+    send({ kind: "message_done", messageId: saved.id, avatarState: blocks.length ? avatarStateForBlocks(blocks) : "success" });
+    send({ kind: "done" });
+    return;
+  }
 
   while (round < MAX_TOOL_ROUNDS) {
     round++;

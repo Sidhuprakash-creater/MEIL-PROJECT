@@ -484,13 +484,13 @@ function Composer({
           multiline
           rows={1}
           value={text}
-          disabled={!providerConfigured}
+          disabled={false}
           placeholder={
             providerConfigured
               ? variant === "panel"
                 ? "Ask about subsidiaries, reports, deadlines…"
                 : "Ask about subsidiaries, submissions, deadlines, analytics…"
-              : "AI provider is not configured — set GEMINI_API_KEY."
+              : "Ask about subsidiaries, reports, deadlines… (grounded mode — no AI key configured)"
           }
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
           aria-label="Message MEIL Intelligence"
@@ -499,7 +499,7 @@ function Composer({
           type={streaming ? "button" : "submit"}
           aria-label={streaming ? "Stop generating" : "Send message"}
           title={streaming ? "Stop generating" : "Send"}
-          disabled={!streaming && (!text.trim() || !providerConfigured)}
+          disabled={!streaming && !text.trim()}
           className={streaming ? "mc-submit-stop" : undefined}
           onClick={(e) => {
             if (streaming) {
@@ -523,7 +523,11 @@ function Composer({
         <span className="mc-composer-hint">
           {variant === "panel" ? "Enter to send · Shift+Enter newline" : "Enter to send · Shift+Enter for a new line"}
         </span>
-        <span className="mc-provider-tag">{provider === "gemini" ? "Gemini" : provider === "groq" ? "Groq" : provider} · grounded via tools</span>
+        <span className="mc-provider-tag">
+          {providerConfigured
+            ? `${provider === "gemini" ? "Gemini" : provider === "groq" ? "Groq" : provider} · grounded via tools`
+            : "Grounded engine · live platform records"}
+        </span>
       </div>
     </div>
   );
@@ -563,7 +567,7 @@ export function CopilotWorkspace({ variant = "fullscreen" }: { variant?: Copilot
 
   const handleChatSubmit = (e: ChatSubmitEvent) => {
     e.preventDefault();
-    if (streaming || !providerConfigured) return;
+    if (streaming) return;
     const msg = e.message.trim();
     if (!msg) return;
     setDraft("");
