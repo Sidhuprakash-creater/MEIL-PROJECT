@@ -22,6 +22,15 @@ export type CalculatorSegment = "biz" | "per";
  */
 export const CALCULATOR_OPEN_EVENT = "meil:calculator-open";
 
+/**
+ * Fired on `window` when the calculator rail is dragged and dropped. The
+ * MEIL Intelligence floating assistant listens for it and steps aside when the
+ * rail lands on top of it. It lives here (not in a component) so the rail and
+ * the assistant can talk without importing each other — the assistant pulls in
+ * a heavy UI tree that every console must not be forced to load.
+ */
+export const CALCULATOR_RAIL_MOVED_EVENT = "meil:calculator-rail-moved";
+
 interface CalculatorDockState {
   /** Panel expanded (rail collapsed). */
   open: boolean;

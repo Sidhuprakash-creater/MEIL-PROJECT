@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { ShieldCheck, CheckCircle2, AlertTriangle, Clock, Save, Building2, FileCheck2, Layers, Eye, Plus, Trash2, Edit3, ArrowRight, ListOrdered, Waves, Wind, Factory, Package, ShieldAlert, Landmark, Trees, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormEvidenceAttachSection } from '../evidence-attach'
+import { availableEvidenceIds, ownerOfEvidence } from '../evidence-usage'
 import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, type EvidenceItem, useApiBase } from '../core'
 
@@ -163,6 +164,47 @@ export function Level7ComplianceForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], [])
+
+  const handleIssueDateChange = (val: string) => {
+    if (val && val > todayStr) {
+      toast.warning('Issue date cannot be in the future', {
+        description: `Selected date (${val}) is after today (${todayStr}).`,
+      })
+    }
+    setIssueDate(val)
+    if (val && expiryDate && expiryDate < val) {
+      toast.warning('Expiry date conflict', {
+        description: `Expiry date (${expiryDate}) is earlier than the new issue date (${val}). Please adjust the expiry date.`,
+      })
+    }
+  }
+
+  const handleExpiryDateChange = (val: string) => {
+    if (issueDate && val && val < issueDate) {
+      toast.error('Invalid Expiry Date', {
+        description: `Expiry date (${val}) cannot be earlier than issue date (${issueDate}).`,
+      })
+      return
+    }
+    setExpiryDate(val)
+  }
+
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a conditional branch, and a hook called inside a
+     conditional breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingId && item.id === editingId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : []) {
+        if (id && !map[id]) map[id] = item.permitConsentType
+      }
+    }
+    return map
+  }, [stagedItems, editingId])
+
   // Calculate days remaining
   let daysRemaining = 365
   if (expiryDate) {
@@ -226,7 +268,21 @@ export function Level7ComplianceForm({
 
   // Package current inputs into StagedPermitItem
   const packageCurrentItem = (): StagedPermitItem => {
-    const attFiles = evidence.filter((e) => selectedEvidenceIds.includes(e.id))
+    /* ONE evidence document may support only ONE source item of this record. */
+    const { allowed: usableEvidenceIds, blocked: blockedEvidenceIds } = availableEvidenceIds(
+      selectedEvidenceIds,
+      stagedItems,
+      editingId
+    )
+    if (blockedEvidenceIds.length > 0) {
+      const owners = blockedEvidenceIds.map((id) => ownerOfEvidence(stagedItems, id)).filter(Boolean)
+      toast.warning('Evidence already used by another source', {
+        description: `The same document cannot support two sources in one record${
+          owners.length ? ` (already attached to ${[...new Set(owners)].join(', ')})` : ''
+        }. It was left on that source only.`,
+      })
+    }
+    const attFiles = evidence.filter((e) => usableEvidenceIds.includes(e.id))
     return {
       id: editingId || `permit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
       permitConsentType,
@@ -244,7 +300,7 @@ export function Level7ComplianceForm({
       dueDate,
       closureDate,
       supportingEvidence,
-      evidenceIds: selectedEvidenceIds,
+      evidenceIds: usableEvidenceIds,
       evidenceFiles: attFiles.map((f) => f.fileName),
       daysRemaining,
     }
@@ -254,6 +310,27 @@ export function Level7ComplianceForm({
   const stageCurrentItem = (resetForm = true) => {
     if (!permitNumber) {
       setError('Permit reference number is required')
+      return false
+    }
+    if (issueDate && issueDate > todayStr) {
+      setError(`Issue date (${issueDate}) cannot be in the future. Today is ${todayStr}.`)
+      toast.error('Invalid Issue Date', {
+        description: `Issue date (${issueDate}) cannot be in the future (today is ${todayStr}).`,
+      })
+      return false
+    }
+    if (issueDate && expiryDate && expiryDate < issueDate) {
+      setError(`Expiry date (${expiryDate}) cannot be earlier than issue date (${issueDate}).`)
+      toast.error('Invalid Expiry Date', {
+        description: `Expiry date (${expiryDate}) cannot be earlier than issue date (${issueDate}).`,
+      })
+      return false
+    }
+    if (inspectionDate && inspectionDate > todayStr) {
+      setError(`Inspection date (${inspectionDate}) cannot be in the future. Today is ${todayStr}.`)
+      toast.error('Invalid Inspection Date', {
+        description: `Inspection date (${inspectionDate}) cannot be in the future (today is ${todayStr}).`,
+      })
       return false
     }
     setError('')
@@ -345,6 +422,30 @@ export function Level7ComplianceForm({
       }
       itemsToSave = [packageCurrentItem()]
       setStagedItems(itemsToSave)
+    }
+
+    for (const item of itemsToSave) {
+      if (item.issueDate && item.issueDate > todayStr) {
+        setError(`Issue date (${item.issueDate}) for "${item.permitConsentType}" cannot be in the future. Today is ${todayStr}.`)
+        toast.error('Invalid Issue Date', {
+          description: `Issue date (${item.issueDate}) cannot be in the future (today is ${todayStr}).`,
+        })
+        return
+      }
+      if (item.issueDate && item.expiryDate && item.expiryDate < item.issueDate) {
+        setError(`Expiry date (${item.expiryDate}) for "${item.permitConsentType}" cannot be earlier than issue date (${item.issueDate}).`)
+        toast.error('Invalid Expiry Date', {
+          description: `Expiry date (${item.expiryDate}) cannot be earlier than issue date (${item.issueDate}).`,
+        })
+        return
+      }
+      if (item.inspectionDate && item.inspectionDate > todayStr) {
+        setError(`Inspection date (${item.inspectionDate}) cannot be in the future. Today is ${todayStr}.`)
+        toast.error('Invalid Inspection Date', {
+          description: `Inspection date cannot be in the future (today is ${todayStr}).`,
+        })
+        return
+      }
     }
 
     setSubmitting(true)
@@ -542,22 +643,24 @@ export function Level7ComplianceForm({
               />
             </FormField>
 
-            <FormField label="Issue Date" hint="Date of authorization.">
+            <FormField label="Issue Date" hint="Date of authorization (must not be in future).">
               <input
                 type="date"
                 value={issueDate}
+                max={todayStr}
                 disabled={readOnly}
-                onChange={(e) => setIssueDate(e.target.value)}
+                onChange={(e) => handleIssueDateChange(e.target.value)}
                 className={inputClass}
               />
             </FormField>
 
-            <FormField label="Expiry Date" hint="Date of validity expiry.">
+            <FormField label="Expiry Date" hint="Date of validity expiry (must be on or after issue date).">
               <input
                 type="date"
                 value={expiryDate}
+                min={issueDate || undefined}
                 disabled={readOnly}
-                onChange={(e) => setExpiryDate(e.target.value)}
+                onChange={(e) => handleExpiryDateChange(e.target.value)}
                 className={inputClass}
               />
             </FormField>
@@ -577,12 +680,20 @@ export function Level7ComplianceForm({
               </select>
             </FormField>
 
-            <FormField label="Inspection Date" hint="Most recent regulatory inspection.">
+            <FormField label="Inspection Date" hint="Most recent regulatory inspection (must not be in future).">
               <input
                 type="date"
                 value={inspectionDate}
+                max={todayStr}
                 disabled={readOnly}
-                onChange={(e) => setInspectionDate(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value && e.target.value > todayStr) {
+                    toast.warning('Inspection date cannot be in the future', {
+                      description: `Selected date (${e.target.value}) is after today (${todayStr}).`,
+                    })
+                  }
+                  setInspectionDate(e.target.value)
+                }}
                 className={inputClass}
               />
             </FormField>
@@ -672,6 +783,7 @@ export function Level7ComplianceForm({
                 onUploaded={onEvidenceUploaded || (async () => {})}
                 selectedEvidenceIds={selectedEvidenceIds}
                 onSelectEvidenceIds={setSelectedEvidenceIds}
+                evidenceUsedElsewhere={evidenceUsedElsewhere}
                 onReview={onReviewEvidence}
                 readOnly={readOnly}
               />

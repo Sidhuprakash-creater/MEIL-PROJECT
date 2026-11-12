@@ -22,6 +22,7 @@ import {
   buildReviewModelFromPuDetail,
   type ReviewModel,
 } from '@/components/shared/submission-review-window'
+import { MultiEvidenceGallery, type MultiEvidenceDoc } from '@/components/shared/multi-evidence-gallery'
 import { toast } from 'sonner'
 import {
   ClipboardList, RefreshCw, Filter, AlertOctagon, Inbox,
@@ -1737,10 +1738,33 @@ function SubmissionDetailPanel({
   /* Evidence document currently open in the inline preview dialog — set when
      the user clicks any evidence chip (record items / Evidence tab). */
   const [previewEvidence, setPreviewEvidence] = useState<EvidenceBrief | null>(null)
+  const [galleryDocs, setGalleryDocs] = useState<MultiEvidenceDoc[] | null>(null)
   /* Full-window mirror review — opens on returned submissions and shows the
      admin's red marks + clarifications phase by phase (same window the admin used). */
   const [reviewOpen, setReviewOpen] = useState(false)
   const [mirrorModel, setMirrorModel] = useState<ReviewModel | null>(null)
+
+  const openMultiEvidenceGallery = (sourceEvidence?: EvidenceBrief[]) => {
+    const list = sourceEvidence && sourceEvidence.length > 0 ? sourceEvidence : detail?.evidence || []
+    if (list.length === 0) {
+      toast.info('No documents', { description: 'No attached evidence files found in the vault for this submission.' })
+      return
+    }
+    const docs: MultiEvidenceDoc[] = list.map((e) => ({
+      id: e.id,
+      fileName: e.fileName,
+      fileSize: (e as any).fileSize || (e as any).fileSizeBytes,
+      documentType: e.documentType,
+      mimeType: (e as any).mimeType,
+      status: e.status,
+      hash: (e as any).hash || (e as any).fileHash,
+      previewUrl: `/api/pu/evidence/${e.id}/file`,
+      downloadUrl: `/api/pu/evidence/${e.id}/file?download=true`,
+      uploadedAt: e.createdAt,
+      uploaderName: e.uploader?.name,
+    }))
+    setGalleryDocs(docs)
+  }
 
   /* Resolve a display-name (e.g. from a staged item's evidenceFiles[]) to a
      downloadable evidence row. Exact match first, then substring containment. */
@@ -1887,9 +1911,20 @@ function SubmissionDetailPanel({
                 Attached Verification Evidence ({s.evidenceList.length} documents)
               </h4>
             </div>
-            <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 border border-emerald-200 shadow-2xs">
-              SHA-256 Audit Sealed
-            </span>
+            <div className="flex items-center gap-2">
+              {s.evidenceList.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => openMultiEvidenceGallery()}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition active:scale-95"
+                >
+                  <Eye className="h-3.5 w-3.5" /> View All ({s.evidenceList.length})
+                </button>
+              )}
+              <span className="rounded-full bg-white px-2 py-0.5 text-[9px] font-extrabold text-emerald-700 border border-emerald-200 shadow-2xs">
+                SHA-256 Audit Sealed
+              </span>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {s.evidenceList.map((doc, idx) => {
@@ -1931,13 +1966,37 @@ function SubmissionDetailPanel({
         </TabsList>
 
         <TabsContent value="records" className="mt-3">
-          <RecordGrid records={detail.sourceRecords} module={s.module} corrections={corrections} onOpenEvidence={(name) => {
-            const ev = findEvidenceByName(name)
-            if (ev) setPreviewEvidence(ev)
-            else toast.info('Preview unavailable', { description: `${name} is not registered in the Evidence Vault for this submission yet.` })
-          }} />
+          <RecordGrid
+            records={detail.sourceRecords}
+            module={s.module}
+            corrections={corrections}
+            onOpenEvidence={(name) => {
+              const ev = findEvidenceByName(name)
+              if (ev) setPreviewEvidence(ev)
+              else toast.info('Preview unavailable', { description: `${name} is not registered in the Evidence Vault for this submission yet.` })
+            }}
+            onOpenMultipleEvidence={(names) => {
+              const matched = names.map(n => findEvidenceByName(n)).filter(Boolean) as EvidenceBrief[]
+              if (matched.length > 0) openMultiEvidenceGallery(matched)
+              else toast.info('Preview unavailable', { description: 'These evidence documents are not registered in the Evidence Vault yet.' })
+            }}
+          />
         </TabsContent>
         <TabsContent value="evidence" className="mt-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Attached Documents ({detail.evidence.length})
+            </span>
+            {detail.evidence.length > 1 && (
+              <button
+                type="button"
+                onClick={() => openMultiEvidenceGallery(detail.evidence)}
+                className="flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow-xs hover:bg-emerald-700 transition active:scale-95"
+              >
+                <Eye className="h-3.5 w-3.5" /> View All at Once ({detail.evidence.length})
+              </button>
+            )}
+          </div>
           <EvidenceList evidence={detail.evidence} onOpen={setPreviewEvidence} />
         </TabsContent>
         <TabsContent value="validation" className="mt-3">
@@ -1980,6 +2039,16 @@ function SubmissionDetailPanel({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* MULTI-EVIDENCE GALLERY DIALOG (all evidence documents at once in sequence) */}
+      {galleryDocs && (
+        <MultiEvidenceGallery
+          documents={galleryDocs}
+          title={`${s.title} — Evidence Verification Gallery`}
+          subtitle="All attached documents in sequence — inspect proofs side-by-side or scroll together"
+          onClose={() => setGalleryDocs(null)}
+        />
+      )}
 
       {/* FULL-WINDOW REJECTION REVIEW (mirror mode — contributor sees the admin's marks) */}
       <SubmissionReviewWindow
@@ -2097,7 +2166,19 @@ function MiniStat({ label, value }: { label: string; value: string | number }) {
   )
 }
 
-function RecordGrid({ records, module: mod, corrections = [], onOpenEvidence }: { records: SourceRecordRow[]; module: string; corrections?: Correction[]; onOpenEvidence?: (fileName: string) => void }) {
+function RecordGrid({
+  records,
+  module: mod,
+  corrections = [],
+  onOpenEvidence,
+  onOpenMultipleEvidence,
+}: {
+  records: SourceRecordRow[]
+  module: string
+  corrections?: Correction[]
+  onOpenEvidence?: (fileName: string) => void
+  onOpenMultipleEvidence?: (fileNames: string[]) => void
+}) {
   if (records.length === 0) return <EmptyBlock icon={ListChecks} text="No source records attached." />
   return (
     <div className="space-y-3">
@@ -2188,7 +2269,17 @@ function RecordGrid({ records, module: mod, corrections = [], onOpenEvidence }: 
                       })}
                     </div>
                     {evNames.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                        {evNames.length > 1 && onOpenMultipleEvidence && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenMultipleEvidence(evNames)}
+                            className="inline-flex cursor-pointer items-center gap-1 px-2 py-0.5 rounded-md bg-violet-600 text-[9px] font-bold text-white transition hover:bg-violet-700 shadow-2xs"
+                            title="View all attached evidence documents at once in sequence"
+                          >
+                            <Eye className="h-2.5 w-2.5" /> View All ({evNames.length})
+                          </button>
+                        )}
                         {evNames.map((f, fi) => (
                           <button
                             key={fi}

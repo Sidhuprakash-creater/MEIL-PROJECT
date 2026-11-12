@@ -30,9 +30,10 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   X, ChevronLeft, User, Building2, Clock, AlertTriangle, Flag,
   FileText, Paperclip, Download, Check, CircleCheck, Copy, Layers, RefreshCcw,
-  Inbox, ExternalLink, AlertOctagon, ListFilter,
+  Inbox, ExternalLink, AlertOctagon, ListFilter, Eye,
 } from 'lucide-react'
 import { fieldLabel, fmtValue, itemFieldEntries, itemTitle } from '@/components/shared/field-labels'
+import { MultiEvidenceGallery, type MultiEvidenceDoc } from '@/components/shared/multi-evidence-gallery'
 
 /* ============================= Model types ============================= */
 
@@ -404,9 +405,37 @@ export function SubmissionReviewWindow({
   const [marks, setMarks] = useState<Record<string, ReviewMark>>({})
   const [generalNote, setGeneralNote] = useState('')
   const [preview, setPreview] = useState<ReviewEvidence | null>(null)
+  const [galleryDocs, setGalleryDocs] = useState<MultiEvidenceDoc[] | null>(null)
   const [copiedEmail, setCopiedEmail] = useState(false)
   /** Tray chip that was clicked — drives a highlight flash on the matching card. */
   const [flashTarget, setFlashTarget] = useState<string | null>(null)
+
+  const allSubmissionEvidence = useMemo(() => {
+    if (!model?.records) return []
+    const map = new Map<string, ReviewEvidence>()
+    for (const r of model.records) {
+      for (const e of r.evidence || []) {
+        if (e?.id) map.set(e.id, e)
+      }
+      for (const it of r.items || []) {
+        for (const e of it.evidence || []) {
+          if (e?.id) map.set(e.id, e)
+        }
+      }
+    }
+    return Array.from(map.values())
+  }, [model?.records])
+
+  const toMultiDoc = useCallback((e: ReviewEvidence): MultiEvidenceDoc => ({
+    id: e.id,
+    fileName: e.fileName,
+    fileSize: e.fileSize,
+    documentType: e.documentType,
+    mimeType: e.mimeType,
+    status: e.status,
+    previewUrl: evInlineUrl(model?.mode || 'mirror', e.id),
+    downloadUrl: evDownloadUrl(model?.mode || 'mirror', e.id),
+  }), [model?.mode])
 
   /* Reset transient state whenever a different submission is opened. */
   useEffect(() => {
@@ -414,6 +443,7 @@ export function SubmissionReviewWindow({
       setMarks({})
       setGeneralNote('')
       setPreview(null)
+      setGalleryDocs(null)
     }
   }, [open, (model as any)?.title])
 
@@ -674,6 +704,32 @@ export function SubmissionReviewWindow({
                     </PhaseCard>
                   )}
 
+                  {/* Attached Verification Evidence (All evidence at once) */}
+                  {allSubmissionEvidence.length > 0 && (
+                    <div className="flex items-center justify-between rounded-2xl border border-emerald-200/90 bg-emerald-50/70 p-3.5 shadow-2xs backdrop-blur-md">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 shadow-2xs">
+                          <Paperclip className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="text-xs font-bold text-emerald-950">
+                            Attached Verification Evidence ({allSubmissionEvidence.length} document{allSubmissionEvidence.length === 1 ? '' : 's'})
+                          </div>
+                          <div className="text-[10.5px] text-emerald-700">
+                            Cryptographic proof & verification documents supporting this submission
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setGalleryDocs(allSubmissionEvidence.map(toMultiDoc))}
+                        className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:brightness-110 active:scale-95 transition"
+                      >
+                        <Eye className="h-3.5 w-3.5" /> View All ({allSubmissionEvidence.length})
+                      </button>
+                    </div>
+                  )}
+
                   {/* PHASE 4+ — one card per emission / data level */}
                   {(() => {
                     let phase = model.summary.length > 0 ? 4 : 3
@@ -815,6 +871,7 @@ export function SubmissionReviewWindow({
                                     files={it.evidence}
                                     extraNames={it.evidenceFileNames}
                                     onToggle={(d) => setPreview((pv) => (pv?.id === d.id ? null : d))}
+                                    onToggleAll={(fls) => setGalleryDocs(fls.map(toMultiDoc))}
                                     previewing={preview}
                                   />
                                 </div>
@@ -836,7 +893,13 @@ export function SubmissionReviewWindow({
                           {rec.evidence.length > 0 && (
                             <div className="mt-3">
                               <div className="mb-1 text-[9px] font-black uppercase tracking-wider text-slate-400">Level evidence</div>
-                              <EvidenceChips files={rec.evidence} extraNames={rec.evidenceFileNames} onToggle={(d) => setPreview((pv) => (pv?.id === d.id ? null : d))} previewing={preview} />
+                              <EvidenceChips
+                                files={rec.evidence}
+                                extraNames={rec.evidenceFileNames}
+                                onToggle={(d) => setPreview((pv) => (pv?.id === d.id ? null : d))}
+                                onToggleAll={(fls) => setGalleryDocs(fls.map(toMultiDoc))}
+                                previewing={preview}
+                              />
                             </div>
                           )}
                         </PhaseCard>
@@ -870,6 +933,16 @@ export function SubmissionReviewWindow({
                         </div>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
+                        {allSubmissionEvidence.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => setGalleryDocs(allSubmissionEvidence.map(toMultiDoc))}
+                            className="flex items-center gap-1 rounded-xl bg-violet-600 px-2.5 py-1 text-[10px] font-bold text-white shadow-xs hover:bg-violet-700 transition active:scale-95"
+                            title="View all evidence files at once in sequence"
+                          >
+                            <Eye className="h-3 w-3" /> View All ({allSubmissionEvidence.length})
+                          </button>
+                        )}
                         <a
                           href={evDownloadUrl(model.mode, preview.id)}
                           className="flex items-center gap-1 rounded-xl bg-gradient-to-br from-blue-600 to-sky-500 px-2.5 py-1 text-[10px] font-bold text-white shadow-md shadow-blue-500/25 ring-1 ring-white/40 transition hover:brightness-110 active:scale-95"
@@ -1034,6 +1107,16 @@ export function SubmissionReviewWindow({
           )}
         </div>
       </div>
+
+      {/* Full-view Multi Evidence Gallery (all documents rendered at once in sequence) */}
+      {galleryDocs && (
+        <MultiEvidenceGallery
+          documents={galleryDocs}
+          title={`${model.title || 'Submission'} — Evidence Verification Gallery`}
+          subtitle="All attached documents in sequence — inspect proofs side-by-side or scroll together"
+          onClose={() => setGalleryDocs(null)}
+        />
+      )}
     </motion.div>
   )
 }
@@ -1110,19 +1193,35 @@ function ReviewFieldGrid({ fields }: { fields: ReviewField[] }) {
 }
 
 function EvidenceChips({
-  files, extraNames, onToggle, previewing,
+  files, extraNames, onToggle, onToggleAll, previewing,
 }: {
   files: ReviewEvidence[]
   extraNames?: string[]
   onToggle: (d: ReviewEvidence) => void
+  onToggleAll?: (files: ReviewEvidence[]) => void
   previewing?: ReviewEvidence | null
 }) {
   const extras = (extraNames || []).filter((n) => !files.some((f) => f.fileName === n))
   if (!files.length && !extras.length) return null
   return (
     <div className="mt-2">
-      <div className="mb-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-slate-400">
-        <Paperclip className="h-2.5 w-2.5" /> Evidence for this source
+      <div className="mb-1 flex items-center justify-between text-[9px] font-black uppercase tracking-wider text-slate-400">
+        <span className="flex items-center gap-1">
+          <Paperclip className="h-2.5 w-2.5" /> Evidence for this source {files.length > 1 ? `(${files.length})` : ''}
+        </span>
+        {files.length > 1 && onToggleAll && (
+          <button
+            type="button"
+            title="View all attached evidence documents at once in sequence"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleAll(files)
+            }}
+            className="inline-flex items-center gap-1 rounded-full bg-violet-600 hover:bg-violet-700 px-2 py-0.5 text-[9px] font-extrabold text-white shadow-2xs transition active:scale-95"
+          >
+            <Eye className="h-2.5 w-2.5" /> View All ({files.length})
+          </button>
+        )}
       </div>
       <div className="flex flex-wrap gap-1">
         {files.map((d) => (

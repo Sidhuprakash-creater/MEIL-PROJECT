@@ -452,7 +452,10 @@ function MessageList() {
 
 /* ───────────────────────────── Composer ───────────────────────────── */
 
-/** Live seconds remaining on the provider cooldown (0 = ready). */
+/* The provider cooldown was removed: the assistant stays fully usable for
+   back-to-back questions. The RateLimitBanner component is kept for the
+   (rare) case where the provider itself reports a hard throttle, but it is
+   driven by a real server signal rather than a local timer. */
 function useRateLimitSeconds(): number {
   const rateLimitUntil = useCopilot((s) => s.rateLimitUntil);
   const [now, setNow] = React.useState(() => Date.now());
@@ -526,9 +529,9 @@ function RateLimitBanner({ seconds }: { seconds: number }) {
         {seconds}s
       </span>
       <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.45 }}>
-        Rate limit active — the AI provider allows one request per minute.
+        The AI provider is momentarily busy.
         <span style={{ opacity: 0.75, fontWeight: 500 }}>
-          {" "}You can ask your next question in <strong style={{ fontVariantNumeric: "tabular-nums" }}>{seconds}s</strong>.
+          {" "}Your question was not lost — press send again, or I will answer from the live platform records in the meantime.
         </span>
       </span>
     </div>
@@ -546,7 +549,9 @@ function Composer({
 }) {
   const { streaming, stopStreaming, error, resetError, provider, providerConfigured, theme } = useCopilot();
   const rateSeconds = useRateLimitSeconds();
-  const rateLimited = provider === "groq" && rateSeconds > 0;
+  /* The composer is never locked — a provider throttle shows as a hint, not a
+     wall. Back-to-back questions are allowed. */
+  const rateLimited = false;
 
   return (
     <div className="mc-composer-zone">
@@ -557,7 +562,7 @@ function Composer({
         </div>
       ) : null}
 
-      <RateLimitBanner seconds={rateLimited ? rateSeconds : 0} />
+      <RateLimitBanner seconds={rateSeconds} />
 
       <ChatInputArea className="mc-input-pill relative bg-card border-border">
         <BorderBeam
@@ -573,22 +578,20 @@ function Composer({
           value={text}
           disabled={false}
           placeholder={
-            rateLimited
-              ? `Cooling down — next question available in ${rateSeconds}s…`
-              : providerConfigured
-                ? variant === "panel"
-                  ? "Ask about subsidiaries, reports, deadlines…"
-                  : "Ask about subsidiaries, submissions, deadlines, analytics…"
-                : "Ask about subsidiaries, reports, deadlines… (grounded mode — no AI key configured)"
+            providerConfigured
+              ? variant === "panel"
+                ? "Ask about subsidiaries, reports, deadlines…"
+                : "Ask about subsidiaries, submissions, deadlines, analytics…"
+              : "Ask about subsidiaries, reports, deadlines… (grounded mode — no AI key configured)"
           }
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
           aria-label="Message MEIL Intelligence"
         />
         <ChatInputSubmit
           type={streaming ? "button" : "submit"}
-          aria-label={streaming ? "Stop generating" : rateLimited ? "Rate limited — wait for cooldown" : "Send message"}
-          title={streaming ? "Stop generating" : rateLimited ? `Wait ${rateSeconds}s — one request per minute` : "Send"}
-          disabled={!streaming && (!text.trim() || rateLimited)}
+          aria-label={streaming ? "Stop generating" : "Send message"}
+          title={streaming ? "Stop generating" : "Send"}
+          disabled={!streaming && !text.trim()}
           className={streaming ? "mc-submit-stop" : undefined}
           onClick={(e) => {
             if (streaming) {

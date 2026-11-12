@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Fraunces, Inter, IBM_Plex_Mono } from "next/font/goo
 import "./globals.css";
 import "@/components/copilot/copilot.css";
 import { Toaster } from "@/components/ui/toaster";
+import ChunkRecovery from "@/components/shared/chunk-recovery";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -59,6 +60,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${inter.variable} ${plexMono.variable} antialiased bg-background text-foreground`}>
         {children}
+        {/* Self-heals the "Application error" page after a deploy by
+            reloading once when a lazily-loaded chunk is missing. */}
+        <ChunkRecovery />
         <Toaster />
       </body>
     </html>

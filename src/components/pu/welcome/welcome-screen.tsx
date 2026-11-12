@@ -219,14 +219,18 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
   const [busy, setBusy] = useState(false)
 
   // Current active BU & Project objects
+  /* The org tree arrives from the API, so for the first render (and if the
+     request fails) `businessUnits` can be EMPTY. Reading `.projects` off an
+     undefined BU threw a client-side exception that blanked the whole
+     portal — every access below is now guarded. */
   const currentBu = useMemo(
-    () => findBu(activeBuId) || businessUnits[0],
-    [activeBuId]
+    () => findBu(activeBuId) ?? businessUnits[0] ?? null,
+    [activeBuId, businessUnits]
   )
 
   const currentProject = useMemo(() => {
-    const list = currentBu.projects
-    return list.find(p => p.id === activeProjectId) || list[0]
+    const list = currentBu?.projects ?? []
+    return (list.find(p => p.id === activeProjectId) ?? list[0]) ?? null
   }, [currentBu, activeProjectId])
 
   const handleSelectSub = (subId: string) => {
@@ -751,10 +755,12 @@ function WelcomePanel({
 
   const activeBu = useMemo(() => {
     const found = availableBus.find(b => b.id === activeBuId)
-    return found || availableBus[0] || businessUnits[0]
-  }, [availableBus, activeBuId])
+    /* The org tree comes from the API — it can be empty on the first render
+       (or if the request fails). Never index into it blindly. */
+    return found ?? availableBus[0] ?? businessUnits[0] ?? null
+  }, [availableBus, activeBuId, businessUnits])
 
-  const BuIcon = BU_ICONS[activeBu.iconName] ?? Building2
+  const BuIcon = BU_ICONS[activeBu?.iconName ?? ""] ?? Building2
 
   /* Staggered menu entrance */
   const menuVariants = {
@@ -917,17 +923,17 @@ function WelcomePanel({
             aria-label="Select Business Unit"
           >
             <div className="flex items-center gap-3">
-              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${activeBu.gradient} text-white shadow-sm`}>
+              <div className={`flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br ${activeBu?.gradient ?? "from-slate-400 to-slate-500"} text-white shadow-sm`}>
                 <BuIcon className="h-4 w-4" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-800">{activeBu.name}</span>
+                  <span className="text-xs font-bold text-slate-800">{activeBu?.name ?? "Loading…"}</span>
                   <span className="rounded-full bg-sky-100 px-1.5 py-0.2 text-[9px] font-bold text-sky-700">
-                    {activeBu.projects.length} {activeBu.projects.length === 1 ? 'Site' : 'Sites'}
+                    {activeBu?.projects.length ?? 0} {activeBu?.projects.length === 1 ? 'Site' : 'Sites'}
                   </span>
                 </div>
-                <div className="text-[10px] text-slate-400">{activeBu.sector}</div>
+                <div className="text-[10px] text-slate-400">{activeBu?.sector ?? ""}</div>
               </div>
             </div>
             <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform duration-300 ${buDropdownOpen ? 'rotate-180 text-sky-600' : ''}`} />
@@ -946,7 +952,7 @@ function WelcomePanel({
               >
                 {availableBus.map(bu => {
                   const IconComp = BU_ICONS[bu.iconName] ?? Building2
-                  const isSelected = bu.id === activeBu.id
+                  const isSelected = bu.id === activeBu?.id
                   return (
                     <motion.div
                       variants={rowVariants}
@@ -994,7 +1000,7 @@ function WelcomePanel({
         whileTap={{ scale: 0.985 }}
         className="btn-liquid-blue btn-shine group flex w-full items-center justify-center gap-2.5 rounded-full py-3.5 text-sm font-bold shadow-lg"
       >
-        <span>Continue to Project Sites ({activeBu.projects.length})</span>
+        <span>Continue to Project Sites ({activeBu?.projects.length ?? 0})</span>
         <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
       </motion.button>
 
@@ -1115,7 +1121,7 @@ function ProjectSelectionScreen({
   onBack,
   onProceed,
 }: {
-  currentBu: MeilBusinessUnit
+  currentBu: MeilBusinessUnit | null | undefined
   selectedProjectId: string
   onSelectBu: (id: string) => void
   onSelectProject: (p: MeilProject) => void
@@ -1123,14 +1129,14 @@ function ProjectSelectionScreen({
   onProceed: () => void
 }) {
   const [search, setSearch] = useState('')
-  const BuIcon = BU_ICONS[currentBu.iconName] ?? Building2
   const { businessUnits } = useOrgTree()
 
   // Filter projects based on search query
   const filteredProjects = useMemo(() => {
-    if (!search.trim()) return currentBu.projects
+    const projects = currentBu?.projects ?? []
+    if (!search.trim()) return projects
     const q = search.toLowerCase()
-    return currentBu.projects.filter(
+    return projects.filter(
       p =>
         p.name.toLowerCase().includes(q) ||
         p.location.toLowerCase().includes(q) ||
@@ -1138,11 +1144,30 @@ function ProjectSelectionScreen({
         p.stateOrCountry.toLowerCase().includes(q) ||
         p.code.toLowerCase().includes(q)
     )
-  }, [currentBu.projects, search])
+  }, [currentBu?.projects, search])
 
   const activeProject = useMemo(() => {
-    return currentBu.projects.find(p => p.id === selectedProjectId) || currentBu.projects[0]
-  }, [currentBu.projects, selectedProjectId])
+    const projects = currentBu?.projects ?? []
+    return projects.find(p => p.id === selectedProjectId) || projects[0] || null
+  }, [currentBu?.projects, selectedProjectId])
+
+  /* The tree is fetched from the API — until it lands (or if it fails) there
+     is no BU to render. Bail out with a calm message instead of crashing the
+     whole portal on `currentBu.iconName`. */
+  if (!currentBu) {
+    return (
+      <div className="glass flex flex-col items-center justify-center gap-3 rounded-2xl p-8 text-center">
+        <div className="text-sm font-bold text-slate-700">Loading the project portfolio…</div>
+        <p className="text-[12px] text-slate-500">
+          The organisation tree is still being fetched. If this stays, the portal API is unreachable.
+        </p>
+        <button onClick={onBack} className="btn-glass-primary rounded-full px-4 py-2 text-xs font-semibold">
+          Go back
+        </button>
+      </div>
+    )
+  }
+  const BuIcon = BU_ICONS[currentBu.iconName] ?? Building2
 
   return (
     <div className="space-y-5">
@@ -1427,8 +1452,8 @@ function RolePickerScreen({
   onQuickLogin,
   onBack,
 }: {
-  project: MeilProject
-  bu: MeilBusinessUnit
+  project: MeilProject | null | undefined
+  bu: MeilBusinessUnit | null | undefined
   roles: RoleCardDef[]
   hovered: string | null
   setHovered: (s: string | null) => void
@@ -1883,7 +1908,7 @@ function LoginScreen({
             {/* Selected Project Pill */}
             <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-sky-100/70 px-2.5 py-1 text-[10px] font-semibold text-sky-800">
               <MapPin className="h-3 w-3 text-sky-600" />
-              <span>{project.name} ({bu.shortName})</span>
+              <span>{project?.name ?? "Choose a project"} ({bu?.shortName ?? "—"})</span>
             </div>
           </motion.div>
 

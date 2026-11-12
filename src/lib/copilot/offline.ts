@@ -62,11 +62,13 @@ const INTENTS: Intent[] = [
   },
   {
     id: "missing_evidence",
-    test: /evidence|missing data|data gap|incomplete|completeness|gap/i,
-    calls: (period) => [
-      { name: "get_missing_evidence", args: { period, limit: 25 } },
-      { name: "search_evidence", args: { limit: 20 } },
-    ],
+    test: /missing data|data gap|incomplete|completeness|gap/i,
+    calls: (period) => [{ name: "get_missing_evidence", args: { period, limit: 25 } }],
+  },
+  {
+    id: "evidence_attached",
+    test: /evidence|document|pdf|attachment|file|proof|supporting/i,
+    calls: () => [{ name: "search_evidence", args: { limit: 40 } }],
   },
   {
     id: "compliance",
@@ -128,12 +130,30 @@ const STOP_WORDS = new Set([
   "admin", "administrator", "manager", "officer", "lead", "site",
 ]);
 
-/** Distinctive tokens of a name — e.g. "Kaleshwaram Lift Irrigation Package-06 & 08" → kaleshwaram, irrigation. */
+/** Words that look like entity names but are generic domain terms — they must
+ *  never identify a record on their own ("energy" is not MEIL Solar). */
+const DOMAIN_GENERIC = new Set([
+  "energy", "water", "waste", "safety", "emissions", "emission", "solar", "power",
+  "gas", "oil", "hydrogen", "battery", "transmission", "distribution", "pipeline",
+  "pipelines", "refinery", "drilling", "metro", "bus", "fleet", "coal", "steel",
+  "cement", "renewable", "carbon", "ghg", "scope", "environment", "environmental",
+  "irrigation", "canal", "canals", "headworks", "lift", "package", "packages",
+  "support", "supports", "attached", "attaches", "evidence", "data", "record",
+  "records", "document", "documents", "file", "files", "proof", "backing",
+]);
+
+/** Distinctive tokens of a name — e.g. "Kaleshwaram Lift Irrigation Package-06 & 08" → kaleshwaram. */
 function distinctiveTokens(name: string): string[] {
   return name
     .toLowerCase()
     .split(/[^a-z0-9]+/)
-    .filter((t) => t.length >= 5 && !STOP_WORDS.has(t) && !/^\d+$/.test(t));
+    .filter(
+      (t) =>
+        t.length >= 5 &&
+        !STOP_WORDS.has(t) &&
+        !DOMAIN_GENERIC.has(t) &&
+        !/^\d+$/.test(t)
+    );
 }
 
 /**
@@ -350,7 +370,11 @@ function profileCall(entity: EntityHit): OfflineCall {
 
 /* ── plan ─────────────────────────────────────────────────────────────────── */
 
-export async function planOffline(userText: string, reportingYear: string): Promise<OfflineOutcome> {
+export async function planOffline(
+  userText: string,
+  reportingYear: string,
+  lastEntity?: { type: string; name: string; id: string } | null
+): Promise<OfflineOutcome> {
   const entity = await detectEntity(userText);
   const wantsEvidence = /evidence|document|pdf|attachment|file/i.test(userText);
 
@@ -361,15 +385,46 @@ export async function planOffline(userText: string, reportingYear: string): Prom
       calls.push({ name: "get_submissions", args: { subsidiaryId: entity.id, period: reportingYear, limit: 25 } });
     } else if (entity.type === "project") {
       calls.push({ name: "get_submissions", args: { projectId: entity.id, period: reportingYear, limit: 25 } });
+    } else if (entity.type === "business_unit") {
+      calls.push({ name: "get_submissions", args: { businessUnitId: entity.id, period: reportingYear, limit: 25 } });
     }
-    /* "give me the X evidences" → the project's real evidence vault + docs. */
-    if (wantsEvidence && entity.type === "project") {
-      calls.push({ name: "search_evidence", args: { projectId: entity.id, limit: 20 } });
-    }
-    if (wantsEvidence && entity.type === "subsidiary") {
-      calls.push({ name: "search_evidence", args: { limit: 20 } });
+    /* "give me the X evidences" → the real evidence of that scope, attributed
+       to each project and each data module (Energy / Water / Waste …). */
+    if (wantsEvidence) {
+      if (entity.type === "project") {
+        calls.push({ name: "search_evidence", args: { projectId: entity.id, limit: 40 } });
+      } else if (entity.type === "business_unit") {
+        calls.push({ name: "search_evidence", args: { businessUnitId: entity.id, limit: 40 } });
+      } else if (entity.type === "subsidiary") {
+        calls.push({ name: "search_evidence", args: { subsidiaryId: entity.id, limit: 40 } });
+      }
     }
     return { calls, entity: { type: entity.type, name: entity.name, id: entity.id } };
+  }
+
+  /* No entity named in this turn — but the conversation already established
+     one ("…evidence attached?" after a BU question). Reuse it so a follow-up
+     stays on the same subject instead of resetting to the group. */
+  if (lastEntity) {
+    const calls: OfflineCall[] = [];
+    if (lastEntity.type === "business_unit") {
+      calls.push({ name: "get_business_unit_profile", args: { businessUnitId: lastEntity.id } });
+      if (wantsEvidence) calls.push({ name: "search_evidence", args: { businessUnitId: lastEntity.id, limit: 40 } });
+      else calls.push({ name: "get_submissions", args: { businessUnitId: lastEntity.id, period: reportingYear, limit: 25 } });
+    } else if (lastEntity.type === "project") {
+      calls.push({ name: "get_project_profile", args: { projectId: lastEntity.id } });
+      if (wantsEvidence) calls.push({ name: "search_evidence", args: { projectId: lastEntity.id, limit: 40 } });
+      else calls.push({ name: "get_submissions", args: { projectId: lastEntity.id, period: reportingYear, limit: 25 } });
+    } else if (lastEntity.type === "subsidiary") {
+      calls.push({ name: "get_subsidiary_profile", args: { subsidiaryId: lastEntity.id } });
+      if (wantsEvidence) calls.push({ name: "search_evidence", args: { subsidiaryId: lastEntity.id, limit: 40 } });
+      else calls.push({ name: "get_submissions", args: { subsidiaryId: lastEntity.id, period: reportingYear, limit: 25 } });
+    } else {
+      calls.push({ name: "get_user_profile", args: { userId: lastEntity.id } });
+    }
+    if (calls.length) {
+      return { calls, entity: { type: lastEntity.type, name: lastEntity.name, id: lastEntity.id } };
+    }
   }
 
   for (const intent of INTENTS) {

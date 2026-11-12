@@ -776,20 +776,50 @@ const search_evidence: ToolHandler = async (args) => {
   const status = str(args.status)?.toUpperCase();
   const submissionRef = str(args.submissionRef);
   const projectId = str(args.projectId);
-  const limit = Math.min(Math.max(num(args.limit) ?? 10, 1), 30);
+  const businessUnitId = str(args.businessUnitId);
+  const subsidiaryId = str(args.subsidiaryId);
+  const limit = Math.min(Math.max(num(args.limit) ?? 10, 1), 60);
+
+  /* SCOPE — the whole evidence trail of one BU / project / subsidiary:
+     the repository documents AND the project-vault files, each resolved to
+     the project, the business unit and the data module (Energy / Water /
+     Waste …) it evidences. */
+  const scopeProjects = businessUnitId
+    ? await db.project.findMany({ where: { businessUnitId }, select: { id: true, name: true } })
+    : projectId
+      ? await db.project.findMany({ where: { id: projectId }, select: { id: true, name: true } })
+      : subsidiaryId
+        ? await db.project.findMany({ where: { businessUnit: { subsidiaryId } }, select: { id: true, name: true } })
+        : [];
+  const scopeProjectIds = scopeProjects.map((p) => p.id);
+  const prjNames = new Map(scopeProjects.map((p) => [p.id, p.name]));
+
+  /* The submissions inside the scope carry the data module and the BU. */
+  const scopedSubs = scopeProjectIds.length
+    ? await db.submission.findMany({
+        where: { projectId: { in: scopeProjectIds } },
+        select: {
+          id: true, ref: true, title: true, category: true, module: true,
+          projectId: true, businessUnitId: true, status: true,
+        },
+      })
+    : [];
+  const scopedSubIds = new Set(scopedSubs.map((s) => s.id));
+  const subById = new Map(scopedSubs.map((s) => [s.id, s]));
+
   const where: Record<string, unknown> = {};
   if (q) where.OR = [{ name: { contains: q, mode: "insensitive" } }, { disclosureRef: { contains: q, mode: "insensitive" } }];
   if (status) where.status = status;
   if (submissionRef) where.submissionRef = submissionRef;
-  /* Evidence documents attached to this project's submissions. */
-  const projectSubmissionIds = projectId
-    ? (await db.submission.findMany({ where: { projectId }, select: { id: true } })).map((s) => s.id)
-    : [];
-  const [docs, vault, subsidiaries, projectSubs] = await Promise.all([
+  if (businessUnitId) where.businessUnitId = businessUnitId;
+  else if (projectId) where.projectId = projectId;
+  else if (subsidiaryId) where.subsidiaryId = subsidiaryId;
+
+  const [docs, vault, subsidiaries, units] = await Promise.all([
     db.evidenceDoc.findMany({ where, orderBy: { uploadedAt: "desc" }, take: limit }),
     db.evidence.findMany({
-      where: projectId
-        ? { projectId, ...(q ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] } : {}) }
+      where: scopeProjectIds.length
+        ? { projectId: { in: scopeProjectIds }, ...(q ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] } : {}) }
         : q
           ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] }
           : { id: "none" },
@@ -798,20 +828,35 @@ const search_evidence: ToolHandler = async (args) => {
       include: { uploader: { select: { name: true } } },
     }),
     db.subsidiary.findMany({ select: { id: true, name: true } }),
-    projectSubmissionIds.length
-      ? db.evidenceDoc.findMany({
-          where: { submissionId: { in: projectSubmissionIds } },
-          orderBy: { uploadedAt: "desc" },
-          take: limit,
-        })
-      : Promise.resolve([]),
+    db.businessUnit.findMany({ select: { id: true, name: true } }),
   ]);
-  /* Merge the project's own evidence documents with the searched ones. */
+
+  /* Repository documents attached to a submission inside the scope. */
+  const linkedDocs = scopedSubIds.size
+    ? await db.evidenceDoc.findMany({
+        where: { submissionId: { in: [...scopedSubIds] } },
+        orderBy: { uploadedAt: "desc" },
+        take: limit,
+      })
+    : [];
   const mergedDocs = [...docs];
-  for (const d of projectSubs) {
+  for (const d of linkedDocs) {
     if (!mergedDocs.some((x) => x.id === d.id)) mergedDocs.push(d);
   }
+
   const subName = (id: string | null) => (id ? subsidiaries.find((s) => s.id === id)?.name ?? undefined : undefined);
+  const buName = (id: string | null) => (id ? units.find((u) => u.id === id)?.name ?? undefined : undefined);
+
+  /* Each piece of evidence is attributed to its project, its business unit and
+     the data module (Energy / Water / Waste …) it evidences. */
+  const moduleOf = (subId: string | null | undefined): string => {
+    if (!subId) return "";
+    const s = subById.get(subId);
+    if (!s) return "";
+    return s.module || s.category || "";
+  };
+  const projectOf = (id: string | null | undefined): string => (id ? prjNames.get(id) ?? "" : "");
+
   const blocks: ContentBlock[] = [
     ...mergedDocs.map((d) => ({
       type: "evidence",
@@ -825,6 +870,7 @@ const search_evidence: ToolHandler = async (args) => {
       uploadedAt: iso(d.uploadedAt),
       submissionRef: d.submissionRef || undefined,
       entity: subName(d.subsidiaryId),
+      detail: [projectOf(d.projectId), buName(d.businessUnitId), moduleOf(d.submissionId)].filter(Boolean).join(" · ") || undefined,
     } as ContentBlock)),
     ...vault.map((v) => ({
       type: "evidence",
@@ -836,15 +882,73 @@ const search_evidence: ToolHandler = async (args) => {
       uploadedBy: v.uploader?.name || undefined,
       uploadedAt: iso(v.createdAt),
       entity: v.projectId ? "Project-linked vault file" : undefined,
+      detail: [projectOf(v.projectId), v.module || ""].filter(Boolean).join(" · ") || undefined,
     } as ContentBlock)),
   ];
+
+  /* Structured payload: every evidence piece with BU / project / module. */
+  const items = [
+    ...mergedDocs.map((d) => ({
+      id: d.id,
+      name: d.name,
+      kind: "repository" as const,
+      fileType: d.fileType,
+      status: d.status,
+      module: moduleOf(d.submissionId),
+      project: projectOf(d.projectId),
+      businessUnit: buName(d.businessUnitId),
+      subsidiary: subName(d.subsidiaryId) ?? "",
+      submissionRef: d.submissionRef || "",
+      uploadedBy: d.uploadedBy || "",
+      uploadedAt: iso(d.uploadedAt) ?? "",
+    })),
+    ...vault.map((v) => ({
+      id: v.id,
+      name: v.fileName,
+      kind: "vault" as const,
+      fileType: v.mimeType?.split("/").pop()?.toUpperCase() || "",
+      status: v.status,
+      module: v.module || "",
+      project: projectOf(v.projectId),
+      businessUnit: "",
+      subsidiary: "",
+      submissionRef: "",
+      uploadedBy: v.uploader?.name || "",
+      uploadedAt: iso(v.createdAt) ?? "",
+    })),
+  ];
+
+  /* Group by data module so the answer reads "Energy → …, Water → …". */
+  const byModule = new Map<string, typeof items>();
+  for (const it of items) {
+    const key = it.module || "General";
+    byModule.set(key, [...(byModule.get(key) ?? []), it]);
+  }
+  const modules = [...byModule.entries()].map(([module, list]) => ({
+    module,
+    count: list.length,
+    projects: [...new Set(list.map((x) => x.project).filter(Boolean))],
+    items: list,
+  }));
+
+  /* The scope the evidence was read from — the answer names THIS scope, not
+     whichever record happens to come first in the list. */
+  const scopeName = businessUnitId
+    ? units.find((u) => u.id === businessUnitId)?.name ?? ""
+    : projectId
+      ? scopeProjects.find((p) => p.id === projectId)?.name ?? ""
+      : subsidiaryId
+        ? subsidiaries.find((s) => s.id === subsidiaryId)?.name ?? ""
+        : "";
+  const scopeKind = businessUnitId ? "business unit" : projectId ? "project" : subsidiaryId ? "subsidiary" : "group";
+
   return {
-    summary: docs.length || vault.length
-      ? `Found ${docs.length} repository document${docs.length === 1 ? "" : "s"}${vault.length ? ` and ${vault.length} vault file${vault.length === 1 ? "" : "s"}` : ""}${q ? ` matching "${q}"` : ""}.`
+    summary: items.length
+      ? `Found ${items.length} evidence document${items.length === 1 ? "" : "s"}${modules.length ? ` across ${modules.length} data module${modules.length === 1 ? "" : "s"} (${modules.map((m) => `${m.module} ${m.count}`).join(", ")})` : ""}.`
       : `No evidence documents found${q ? ` matching "${q}"` : ""}.`,
-    data: { repository: docs.map((d) => ({ id: d.id, name: d.name, status: d.status, fileType: d.fileType, submissionRef: d.submissionRef, disclosureRef: d.disclosureRef, uploadedAt: iso(d.uploadedAt) })), vault: vault.map((v) => ({ id: v.id, name: v.fileName, documentType: v.documentType, status: v.status, uploadedAt: iso(v.createdAt) })) },
+    data: { items, modules, total: items.length, scopeName, scopeKind, projectCount: scopeProjects.length },
     blocks,
-    sources: docs.slice(0, 6).map((d) => ({ kind: "evidence" as const, id: d.id, label: d.name })),
+    sources: items.slice(0, 8).map((i) => ({ kind: "evidence" as const, id: i.id, label: i.name })),
   };
 };
 
@@ -1415,12 +1519,15 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "search_evidence",
-    description: "Search evidence documents across the subsidiary repository and the project evidence vault by name, disclosure ref, submission ref, or status.",
+    description: "Search and list evidence documents across the repository and the project evidence vault. Can be scoped to a business unit, project or subsidiary, and every item is attributed to its project, business unit and data module (Energy / Water / Waste …). Use for 'what evidence is attached', 'show the evidence for this BU' or 'which documents support the energy data'.",
     riskLevel: "L0",
     params: {
       query: { type: "string", description: "Name/disclosure fragment.", optional: true },
       status: { type: "enum", enum: ["VALID", "MISSING", "EXPIRED", "REQUIRED", "UPLOADED", "UNDER_REVIEW", "VERIFIED", "REJECTED"], description: "Filter by status.", optional: true },
       submissionRef: { type: "string", description: "Filter by submission ref.", optional: true },
+      businessUnitId: { type: "string", description: "Scope to one business unit — returns every project's evidence in it.", optional: true },
+      projectId: { type: "string", description: "Scope to one project.", optional: true },
+      subsidiaryId: { type: "string", description: "Scope to one subsidiary.", optional: true },
       limit: { type: "number", description: "Max results.", optional: true },
     },
   },

@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { Droplet, Flame, CheckCircle2, AlertTriangle, Save, Sparkles, TrendingUp, Layers, Eye, Plus, Trash2, Edit3, ArrowRight, Sun, Fuel, ListOrdered, CloudRain, Truck, Package, RefreshCw, Trees, Cpu, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { FormEvidenceAttachSection } from '../evidence-attach'
+import { availableEvidenceIds, ownerOfEvidence } from '../evidence-usage'
 import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Period, type EvidenceItem, useApiBase } from '../core'
 
@@ -196,6 +197,21 @@ export function Level9InitiativesForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a conditional branch, and a hook called inside a
+     conditional breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingId && item.id === editingId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : []) {
+        if (id && !map[id]) map[id] = item.activityInitiativeName
+      }
+    }
+    return map
+  }, [stagedItems, editingId])
+
   // Live calculation of current inputs
   const bVal = Number(baselineValue) || 0
   const rVal = Number(reportingPeriodValue) || 0
@@ -258,7 +274,21 @@ export function Level9InitiativesForm({
 
   // Package current inputs into StagedInitiativeItem
   const packageCurrentItem = (): StagedInitiativeItem => {
-    const attFiles = evidence.filter((e) => selectedEvidenceIds.includes(e.id))
+    /* ONE evidence document may support only ONE source item of this record. */
+    const { allowed: usableEvidenceIds, blocked: blockedEvidenceIds } = availableEvidenceIds(
+      selectedEvidenceIds,
+      stagedItems,
+      editingId
+    )
+    if (blockedEvidenceIds.length > 0) {
+      const owners = blockedEvidenceIds.map((id) => ownerOfEvidence(stagedItems, id)).filter(Boolean)
+      toast.warning('Evidence already used by another source', {
+        description: `The same document cannot support two sources in one record${
+          owners.length ? ` (already attached to ${[...new Set(owners)].join(', ')})` : ''
+        }. It was left on that source only.`,
+      })
+    }
+    const attFiles = evidence.filter((e) => usableEvidenceIds.includes(e.id))
     return {
       id: editingId || `init-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 5)}`,
       activityInitiativeName: activityInitiativeName || 'Site ESG Initiative',
@@ -274,7 +304,7 @@ export function Level9InitiativesForm({
       calculationMethod,
       supportingEvidence,
       remarks,
-      evidenceIds: selectedEvidenceIds,
+      evidenceIds: usableEvidenceIds,
       evidenceFiles: attFiles.map((f) => f.fileName),
       savings: diff,
       pctSaved,
@@ -285,6 +315,13 @@ export function Level9InitiativesForm({
   const stageCurrentItem = (resetForm = true) => {
     if (!activityInitiativeName) {
       setError('Initiative name is required')
+      return false
+    }
+    if (startDate && completionDate && completionDate < startDate) {
+      setError(`Completion date (${completionDate}) cannot be earlier than start date (${startDate}).`)
+      toast.error('Invalid Date Range', {
+        description: `Completion date cannot be earlier than initiative start date.`,
+      })
       return false
     }
     setError('')
@@ -625,10 +662,11 @@ export function Level9InitiativesForm({
               />
             </FormField>
 
-            <FormField label="Completion / Target Date" hint="Date achieved or project milestone.">
+            <FormField label="Completion / Target Date" hint="Date achieved or milestone (must be on or after start date).">
               <input
                 type="date"
                 value={completionDate}
+                min={startDate || undefined}
                 disabled={readOnly}
                 onChange={(e) => setCompletionDate(e.target.value)}
                 className={inputClass}
@@ -690,6 +728,7 @@ export function Level9InitiativesForm({
                 onUploaded={onEvidenceUploaded || (async () => {})}
                 selectedEvidenceIds={selectedEvidenceIds}
                 onSelectEvidenceIds={setSelectedEvidenceIds}
+                evidenceUsedElsewhere={evidenceUsedElsewhere}
                 onReview={onReviewEvidence}
                 readOnly={readOnly}
               />

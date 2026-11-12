@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Zap, Flame, CheckCircle2, AlertTriangle, Save, Info, Calculator, Sparkles, Layers, Eye, Plus, Trash2, Edit3, ArrowLeft, Sun, Fuel, Wind, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { EmissionFactorInfoIcon } from '../../emission-factor-info'
 import { FormEvidenceAttachSection } from '../evidence-attach'
+import { availableEvidenceIds, ownerOfEvidence } from '../evidence-usage'
 import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, type Period, useApiBase } from '../core'
 
@@ -253,6 +254,21 @@ export function Level1EnergyForm({
   // Currently editing item id (if null, creating new source item)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a `{viewStep === 'ENTRY' && …}` branch, and a hook called
+     inside a conditional branch breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingItemId && item.id === editingItemId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
+        if (id && !map[id]) map[id] = item.energySource
+      }
+    }
+    return map
+  }, [stagedItems, editingItemId])
+
   // Active form inputs for the selected Energy Source item — blank until the user types
   const [energySource, setEnergySource] = useState('Grid electricity')
   const [customEnergySource, setCustomEnergySource] = useState('')
@@ -374,7 +390,28 @@ export function Level1EnergyForm({
     }
 
     const { factor, gjRate, estTco2e, estGj } = calculateItemEmissions(effectiveSource, consumptionQuantity)
-    const attachedEv = evidence.find((ev) => selectedEvidenceIds.includes(ev.id))
+
+    /* ONE evidence document may support only ONE source item of this record.
+       If the selected evidence already backs another source (Petrol, Coal …)
+       it is dropped here and the contributor is told why — otherwise a single
+       invoice would be counted as the proof for two different fuels. */
+    const { allowed: usableEvidenceIds, blocked: blockedEvidenceIds } = availableEvidenceIds(
+      selectedEvidenceIds,
+      stagedItems,
+      editingItemId
+    )
+    if (blockedEvidenceIds.length > 0) {
+      const owners = blockedEvidenceIds
+        .map((id) => ownerOfEvidence(stagedItems, id))
+        .filter(Boolean)
+      toast.warning('Evidence already used by another source', {
+        description: `The same document cannot support two sources in one record${
+          owners.length ? ` (already attached to ${[...new Set(owners)].join(', ')})` : ''
+        }. It was left on that source only.`,
+      })
+    }
+
+    const attachedEv = evidence.find((ev) => usableEvidenceIds.includes(ev.id))
 
     const newItem: StagedEnergyItem = {
       id: editingItemId || `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -392,9 +429,9 @@ export function Level1EnergyForm({
       reportingPeriod,
       sourceDocument,
       remarks,
-      evidenceId: selectedEvidenceIds[0] || '',
-      evidenceIds: selectedEvidenceIds,
-      evidenceFiles: selectedEvidenceIds.map((id) => evidence.find((ev) => ev.id === id)?.fileName).filter(Boolean) as string[],
+      evidenceId: usableEvidenceIds[0] || '',
+      evidenceIds: usableEvidenceIds,
+      evidenceFiles: usableEvidenceIds.map((id) => evidence.find((ev) => ev.id === id)?.fileName).filter(Boolean) as string[],
       evidenceFileName: attachedEv?.fileName,
       factor,
       estTco2e,
@@ -435,6 +472,12 @@ export function Level1EnergyForm({
 
     setEditingItemId(null)
 
+    /* The evidence selection belongs to the item that was just staged — clear
+       it unconditionally, otherwise the NEXT source silently inherits the
+       same document (the "next un-staged source" preset below only ran when
+       an un-staged source existed). */
+    setSelectedEvidenceIds([])
+
     // Suggest next un-staged source so user can easily enter the second source item
     const stagedSources = new Set([...stagedItems.map((i) => i.energySource), energySource])
     const nextUnstaged = L1_ENERGY_SOURCES.find((s) => !stagedSources.has(s))
@@ -453,7 +496,6 @@ export function Level1EnergyForm({
       setRenewableEnergyQuantity('')
       setSourceDocument(preset.doc)
       setRemarks(`Fuel/energy record for ${nextUnstaged}.`)
-      setSelectedEvidenceIds([])
     }
 
     return true
@@ -1023,6 +1065,7 @@ export function Level1EnergyForm({
               onUploaded={onEvidenceUploaded || (async () => {})}
               selectedEvidenceIds={selectedEvidenceIds}
               onSelectEvidenceIds={setSelectedEvidenceIds}
+              evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
 onOcrApply={(f) => {
                 if (f.quantity) setConsumptionQuantity(f.quantity)

@@ -485,7 +485,8 @@ export async function* streamProviderTurn(opts: {
   // Provider calls are retried on transient failures (rate limits / 5xx).
   // Free-tier keys hit 429 regularly; a short exponential backoff usually
   // rides out the per-minute window instead of failing the user's turn.
-  const MAX_ATTEMPTS = 4;
+  // There is NO client-side cooldown — the user may ask again immediately.
+  const MAX_ATTEMPTS = 5;
   let res!: Response;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     res = await fetch(url, {

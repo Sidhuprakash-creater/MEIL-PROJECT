@@ -126,7 +126,10 @@ const PALETTE = { green: "#238653", red: "#c34a4a", amber: "#c57926", blue: "#3a
 
 const unresolvedOf = (r: BrsrReport) => r.disclosures.filter((d) => d.mapped && d.status !== "VALIDATED" && !d.note.trim());
 const sectionOfCode = (code: string) =>
-  code.includes("-ENV-") ? "ENVIRONMENT" : code.includes("-SOC-") ? "SOCIAL" : code.includes("-GOV-") ? "GOVERNANCE" : "GENERAL";
+  code.includes("-A1-") ? "ANNEXURE1"
+    : code.includes("-ENV-") ? "ENVIRONMENT"
+      : code.includes("-SOC-") ? "SOCIAL"
+        : code.includes("-GOV-") ? "GOVERNANCE" : "GENERAL";
 
 /* ─────────────────────────── export helpers (real downloads) ─────────────────────────── */
 
@@ -151,15 +154,62 @@ async function loadChecklist(period: string): Promise<ChecklistSubData[]> {
   }
 }
 
+interface AnnexureParamRow {
+  label: string;
+  unit: string;
+  assurance: string;
+  crossRef: string;
+  kind: "number" | "text";
+  value: number | null;
+  text: string | null;
+}
+interface AnnexureAttrRow {
+  srNo: number;
+  title: string;
+  summary: string;
+  parameters: AnnexureParamRow[];
+}
+
+/** Fetch the consolidated Annexure I table so the printed report carries the
+    SEBI-mandated nine-attribute disclosure. */
+async function loadAnnexure1(period: string): Promise<AnnexureAttrRow[]> {
+  try {
+    const res = await fetch(`/api/esg/brsr-annexure1?period=${encodeURIComponent(period)}`);
+    if (!res.ok) return [];
+    const json = (await res.json()) as { attributes?: AnnexureAttrRow[] };
+    return json.attributes ?? [];
+  } catch {
+    return [];
+  }
+}
+
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
+function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[], annexure1: AnnexureAttrRow[] = []): string {
   const secRows = r.sections.map((s, i) => `
     <h3>${i + 1}. ${esc(s.title)}</h3><p>${esc(s.content)}</p>`).join("");
-  const discRows = ["GENERAL", "ENVIRONMENT", "SOCIAL", "GOVERNANCE"].map((group) => {
+  /* Annexure I — the SEBI BRSR Core table, as reported. */
+  const annexure1Rows = annexure1.map((a) => `
+    <div class="page-break"></div>
+    <h2>Annexure I — ${esc(a.srNo)}. ${esc(a.title)}</h2>
+    <p class="muted">${esc(a.summary)}</p>
+    <table><thead><tr><th>Parameter</th><th>Reported value</th><th>Measurement</th><th>Cross-reference to BRSR</th></tr></thead><tbody>
+      ${a.parameters.map((p) => `<tr>
+        <td class="k">${esc(p.label)}</td>
+        <td>${p.kind === "number" ? `${p.value !== null ? fmtNumber(p.value, 2) : "—"} ${esc(p.unit)}` : esc(p.text ?? "—")}</td>
+        <td>${esc(p.unit)}</td>
+        <td>${esc(p.crossRef)}</td>
+      </tr>`).join("")}
+    </tbody></table>
+    <p class="muted"><strong>Data &amp; assurance approach</strong> — ${esc(a.parameters.map((p) => p.assurance).join(" "))}</p>`).join("");
+  const discRows = ["GENERAL", "ENVIRONMENT", "SOCIAL", "GOVERNANCE", "ANNEXURE1"].map((group) => {
     const items = r.disclosures.filter((d) => sectionOfCode(d.code) === group);
     if (!items.length) return "";
-    return `<h3>${group === "GENERAL" ? "General disclosures" : group.charAt(0) + group.slice(1).toLowerCase() + " disclosures"}</h3>
+    const groupTitle =
+      group === "GENERAL" ? "General disclosures"
+        : group === "ANNEXURE1" ? "Annexure I disclosures (SEBI BRSR Core format)"
+          : `${group.charAt(0)}${group.slice(1).toLowerCase()} disclosures`;
+    return `<h3>${groupTitle}</h3>
       <table><thead><tr><th>Code</th><th>Disclosure</th><th>Value</th><th>Unit</th><th>Status</th></tr></thead><tbody>
       ${items.map((d) => `<tr><td>${esc(d.code)}</td><td>${esc(d.title)}</td><td>${d.value !== null ? fmtNumber(d.value, 2) : "—"}</td><td>${esc(d.unit)}</td><td>${esc(d.status)}</td></tr>`).join("")}
       </tbody></table>`;
@@ -242,14 +292,15 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[]): string {
       ${r.signoffs.map((s) => `<tr><td>${esc(s.role)}</td><td>${esc(s.name)}</td><td>${esc(s.decision)}</td><td>${fmtDateTime(s.at)}</td><td>${esc(s.comment)}</td></tr>`).join("")}
     </tbody></table>` : "<p class='muted'>(none recorded)</p>"}
     ${subs.length ? `<h2>4. Subsidiary BRSR Data Annexure</h2><p class="muted">Section-wise inputs captured from each subsidiary via the platform BRSR Data form.</p>${subAnnex}` : ""}
+    ${annexure1.length ? `<h2>${subs.length ? "5" : "4"}. Annexure I — Format of BRSR Core</h2><p class="muted">The nine attributes of the SEBI BRSR Core Annexure I, with the consolidated group values as reported.</p>${annexure1Rows}` : ""}
   </body></html>`;
 }
 
-function printBrsrPdf(r: BrsrReport, subs: ChecklistSubData[]) {
+function printBrsrPdf(r: BrsrReport, subs: ChecklistSubData[], annexure1: AnnexureAttrRow[] = []) {
   const w = window.open("", "_blank", "width=900,height=1000");
   if (!w) return false;
   w.document.open();
-  w.document.write(buildBrsrHtml(r, subs));
+  w.document.write(buildBrsrHtml(r, subs, annexure1));
   w.document.close();
   w.focus();
   setTimeout(() => w.print(), 400);
@@ -322,7 +373,8 @@ function useBrsrExport(onDone?: (r: BrsrReport) => void) {
         /* Print-ready A4 layout (browser "Save as PDF") with the cover page,
            disclosures, sign-offs and the subsidiaries' BRSR data annexure. */
         const subs = await loadChecklist(report.financialYear);
-        printBrsrPdf(report, subs);
+        const annexure1 = await loadAnnexure1(report.financialYear);
+        printBrsrPdf(report, subs, annexure1);
       } else if (format === "JSON") downloadFile(`${safe}.json`, JSON.stringify(res.file, null, 2), "application/json");
       else if (format === "CSV") downloadFile(`${safe}.csv`, buildCsv(report), "text/csv");
       else downloadFile(`${safe}.txt`, buildTxt(report), "text/plain");

@@ -8,7 +8,7 @@ import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useCopilot } from "@/lib/copilot/store";
-import { CALCULATOR_OPEN_EVENT } from "@/lib/calculator/store";
+import { CALCULATOR_OPEN_EVENT, CALCULATOR_RAIL_MOVED_EVENT } from "@/lib/calculator/store";
 import { MEILAvatar } from "@/components/copilot/avatar/meil-avatar";
 import { CopilotWorkspace } from "@/components/copilot/workspace";
 import { BorderBeam } from "@/components/ui/border-beam";
@@ -75,6 +75,26 @@ export function CopilotFloating() {
     return () => window.removeEventListener(CALCULATOR_OPEN_EVENT, onCalculatorOpen);
   }, [setOpen, setFullscreen]);
 
+  /* The calculator rail was dropped somewhere — if it now sits on top of the
+     assistant pill, nudge the pill out of the way. */
+  React.useEffect(() => {
+    const onRailMoved = (e: Event) => {
+      const detail = (e as CustomEvent<{ left: number; top: number }>).detail;
+      if (!detail || !pos) return;
+      const rect = pillRef.current?.getBoundingClientRect();
+      const w = rect?.width ?? 197;
+      const h = rect?.height ?? 41;
+      const overlaps =
+        detail.left < pos.left + w && detail.left + 40 > pos.left &&
+        detail.top < pos.top + h && detail.top + 150 > pos.top;
+      if (overlaps) {
+        setPos(clampPos(pos.left, pos.top + h + 22, w, h));
+      }
+    };
+    window.addEventListener(CALCULATOR_RAIL_MOVED_EVENT, onRailMoved);
+    return () => window.removeEventListener(CALCULATOR_RAIL_MOVED_EVENT, onRailMoved);
+  }, [pos]);
+
   // Resolve the initial position after mount (needs window + pill metrics).
   React.useEffect(() => {
     if (pos) return;
@@ -135,6 +155,18 @@ export function CopilotFloating() {
           <motion.div
             key="mc-panel"
             className={`mc-float-panel ${themeClass}`}
+            /* The panel opens NEXT TO the pill wherever the user dropped it,
+               so the handle and the surface stay together. */
+            style={
+              pos
+                ? {
+                    left: Math.min(Math.max(pos.left - 6, 8), Math.max(window.innerWidth - 500 - 8, 8)),
+                    right: "auto",
+                    bottom: "auto",
+                    top: Math.min(Math.max(pos.top - 670, 8), Math.max(window.innerHeight - 670 - 8, 8)),
+                  }
+                : undefined
+            }
             initial={{ opacity: 0, y: 14, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 14, scale: 0.98 }}

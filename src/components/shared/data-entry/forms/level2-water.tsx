@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Droplet, CheckCircle2, AlertTriangle, Save, Building2, Layers, Check, Eye, Plus, Trash2, Edit3, ArrowLeft, Waves, CloudRain, RefreshCw, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { EmissionFactorInfoIcon } from '../../emission-factor-info'
 import { FormEvidenceAttachSection } from '../evidence-attach'
+import { availableEvidenceIds, ownerOfEvidence } from '../evidence-usage'
 import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type LevelFormProps } from '../primitives'
 import { type Project, useApiBase } from '../core'
 
@@ -199,6 +200,21 @@ export function Level2WaterForm({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
 
+  /* Evidence already attached to ANOTHER source item of this record.
+     MUST live at the top level of the component — the JSX that consumes it
+     sits inside a conditional branch, and a hook called inside a
+     conditional breaks React's hook order (render error). */
+  const evidenceUsedElsewhere = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const item of stagedItems) {
+      if (editingItemId && item.id === editingItemId) continue
+      for (const id of item.evidenceIds?.length ? item.evidenceIds : item.evidenceId ? [item.evidenceId] : []) {
+        if (id && !map[id]) map[id] = item.waterSource
+      }
+    }
+    return map
+  }, [stagedItems, editingItemId])
+
   // Automatically open and load source item when clicked/dropped from Emission Sequence Journey
   useEffect(() => {
     if (selectedSourceToEdit?.levelKey === 'level2' && selectedSourceToEdit.sourceName) {
@@ -253,7 +269,23 @@ export function Level2WaterForm({
     const reusedNum = Number(waterReusedRecycled) || 0
     const circPct = qNum > 0 ? Number(((reusedNum / qNum) * 100).toFixed(1)) : 0
 
-    const attachedEv = evidence.find((ev) => selectedEvidenceIds.includes(ev.id))
+    /* ONE evidence document may support only ONE source item of this record —
+       the same invoice must not be counted as the proof for two sources. */
+    const { allowed: usableEvidenceIds, blocked: blockedEvidenceIds } = availableEvidenceIds(
+      selectedEvidenceIds,
+      stagedItems,
+      editingItemId
+    )
+    if (blockedEvidenceIds.length > 0) {
+      const owners = blockedEvidenceIds.map((id) => ownerOfEvidence(stagedItems, id)).filter(Boolean)
+      toast.warning('Evidence already used by another source', {
+        description: `The same document cannot support two sources in one record${
+          owners.length ? ` (already attached to ${[...new Set(owners)].join(', ')})` : ''
+        }. It was left on that source only.`,
+      })
+    }
+
+    const attachedEv = evidence.find((ev) => usableEvidenceIds.includes(ev.id))
     const itemPayload: StagedWaterItem = {
       id: editingItemId || `item-wtr-${Date.now()}`,
       waterSource,
@@ -270,9 +302,9 @@ export function Level2WaterForm({
       testDateLab,
       supportingEvidence,
       remarks,
-      evidenceId: selectedEvidenceIds[0] || '',
-      evidenceIds: selectedEvidenceIds,
-      evidenceFiles: selectedEvidenceIds
+      evidenceId: usableEvidenceIds[0] || '',
+      evidenceIds: usableEvidenceIds,
+      evidenceFiles: usableEvidenceIds
         .map((id) => evidence.find((ev) => ev.id === id)?.fileName)
         .filter(Boolean) as string[],
       evidenceFileName: attachedEv?.fileName,
@@ -296,6 +328,10 @@ export function Level2WaterForm({
 
     setStagedItems(updated)
     setEditingItemId(null)
+
+    /* The evidence selection belongs to the item that was just staged — clear
+       it so the next source does not silently inherit the same document. */
+    setSelectedEvidenceIds([])
 
     // Float the captured item card over to the right-panel journey list
     onItemStaged?.(
@@ -864,6 +900,7 @@ export function Level2WaterForm({
               onUploaded={onEvidenceUploaded || (async () => {})}
               selectedEvidenceIds={selectedEvidenceIds}
               onSelectEvidenceIds={setSelectedEvidenceIds}
+              evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
 onOcrApply={(f) => {
                 if (f.quantity) setWaterQuantity(f.quantity)

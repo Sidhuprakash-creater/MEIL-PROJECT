@@ -16,14 +16,40 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Calculator as CalculatorIcon, Moon, Sun, X } from "lucide-react";
+import { Calculator as CalculatorIcon, GripVertical, Moon, Sun, X } from "lucide-react";
 import { CalculatorPanel } from "@/components/shared/calculator/calculator-panel";
 import { CarbonCalculator } from "@/components/shared/calculator/carbon-calculator";
 import { TravelCalculator } from "@/components/shared/calculator/travel-calculator";
-import { useCalculatorDock, CALCULATOR_OPEN_EVENT } from "@/lib/calculator/store";
+import { useCalculatorDock, CALCULATOR_OPEN_EVENT, CALCULATOR_RAIL_MOVED_EVENT } from "@/lib/calculator/store";
 import "./calculator.css";
 
 const THEME_KEY = "meil-calculator-theme-v1";
+
+/* ── Draggable rail positioning ─────────────────────────────────────────────
+   The collapsed calculator rail can be dropped anywhere on screen, exactly
+   like the MEIL Intelligence pill. The position persists in localStorage so
+   it stays where the user put it. */
+const RAIL_POS_KEY = "meil-calculator-rail-pos-v1";
+const DRAG_THRESHOLD = 6; // px of movement before a press becomes a drag
+
+function loadRailPos(): { left: number; top: number } | null {
+  try {
+    const raw = window.localStorage.getItem(RAIL_POS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as { left: number; top: number };
+    if (typeof p?.left === "number" && typeof p?.top === "number") return p;
+  } catch {
+    /* ignore corrupt state */
+  }
+  return null;
+}
+
+function clampRailPos(left: number, top: number, w: number, h: number) {
+  return {
+    left: Math.min(Math.max(left, 4), Math.max(window.innerWidth - w - 4, 4)),
+    top: Math.min(Math.max(top, 4), Math.max(window.innerHeight - h - 4, 4)),
+  };
+}
 
 export function CalculatorDock() {
   const open = useCalculatorDock((s) => s.open);
@@ -55,6 +81,63 @@ export function CalculatorDock() {
   });
 
   const panelRef = React.useRef<HTMLDivElement | null>(null);
+  const railRef = React.useRef<HTMLButtonElement | null>(null);
+  const [railPos, setRailPos] = React.useState<{ left: number; top: number } | null>(null);
+  const [railDragging, setRailDragging] = React.useState(false);
+  const railDrag = React.useRef<{ startX: number; startY: number; baseLeft: number; baseTop: number; moved: boolean } | null>(null);
+
+  /* Resolve the rail's initial position after mount (needs window metrics). */
+  React.useEffect(() => {
+    if (railPos) return;
+    const rect = railRef.current?.getBoundingClientRect();
+    const w = rect?.width ?? 34;
+    const h = rect?.height ?? 150;
+    const saved = loadRailPos();
+    setRailPos(saved ?? { left: Math.max(window.innerWidth - w, 4), top: Math.max((window.innerHeight - h) / 2, 4) });
+  }, [railPos]);
+
+  const onRailPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (!railPos || e.button !== 0) return;
+    (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+    railDrag.current = { startX: e.clientX, startY: e.clientY, baseLeft: railPos.left, baseTop: railPos.top, moved: false };
+  };
+
+  const onRailPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const st = railDrag.current;
+    if (!st || !railPos) return;
+    const dx = e.clientX - st.startX;
+    const dy = e.clientY - st.startY;
+    if (!st.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    if (!st.moved) {
+      st.moved = true;
+      setRailDragging(true);
+    }
+    const rect = railRef.current?.getBoundingClientRect();
+    const w = rect?.width ?? 34;
+    const h = rect?.height ?? 150;
+    setRailPos(clampRailPos(st.baseLeft + dx, st.baseTop + dy, w, h));
+  };
+
+  const endRailDrag = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const st = railDrag.current;
+    railDrag.current = null;
+    setRailDragging(false);
+    if (st && !st.moved) {
+      toggle(); // a clean press without movement = open the calculator
+      return;
+    }
+    if (st?.moved && railPos) {
+      try {
+        window.localStorage.setItem(RAIL_POS_KEY, JSON.stringify(railPos));
+      } catch {
+        /* best effort */
+      }
+      /* Tell the assistant pill where the rail landed so the two surfaces
+         never end up stacked on each other. */
+      window.dispatchEvent(new CustomEvent(CALCULATOR_RAIL_MOVED_EVENT, { detail: railPos }));
+    }
+    void e;
+  };
 
   const toggleTheme = React.useCallback(() => {
     setTheme((prev) => {
@@ -94,19 +177,34 @@ export function CalculatorDock() {
       {!open ? (
         <button
           type="button"
-          className="mcalc-rail"
-          onClick={toggle}
-          aria-label="Open calculator"
+          ref={railRef}
+          className={`mcalc-rail${railDragging ? " mcalc-rail-dragging" : ""}`}
+          style={
+            railPos
+              ? { left: railPos.left, top: railPos.top, right: "auto", transform: "none" }
+              : { visibility: "hidden" }
+          }
+          onPointerDown={onRailPointerDown}
+          onPointerMove={onRailPointerMove}
+          onPointerUp={endRailDrag}
+          onPointerCancel={endRailDrag}
+          onDragStart={(e) => e.preventDefault()}
+          onClick={(e) => e.preventDefault()}
+          aria-label="Open calculator — drag to move"
           aria-expanded={false}
+          title="Drag to move • click to open"
         >
           <span className="mcalc-rail-icon">
             <CalculatorIcon size={14} strokeWidth={2.4} aria-hidden="true" />
           </span>
           <span className="mcalc-rail-label">Calculator</span>
+          <span className="mcalc-rail-grip" aria-hidden="true">
+            <GripVertical size={11} strokeWidth={2.2} />
+          </span>
         </button>
       ) : null}
 
-      {/* ── Expanded panel docked to the right edge ── */}
+      {/* ── Expanded panel docked next to the rail ── */}
       <AnimatePresence>
         {open ? (
           <motion.div
@@ -116,6 +214,14 @@ export function CalculatorDock() {
             role="dialog"
             aria-label="Calculator"
             tabIndex={-1}
+            style={
+              railPos
+                ? {
+                    left: Math.min(Math.max(railPos.left + 34, 8), Math.max(window.innerWidth - 360, 8)),
+                    right: "auto",
+                  }
+                : undefined
+            }
             initial={{ opacity: 0, x: 34 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 34 }}

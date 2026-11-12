@@ -15,6 +15,7 @@ export type ViewId =
   | "comms"
   | "brsr"
   | "brsrChecklist"
+  | "brsrAnnexure1"
   | "consolidation"
   | "analytics"
   | "intelligence"

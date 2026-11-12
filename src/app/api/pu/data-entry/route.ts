@@ -46,7 +46,45 @@ async function getActiveEmissionFactors() {
   return rows
 }
 
-function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {}, calculation: any = null) {
+/**
+ * Find evidence that is attached to TWO DIFFERENT source items of the same
+ * record. One document may back only one source — otherwise a single invoice
+ * would be counted as the proof for two different fuels.
+ */
+function findDuplicateEvidenceAcrossSources(
+  items: any[]
+): Array<{ evidenceId: string; sources: string[] }> | null {
+  const owner = new Map<string, string>()
+  const conflicts: Array<{ evidenceId: string; sources: string[] }> = []
+  for (const it of items) {
+    const ids: string[] = Array.isArray(it?.evidenceIds)
+      ? it.evidenceIds.filter(Boolean)
+      : it?.evidenceId
+        ? [it.evidenceId]
+        : []
+    if (ids.length === 0) continue
+    const label =
+      it?.energySource || it?.waterSource || it?.wasteCategory ||
+      it?.emissionSource || it?.permitConsentType || it?.activityInitiativeName ||
+      'another source'
+    for (const id of ids) {
+      const prev = owner.get(id)
+      if (!prev) {
+        owner.set(id, label)
+      } else if (prev !== label && !conflicts.some((c) => c.evidenceId === id)) {
+        conflicts.push({ evidenceId: id, sources: [prev, label] })
+      }
+    }
+  }
+  return conflicts.length ? conflicts : null
+}
+
+function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {}, calculation: any = null): {
+  metricName: string
+  metricValue: number
+  metricUnit: string
+  values: Array<{ label: string; value: string | number; unit?: string }>
+} {
   const m = String(moduleKey || '').toUpperCase()
   const values: Array<{ label: string; value: string | number; unit?: string }> = []
   let metricName = 'Data Points'
@@ -57,6 +95,7 @@ function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {},
   // priority — one metric row per captured source, mirroring exactly what the
   // contributor staged on the left panel form.
   const stagedItems: any[] = Array.isArray(data?.items) ? data.items : []
+
   if (stagedItems.length > 0 && (m === 'ENERGY' || m === 'WATER' || m === 'WASTE')) {
     let sumQty = 0
     let sumTco2 = 0
@@ -238,10 +277,11 @@ export async function POST(req: NextRequest) {
       module,
       projectId,
       reportingPeriodId,
-      data = {},
+      data: rawData = {},
       evidenceId,
       evidenceIds,
     } = body
+    const data: Record<string, any> = rawData as Record<string, any>
 
     // Defensive resolution: fast memory check before DB
     if (projectId && !verifiedProjectIds.has(projectId)) {
@@ -814,8 +854,25 @@ export async function POST(req: NextRequest) {
             let expiringCount = 0
             let nonCompliantCount = 0
             const now = Date.now()
+            const todayStr = new Date().toISOString().split('T')[0]
 
             for (const it of data.items) {
+              if (it.issueDate && it.issueDate > todayStr) {
+                issues.push({
+                  ruleCode: 'ENV-ISSUE-DATE-FUTURE',
+                  severity: 'ERROR',
+                  message: `Issue date (${it.issueDate}) cannot be in the future (today is ${todayStr})`,
+                  field: 'issueDate',
+                })
+              }
+              if (it.issueDate && it.expiryDate && it.expiryDate < it.issueDate) {
+                issues.push({
+                  ruleCode: 'ENV-EXPIRY-BEFORE-ISSUE',
+                  severity: 'ERROR',
+                  message: `Expiry date (${it.expiryDate}) cannot be earlier than issue date (${it.issueDate})`,
+                  field: 'expiryDate',
+                })
+              }
               if (it.nonComplianceIdentified === 'Yes') {
                 nonCompliantCount++
               }
@@ -845,6 +902,23 @@ export async function POST(req: NextRequest) {
           }
 
           // Environmental Compliance & Permits (Single)
+          const todayStr = new Date().toISOString().split('T')[0]
+          if (data.issueDate && data.issueDate > todayStr) {
+            issues.push({
+              ruleCode: 'ENV-ISSUE-DATE-FUTURE',
+              severity: 'ERROR',
+              message: `Issue date (${data.issueDate}) cannot be in the future (today is ${todayStr})`,
+              field: 'issueDate',
+            })
+          }
+          if (data.issueDate && data.expiryDate && data.expiryDate < data.issueDate) {
+            issues.push({
+              ruleCode: 'ENV-EXPIRY-BEFORE-ISSUE',
+              severity: 'ERROR',
+              message: `Expiry date (${data.expiryDate}) cannot be earlier than issue date (${data.issueDate})`,
+              field: 'expiryDate',
+            })
+          }
           if (!data.permitNumber) {
             issues.push({
               ruleCode: 'ENV-PERMIT-NUM',
@@ -1196,6 +1270,32 @@ export async function POST(req: NextRequest) {
       const periodDeadline: Date | null = per?.submissionDeadline ?? null
 
       const submissionTitle = `${proj?.name || 'Project'} — ${record.levelName} (${per?.periodLabel || 'FY 2026-27'})`
+
+      /* ONE evidence document may support only ONE source item of a record.
+         The client enforces this too, but a stale tab or a crafted request
+         must not be able to file the same invoice as the proof for two
+         different fuels — the numbers would double-count one document and the
+         reviewer's evidence trail becomes meaningless.
+
+         Duplicate ids INSIDE one item are harmless (that is the same document
+         listed once); the conflict is the same id across DIFFERENT items. */
+      const stagedSourceItems: any[] = Array.isArray(data.items) ? data.items : []
+      const duplicateEvidenceConflict = findDuplicateEvidenceAcrossSources(stagedSourceItems)
+      if (duplicateEvidenceConflict) {
+        const detail = duplicateEvidenceConflict
+          .map((c) => `${c.sources.join(' / ')} (${c.evidenceId.slice(0, 8)})`)
+          .join('; ')
+        return NextResponse.json(
+          {
+            error:
+              `The same evidence document cannot support two sources in one record — ${detail}. Attach a separate document to each source, or remove the duplicate.`,
+            code: 'DUPLICATE_EVIDENCE_ACROSS_SOURCES',
+            conflicts: duplicateEvidenceConflict,
+          },
+          { status: 409 }
+        )
+      }
+
       const modMetrics = extractModuleMetrics(record.module, data, calculation)
       const userBuId = user.scopes?.find((s) => s.scopeType === 'BUSINESS_UNIT')?.scopeId || null
       const userSubId = user.scopes?.find((s) => s.scopeType === 'SUBSIDIARY')?.scopeId || null
