@@ -11,6 +11,7 @@
 
 import { db } from "@/lib/db";
 import { TOOL_HANDLERS } from "./tools";
+import { composeConversation, type ToolOutcome } from "./talk";
 import type { CopilotRequestContext } from "./types";
 import type { ContentBlock, SourceReference } from "./types";
 
@@ -56,11 +57,8 @@ const INTENTS: Intent[] = [
   },
   {
     id: "pending_approvals",
-    test: /pending|awaiting|waiting|in review|approval|approve|review queue|backlog/i,
-    calls: (period) => [
-      { name: "get_submissions", args: { status: "SUBMITTED", period, limit: 25 } },
-      { name: "get_submissions", args: { status: "UNDER_REVIEW", period, limit: 25 } },
-    ],
+    test: /pending|awaiting|waiting|in review|approval|approve|review queue|backlog|anything to do|what needs|action needed|subsidiary admin/i,
+    calls: (period) => [{ name: "get_review_pipeline", args: { period } }],
   },
   {
     id: "missing_evidence",
@@ -398,6 +396,8 @@ export interface OfflineExecution {
   sources: SourceReference[];
   /** Per-tool outcome for the activity panel. */
   runs: { name: string; summary: string; error?: string }[];
+  /** Clickable follow-up questions. */
+  followUps: string[];
 }
 
 const FRIENDLY_TOOL: Record<string, string> = {
@@ -423,11 +423,13 @@ const FRIENDLY_TOOL: Record<string, string> = {
 export async function executeOffline(
   plan: OfflineOutcome,
   ctx: CopilotRequestContext,
+  question: string,
   onActivity?: (run: { name: string; label: string; status: "RUNNING" | "COMPLETED" | "FAILED"; summary?: string; error?: string }) => void
 ): Promise<OfflineExecution> {
   const blocks: ContentBlock[] = [];
   const sources: SourceReference[] = [];
   const runs: { name: string; summary: string; error?: string }[] = [];
+  const outcomes: ToolOutcome[] = [];
 
   for (const call of plan.calls) {
     const handler = TOOL_HANDLERS[call.name];
@@ -441,6 +443,7 @@ export async function executeOffline(
     try {
       const result = await handler(call.args, ctx);
       runs.push({ name: call.name, summary: result.summary, error: result.error });
+      outcomes.push({ name: call.name, summary: result.summary, error: result.error, data: result.data });
       for (const b of result.blocks ?? []) {
         if (!blocks.some((x) => JSON.stringify(x) === JSON.stringify(b))) blocks.push(b);
       }
@@ -457,81 +460,11 @@ export async function executeOffline(
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Tool failed";
       runs.push({ name: call.name, summary: msg, error: msg });
+      outcomes.push({ name: call.name, summary: msg, error: msg });
       onActivity?.({ name: call.name, label, status: "FAILED", error: msg });
     }
   }
 
-  return { text: composeNarrative(plan, runs, blocks), blocks, sources, runs };
-}
-
-/** The narrative is built ONLY from tool summaries — no generated claims. */
-function composeNarrative(
-  plan: OfflineOutcome,
-  runs: { name: string; summary: string; error?: string }[],
-  blocks: ContentBlock[]
-): string {
-  const ok = runs.filter((r) => !r.error && r.summary);
-  const failed = runs.filter((r) => r.error);
-
-  if (ok.length === 0) {
-    return [
-      "### No matching records found",
-      "",
-      "The platform tools ran but returned nothing for this question, so there is no grounded answer to give.",
-      failed.length ? "" : null,
-      failed.length ? `**Tool notes:** ${failed.map((f) => f.summary).join("; ")}` : null,
-    ]
-      .filter(Boolean)
-      .join("\n");
-  }
-
-  const lines: string[] = [];
-
-  if (plan.entity) {
-    lines.push(`### ${plan.entity.name}`);
-    lines.push("");
-    lines.push(`Retrieved the live ${plan.entity.type.replace("_", " ")} record from the platform.`);
-  } else {
-    lines.push("### What the platform records show");
-    lines.push("");
-  }
-
-  lines.push("");
-  for (const r of ok) {
-    lines.push(`- ${r.summary}`);
-  }
-
-  /* Surface the strongest structured signal from the blocks. */
-  const kpi = blocks.find((b) => b.type === "kpi") as Extract<ContentBlock, { type: "kpi" }> | undefined;
-  if (kpi?.items?.length) {
-    lines.push("");
-    lines.push("**Key figures**");
-    for (const item of kpi.items.slice(0, 8)) {
-      lines.push(`- **${item.label}**: ${item.value}${item.hint ? ` — ${item.hint}` : ""}`);
-    }
-  }
-
-  const comparison = blocks.find((b) => b.type === "comparison") as
-    | Extract<ContentBlock, { type: "comparison" }>
-    | undefined;
-  if (comparison?.entityLabels?.length) {
-    lines.push("");
-    lines.push(`**${comparison.title ?? "Comparison"}**`);
-    for (const metric of comparison.metrics ?? []) {
-      const pairs = comparison.entityLabels.map((label, i) => `${label}: ${metric.values[i]}`);
-      lines.push(`- ${metric.label} — ${pairs.join(" · ")}`);
-    }
-  }
-
-  if (failed.length) {
-    lines.push("");
-    lines.push(`**Notes:** ${failed.map((f) => f.summary).join("; ")}`);
-  }
-
-  lines.push("");
-  lines.push(
-    "_Read from the live platform records via the grounded tool registry — no AI provider is configured on this deployment, so this answer is composed directly from the retrieved data._"
-  );
-
-  return lines.join("\n");
+  const { text, followUps } = composeConversation(outcomes, question, blocks);
+  return { text, blocks, sources, runs, followUps };
 }

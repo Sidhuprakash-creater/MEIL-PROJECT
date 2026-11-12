@@ -164,7 +164,7 @@ async function runConversation(
      composes the answer strictly from what those tools returned. */
   if (!provider.configured) {
     const plan = await planOffline(userText, reportingYear);
-    const offline = await executeOffline(plan, ctx, (run) => {
+    const offline = await executeOffline(plan, ctx, userText, (run) => {
       if (run.status === "RUNNING") {
         send({ kind: "activity", id: `offline-${run.name}`, tool: run.name, label: run.label, status: "RUNNING", startedAt: new Date().toISOString() });
         send({ kind: "status", state: "retrieving", label: run.label });
@@ -187,6 +187,13 @@ async function runConversation(
     for (const b of offline.blocks) {
       blocks.push(b);
       send({ kind: "block", block: b });
+    }
+    /* Clickable follow-up questions — the assistant keeps the conversation
+       going instead of ending on a dead end. */
+    if (offline.followUps.length) {
+      const fuBlock: ContentBlock = { type: "follow_ups", questions: offline.followUps };
+      blocks.push(fuBlock);
+      send({ kind: "block", block: fuBlock });
     }
     for (const s of offline.sources) {
       if (!sources.some((x) => x.id === s.id && x.kind === s.kind)) sources.push(s);
