@@ -76,6 +76,58 @@ export function orchestratorSse(input: OrchestratorInput): Response {
         await runConversation(input, send, blocks, sources, toolRuns, (t) => (text = t));
       } catch (e) {
         const isProvider = e instanceof ProviderError;
+        /* PROVIDER THROTTLE FALLBACK — the AI provider refused the request
+           (429 / quota). Instead of failing the turn, answer from the live
+           platform records through the grounded engine so the user still gets
+           a real, data-backed answer. */
+        if (isProvider && ["PROVIDER_RATE_LIMITED", "RATE_LIMITED"].includes((e as ProviderError).code)) {
+          try {
+            const plan = await planOffline(input.userText, input.reportingYear);
+            const fallback = await executeOffline(plan, input.ctx, input.userText, (run) => {
+              if (run.status === "RUNNING") {
+                send({ kind: "activity", id: `fallback-${run.name}`, tool: run.name, label: run.label, status: "RUNNING", startedAt: new Date().toISOString() });
+              } else {
+                send({
+                  kind: "activity",
+                  id: `fallback-${run.name}`,
+                  tool: run.name,
+                  label: run.label,
+                  status: run.status,
+                  detail: run.summary,
+                  startedAt: new Date().toISOString(),
+                  finishedAt: new Date().toISOString(),
+                  error: run.error,
+                });
+              }
+            });
+            for (const b of fallback.blocks) {
+              blocks.push(b);
+              send({ kind: "block", block: b });
+            }
+            if (fallback.followUps.length) {
+              const fuBlock: ContentBlock = { type: "follow_ups", questions: fallback.followUps };
+              blocks.push(fuBlock);
+              send({ kind: "block", block: fuBlock });
+            }
+            send({ kind: "sources", sources: fallback.sources });
+            send({ kind: "delta", text: fallback.text });
+            await persistMessage(input.conversationId, {
+              role: "assistant",
+              content: fallback.text,
+              blocks,
+              sources: fallback.sources,
+              meta: { state: "success", provider: "offline-grounded", model: "grounded-tools", tools: fallback.runs.map((r) => r.name) },
+            }).catch(() => undefined);
+            await db.copilotConversation
+              .update({ where: { id: input.conversationId }, data: { lastAt: new Date(), provider: "offline-grounded", model: "grounded-tools" } })
+              .catch(() => undefined);
+            send({ kind: "message_done", messageId: "fallback", avatarState: "success" });
+            send({ kind: "done" });
+            return;
+          } catch {
+            /* fall through to the honest error path below */
+          }
+        }
         send({
           kind: "error",
           message: e instanceof Error ? e.message : "The assistant could not complete this request.",

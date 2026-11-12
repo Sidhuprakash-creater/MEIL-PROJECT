@@ -246,7 +246,7 @@ export const useCopilot = create<CopilotState>((set, get) => ({
       set({ error: "Start a conversation first." });
       return;
     }
-    // Provider cooldown — block the send while the countdown is running.
+    // No client-side cooldown — the provider is never artificially locked out.
     const until = get().rateLimitUntil;
     if (until && until > Date.now()) {
       set({ error: `Rate limit active — next request available in ${Math.ceil((until - Date.now()) / 1000)}s.` });
@@ -276,10 +276,9 @@ export const useCopilot = create<CopilotState>((set, get) => ({
       avatarState: "listening",
       statusLabel: "Listening",
       activity: [],
-      /* Groq free tier: one request per minute. Start the visible cooldown as
-         soon as the request is dispatched so the user sees the countdown while
-         the answer streams and afterwards. */
-      rateLimitUntil: get().provider === "groq" ? Date.now() + 60_000 : s.rateLimitUntil,
+      /* No proactive cooldown — the assistant stays usable for back-to-back
+         questions. A real provider 429 still surfaces as an error below. */
+      rateLimitUntil: null,
       error: null,
     }));
 
@@ -335,14 +334,15 @@ export const useCopilot = create<CopilotState>((set, get) => ({
           case "error":
             patchAssistant((m) => ({ ...m, content: m.content || e.message, streaming: false, error: true }));
             if (e.code === "RATE_LIMITED" && typeof e.retryAfter === "number" && e.retryAfter > 0) {
-              // Remove the optimistic empty assistant bubble and start the visible countdown.
+              /* The provider genuinely throttled this request — show what to
+                 do, but never lock the composer: the user can retry. */
               set((s) => ({
                 messages: s.messages.filter((m) => m.id !== assistantMsg.id),
                 streaming: false,
                 avatarState: "idle",
                 statusLabel: "",
-                error: null,
-                rateLimitUntil: Date.now() + e.retryAfter! * 1000,
+                error: `The AI provider is busy right now — it asked us to retry in ${e.retryAfter}s. Your question was not lost; press send again in a moment.`,
+                rateLimitUntil: null,
               }));
             } else {
               set({ avatarState: "error", statusLabel: "", streaming: false, error: e.message });
