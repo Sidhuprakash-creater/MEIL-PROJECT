@@ -109,6 +109,9 @@
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   font-size: 9.5px;
+  /* Pin the line box so the rail's width does not depend on which font the
+     browser falls back to — the label always occupies the same width. */
+  line-height: 1;
   font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
