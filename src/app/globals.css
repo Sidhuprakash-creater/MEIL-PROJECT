@@ -287,9 +287,19 @@
 
 /* Soft scrollbars */
 /* overscroll-behavior: contain — scrolling inside any inner list (dropdowns,
-   panels, tables) must never chain-scroll the shell or the main content area. */
+   panels, tables) must never chain-scroll the shell or the main content area.
+   EXCEPTION: a container that scrolls horizontally only (overflow-x-auto)
+   silently becomes a vertical scroll container too, because the browser
+   computes overflow-y: auto whenever the other axis is not visible. With
+   `contain` on that element the mouse wheel was trapped over the wide tables
+   (BRSR disclosures, stepper, data tables) and the page underneath could not
+   be scrolled at all. Horizontal-only scrollers therefore keep the vertical
+   wheel free to bubble up to the page. */
 .nice-scroll {
   overscroll-behavior: contain;
+}
+.nice-scroll.overflow-x-auto {
+  overscroll-behavior-y: auto;
 }
 .nice-scroll::-webkit-scrollbar {
   width: 8px;
