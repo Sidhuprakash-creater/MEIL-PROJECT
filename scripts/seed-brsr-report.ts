@@ -32,6 +32,38 @@ const MASTER = [
   { code: "BRSR-C2-GOV-04", section: "GOVERNANCE", title: "Confirmed conflict-of-interest cases", unit: "count" },
   { code: "BRSR-C2-GOV-05", section: "GOVERNANCE", title: "Consumer complaints resolved within SLA (%)", unit: "%" },
   { code: "BRSR-C2-GOV-06", section: "GOVERNANCE", title: "Data privacy / cybersecurity reportable incidents", unit: "count" },
+  /* ── Annexure I (SEBI BRSR Core format) — the nine attributes ───────────── */
+  { code: "BRSR-A1-GHG-S1", section: "ANNEXURE1", title: "Annexure I · 1 · Total Scope 1 emissions", unit: "tCO2e" },
+  { code: "BRSR-A1-GHG-S2", section: "ANNEXURE1", title: "Annexure I · 1 · Total Scope 2 emissions", unit: "tCO2e" },
+  { code: "BRSR-A1-GHG-INT", section: "ANNEXURE1", title: "Annexure I · 1 · GHG emission intensity (Scope 1+2) per ₹ Cr", unit: "tCO2e/₹Cr" },
+  { code: "BRSR-A1-WAT-CONS", section: "ANNEXURE1", title: "Annexure I · 2 · Total water consumption", unit: "KL" },
+  { code: "BRSR-A1-WAT-INT", section: "ANNEXURE1", title: "Annexure I · 2 · Water consumption intensity per ₹ Cr", unit: "KL/₹Cr" },
+  { code: "BRSR-A1-ENE-TOT", section: "ANNEXURE1", title: "Annexure I · 3 · Total energy consumed", unit: "GJ" },
+  { code: "BRSR-A1-ENE-REN", section: "ANNEXURE1", title: "Annexure I · 3 · Energy consumed from renewable sources", unit: "%" },
+  { code: "BRSR-A1-ENE-INT", section: "ANNEXURE1", title: "Annexure I · 3 · Energy intensity per ₹ Cr", unit: "GJ/₹Cr" },
+  { code: "BRSR-A1-WST-PLAS", section: "ANNEXURE1", title: "Annexure I · 4 · Plastic waste (A)", unit: "t" },
+  { code: "BRSR-A1-WST-EWST", section: "ANNEXURE1", title: "Annexure I · 4 · E-waste (B)", unit: "t" },
+  { code: "BRSR-A1-WST-BIO", section: "ANNEXURE1", title: "Annexure I · 4 · Bio-medical waste (C)", unit: "t" },
+  { code: "BRSR-A1-WST-CD", section: "ANNEXURE1", title: "Annexure I · 4 · Construction & demolition waste (D)", unit: "t" },
+  { code: "BRSR-A1-WST-BAT", section: "ANNEXURE1", title: "Annexure I · 4 · Battery waste (E)", unit: "t" },
+  { code: "BRSR-A1-WST-RAD", section: "ANNEXURE1", title: "Annexure I · 4 · Radioactive waste (F)", unit: "t" },
+  { code: "BRSR-A1-WST-OH", section: "ANNEXURE1", title: "Annexure I · 4 · Other hazardous waste (G)", unit: "t" },
+  { code: "BRSR-A1-WST-ONH", section: "ANNEXURE1", title: "Annexure I · 4 · Other non-hazardous waste (H)", unit: "t" },
+  { code: "BRSR-A1-WST-TOT", section: "ANNEXURE1", title: "Annexure I · 4 · Total waste generated (A+B+C+D+E+F+G+H)", unit: "t" },
+  { code: "BRSR-A1-WST-INT", section: "ANNEXURE1", title: "Annexure I · 4 · Waste intensity per ₹ Cr", unit: "t/₹Cr" },
+  { code: "BRSR-A1-WST-REC", section: "ANNEXURE1", title: "Annexure I · 4 · Waste recovered through recycling / re-use", unit: "t" },
+  { code: "BRSR-A1-WST-DSP", section: "ANNEXURE1", title: "Annexure I · 4 · Waste disposed by disposal method", unit: "t" },
+  { code: "BRSR-A1-SAF-WB", section: "ANNEXURE1", title: "Annexure I · 5 · Employee well-being spend as % of revenue", unit: "%" },
+  { code: "BRSR-A1-SAF-LTIFR", section: "ANNEXURE1", title: "Annexure I · 5 · Lost Time Injury Frequency Rate", unit: "per mn person-hours" },
+  { code: "BRSR-A1-SAF-FAT", section: "ANNEXURE1", title: "Annexure I · 5 · Fatalities", unit: "count" },
+  { code: "BRSR-A1-GEN-FWAGE", section: "ANNEXURE1", title: "Annexure I · 6 · Gross wages paid to females as % of wages", unit: "%" },
+  { code: "BRSR-A1-GEN-POSH", section: "ANNEXURE1", title: "Annexure I · 6 · Complaints on POSH reported", unit: "count" },
+  { code: "BRSR-A1-INC-MSME", section: "ANNEXURE1", title: "Annexure I · 7 · Input material sourced from MSMEs / within India", unit: "%" },
+  { code: "BRSR-A1-INC-TOWN", section: "ANNEXURE1", title: "Annexure I · 7 · Wages paid in smaller towns as % of total wage cost", unit: "%" },
+  { code: "BRSR-A1-FAIR-DP", section: "ANNEXURE1", title: "Annexure I · 8 · Customer data loss / breach as % of cyber security events", unit: "%" },
+  { code: "BRSR-A1-FAIR-DPO", section: "ANNEXURE1", title: "Annexure I · 8 · Number of days of accounts payable", unit: "days" },
+  { code: "BRSR-A1-OPEN-TH", section: "ANNEXURE1", title: "Annexure I · 9 · Purchases from trading houses as % of total purchases", unit: "%" },
+  { code: "BRSR-A1-OPEN-RPT", section: "ANNEXURE1", title: "Annexure I · 9 · RPT share in purchases / sales / loans & advances / investments", unit: "%" },
 ];
 
 /* Aggregated group values (consistent with the subsidiary demo seeds). */
@@ -44,6 +76,25 @@ const VALUES: Record<string, number> = {
   "BRSR-C2-SOC-06": 14, "BRSR-C2-SOC-07": 41.3, "BRSR-C2-SOC-08": 40.1,
   "BRSR-C2-GOV-01": 12, "BRSR-C2-GOV-02": 4, "BRSR-C2-GOV-03": 96.5,
   "BRSR-C2-GOV-04": 0, "BRSR-C2-GOV-05": 96, "BRSR-C2-GOV-06": 0,
+};
+
+/* ── Annexure I — aggregated from the subsidiaries' BRSR Data forms ─────────
+   These are the group roll-ups of the SEBI Annexure I parameters. The live
+   values are recomputed by the consolidation run; the figures below keep the
+   seeded report consistent with the subsidiary data forms. */
+const ANNEXURE_VALUES: Record<string, number> = {
+  "BRSR-A1-GHG-S1": 160920, "BRSR-A1-GHG-S2": 155100, "BRSR-A1-GHG-INT": 9.8,
+  "BRSR-A1-WAT-CONS": 2069000, "BRSR-A1-WAT-INT": 27.4,
+  "BRSR-A1-ENE-TOT": 2787000, "BRSR-A1-ENE-REN": 13.1, "BRSR-A1-ENE-INT": 31.1,
+  "BRSR-A1-WST-PLAS": 4982, "BRSR-A1-WST-EWST": 1661, "BRSR-A1-WST-BIO": 552,
+  "BRSR-A1-WST-CD": 11287, "BRSR-A1-WST-BAT": 1101, "BRSR-A1-WST-RAD": 0,
+  "BRSR-A1-WST-OH": 1927, "BRSR-A1-WST-ONH": 6019, "BRSR-A1-WST-TOT": 27530,
+  "BRSR-A1-WST-INT": 0.36, "BRSR-A1-WST-REC": 17069, "BRSR-A1-WST-DSP": 3580,
+  "BRSR-A1-SAF-WB": 0.42, "BRSR-A1-SAF-LTIFR": 0.29, "BRSR-A1-SAF-FAT": 0,
+  "BRSR-A1-GEN-FWAGE": 9.6, "BRSR-A1-GEN-POSH": 11,
+  "BRSR-A1-INC-MSME": 62.4, "BRSR-A1-INC-TOWN": 64.8,
+  "BRSR-A1-FAIR-DP": 0, "BRSR-A1-FAIR-DPO": 45,
+  "BRSR-A1-OPEN-TH": 6.4, "BRSR-A1-OPEN-RPT": 1.2,
 };
 
 const NOTES: Record<string, string> = {
@@ -65,9 +116,10 @@ const SECTIONS = [
   { id: "SEC-03", title: "Section A — General Disclosures", content: "Entity profiles (CIN, incorporation, registered offices, listing status, BRSR contacts), products & services with turnover contribution, geographic operations (India and international), workforce composition with gender-wise splits, group structure and CSR applicability were captured from every subsidiary through the structured BRSR Data form. Minor notice items: none material in FY 2025-26." },
   { id: "SEC-04", title: "Section B — Management & Process Disclosures", content: "12 board-approved policies mapped to NGRBC Principles 1–9, communicated through induction and annual training and extended to value-chain partners via the vendor code and contract clauses. Certifications: ISO 9001, ISO 14001, ISO 45001 across operating sites. Board-level CSR & Sustainability Committee oversees ESG performance quarterly; the ESG Cell executes the programme." },
   { id: "SEC-05", title: "Section C — Principle-wise Performance (P1–P9)", content: "Principle 1: 96.5% anti-corruption training coverage; zero confirmed conflict-of-interest cases. Principle 2: quality & recall processes verified; recycled inputs tracked. Principle 3: 12 average training hours; zero fatalities; 14 LTI with corrective actions closed. Principle 5: no confirmed human-rights incidents. Principle 6: 1,60,920 tCO2e Scope 1 and 1,55,100 tCO2e Scope 2; 61.2% waste recycled; zero environmental non-compliances. Principle 8: ₹40.1 Cr CSR spend across education, health, water and skilling. Principle 9: 96% consumer complaint resolution within SLA; zero reportable privacy/cybersecurity incidents." },
-  { id: "SEC-06", title: "Annexure — Data Methodology & Emission Factors", content: "Emission factors: grid electricity CEA v20 (0.716 tCO2/MWh, India), diesel combustion IPCC 2006 (2.68 kgCO2/L), coal combustion IPCC 2006. Intensities computed per ₹ Cr of audited turnover. Each subsidiary submitted its methodology register through the BRSR Data form; figures were cross-checked against disclosure-module evidence by BU and Subsidiary reviewers." },
-  { id: "SEC-07", title: "Annexure — Exclusions, Estimates & Restatements", content: "Scope 3 (business travel & upstream fuel) is a screening-level estimate. JV entities excluded on the equity method. No restatements against FY 2024-25. Evidence IDs for every indicator are referenced in the platform evidence module, verified by BU Manager and Subsidiary Manager." },
-  { id: "SEC-08", title: "Approval Statement", content: "This report consolidates subsidiary BRSR data and platform disclosures reviewed through the Project Admin → Business Unit → Subsidiary Manager → Group Admin workflow. Sign-offs recorded below attest to data quality and management review." },
+  { id: "SEC-06", title: "Section C — Annexure I (Format of BRSR Core)", content: "The nine attributes of the SEBI BRSR Core Annexure I — GHG footprint, water footprint, energy footprint, embracing circularity (waste), employee well-being and safety, gender diversity, inclusive development, fairness in engaging with customers and suppliers, and open-ness of business — are reported in full in the Annexure I table of this report. Each parameter carries its measurement unit, the data & assurance approach prescribed by SEBI, and the cross-reference back to the BRSR Core principle and question. Consolidated values are aggregated from the seven subsidiaries' BRSR Data submissions and reconciled against the platform disclosure ledger." },
+  { id: "SEC-07", title: "Annexure — Data Methodology & Emission Factors", content: "Emission factors: grid electricity CEA v20 (0.716 tCO2/MWh, India), diesel combustion IPCC 2006 (2.68 kgCO2/L), coal combustion IPCC 2006. Intensities computed per ₹ Cr of audited turnover. Each subsidiary submitted its methodology register through the BRSR Data form; figures were cross-checked against disclosure-module evidence by BU and Subsidiary reviewers." },
+  { id: "SEC-08", title: "Annexure — Exclusions, Estimates & Restatements", content: "Scope 3 (business travel & upstream fuel) is a screening-level estimate. JV entities excluded on the equity method. No restatements against FY 2024-25. Evidence IDs for every indicator are referenced in the platform evidence module, verified by BU Manager and Subsidiary Manager." },
+  { id: "SEC-09", title: "Approval Statement", content: "This report consolidates subsidiary BRSR data and platform disclosures reviewed through the Project Admin → Business Unit → Subsidiary Manager → Group Admin workflow. Sign-offs recorded below attest to data quality and management review." },
 ];
 
 async function main() {
@@ -83,7 +135,7 @@ async function main() {
 
   const disclosures = MASTER.map((d) => ({
     code: d.code, title: d.title, mapped: true, status: "VALIDATED",
-    value: VALUES[d.code] ?? 0, unit: d.unit, note: NOTES[d.code] ?? DEFAULT_NOTE,
+    value: VALUES[d.code] ?? ANNEXURE_VALUES[d.code] ?? 0, unit: d.unit, note: NOTES[d.code] ?? DEFAULT_NOTE,
   }));
 
   const base = {

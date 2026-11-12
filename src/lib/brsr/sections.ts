@@ -1,8 +1,11 @@
 // ── BRSR subsidiary data registry (Tata-style editable template inputs) ──
 // Mirrors the MEIL BRSR editable template: Section A (general disclosures),
-// Section B (management & process), Section C (principle-wise performance)
-// and the annexures. Each subsidiary fills these once per reporting period;
-// the Group Admin consolidates them into the final BRSR report.
+// Section B (management & process), Section C (the nine Annexure I attributes
+// of the SEBI BRSR Core format) and the annexures. Each subsidiary fills
+// these once per reporting period; the Group Admin consolidates them into the
+// final BRSR report.
+
+import { ANNEXURE_I } from "./annexure1";
 
 export type BrsrFieldType = "text" | "textarea" | "number";
 
@@ -20,7 +23,25 @@ export interface BrsrSection {
   fields: BrsrField[];
 }
 
+/* ── Section C · Annexure I (SEBI BRSR Core format) ───────────────────────
+   The nine attributes of Annexure I become nine capture sections, one per
+   attribute, so the Subsidiary Admin fills exactly what SEBI prescribes —
+   the parameter, its measurement unit, and the BRSR cross-reference travel
+   with the field. */
+const ANNEXURE_SECTIONS: BrsrSection[] = ANNEXURE_I.map((attr) => ({
+  key: `annexure1.${attr.id}`,
+  title: `C · Annexure I ${attr.srNo} — ${attr.title}`,
+  description: `${attr.summary} (Cross-reference: ${attr.parameters[0]?.crossRef ?? "BRSR Core"})`,
+  fields: attr.parameters.map((p) => ({
+    key: p.key,
+    label: p.label,
+    type: p.kind === "number" ? ("number" as const) : ("textarea" as const),
+    hint: `${p.unit}${p.crossRef ? ` · ${p.crossRef}` : ""}`,
+  })),
+}));
+
 export const BRSR_SECTIONS: BrsrSection[] = [
+  ...ANNEXURE_SECTIONS,
   {
     key: "entity",
     title: "A · General Disclosures — Reporting Entity",

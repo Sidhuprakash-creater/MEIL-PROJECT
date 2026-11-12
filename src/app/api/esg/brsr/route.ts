@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { handle, ok, fail, body, parseJson, logActivity, logAudit, ACTOR } from "@/lib/esg/server";
 import type { BrsrReport, BrsrSection, BrsrDisclosure, BrsrSignoff } from "@/lib/esg/types";
+import { ANNEXURE_I } from "@/lib/brsr/annexure1";
 
 const STATUSES = ["DRAFT", "CONSOLIDATION", "VALIDATION", "REVIEW", "SIGNOFF", "FINALIZED"];
 
@@ -196,6 +197,76 @@ export async function POST(req: NextRequest) {
       const { byCategory } = await consolidateForReport(r);
       const catalog = await db.disclosure.findMany({ orderBy: { code: "asc" } });
       const existing = parseJson<BrsrDisclosure[]>(r.disclosures, []);
+
+      /* Annexure I — the nine SEBI BRSR Core attributes. Their values are the
+         roll-up of what the subsidiaries submitted through their BRSR Data
+         forms (not the platform's category ledger), so they are read from the
+         subsidiary data rows and rolled up exactly as SEBI prescribes:
+         absolute quantities are summed, rates / percentages / intensities are
+         averaged, and worst-case figures (LTIFR, days payable) take the max. */
+      const annexureRows = await db.brsrSubsidiaryData.findMany({ where: { period: r.financialYear } });
+      const annexureAgg = new Map<string, number[]>();
+      const annexureText = new Map<string, string>();
+      const ANNEXURE_PARAM_BY_KEY: Record<string, string> = {};
+      for (const attr of ANNEXURE_I) {
+        for (const p of attr.parameters) ANNEXURE_PARAM_BY_KEY[p.key] = p.aggregation;
+      }
+      for (const row of annexureRows) {
+        const sections = safeParseSections(row.sections);
+        for (const [secKey, values] of Object.entries(sections)) {
+          if (!secKey.startsWith("annexure1.")) continue;
+          for (const [k, v] of Object.entries(values)) {
+            const raw = String(v).trim();
+            if (!raw) continue;
+            const n = Number(raw.replace(/,/g, ""));
+            if (Number.isFinite(n)) {
+              annexureAgg.set(k, [...(annexureAgg.get(k) ?? []), n]);
+            } else if (!annexureText.has(k)) {
+              /* A narrative parameter (waste recovered/disposed, RPT detail) —
+                 the group's statement is the first subsidiary's, kept verbatim. */
+              annexureText.set(k, raw);
+            }
+          }
+        }
+      }
+      /* Annexure I parameter key → the group disclosure code it reports to. */
+      const ANNEXURE_CODE: Record<string, string> = {
+        scope1: "BRSR-A1-GHG-S1", scope2: "BRSR-A1-GHG-S2", ghgIntensityTurnover: "BRSR-A1-GHG-INT",
+        waterConsumption: "BRSR-A1-WAT-CONS", waterIntensityTurnover: "BRSR-A1-WAT-INT",
+        energyConsumed: "BRSR-A1-ENE-TOT", renewableShare: "BRSR-A1-ENE-REN", energyIntensityTurnover: "BRSR-A1-ENE-INT",
+        plasticWaste: "BRSR-A1-WST-PLAS", ewaste: "BRSR-A1-WST-EWST", biomedicalWaste: "BRSR-A1-WST-BIO",
+        cdWaste: "BRSR-A1-WST-CD", batteryWaste: "BRSR-A1-WST-BAT", radioactiveWaste: "BRSR-A1-WST-RAD",
+        otherHazardousWaste: "BRSR-A1-WST-OH", otherNonHazardousWaste: "BRSR-A1-WST-ONH",
+        totalWasteGenerated: "BRSR-A1-WST-TOT", wasteIntensityTurnover: "BRSR-A1-WST-INT",
+        wellbeingSpend: "BRSR-A1-SAF-WB", ltifr: "BRSR-A1-SAF-LTIFR", fatalities: "BRSR-A1-SAF-FAT",
+        femaleWageShare: "BRSR-A1-GEN-FWAGE", poshComplaints: "BRSR-A1-GEN-POSH",
+        msmeProcurement: "BRSR-A1-INC-MSME", smallerTownWages: "BRSR-A1-INC-TOWN",
+        dataBreachShare: "BRSR-A1-FAIR-DP", accountsPayableDays: "BRSR-A1-FAIR-DPO",
+      };
+      const annexureByCode = new Map<string, number>();
+      for (const [paramKey, nums] of annexureAgg) {
+        const code = ANNEXURE_CODE[paramKey];
+        if (!code || !nums.length) continue;
+        const mode = ANNEXURE_PARAM_BY_KEY[paramKey] ?? "sum";
+        const value =
+          mode === "avg"
+            ? Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100
+            : mode === "max"
+              ? Math.max(...nums)
+              : Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
+        annexureByCode.set(code, value);
+      }
+      /* Narrative parameters carry the group's statement as the value. */
+      const ANNEXURE_TEXT_CODE: Record<string, string> = {
+        wasteRecovered: "BRSR-A1-WST-REC", wasteDisposed: "BRSR-A1-WST-DSP",
+        tradingHousePurchases: "BRSR-A1-OPEN-TH", rptShare: "BRSR-A1-OPEN-RPT",
+      };
+      const annexureTextByCode = new Map<string, string>();
+      for (const [paramKey, text] of annexureText) {
+        const code = ANNEXURE_TEXT_CODE[paramKey];
+        if (code) annexureTextByCode.set(code, text);
+      }
+
       const mapping: Record<string, string[]> = {
         "BRSR-ENV-01": ["ENERGY"],
         "BRSR-ENV-02": ["ENERGY"],
@@ -222,7 +293,17 @@ export async function POST(req: NextRequest) {
       const disclosures: BrsrDisclosure[] = catalog.map((d) => {
         const prev = existing.find((e) => e.code === d.code);
         const cats = mapping[d.code];
-        const value = cats ? cats.reduce((a, c) => a + (byCategory[c] ?? 0), 0) : null;
+        /* Annexure I codes carry the subsidiary data-form roll-up. */
+        const annexureValue = annexureByCode.get(d.code);
+        const value = annexureValue !== undefined
+          ? annexureValue
+          : cats
+            ? cats.reduce((a, c) => a + (byCategory[c] ?? 0), 0)
+            : null;
+        /* A narrative Annexure I parameter (waste recovered/disposed, RPT
+           detail) has no single number — the group's statement travels in the
+           note so the disclosure still reads as reported. */
+        const annexureNote = annexureTextByCode.get(d.code);
         return {
           code: d.code,
           title: d.title,
@@ -230,7 +311,7 @@ export async function POST(req: NextRequest) {
           status: value !== null && value > 0 ? "VALIDATED" : prev?.status === "EXCEPTION" ? "EXCEPTION" : prev?.mapped ? "PENDING" : prev?.status ?? "NOT_MAPPED",
           value,
           unit: d.unit,
-          note: prev?.note ?? "",
+          note: annexureNote ?? prev?.note ?? "",
         };
       });
       const updated = await db.brsrReport.update({
@@ -271,6 +352,23 @@ export async function POST(req: NextRequest) {
 
 function approvedCountSafe(byCategory: Record<string, number>) {
   return Object.entries(byCategory).map(([k, v]) => `${k}:${+v.toFixed(2)}`);
+}
+
+/** Parse a subsidiary's stored BRSR data sections. */
+function safeParseSections(json: string): Record<string, Record<string, string>> {
+  try {
+    const parsed = JSON.parse(json);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: Record<string, Record<string, string>> = {};
+    for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+      if (v && typeof v === "object" && !Array.isArray(v)) {
+        out[k] = v as Record<string, string>;
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 export async function PATCH(req: NextRequest) {
