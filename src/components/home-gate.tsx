@@ -107,6 +107,8 @@ const BU_ADMIN_ROLES = new Set(["BU_ADMIN"]);
 const PROJECT_ADMIN_ROLES = new Set(["PROJECT_ADMIN"]);
 /* Site-level roles served by the integrated Project User (site operations) portal. */
 const PROJECT_USER_ROLES = new Set([
+  "PROJECT_MANAGER",
+  "PROJECT_USER",
   "ENV_DATA_USER",
   "FIN_RESOURCE_USER",
   "EHS_USER",

@@ -7,16 +7,22 @@ import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
 import { ActionButton, Field, GlassDialog } from "@/components/workspace/ui";
 import { useToast } from "@/hooks/use-toast";
 import { apiPost, useApi, useMutation } from "@/lib/esg/client";
-import { ROLE_LABELS } from "@/lib/esg/types";
-
-const ROLE_KEYS = Object.keys(ROLE_LABELS);
+import {
+  ROLE_LABELS,
+  ADMIN_ROLE_KEYS,
+  MANAGER_ROLE_KEYS,
+  CONTRIBUTOR_ROLE_KEYS,
+} from "@/lib/esg/types";
 
 type CredentialMode = "temp_password" | "google_invite" | "custom_password";
 
@@ -30,16 +36,17 @@ export interface CreatedUserOutcome {
 
 function scopeHintForRole(role: string): string {
   if (role === "SUBSIDIARY_ADMIN" || role === "SUBSIDIARY_MANAGER") {
-    return "Required: select a Subsidiary for this role.";
+    return "Required: select a Subsidiary for this subsidiary leadership role.";
   }
   if (role === "BU_ADMIN" || role === "BU_MANAGER") {
-    return "Required: select a Subsidiary and Business Unit for this role.";
+    return "Required: select a Subsidiary and Business Unit for this BU leadership role.";
   }
-  if (role === "PROJECT_ADMIN") {
-    return "Required: select a Subsidiary, Business Unit, and Project / Site for Project Admin.";
+  if (role === "PROJECT_ADMIN" || role === "PROJECT_MANAGER") {
+    return "Required: select a Project / Site (Subsidiary & BU will auto-fill).";
   }
   if (
     [
+      "PROJECT_USER",
       "ENV_DATA_USER",
       "FIN_RESOURCE_USER",
       "HR_USER",
@@ -47,11 +54,12 @@ function scopeHintForRole(role: string): string {
       "PROCUREMENT_USER",
       "CSR_USER",
       "COMPLIANCE_USER",
+      "ESG_ANALYST",
     ].includes(role)
   ) {
-    return "Required: assign at least a Business Unit or Project / Site for this contributor role.";
+    return "Recommended: select a Project / Site or Business Unit for site data reporting.";
   }
-  return "Group-level access by default (optional Subsidiary / BU / Project filter).";
+  return "Group-level governance role with global visibility.";
 }
 
 export function CreateUserDialog({
@@ -123,9 +131,26 @@ export function CreateUserDialog({
   const buOptions = businessUnits.filter(
     (b) => subsidiaryId === "ALL" || b.subsidiaryId === subsidiaryId
   );
-  const projectOptions = projects.filter(
-    (p) => businessUnitId === "ALL" || p.businessUnitId === businessUnitId
-  );
+  const buIdsForSub = new Set(buOptions.map((b) => b.id));
+  const projectOptions = projects.filter((p) => {
+    if (businessUnitId !== "ALL") return p.businessUnitId === businessUnitId;
+    if (subsidiaryId !== "ALL") return buIdsForSub.has(p.businessUnitId);
+    return true;
+  });
+
+  const isProjectRole = [
+    "PROJECT_ADMIN",
+    "PROJECT_MANAGER",
+    "PROJECT_USER",
+    "ENV_DATA_USER",
+    "FIN_RESOURCE_USER",
+    "HR_USER",
+    "EHS_USER",
+    "PROCUREMENT_USER",
+    "CSR_USER",
+    "COMPLIANCE_USER",
+    "ESG_ANALYST",
+  ].includes(role);
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -134,6 +159,12 @@ export function CreateUserDialog({
       e.email = "A valid email address is required.";
     }
     if (!role) e.role = "Select a role.";
+    if (
+      (role === "PROJECT_ADMIN" || role === "PROJECT_MANAGER") &&
+      projectId === "ALL"
+    ) {
+      e.projectId = `Please select a Project / Site for ${ROLE_LABELS[role] ?? role}.`;
+    }
     if (
       googleEmail.trim() &&
       !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(googleEmail.trim())
@@ -249,12 +280,43 @@ export function CreateUserDialog({
               <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
-              <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
-                {ROLE_KEYS.map((r) => (
-                  <SelectItem key={r} value={r}>
-                    {ROLE_LABELS[r] ?? r}
-                  </SelectItem>
-                ))}
+              <SelectContent className="glass-strong z-[100] max-h-96 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
+                    Administrator Roles
+                  </SelectLabel>
+                  {ADMIN_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABELS[r] ?? r}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+
+                <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                    Manager Roles
+                  </SelectLabel>
+                  {MANAGER_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABELS[r] ?? r}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+
+                <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                    Site & Contributor Roles
+                  </SelectLabel>
+                  {CONTRIBUTOR_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABELS[r] ?? r}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
@@ -385,13 +447,33 @@ export function CreateUserDialog({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Project / Site">
-            <Select value={projectId} onValueChange={setProjectId}>
+          <Field
+            label={`Project / Site${role === "PROJECT_ADMIN" || role === "PROJECT_MANAGER" ? " *" : ""}`}
+            error={errors.projectId}
+          >
+            <Select
+              value={projectId}
+              onValueChange={(v) => {
+                setProjectId(v);
+                if (v !== "ALL") {
+                  const prj = projects.find((p) => p.id === v);
+                  if (prj) {
+                    setBusinessUnitId(prj.businessUnitId);
+                    const matchedBu = businessUnits.find((b) => b.id === prj.businessUnitId);
+                    if (matchedBu) {
+                      setSubsidiaryId(matchedBu.subsidiaryId);
+                    }
+                  }
+                }
+              }}
+            >
               <SelectTrigger className="glass-subtle w-full rounded-2xl border-white/60">
-                <SelectValue placeholder="Select project" />
+                <SelectValue placeholder="Select project / site" />
               </SelectTrigger>
               <SelectContent className="glass-strong z-[100] max-h-72 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
-                <SelectItem value="ALL">None</SelectItem>
+                <SelectItem value="ALL">
+                  {isProjectRole ? "— Select project / site —" : "None (Group / BU level)"}
+                </SelectItem>
                 {projectOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id}>
                     {p.name}

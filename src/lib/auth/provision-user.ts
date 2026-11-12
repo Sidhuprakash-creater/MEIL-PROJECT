@@ -47,6 +47,8 @@ const SUB_ROLES = new Set(["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"]);
 const BU_ROLES = new Set(["BU_ADMIN", "BU_MANAGER"]);
 const SITE_ROLES = new Set([
   "PROJECT_ADMIN",
+  "PROJECT_MANAGER",
+  "PROJECT_USER",
   "ENV_DATA_USER",
   "FIN_RESOURCE_USER",
   "EHS_USER",
@@ -54,6 +56,7 @@ const SITE_ROLES = new Set([
   "PROCUREMENT_USER",
   "CSR_USER",
   "COMPLIANCE_USER",
+  "ESG_ANALYST",
 ]);
 
 function prefixForRole(role: string): string {
@@ -174,9 +177,9 @@ async function resolveVerifiedScope(input: ProvisionUserInput): Promise<{
       };
     }
 
-    if (role === "PROJECT_ADMIN") {
+    if (role === "PROJECT_ADMIN" || role === "PROJECT_MANAGER") {
       throw new ProvisionError(
-        "Project assignment is required for Project Admin accounts.",
+        `Project assignment is required for ${roleLabel(role)} accounts.`,
         400
       );
     }

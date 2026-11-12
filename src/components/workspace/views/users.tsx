@@ -41,10 +41,22 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
   ROLE_LABELS,
+  ADMIN_ROLE_KEYS,
+  MANAGER_ROLE_KEYS,
+  CONTRIBUTOR_ROLE_KEYS,
   USER_STATUSES,
   type Submission,
   type Task,
@@ -402,8 +414,15 @@ function DetailPage({ userId }: { userId: string }) {
   const detailPresence = presenceOf(user);
   const detailPresenceMeta = PRESENCE_META[detailPresence];
   const isGroupAdmin = user.role === "GROUP_ADMIN";
-  const buOptions = (unitsApi.data?.businessUnits ?? []).filter((b) => form.subsidiaryId === "ALL" || b.subsidiaryId === form.subsidiaryId);
-  const projectOptions = (projectsApi.data?.projects ?? []).filter((p) => form.businessUnitId === "ALL" || p.businessUnitId === form.businessUnitId);
+  const buOptions = (unitsApi.data?.businessUnits ?? []).filter(
+    (b) => form.subsidiaryId === "ALL" || b.subsidiaryId === form.subsidiaryId
+  );
+  const buIdsForSub = new Set(buOptions.map((b) => b.id));
+  const projectOptions = (projectsApi.data?.projects ?? []).filter((p) => {
+    if (form.businessUnitId !== "ALL") return p.businessUnitId === form.businessUnitId;
+    if (form.subsidiaryId !== "ALL") return buIdsForSub.has(p.businessUnitId);
+    return true;
+  });
 
   return (
     <div className="view-in space-y-5">
@@ -695,10 +714,33 @@ function DetailPage({ userId }: { userId: string }) {
           <Field label="Role" required error={formErrors.role}>
             <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
               <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select role" /></SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
-                {ROLE_KEYS.map((r) => (
-                  <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
-                ))}
+              <SelectContent className="glass-strong z-[100] max-h-96 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
+                    Administrator Roles
+                  </SelectLabel>
+                  {ADMIN_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                    Manager Roles
+                  </SelectLabel>
+                  {MANAGER_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                    Site & Contributor Roles
+                  </SelectLabel>
+                  {CONTRIBUTOR_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
@@ -733,11 +775,27 @@ function DetailPage({ userId }: { userId: string }) {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Project / Site" hint="Filtered by selected business unit.">
-            <Select value={form.projectId} onValueChange={(v) => setForm({ ...form, projectId: v })}>
+          <Field label="Project / Site" hint="Auto-links Business Unit and Subsidiary.">
+            <Select
+              value={form.projectId}
+              onValueChange={(v) => {
+                if (v !== "ALL") {
+                  const prj = (projectsApi.data?.projects ?? []).find((p) => p.id === v);
+                  const matchedBu = prj ? (unitsApi.data?.businessUnits ?? []).find((b) => b.id === prj.businessUnitId) : null;
+                  setForm({
+                    ...form,
+                    projectId: v,
+                    businessUnitId: prj?.businessUnitId ?? form.businessUnitId,
+                    subsidiaryId: matchedBu?.subsidiaryId ?? form.subsidiaryId,
+                  });
+                } else {
+                  setForm({ ...form, projectId: v });
+                }
+              }}
+            >
               <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select project" /></SelectTrigger>
               <SelectContent className="glass-strong rounded-2xl border-white/70">
-                <SelectItem value="ALL">None</SelectItem>
+                <SelectItem value="ALL">None (Group / BU level)</SelectItem>
                 {projectOptions.map((p) => (
                   <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                 ))}
@@ -1603,10 +1661,33 @@ export default function UsersView() {
           <Field label="Role" required error={formErrors.role}>
             <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
               <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select role" /></SelectTrigger>
-              <SelectContent className="glass-strong rounded-2xl border-white/70">
-                {ROLE_KEYS.map((r) => (
-                  <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
-                ))}
+              <SelectContent className="glass-strong z-[100] max-h-96 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
+                    Administrator Roles
+                  </SelectLabel>
+                  {ADMIN_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                    Manager Roles
+                  </SelectLabel>
+                  {MANAGER_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectGroup>
+                <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+                <SelectGroup>
+                  <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                    Site & Contributor Roles
+                  </SelectLabel>
+                  {CONTRIBUTOR_ROLE_KEYS.map((r) => (
+                    <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                  ))}
+                </SelectGroup>
               </SelectContent>
             </Select>
           </Field>
@@ -1643,13 +1724,36 @@ export default function UsersView() {
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Project / Site" hint="Options filtered by selected business unit.">
-            <Select value={form.projectId} onValueChange={(v) => setForm({ ...form, projectId: v })}>
+          <Field label="Project / Site" hint="Auto-links Business Unit and Subsidiary.">
+            <Select
+              value={form.projectId}
+              onValueChange={(v) => {
+                if (v !== "ALL") {
+                  const prj = (projectsApi.data?.projects ?? []).find((p) => p.id === v);
+                  const matchedBu = prj ? (unitsApi.data?.businessUnits ?? []).find((b) => b.id === prj.businessUnitId) : null;
+                  setForm({
+                    ...form,
+                    projectId: v,
+                    businessUnitId: prj?.businessUnitId ?? form.businessUnitId,
+                    subsidiaryId: matchedBu?.subsidiaryId ?? form.subsidiaryId,
+                  });
+                } else {
+                  setForm({ ...form, projectId: v });
+                }
+              }}
+            >
               <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select project" /></SelectTrigger>
               <SelectContent className="glass-strong rounded-2xl border-white/70">
-                <SelectItem value="ALL">None</SelectItem>
+                <SelectItem value="ALL">None (Group / BU level)</SelectItem>
                 {(projectsApi.data?.projects ?? [])
-                  .filter((p) => form.businessUnitId === "ALL" || p.businessUnitId === form.businessUnitId)
+                  .filter((p) => {
+                    if (form.businessUnitId !== "ALL") return p.businessUnitId === form.businessUnitId;
+                    if (form.subsidiaryId !== "ALL") {
+                      const bu = (unitsApi.data?.businessUnits ?? []).find((b) => b.id === p.businessUnitId);
+                      return bu?.subsidiaryId === form.subsidiaryId;
+                    }
+                    return true;
+                  })
                   .map((p) => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -1675,10 +1779,33 @@ export default function UsersView() {
         <Field label="Role" required>
           <Select value={rolePick} onValueChange={setRolePick}>
             <SelectTrigger className="glass-subtle rounded-2xl border-white/60"><SelectValue placeholder="Select new role" /></SelectTrigger>
-            <SelectContent className="glass-strong rounded-2xl border-white/70">
-              {ROLE_KEYS.map((r) => (
-                <SelectItem key={r} value={r}>{roleLabel(r)}</SelectItem>
-              ))}
+            <SelectContent className="glass-strong z-[100] max-h-96 rounded-2xl border-white/70 shadow-2xl backdrop-blur-md">
+              <SelectGroup>
+                <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-700 dark:text-sky-400">
+                  Administrator Roles
+                </SelectLabel>
+                {ADMIN_ROLE_KEYS.map((r) => (
+                  <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+              <SelectGroup>
+                <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                  Manager Roles
+                </SelectLabel>
+                {MANAGER_ROLE_KEYS.map((r) => (
+                  <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                ))}
+              </SelectGroup>
+              <SelectSeparator className="my-1.5 bg-slate-200/60 dark:bg-slate-700/60" />
+              <SelectGroup>
+                <SelectLabel className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                  Site & Contributor Roles
+                </SelectLabel>
+                {CONTRIBUTOR_ROLE_KEYS.map((r) => (
+                  <SelectItem key={r} value={r}>{ROLE_LABELS[r] ?? r}</SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         </Field>

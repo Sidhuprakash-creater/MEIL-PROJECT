@@ -1133,7 +1133,7 @@ function PortalFlow({
               <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z" />
               <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z" />
             </svg>
-            Continue with Google
+            Quick Login with Google
           </button>
           <button type="button" className="ep-btn ep-btn-ghost" style={{ marginTop: 10 }} onClick={onBackToPortals} disabled={loading}>
             <ArrowLeft size={15} strokeWidth={2.2} />
@@ -1430,7 +1430,7 @@ export default function EnterPlatform({
                       <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14Z" />
                       <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z" />
                     </svg>
-                    Continue with Google (Verified Pre-Provisioned SSO)
+                    Quick Login with Google
                   </button>
                 </div>
 

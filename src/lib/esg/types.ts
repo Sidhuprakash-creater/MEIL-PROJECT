@@ -24,13 +24,20 @@ export type ViewId =
   | "settings";
 
 export const ROLE_LABELS: Record<string, string> = {
+  // Administrators
   GROUP_ADMIN: "Group Admin",
-  ORG_MANAGER: "Organization Manager",
-  SUBSIDIARY_MANAGER: "Subsidiary Manager",
   SUBSIDIARY_ADMIN: "Subsidiary Admin",
-  BU_MANAGER: "BU Manager",
   BU_ADMIN: "BU Admin",
   PROJECT_ADMIN: "Project Admin",
+
+  // Managers
+  ORG_MANAGER: "Organization Manager",
+  SUBSIDIARY_MANAGER: "Subsidiary Manager",
+  BU_MANAGER: "BU Manager",
+  PROJECT_MANAGER: "Project Manager",
+
+  // Project & Site Contributor Roles
+  PROJECT_USER: "Project User",
   ENV_DATA_USER: "Environment Data User",
   FIN_RESOURCE_USER: "Finance & Resource Contributor",
   HR_USER: "HR User",
@@ -41,7 +48,22 @@ export const ROLE_LABELS: Record<string, string> = {
   ESG_ANALYST: "ESG Analyst",
 };
 
-export const DATA_ENTRY_ROLES = [
+export const ADMIN_ROLE_KEYS = [
+  "GROUP_ADMIN",
+  "SUBSIDIARY_ADMIN",
+  "BU_ADMIN",
+  "PROJECT_ADMIN",
+] as const;
+
+export const MANAGER_ROLE_KEYS = [
+  "ORG_MANAGER",
+  "SUBSIDIARY_MANAGER",
+  "BU_MANAGER",
+  "PROJECT_MANAGER",
+] as const;
+
+export const CONTRIBUTOR_ROLE_KEYS = [
+  "PROJECT_USER",
   "ENV_DATA_USER",
   "FIN_RESOURCE_USER",
   "HR_USER",
@@ -49,6 +71,19 @@ export const DATA_ENTRY_ROLES = [
   "PROCUREMENT_USER",
   "CSR_USER",
   "COMPLIANCE_USER",
+  "ESG_ANALYST",
+] as const;
+
+export const DATA_ENTRY_ROLES = [
+  "PROJECT_USER",
+  "ENV_DATA_USER",
+  "FIN_RESOURCE_USER",
+  "HR_USER",
+  "EHS_USER",
+  "PROCUREMENT_USER",
+  "CSR_USER",
+  "COMPLIANCE_USER",
+  "ESG_ANALYST",
 ];
 
 export const CATEGORIES = [

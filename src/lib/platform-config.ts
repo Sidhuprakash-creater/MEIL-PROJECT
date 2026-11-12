@@ -33,11 +33,14 @@ export type DashboardScope = keyof typeof DASHBOARD_PATHS;
 
 export const ROLES = {
   GROUP_ADMIN: "Group Admin",
-  ORG_MANAGER: "Organization Manager",
   SUBSIDIARY_ADMIN: "Subsidiary Admin",
-  SUBSIDIARY_MANAGER: "Subsidiary Manager",
   BU_ADMIN: "Business Unit Admin",
+  PROJECT_ADMIN: "Project Admin",
+  ORG_MANAGER: "Organization Manager",
+  SUBSIDIARY_MANAGER: "Subsidiary Manager",
   BU_MANAGER: "Business Unit Manager",
+  PROJECT_MANAGER: "Project Manager",
+  PROJECT_USER: "Project User",
   ENV_DATA_USER: "Site Data Entry",
   FIN_RESOURCE_USER: "Finance & Resource Contributor",
   EHS_USER: "EHS Officer",
@@ -46,17 +49,18 @@ export const ROLES = {
   CSR_USER: "CSR / Community User",
   COMPLIANCE_USER: "Compliance / Governance",
   ESG_ANALYST: "ESG Analyst",
-  PROJECT_ADMIN: "Project Admin",
 } as const;
 
 export type RoleCode = keyof typeof ROLES;
 
 export const PORTAL_ROLES = {
-  group: ["GROUP_ADMIN"],
+  group: ["GROUP_ADMIN", "ORG_MANAGER"],
   subsidiary: ["SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"],
   business_unit: ["BU_ADMIN", "BU_MANAGER"],
   project: [
     "PROJECT_ADMIN",
+    "PROJECT_MANAGER",
+    "PROJECT_USER",
     "ENV_DATA_USER",
     "FIN_RESOURCE_USER",
     "EHS_USER",
