@@ -8,7 +8,7 @@ import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import { useCopilot } from "@/lib/copilot/store";
-import { CALCULATOR_OPEN_EVENT } from "@/lib/calculator/store";
+import { CALCULATOR_OPEN_EVENT, CALCULATOR_RAIL_MOVED_EVENT } from "@/lib/calculator/store";
 import { MEILAvatar } from "@/components/copilot/avatar/meil-avatar";
 import { CopilotWorkspace } from "@/components/copilot/workspace";
 import { BorderBeam } from "@/components/ui/border-beam";
@@ -19,10 +19,6 @@ import { BorderBeam } from "@/components/ui/border-beam";
    the dashboard's "Review queue" header action (below the app banner). */
 const POS_KEY = "mc-launcher-pos-v1";
 const DRAG_THRESHOLD = 6; // px of movement before a press becomes a drag
-
-/** Fired when the calculator rail is dropped somewhere — the assistant pill
- *  steps aside so the two floating surfaces never sit on top of each other. */
-export const RAIL_MOVED_EVENT = "meil-calculator-rail-moved";
 
 function loadSavedPos(): { left: number; top: number } | null {
   try {
@@ -95,8 +91,8 @@ export function CopilotFloating() {
         setPos(clampPos(pos.left, pos.top + h + 22, w, h));
       }
     };
-    window.addEventListener(RAIL_MOVED_EVENT, onRailMoved);
-    return () => window.removeEventListener(RAIL_MOVED_EVENT, onRailMoved);
+    window.addEventListener(CALCULATOR_RAIL_MOVED_EVENT, onRailMoved);
+    return () => window.removeEventListener(CALCULATOR_RAIL_MOVED_EVENT, onRailMoved);
   }, [pos]);
 
   // Resolve the initial position after mount (needs window + pill metrics).

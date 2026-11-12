@@ -20,8 +20,7 @@ import { Calculator as CalculatorIcon, GripVertical, Moon, Sun, X } from "lucide
 import { CalculatorPanel } from "@/components/shared/calculator/calculator-panel";
 import { CarbonCalculator } from "@/components/shared/calculator/carbon-calculator";
 import { TravelCalculator } from "@/components/shared/calculator/travel-calculator";
-import { useCalculatorDock, CALCULATOR_OPEN_EVENT } from "@/lib/calculator/store";
-import { RAIL_MOVED_EVENT } from "@/components/copilot/floating";
+import { useCalculatorDock, CALCULATOR_OPEN_EVENT, CALCULATOR_RAIL_MOVED_EVENT } from "@/lib/calculator/store";
 import "./calculator.css";
 
 const THEME_KEY = "meil-calculator-theme-v1";
@@ -135,7 +134,7 @@ export function CalculatorDock() {
       }
       /* Tell the assistant pill where the rail landed so the two surfaces
          never end up stacked on each other. */
-      window.dispatchEvent(new CustomEvent(RAIL_MOVED_EVENT, { detail: railPos }));
+      window.dispatchEvent(new CustomEvent(CALCULATOR_RAIL_MOVED_EVENT, { detail: railPos }));
     }
     void e;
   };
