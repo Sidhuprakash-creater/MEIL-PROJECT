@@ -31,7 +31,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { usePaStore, PA_VIEW_ORDER, PA_VIEW_META } from "@/lib/project-admin/store";
-import { prefetchProjectAdminData, setPaCacheOwner } from "@/lib/project-admin/client";
+import { prefetchProjectAdminData, setPaCacheOwner, paApiGet } from "@/lib/project-admin/client";
 import type { PaViewId } from "@/lib/project-admin/types";
 import { PaButton, PaStatusBadge } from "./ui";
 import { PA_VIEW_COMPONENTS } from "./view-registry";
@@ -89,6 +89,35 @@ export function ProjectAdminWorkspaceShell({
 
   const [searchQuery, setSearchQuery] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  /* Blue review badge on "Data Collection Status" — live count of rows
+     awaiting THIS admin's decision (contributor SUBMITTED / UNDER_REVIEW).
+     Green badge on "Consolidated Report" — approved rows staged for the
+     BU hand-off, so after approving here the next step is obvious.
+     Refreshes on a short poll + whenever the window regains focus, so a
+     fresh contributor submission surfaces without a full reload. */
+  const [pendingReviewCount, setPendingReviewCount] = useState(0);
+  const [readyToConsolidateCount, setReadyToConsolidateCount] = useState(0);
+  useEffect(() => {
+    if (!sessionUser?.id) return;
+    let alive = true;
+    const load = () =>
+      paApiGet<{ items?: Array<{ submissionStatus?: string }> }>(
+        "/api/project-admin/collection-status"
+      )
+        .then((d) => {
+          if (!alive) return;
+          const items = d.items ?? [];
+          setPendingReviewCount(items.filter((i) =>
+            ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"].includes(i.submissionStatus ?? "")
+          ).length);
+          setReadyToConsolidateCount(items.filter((i) => i.submissionStatus === "APPROVED").length);
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 15000);
+    window.addEventListener("focus", load);
+    return () => { alive = false; clearInterval(t); window.removeEventListener("focus", load); };
+  }, [sessionUser?.id, currentView]);
 
   // Warm up and prefetch all 13 views on mount for instantaneous navigation.
   // Cache is identity-scoped FIRST so a different signed-in admin never sees
@@ -245,9 +274,33 @@ export function ProjectAdminWorkspaceShell({
                         {!sidebarCollapsed && (
                           <span className="flex-1 text-left truncate">{meta.label}</span>
                         )}
+                        {!sidebarCollapsed && vId === "collection-status" && pendingReviewCount > 0 && (
+                          <span
+                            className="relative flex h-5 min-w-5 items-center justify-center rounded-full bg-[#315CFF] px-1.5 text-[10px] font-extrabold text-white shadow-md shadow-[rgba(49,92,255,0.35)] ring-2 ring-white/60"
+                            title={`${pendingReviewCount} submission${pendingReviewCount === 1 ? "" : "s"} awaiting review`}
+                          >
+                            {pendingReviewCount}
+                            <motion.span
+                              className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-[#7C9BFF]"
+                              animate={{ scale: [1, 1.35, 1] }}
+                              transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+                            />
+                          </span>
+                        )}
                         {!sidebarCollapsed && meta.badge && (
                           <span className="px-2 py-0.5 text-[10px] font-extrabold rounded-full bg-white/20 text-white uppercase tracking-wider">
                             {meta.badge}
+                          </span>
+                        )}
+                        {sidebarCollapsed && vId === "collection-status" && pendingReviewCount > 0 && (
+                          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#315CFF] ring-2 ring-white/80" title={`${pendingReviewCount} awaiting review`} />
+                        )}
+                        {!sidebarCollapsed && vId === "consolidated-report" && readyToConsolidateCount > 0 && (
+                          <span
+                            className="flex h-5 min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-[#10B981] to-[#059669] px-1.5 text-[10px] font-extrabold text-white shadow-md shadow-[rgba(16,185,129,0.35)] ring-2 ring-white/60"
+                            title={`${readyToConsolidateCount} approved record${readyToConsolidateCount === 1 ? "" : "s"} ready for the consolidated BU hand-off`}
+                          >
+                            {readyToConsolidateCount}
                           </span>
                         )}
                         {!sidebarCollapsed && vId === "notifications" && unreadNotificationsCount > 0 && (

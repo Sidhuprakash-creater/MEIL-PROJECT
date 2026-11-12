@@ -421,12 +421,13 @@ export default function CollectionStatusView() {
                           <Eye size={16} />
                         </button>
 
-                        {/* Approve Quick Action */}
+                        {/* Approve Quick Action — green highlight so the
+                            decision point is obvious at a glance */}
                         {item.submissionStatus !== "APPROVED" && (
                           <button
                             type="button"
                             onClick={() => handleApprove(item)}
-                            className="p-1.5 rounded-xl text-emerald-600 hover:bg-emerald-50 transition-colors"
+                            className="p-1.5 rounded-xl bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200 shadow-sm transition-all hover:bg-emerald-500 hover:text-white hover:ring-emerald-500 hover:shadow-md active:scale-90 active:bg-emerald-600"
                             title="Approve Submission"
                           >
                             <Check size={16} strokeWidth={2.5} />

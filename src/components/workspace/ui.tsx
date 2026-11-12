@@ -620,7 +620,7 @@ export function GlassDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={cn("glass-strong fixed inset-0 m-auto z-[70] max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll", wide ? "sm:max-w-2xl" : "sm:max-w-lg")}
+        className={cn("glass-strong fixed inset-0 m-auto z-[70] max-h-[88vh] overflow-y-auto rounded-3xl border-white/80 nice-scroll", wide ? "sm:max-w-4xl" : "sm:max-w-lg")}
         style={{ transform: "none", translate: "none", margin: "auto" }}
       >
         <DialogHeader>

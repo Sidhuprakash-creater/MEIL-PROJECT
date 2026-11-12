@@ -96,11 +96,14 @@ const NAV_LABELS: Record<BmViewId, string> = {
 /* ───────────────────────────── Sidebar ───────────────────────────── */
 
 function NavItem({ view, collapsed }: { view: BmViewId; collapsed: boolean }) {
-  const { view: active, navigate, queueCount } = useBmWorkspace();
+  const { view: active, navigate, queueCount, projectReportsCount } = useBmWorkspace();
   const Icon = BM_VIEW_ICONS[view];
   const meta = VIEW_META[view];
   const isActive = active === view;
   const showBadge = view === "queue" && queueCount > 0;
+  /* Project Reports badge — project/PA hand-offs waiting for this BU's
+     decision. Blue pill so it reads as "action needed here". */
+  const showReportsBadge = view === "reports" && projectReportsCount > 0;
   const btn = (
     <button
       onClick={() => navigate(view)}
@@ -116,8 +119,19 @@ function NavItem({ view, collapsed }: { view: BmViewId; collapsed: boolean }) {
       {!collapsed && showBadge && (
         <span className="ml-auto rounded-full bg-[rgba(139,92,246,0.14)] px-2 py-0.5 text-[10.5px] font-bold tabular text-[color:var(--bum-purple-deep)]">{queueCount}</span>
       )}
+      {!collapsed && showReportsBadge && (
+        <span
+          className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#315CFF] px-1.5 text-[10px] font-extrabold tabular text-white shadow-md shadow-[rgba(49,92,255,0.35)] ring-2 ring-white/60"
+          title={`${projectReportsCount} project report${projectReportsCount === 1 ? "" : "s"} awaiting your review`}
+        >
+          {projectReportsCount}
+        </span>
+      )}
       {collapsed && showBadge && (
         <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[color:var(--bum-purple)] ring-2 ring-white/80" />
+      )}
+      {collapsed && showReportsBadge && (
+        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#315CFF] ring-2 ring-white/80" />
       )}
     </button>
   );
@@ -442,7 +456,7 @@ export function BmWorkspaceShell({
   sessionUser: BmSessionUser;
   onSignOut?: () => void;
 }) {
-  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen, setQueueCount } = useBmWorkspace();
+  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen, setQueueCount, setProjectReportsCount } = useBmWorkspace();
 
   /* ⌘K keyboard shortcut */
   React.useEffect(() => {
@@ -457,10 +471,11 @@ export function BmWorkspaceShell({
   }, [commandOpen, setCommandOpen]);
 
   /* Live queue counter for the sidebar badge (15s poll, visibility-aware). */
-  const { data: pulse } = useBmApi<{ unread: number; queueCount: number }>("/api/bm/pulse", { pollMs: 15000 });
+  const { data: pulse } = useBmApi<{ unread: number; queueCount: number; projectReportsCount: number }>("/api/bm/pulse", { pollMs: 15000 });
   React.useEffect(() => {
     if (pulse && typeof pulse.queueCount === "number") setQueueCount(pulse.queueCount);
-  }, [pulse, setQueueCount]);
+    if (pulse && typeof pulse.projectReportsCount === "number") setProjectReportsCount(pulse.projectReportsCount);
+  }, [pulse, setQueueCount, setProjectReportsCount]);
 
   const ViewComponent = BM_VIEWS[view] as BmViewComponent;
 

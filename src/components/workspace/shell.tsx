@@ -476,7 +476,7 @@ export function WorkspaceShell({
         <div className="flex h-full min-w-0 flex-1 flex-col pb-4 pt-3">
           <TopBar />
           <main
-            className="nice-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pt-4 sm:px-4"
+            className="nice-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-24 pt-4 sm:px-4"
             id="main-content"
           >
             <React.Suspense

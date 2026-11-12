@@ -571,15 +571,15 @@ function Composer({
           multiline
           rows={1}
           value={text}
-          disabled={!providerConfigured}
+          disabled={false}
           placeholder={
-            !providerConfigured
-              ? "AI provider is not configured — set GEMINI_API_KEY."
-              : rateLimited
-                ? `Cooling down — next question available in ${rateSeconds}s…`
-                : variant === "panel"
+            rateLimited
+              ? `Cooling down — next question available in ${rateSeconds}s…`
+              : providerConfigured
+                ? variant === "panel"
                   ? "Ask about subsidiaries, reports, deadlines…"
                   : "Ask about subsidiaries, submissions, deadlines, analytics…"
+                : "Ask about subsidiaries, reports, deadlines… (grounded mode — no AI key configured)"
           }
           onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setText(e.target.value)}
           aria-label="Message MEIL Intelligence"
@@ -588,7 +588,7 @@ function Composer({
           type={streaming ? "button" : "submit"}
           aria-label={streaming ? "Stop generating" : rateLimited ? "Rate limited — wait for cooldown" : "Send message"}
           title={streaming ? "Stop generating" : rateLimited ? `Wait ${rateSeconds}s — one request per minute` : "Send"}
-          disabled={!streaming && (!text.trim() || !providerConfigured || rateLimited)}
+          disabled={!streaming && (!text.trim() || rateLimited)}
           className={streaming ? "mc-submit-stop" : undefined}
           onClick={(e) => {
             if (streaming) {
@@ -612,7 +612,11 @@ function Composer({
         <span className="mc-composer-hint">
           {variant === "panel" ? "Enter to send · Shift+Enter newline" : "Enter to send · Shift+Enter for a new line"}
         </span>
-        <span className="mc-provider-tag">{provider === "gemini" ? "Gemini" : provider === "groq" ? "Groq · 1 req/min" : provider} · grounded via tools</span>
+        <span className="mc-provider-tag">
+          {providerConfigured
+            ? `${provider === "gemini" ? "Gemini" : provider === "groq" ? "Groq · 1 req/min" : provider} · grounded via tools`
+            : "Grounded engine · live platform records"}
+        </span>
       </div>
     </div>
   );
@@ -621,7 +625,7 @@ function Composer({
 /* ───────────────────────────── Root ───────────────────────────── */
 
 export function CopilotWorkspace({ variant = "fullscreen" }: { variant?: CopilotVariant }) {
-  const { view, bootstrap, reportingYear, fullscreen, theme, hydrateTheme, streaming, providerConfigured } = useCopilot();
+  const { view, bootstrap, reportingYear, fullscreen, theme, hydrateTheme, streaming } = useCopilot();
   const [tab, setTab] = React.useState<"chat" | "explorer">("chat");
   const [sideOpen, setSideOpen] = React.useState(false);
   const [draft, setDraft] = React.useState("");
@@ -652,7 +656,7 @@ export function CopilotWorkspace({ variant = "fullscreen" }: { variant?: Copilot
 
   const handleChatSubmit = (e: ChatSubmitEvent) => {
     e.preventDefault();
-    if (streaming || !providerConfigured) return;
+    if (streaming) return;
     const st = useCopilot.getState();
     if (st.rateLimitUntil && st.rateLimitUntil > Date.now()) return; // cooldown active
     const msg = e.message.trim();

@@ -32,8 +32,22 @@ export async function GET(req: NextRequest) {
     const orgOf = (s: { businessUnitId: string | null; projectId: string | null }) =>
       (s.projectId ? prjNames.get(s.projectId) : s.businessUnitId ? buNames.get(s.businessUnitId) : null) ?? "—";
 
+    /* The final-report gate tracks the BU → SM approval chain only.
+       Raw site-level rows (projectId set, still SUBMITTED / UNDER_REVIEW)
+       are in the Project Admin's custody — they have not entered the
+       consolidated hand-off yet and must NOT lock the SA's submit button.
+       BU-level disclosures (no projectId) keep the legacy direct flow. */
+    const inSaChain = (s: { status: string; projectId: string | null }) =>
+      s.projectId
+        ? !["SUBMITTED", "UNDER_REVIEW"].includes(s.status) // project rows past PA custody
+        : true; // BU-level rows follow the direct chain
     const approved = subs.filter((s) => s.status === "APPROVED");
-    const pendingReview = subs.filter((s) => ["SUBMITTED", "UNDER_REVIEW"].includes(s.status));
+    const pendingReview = subs.filter((s) => inSaChain(s) && ["SUBMITTED", "UNDER_REVIEW"].includes(s.status));
+    /* Consolidated packages the Subsidiary Manager approved and that now await
+       the Subsidiary Admin's second-step verification. They are NOT approved
+       yet — the admin must re-check the numbers before the subsidiary may
+       submit its final report to the Group. */
+    const awaitingVerification = subs.filter((s) => s.status === "AWAITING_SA_VERIFICATION").length;
     const totalNonDraft = subs.filter((s) => s.status !== "DRAFT").length;
     const zeroEvidence = subs.filter((s) => s.status !== "DRAFT" && parseJson<string[]>(s.evidence, []).length === 0).length;
 
@@ -41,6 +55,7 @@ export async function GET(req: NextRequest) {
       pct: readinessPctOf(approved.length, totalNonDraft),
       eligibleApproved: approved.length,
       pendingReview: pendingReview.length,
+      awaitingVerification,
       missingData: SA_CATEGORIES.filter((c) => !subs.some((s) => s.category === c)).length,
       validationExceptions: openIssueCount,
       evidenceGaps: missingEvidenceDocs + zeroEvidence,
@@ -49,7 +64,7 @@ export async function GET(req: NextRequest) {
     const categories = SA_CATEGORIES.map((cat) => {
       const list = subs.filter((s) => s.category === cat);
       const app = list.filter((s) => s.status === "APPROVED").length;
-      const pend = list.filter((s) => ["SUBMITTED", "UNDER_REVIEW"].includes(s.status)).length;
+      const pend = list.filter((s) => inSaChain(s) && ["SUBMITTED", "UNDER_REVIEW"].includes(s.status)).length;
       return {
         category: cat,
         label: CATEGORY_LABELS[cat] ?? cat,

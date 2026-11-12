@@ -775,24 +775,45 @@ const search_evidence: ToolHandler = async (args) => {
   const q = str(args.query);
   const status = str(args.status)?.toUpperCase();
   const submissionRef = str(args.submissionRef);
+  const projectId = str(args.projectId);
   const limit = Math.min(Math.max(num(args.limit) ?? 10, 1), 30);
   const where: Record<string, unknown> = {};
   if (q) where.OR = [{ name: { contains: q, mode: "insensitive" } }, { disclosureRef: { contains: q, mode: "insensitive" } }];
   if (status) where.status = status;
   if (submissionRef) where.submissionRef = submissionRef;
-  const [docs, vault, subsidiaries] = await Promise.all([
+  /* Evidence documents attached to this project's submissions. */
+  const projectSubmissionIds = projectId
+    ? (await db.submission.findMany({ where: { projectId }, select: { id: true } })).map((s) => s.id)
+    : [];
+  const [docs, vault, subsidiaries, projectSubs] = await Promise.all([
     db.evidenceDoc.findMany({ where, orderBy: { uploadedAt: "desc" }, take: limit }),
     db.evidence.findMany({
-      where: q ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] } : { id: "none" },
+      where: projectId
+        ? { projectId, ...(q ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] } : {}) }
+        : q
+          ? { OR: [{ fileName: { contains: q, mode: "insensitive" } }, { documentType: { contains: q, mode: "insensitive" } }] }
+          : { id: "none" },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: { uploader: { select: { name: true } } },
     }),
     db.subsidiary.findMany({ select: { id: true, name: true } }),
+    projectSubmissionIds.length
+      ? db.evidenceDoc.findMany({
+          where: { submissionId: { in: projectSubmissionIds } },
+          orderBy: { uploadedAt: "desc" },
+          take: limit,
+        })
+      : Promise.resolve([]),
   ]);
+  /* Merge the project's own evidence documents with the searched ones. */
+  const mergedDocs = [...docs];
+  for (const d of projectSubs) {
+    if (!mergedDocs.some((x) => x.id === d.id)) mergedDocs.push(d);
+  }
   const subName = (id: string | null) => (id ? subsidiaries.find((s) => s.id === id)?.name ?? undefined : undefined);
   const blocks: ContentBlock[] = [
-    ...docs.map((d) => ({
+    ...mergedDocs.map((d) => ({
       type: "evidence",
       evidenceId: d.id,
       name: d.name,
@@ -1081,6 +1102,85 @@ const get_brsr_completeness: ToolHandler = async (args, ctx) => {
   };
 };
 
+/**
+ * The live review pipeline — what is waiting on a human right now, at every
+ * layer of the approval chain (Contributor → Project Admin → BU Manager →
+ * Subsidiary Manager → Subsidiary Admin → Group). This is the question
+ * "is anything pending?" most often means.
+ */
+const get_review_pipeline: ToolHandler = async (args, ctx) => {
+  const period = str(args.period) ?? ctx.reportingYear;
+
+  const [stageCounts, awaitingVerification, pendingRows, projects, units] = await Promise.all([
+    db.submission.groupBy({ by: ["status"] as const, where: { period }, _count: { _all: true } }),
+    db.submission.findMany({
+      where: { period, status: "AWAITING_SA_VERIFICATION" },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select: { id: true, ref: true, title: true, businessUnitId: true, projectId: true, updatedAt: true },
+    }),
+    db.submission.findMany({
+      where: { period, status: { in: ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"] } },
+      orderBy: [{ overdue: "desc" }, { dueDate: "asc" }],
+      take: 20,
+      select: { id: true, ref: true, title: true, status: true, overdue: true, dueDate: true, businessUnitId: true, projectId: true },
+    }),
+    db.project.findMany({ select: { id: true, name: true } }),
+    db.businessUnit.findMany({ select: { id: true, name: true } }),
+  ]);
+
+  const counts = Object.fromEntries(stageCounts.map((g) => [g.status, g._count._all]));
+  const entOf = (p: { businessUnitId: string | null; projectId: string | null }) =>
+    (p.projectId ? projects.find((x) => x.id === p.projectId)?.name : undefined) ??
+    (p.businessUnitId ? units.find((x) => x.id === p.businessUnitId)?.name : undefined) ??
+    "—";
+
+  const pendingTotal = pendingRows.length;
+  const verificationTotal = awaitingVerification.length;
+
+  const kpi: ContentBlock = {
+    type: "kpi",
+    title: `Live review pipeline — ${period}`,
+    period,
+    scope: "Group",
+    items: [
+      { label: "Awaiting SA verification", value: String(verificationTotal), delta: verificationTotal ? "action needed" : undefined, deltaDirection: verificationTotal ? "up" : "flat", hint: "consolidated packages approved by the Subsidiary Manager" },
+      { label: "In review chain", value: String(pendingTotal), hint: "submitted, under review or returned" },
+      { label: "Approved & locked in", value: String((counts["APPROVED"] ?? 0) + (counts["BU_APPROVED"] ?? 0)), hint: "cleared for consolidation" },
+      { label: "Overdue in chain", value: String(pendingRows.filter((r) => r.overdue).length), hint: "past deadline" },
+    ],
+  };
+
+  const table: ContentBlock | null = [...awaitingVerification, ...pendingRows].length
+    ? {
+        type: "data_table",
+        title: "What is waiting on a decision",
+        columns: [{ key: "ref", label: "Report" }, { key: "org", label: "Entity" }, { key: "stage", label: "Stage" }],
+        rows: [
+          ...awaitingVerification.map((s) => ({ cells: [`${s.ref} — ${s.title.slice(0, 44)}`, entOf(s), "Subsidiary Admin verification"] })),
+          ...pendingRows.map((s) => ({ cells: [`${s.ref} — ${s.title.slice(0, 44)}`, entOf(s), s.status === "SUBMITTED" ? "With Project Admin" : s.status === "UNDER_REVIEW" ? "Under review" : "Returned for correction"] })),
+        ].slice(0, 12),
+        note: `Source: Submission ledger · ${period}. Workflow stage and deadline status are separate facts.`,
+      }
+    : null;
+
+  return {
+    summary: verificationTotal || pendingTotal
+      ? `${verificationTotal} package(s) awaiting Subsidiary Admin verification and ${pendingTotal} submission(s) still in the review chain.`
+      : `Nothing is pending — every ${period} submission has cleared the review chain.`,
+    data: {
+      period,
+      awaitingVerification: verificationTotal,
+      inChain: pendingTotal,
+      approved: (counts["APPROVED"] ?? 0) + (counts["BU_APPROVED"] ?? 0),
+      verificationItems: awaitingVerification.map((s) => ({ ref: s.ref, title: s.title, entity: entOf(s) })),
+      chainItems: pendingRows.map((s) => ({ ref: s.ref, title: s.title, status: s.status, overdue: s.overdue, entity: entOf(s) })),
+    },
+    blocks: table ? [kpi, table] : [kpi],
+    sources: [...awaitingVerification, ...pendingRows].slice(0, 8).map((s) => ({ kind: "submission" as const, id: s.id, label: s.ref, period, detailView: { view: "approvals", detailId: s.id } })),
+  };
+};
+
 const get_compliance_summary: ToolHandler = async (args, ctx) => {
   const period = str(args.period) ?? ctx.reportingYear;
   const [issuesBySeverity, openAnomalies, complianceSubs] = await Promise.all([
@@ -1361,6 +1461,12 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     params: { period: { type: "string", optional: true } },
   },
   {
+    name: "get_review_pipeline",
+    description: "The live review pipeline for a period: what is awaiting Subsidiary Admin verification, what is still in the review chain, how many are overdue and how many are approved and locked in. Use for 'is anything pending', 'what is waiting for review' or 'review queue status' questions.",
+    riskLevel: "L0",
+    params: { period: { type: "string", optional: true } },
+  },
+  {
     name: "get_compliance_summary",
     description: "Compliance & data-quality summary: open validation issues by severity, open calculation anomalies, compliance-category submissions.",
     riskLevel: "L0",
@@ -1412,6 +1518,7 @@ export const TOOL_HANDLERS: Record<string, ToolHandler> = {
   get_deadline_summary,
   get_brsr_completeness,
   get_compliance_summary,
+  get_review_pipeline,
   get_recent_activity,
   prepare_reminder,
   prepare_deadline_change,

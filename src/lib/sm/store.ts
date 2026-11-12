@@ -22,6 +22,8 @@ interface SmWorkspaceState {
   commandOpen: boolean;
   unreadCount: number;
   queueCount: number;
+  buFinalReportsCount: number;
+  projectReportsCount: number;
   lastSyncedAt: string | null;
   live: boolean;
   navigate: (view: SmViewId, params?: SmViewParams) => void;
@@ -32,6 +34,8 @@ interface SmWorkspaceState {
   setCommandOpen: (open: boolean) => void;
   setUnreadCount: (n: number) => void;
   setQueueCount: (n: number) => void;
+  setBuFinalReportsCount: (n: number) => void;
+  setProjectReportsCount: (n: number) => void;
   setLastSyncedAt: (iso: string) => void;
   setLive: (live: boolean) => void;
 }
@@ -45,6 +49,8 @@ export const useSmWorkspace = create<SmWorkspaceState>((set) => ({
   commandOpen: false,
   unreadCount: 0,
   queueCount: 0,
+  buFinalReportsCount: 0,
+  projectReportsCount: 0,
   lastSyncedAt: null,
   live: true,
   navigate: (view, params = {}) => {
@@ -59,6 +65,8 @@ export const useSmWorkspace = create<SmWorkspaceState>((set) => ({
   setCommandOpen: (commandOpen) => set({ commandOpen }),
   setUnreadCount: (unreadCount) => set({ unreadCount }),
   setQueueCount: (queueCount) => set({ queueCount }),
+  setBuFinalReportsCount: (buFinalReportsCount) => set({ buFinalReportsCount }),
+  setProjectReportsCount: (projectReportsCount) => set({ projectReportsCount }),
   setLastSyncedAt: (lastSyncedAt) => set({ lastSyncedAt }),
   setLive: (live) => set({ live }),
 }));

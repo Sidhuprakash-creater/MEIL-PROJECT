@@ -110,6 +110,10 @@ export interface DecisionResponse {
   submission: SmSubmissionRow;
   decision: { action: "approve" | "reject"; at: string; version: number };
   message: string;
+  /* True when the approved item was a consolidated dossier — it now awaits the
+     Subsidiary Admin's second-step verification before it can travel to the
+     Group. */
+  verificationRequired?: boolean;
 }
 
 /* ── dashboard ─────────────────────────────────────────────────────────────── */

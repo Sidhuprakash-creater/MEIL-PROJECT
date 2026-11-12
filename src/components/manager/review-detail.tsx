@@ -14,7 +14,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { AlertTriangle, Download, FileText, MessageSquare, ShieldCheck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, FileText, MessageSquare, ShieldCheck } from "lucide-react";
 import { Ring } from '@/components/ring'
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,10 @@ export function ReportReviewDialog({
   const [rejectReason, setRejectReason] = React.useState("");
   const [rejectInstructions, setRejectInstructions] = React.useState("");
   const [rejectFields, setRejectFields] = React.useState("");
-  const decision = useMutation<{ message: string; decision: { action: string; version: number } }>();
+  /* Success popup shown after an approval — for a consolidated package it
+     explains the 2-step verification hand-off to the Subsidiary Admin. */
+  const [successMsg, setSuccessMsg] = React.useState<{ title: string; body: string } | null>(null);
+  const decision = useMutation<{ message: string; decision: { action: string; version: number }; verificationRequired?: boolean }>();
 
   const sub = detail?.submission ?? null;
   const eligible = !!sub && REVIEW_ELIGIBLE.includes(sub.status);
@@ -135,10 +138,22 @@ export function ReportReviewDialog({
       })
     );
     if (result) {
-      toast({
-        title: action === "approve" ? "Report approved" : "Report rejected",
-        description: result.message,
-      });
+      if (action === "approve" && result.verificationRequired) {
+        /* Consolidated package approved → the Subsidiary Admin must now run
+           the second-step verification before the Group can receive it. */
+        setSuccessMsg({
+          title: "Report approved successfully",
+          body:
+            "This consolidated report has been sent to the Subsidiary Admin for 2-step verification. " +
+            "They will re-check the numbers that travelled up; only after their verification can the " +
+            "subsidiary submit the final report to the Group.",
+        });
+      } else {
+        toast({
+          title: action === "approve" ? "Report approved" : "Report rejected",
+          description: result.message,
+        });
+      }
       setApproveOpen(false);
       setRejectOpen(false);
       onOpenChange(false);
@@ -430,6 +445,29 @@ export function ReportReviewDialog({
           </div>
         )}
       </GlassDialog>
+
+      {/* ── Success popup — approved & handed to 2-step verification ── */}
+      {successMsg && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/80 bg-white/95 shadow-2xl">
+            <div className="bg-gradient-to-br from-[rgba(32,167,121,0.16)] to-[rgba(58,123,255,0.10)] px-6 pb-5 pt-6 text-center">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-md ring-1 ring-emerald-200">
+                <CheckCircle2 className="h-7 w-7 text-[#1d6b40]" />
+              </span>
+              <h3 className="mt-3 text-[17px] font-bold tracking-tight text-[color:var(--ink)]">{successMsg.title}</h3>
+              <p className="mx-auto mt-2 max-w-md text-[12.5px] leading-relaxed text-[color:var(--ink-soft)]">{successMsg.body}</p>
+            </div>
+            <div className="flex items-center justify-center gap-2 border-t border-white/70 px-5 py-4">
+              <Button variant="outline" className="rounded-xl" onClick={() => setSuccessMsg(null)}>
+                Close
+              </Button>
+              <Button className="rounded-xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-white" onClick={() => setSuccessMsg(null)}>
+                Got it
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Approve confirmation ── */}
       <ConfirmDialog

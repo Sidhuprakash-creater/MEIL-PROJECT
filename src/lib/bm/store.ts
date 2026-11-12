@@ -23,6 +23,7 @@ interface BmWorkspaceState {
   commandOpen: boolean;
   unreadCount: number;
   queueCount: number;
+  projectReportsCount: number;
   lastSyncedAt: string | null;
   live: boolean;
   navigate: (view: BmViewId, params?: BmViewParams) => void;
@@ -33,6 +34,7 @@ interface BmWorkspaceState {
   setCommandOpen: (open: boolean) => void;
   setUnreadCount: (n: number) => void;
   setQueueCount: (n: number) => void;
+  setProjectReportsCount: (n: number) => void;
   setLastSyncedAt: (iso: string) => void;
   setLive: (live: boolean) => void;
 }
@@ -46,6 +48,7 @@ export const useBmWorkspace = create<BmWorkspaceState>((set) => ({
   commandOpen: false,
   unreadCount: 0,
   queueCount: 0,
+  projectReportsCount: 0,
   lastSyncedAt: null,
   live: true,
   navigate: (view, params = {}) => {
@@ -60,6 +63,7 @@ export const useBmWorkspace = create<BmWorkspaceState>((set) => ({
   setCommandOpen: (commandOpen) => set({ commandOpen }),
   setUnreadCount: (unreadCount) => set({ unreadCount }),
   setQueueCount: (queueCount) => set({ queueCount }),
+  setProjectReportsCount: (projectReportsCount) => set({ projectReportsCount }),
   setLastSyncedAt: (lastSyncedAt) => set({ lastSyncedAt }),
   setLive: (live) => set({ live }),
 }));

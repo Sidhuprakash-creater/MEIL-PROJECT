@@ -25,7 +25,10 @@ const TAB_FILTERS: Record<string, (s: { status: string; overdue: boolean; projec
   /* A report the BU Manager signed off is BU_APPROVED — it is cleared for
      the subsidiary consolidation and must show under "Approved", otherwise
      the manager never sees the reports that are ready to roll up. */
-  approved: (s) => s.status === "APPROVED" || s.status === "BU_APPROVED",
+  /* Approved = signed off by the manager. A consolidated dossier that was
+     approved now moves to AWAITING_SA_VERIFICATION (the Subsidiary Admin's
+     second-step check) — it stays visible here as "handed on". */
+  approved: (s) => s.status === "APPROVED" || s.status === "BU_APPROVED" || s.status === "AWAITING_SA_VERIFICATION",
   rejected: (s) => ["REJECTED", "CHANGES_REQUESTED"].includes(s.status),
   overdue: (s) => s.overdue && s.status !== "APPROVED" && s.status !== "BU_APPROVED",
 };

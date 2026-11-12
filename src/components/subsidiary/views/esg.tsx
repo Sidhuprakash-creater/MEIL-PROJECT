@@ -7,8 +7,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, MinusCircle,
-  Package, Quote, RefreshCcw,
+  AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, Clock, FileWarning,
+  Gauge, MinusCircle, Package, Quote, RefreshCcw,
 } from "lucide-react";
 import { Ring } from '@/components/ring'
 import { DatabaseIcon, FilesIcon, ReportChartIcon, ShieldIcon } from "@/components/workspace/premium-icons";
@@ -60,6 +60,9 @@ export default function EsgView() {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [resubmitTarget, setResubmitTarget] = useState<PackageRow | null>(null);
+  /* Success popup after the final report is handed to the Group — it also
+     spells out what happens next in the workflow. */
+  const [submittedPkg, setSubmittedPkg] = useState<{ ref: string; title: string; sourceCount: number } | null>(null);
 
   const submitMut = useMutation<PackagesResp>();
   const resubmitMut = useMutation<PackagesResp>();
@@ -120,6 +123,11 @@ export default function EsgView() {
       title: "Package submitted to Group Admin",
       description: `${res.package.ref} · ${res.package.title}`,
     });
+    setSubmittedPkg({
+      ref: res.package.ref,
+      title: res.package.title,
+      sourceCount: res.package.summary?.approved ?? selectedRefs.length,
+    });
     setPrepareOpen(false);
     refetch();
   };
@@ -143,8 +151,16 @@ export default function EsgView() {
   if (!data) return null;
 
   const r = data.readiness;
+  /* A package already handed to the Group for this period locks the submit
+     button — the report is with the Group Admin now. */
+  const submittedPackage = data.packages.find(
+    (p) => p.period === data.period && (p.status === "SUBMITTED" || p.status === "UNDER_GROUP_REVIEW" || p.status === "APPROVED")
+  );
+  const alreadySubmitted = !!submittedPackage;
+  const submittedPackageRef = submittedPackage?.ref ?? "";
   const readinessCounts = [
     { label: "Approved & eligible", value: r.eligibleApproved, text: "text-[#1d6b40]", to: () => navigate("monitoring", { statusFilter: "approved" }) },
+    { label: "Awaiting verification", value: r.awaitingVerification, text: "text-[#1a5fb8]", to: () => navigate("verification") },
     { label: "Pending review", value: r.pendingReview, text: "text-[#9c5d1b]", to: () => navigate("monitoring", { statusFilter: "pending" }) },
     { label: "Missing-data categories", value: r.missingData, text: "text-[#a53b3b]", to: () => navigate("submissions", { tab: "draft" }) },
     { label: "Validation exceptions", value: r.validationExceptions, text: "text-[#a53b3b]", to: () => navigate("validation") },
@@ -189,8 +205,12 @@ export default function EsgView() {
                the final subsidiary report; no item-by-item sign-off. */}
             <div className="mt-5">
               <Button
-                className="h-11 rounded-2xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-[13px] font-bold text-white hover:from-[#23b484] hover:to-[#1d8f68]"
-                disabled={approvedRefs.length === 0 || r.pendingReview > 0}
+                className={`h-11 rounded-2xl text-[13px] font-bold text-white transition-all ${
+                  alreadySubmitted
+                    ? "cursor-not-allowed bg-gradient-to-r from-[#9fb0c4] to-[#8496ab] opacity-60 blur-[1.5px] shadow-none"
+                    : "bg-gradient-to-r from-[#20a779] to-[#187a5c] hover:from-[#23b484] hover:to-[#1d8f68]"
+                }`}
+                disabled={alreadySubmitted || approvedRefs.length === 0 || r.pendingReview > 0 || r.awaitingVerification > 0}
                 onClick={() => {
                   setPkgTitle(`${reportingYear} Final Report`);
                   setTitleError(null);
@@ -198,11 +218,24 @@ export default function EsgView() {
                   setPrepareOpen(true);
                 }}
               >
-                <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                Submit Final Report to Group
+                {alreadySubmitted ? (
+                  <>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    Submitted to Group
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    Submit Final Report to Group
+                  </>
+                )}
               </Button>
               <p className="mt-1.5 text-[11px] text-[color:var(--ink-faint)]">
-                {r.pendingReview > 0
+                {alreadySubmitted
+                  ? `Final report ${submittedPackageRef} has been handed to the Group Admin — resubmissions are handled from the Reporting packages list below.`
+                  : r.awaitingVerification > 0
+                  ? `Locked — ${r.awaitingVerification} consolidated package(s) are awaiting your verification. Verify them in the Verification Desk first.`
+                  : r.pendingReview > 0
                   ? "Locked until the consolidated data from your Business Units is approved."
                   : approvedRefs.length === 0
                     ? "No approved records to include yet."
@@ -337,7 +370,11 @@ export default function EsgView() {
         description="Everything your subsidiary has sent to the Group Admin's reporting workflow"
         icon={Package}
         actions={
-          <Button className="btn-action h-9 rounded-2xl" onClick={openPrepare}>
+          <Button
+            className={`btn-action h-9 rounded-2xl ${alreadySubmitted ? "pointer-events-none opacity-50 blur-[1px]" : ""}`}
+            onClick={openPrepare}
+            disabled={alreadySubmitted}
+          >
             <Package className="mr-1.5 h-4 w-4" /> Prepare &amp; submit reporting package
           </Button>
         }
@@ -417,6 +454,72 @@ export default function EsgView() {
         )}
       </SectionCard>
 
+      {/* ── SUCCESS POPUP — report submitted to the Group ── */}
+      {submittedPkg && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/80 bg-white/95 shadow-2xl">
+            <div className="bg-gradient-to-br from-[rgba(32,167,121,0.18)] via-[rgba(32,167,121,0.10)] to-[rgba(58,123,255,0.10)] px-7 pb-6 pt-7 text-center">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white shadow-md ring-1 ring-emerald-200">
+                <CheckCircle2 className="h-8 w-8 text-[#1d6b40]" />
+              </span>
+              <h3 className="mt-3.5 text-[19px] font-bold tracking-tight text-[color:var(--ink)]">
+                Your report has been submitted successfully
+              </h3>
+              <p className="mx-auto mt-2 max-w-lg text-[12.5px] leading-relaxed text-[color:var(--ink-soft)]">
+                <span className="font-mono font-semibold text-[color:var(--ink)]">{submittedPkg.ref}</span> — {submittedPkg.title} is now with the
+                Group Admin&apos;s reporting workflow, carrying {submittedPkg.sourceCount} verified source record
+                {submittedPkg.sourceCount === 1 ? "" : "s"}.
+              </p>
+            </div>
+
+            {/* what happens next */}
+            <div className="space-y-3 border-t border-white/70 px-6 py-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">
+                What happens next
+              </div>
+              <ol className="space-y-2.5">
+                {[
+                  { n: 1, t: "Group Admin consolidates your package", d: "Your approved records are aggregated with every other subsidiary into the group-wide ESG dataset." },
+                  { n: 2, t: "Group Admin runs Recompute on the BRSR report", d: "The BRSR disclosures are rebuilt from the live approved submissions — the numbers in the report are your data, not typed in." },
+                  { n: 3, t: "BRSR Data checklist", d: "Each subsidiary's structured template inputs (entity profile, policies, emission factors) are checked section by section." },
+                  { n: 4, t: "Sign-off & finalize", d: "The Group Admin records the sign-off, finalizes the report (it locks) and the version is frozen." },
+                  { n: 5, t: "PDF export to the Board", d: "The report is exported as a PDF with the MEIL letterhead and watermark on every page." },
+                ].map((s) => (
+                  <li key={s.n} className="flex items-start gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(32,167,121,0.14)] text-[11px] font-extrabold text-[#1d6b40]">
+                      {s.n}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[12.5px] font-semibold text-[color:var(--ink)]">{s.t}</span>
+                      <span className="block text-[11.5px] leading-relaxed text-[color:var(--ink-faint)]">{s.d}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="rounded-2xl border border-[rgba(58,123,255,0.25)] bg-[rgba(58,123,255,0.06)] p-3.5">
+                <p className="text-[12px] leading-relaxed text-[color:var(--ink-soft)]">
+                  <strong className="font-semibold text-[color:var(--ink)]">Your part is done.</strong> If the Group
+                  asks for a correction, your package appears in the list below with the feedback and a{" "}
+                  <strong className="font-semibold text-[color:var(--ink)]">Resubmit</strong> button.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-white/70 px-6 py-4">
+              <Button variant="outline" className="rounded-xl" onClick={() => setSubmittedPkg(null)}>
+                Close
+              </Button>
+              <Button
+                className="rounded-xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-white"
+                onClick={() => setSubmittedPkg(null)}
+              >
+                Got it
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── prepare & submit dialog ── */}
       <GlassDialog
         open={prepareOpen}
@@ -429,84 +532,98 @@ export default function EsgView() {
             <Button variant="outline" className="glass-subtle rounded-2xl border-white/60" onClick={() => setPrepareOpen(false)} disabled={submitMut.pending}>
               Cancel
             </Button>
-            <Button className="btn-action rounded-2xl" onClick={submitPackage} disabled={!hasApprovedChecked || submitMut.pending}>
+            <Button className="h-10 rounded-2xl bg-gradient-to-r from-[#20a779] to-[#187a5c] px-5 text-[13px] font-bold text-white shadow-md shadow-[rgba(32,167,121,0.3)] transition-all hover:from-[#23b484] hover:to-[#1d8f68] hover:shadow-lg" onClick={submitPackage} disabled={!hasApprovedChecked || submitMut.pending}>
               {submitMut.pending && <Ring className="mr-1.5 h-4 w-4" />}
               Submit to Group Admin
             </Button>
           </>
         }
       >
-        {/* readiness summary */}
-        <div className="glass-subtle grid grid-cols-2 gap-3 rounded-2xl p-3.5 sm:grid-cols-4">
+        {/* readiness summary — gradient stat tiles */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
-            { label: "Readiness", value: `${r.pct}%` },
-            { label: "Approved", value: r.eligibleApproved },
-            { label: "Pending review", value: r.pendingReview },
-            { label: "Evidence gaps", value: r.evidenceGaps },
-          ].map((s) => (
-            <div key={s.label} className="text-center sm:text-left">
-              <div className="text-[18px] font-bold tabular leading-none text-[color:var(--ink)]">{s.value}</div>
-              <div className="mt-1 text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-faint)]">{s.label}</div>
-            </div>
-          ))}
+            { label: "Readiness", value: `${r.pct}%`, icon: Gauge, tint: "from-[#20a779]/15 to-[#20a779]/5", ink: "text-[#187a5c]", bar: "bg-gradient-to-r from-[#20a779] to-[#187a5c]", pct: r.pct },
+            { label: "Approved", value: r.eligibleApproved, icon: CheckCircle2, tint: "from-[#2a7de1]/15 to-[#2a7de1]/5", ink: "text-[#1a5fb8]", bar: "bg-gradient-to-r from-[#2a7de1] to-[#1a5fb8]", pct: Math.min(100, r.eligibleApproved * 5) },
+            { label: "Pending review", value: r.pendingReview, icon: Clock, tint: "from-[#c57926]/15 to-[#c57926]/5", ink: "text-[#9c5d1b]", bar: "bg-gradient-to-r from-[#e0a150] to-[#c57926]", pct: Math.min(100, r.pendingReview * 5) },
+            { label: "Evidence gaps", value: r.evidenceGaps, icon: FileWarning, tint: "from-[#b0484f]/15 to-[#b0484f]/5", ink: "text-[#8f3a40]", bar: "bg-gradient-to-r from-[#d07078] to-[#b0484f]", pct: Math.min(100, r.evidenceGaps * 5) },
+          ].map((s) => {
+            const Icon = s.icon;
+            return (
+              <div key={s.label} className={`relative overflow-hidden rounded-2xl border border-white/70 bg-gradient-to-br ${s.tint} p-3 shadow-sm`}>
+                <div className="flex items-center justify-between">
+                  <div className={`text-[20px] font-bold tabular leading-none ${s.ink}`}>{s.value}</div>
+                  <Icon className={`h-4 w-4 ${s.ink} opacity-70`} />
+                </div>
+                <div className="mt-1.5 text-[10.5px] font-semibold uppercase tracking-wider text-[color:var(--ink-faint)]">{s.label}</div>
+                <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/70">
+                  <div className={`h-full rounded-full transition-all ${s.bar}`} style={{ width: `${s.pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {/* category checklist */}
-        <div className="mt-4">
+        {/* category checklist — pill cards */}
+        <div className="mt-5">
           <div className="text-[12px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">Category checklist</div>
-          <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
             {data.categories.map((c) => (
-              <div key={c.category} className="flex items-center justify-between gap-2 rounded-xl bg-white/40 px-3 py-2 text-[12.5px]">
+              <div key={c.category} className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-[12.5px] transition-colors ${c.approved > 0 ? "border-[rgba(35,134,83,0.25)] bg-[rgba(35,134,83,0.06)]" : "border-white/60 bg-white/40"}`}>
                 <span className="flex min-w-0 items-center gap-1.5 text-[color:var(--ink-soft)]">
                   {c.approved > 0
                     ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#238653]" />
                     : <MinusCircle className="h-3.5 w-3.5 shrink-0 text-[#8595ab]" />}
-                  <span className="truncate">{c.label}</span>
+                  <span className="truncate font-medium">{c.label}</span>
                 </span>
-                <span className="tabular shrink-0 text-[color:var(--ink-faint)]">{c.approved} approved</span>
+                <span className={`tabular shrink-0 rounded-full px-2 py-0.5 text-[10.5px] font-bold ${c.approved > 0 ? "bg-[rgba(35,134,83,0.12)] text-[#187a5c]" : "bg-white/70 text-[color:var(--ink-faint)]"}`}>
+                  {c.approved > 0 ? `${c.approved} approved` : "none"}
+                </span>
               </div>
             ))}
           </div>
         </div>
 
         {/* source refs multi-select */}
-        <div className="mt-4">
+        <div className="mt-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-[12px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">
-              Source records ({selectedRefs.length} selected)
+              Source records (<span className="text-[#187a5c]">{selectedRefs.length}</span> selected)
             </div>
             <div className="flex gap-3">
-              <button className="text-[11px] font-medium text-[color:var(--esg-blue)] hover:underline" onClick={() => setSelectedRefs(allSources.map((s) => s.ref))}>Select all</button>
-              <button className="text-[11px] font-medium text-[color:var(--ink-soft)] hover:underline" onClick={() => setSelectedRefs(approvedRefs)}>Only approved</button>
-              <button className="text-[11px] font-medium text-[color:var(--ink-faint)] hover:underline" onClick={() => setSelectedRefs([])}>Clear</button>
+              <button className="rounded-full bg-[rgba(42,125,225,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[color:var(--esg-blue)] transition-colors hover:bg-[rgba(42,125,225,0.15)]" onClick={() => setSelectedRefs(allSources.map((s) => s.ref))}>Select all</button>
+              <button className="rounded-full bg-[rgba(35,134,83,0.08)] px-2.5 py-1 text-[11px] font-semibold text-[#187a5c] transition-colors hover:bg-[rgba(35,134,83,0.15)]" onClick={() => setSelectedRefs(approvedRefs)}>Only approved</button>
+              <button className="rounded-full bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-[color:var(--ink-faint)] transition-colors hover:bg-white" onClick={() => setSelectedRefs([])}>Clear</button>
             </div>
           </div>
-          <div className="glass-subtle nice-scroll mt-2 max-h-56 overflow-y-auto rounded-2xl border-white/60 p-2">
+          <div className="glass-subtle nice-scroll mt-2 max-h-56 space-y-1 overflow-y-auto rounded-2xl border-white/60 p-2">
             {allSources.length === 0 && (
               <p className="px-2 py-3 text-xs text-[color:var(--ink-faint)]">
                 No consolidation sources for this period yet — approve submissions first, then prepare the package.
               </p>
             )}
-            {allSources.map((s) => (
-              <label key={s.ref} className="flex cursor-pointer items-center gap-2.5 rounded-xl px-2 py-1.5 hover:bg-white/70">
-                <Checkbox
-                  checked={selectedRefs.includes(s.ref)}
-                  onCheckedChange={(c) =>
-                    setSelectedRefs((refs) => (c === true ? [...refs, s.ref] : refs.filter((x) => x !== s.ref)))
-                  }
-                  aria-label={`Select source ${s.ref}`}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <span className="shrink-0 font-mono text-[11px] font-medium text-[color:var(--ink-soft)]">{s.ref}</span>
-                    <span className="truncate text-[12.5px] font-medium text-[color:var(--ink)]">{s.label}</span>
+            {allSources.map((s) => {
+              const checked = selectedRefs.includes(s.ref);
+              return (
+                <label key={s.ref} className={`flex cursor-pointer items-center gap-2.5 rounded-xl border px-2 py-1.5 transition-all ${checked ? "border-[rgba(32,167,121,0.35)] bg-[rgba(32,167,121,0.07)] shadow-sm" : "border-transparent hover:bg-white/70"}`}>
+                  <Checkbox
+                    checked={checked}
+                    onCheckedChange={(c) =>
+                      setSelectedRefs((refs) => (c === true ? [...refs, s.ref] : refs.filter((x) => x !== s.ref)))
+                    }
+                    aria-label={`Select source ${s.ref}`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10.5px] font-bold ${checked ? "bg-[rgba(32,167,121,0.14)] text-[#187a5c]" : "bg-white/80 text-[color:var(--ink-soft)]"}`}>{s.ref}</span>
+                      <span className="truncate text-[12.5px] font-medium text-[color:var(--ink)]">{s.label}</span>
+                    </span>
+                    <span className="block truncate text-[10.5px] text-[color:var(--ink-faint)]">{s.metric} · {s.org}</span>
                   </span>
-                  <span className="block truncate text-[10.5px] text-[color:var(--ink-faint)]">{s.metric} · {s.org}</span>
-                </span>
-                <span className="tabular shrink-0 text-[11.5px] font-semibold text-[color:var(--ink-soft)]">{fmtNumber(s.value, 2)} {s.unit}</span>
-                <StatusBadge status={s.status} />
-              </label>
-            ))}
+                  <span className="tabular shrink-0 text-[11.5px] font-semibold text-[color:var(--ink-soft)]">{fmtNumber(s.value, 2)} {s.unit}</span>
+                  <StatusBadge status={s.status} />
+                </label>
+              );
+            })}
           </div>
           {!hasApprovedChecked && (
             <div className="mt-2 flex items-start gap-2 rounded-2xl border border-[rgba(197,121,38,0.3)] bg-[rgba(197,121,38,0.08)] p-3 text-[12px] font-medium leading-relaxed text-[color:var(--ink-soft)]">
@@ -518,7 +635,7 @@ export default function EsgView() {
           )}
         </div>
 
-        <div className="mt-4">
+        <div className="mt-5 rounded-2xl border border-white/70 bg-white/40 p-3.5">
           <Field label="Package title" required error={titleError} hint="Shown in the Group Admin's package list.">
             <Input
               value={pkgTitle}
@@ -529,7 +646,7 @@ export default function EsgView() {
           </Field>
         </div>
 
-        <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-[rgba(32,167,121,0.3)] bg-[rgba(32,167,121,0.07)] p-3.5">
+        <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-[rgba(32,167,121,0.3)] bg-gradient-to-r from-[rgba(32,167,121,0.1)] to-[rgba(42,125,225,0.06)] p-3.5">
           <ShieldIcon className="mt-0.5 h-4 w-4 shrink-0 text-[#238653]" />
           <p className="text-[12.5px] font-medium leading-relaxed text-[color:var(--ink-soft)]">
             This submits the package to the Group Admin&apos;s reporting workflow. The Group Admin owns the consolidated BRSR report.

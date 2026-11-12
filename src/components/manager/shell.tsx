@@ -91,11 +91,17 @@ const NAV_LABELS: Record<SmViewId, string> = {
 /* ───────────────────────────── Sidebar ───────────────────────────── */
 
 function NavItem({ view, collapsed }: { view: SmViewId; collapsed: boolean }) {
-  const { view: active, navigate, queueCount } = useSmWorkspace();
+  const { view: active, navigate, queueCount, buFinalReportsCount, projectReportsCount } = useSmWorkspace();
   const Icon = SM_VIEW_ICONS[view];
   const meta = VIEW_META[view];
   const isActive = active === view;
   const showBadge = view === "queue" && queueCount > 0;
+  /* "BU Reports" badge — final consolidated reports the BUs of this
+     subsidiary sent up and that still await the manager's decision. */
+  const showBuBadge = view === "reports-bu" && buFinalReportsCount > 0;
+  /* "Business Unit Reports" badge — project-level reports the BU Manager
+     signed off that now await this manager's approval. */
+  const showProjectBadge = view === "reports-project" && projectReportsCount > 0;
   const btn = (
     <button
       onClick={() => navigate(view)}
@@ -111,8 +117,27 @@ function NavItem({ view, collapsed }: { view: SmViewId; collapsed: boolean }) {
       {!collapsed && showBadge && (
         <span className="ml-auto rounded-full bg-[rgba(58,123,255,0.14)] px-2 py-0.5 text-[10.5px] font-bold tabular text-[color:var(--esg-blue)]">{queueCount}</span>
       )}
+      {!collapsed && showBuBadge && (
+        <span
+          className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#315CFF] px-1.5 text-[10px] font-extrabold tabular text-white shadow-md shadow-[rgba(49,92,255,0.35)] ring-2 ring-white/60"
+          title={`${buFinalReportsCount} BU final report${buFinalReportsCount === 1 ? "" : "s"} awaiting your review`}
+        >
+          {buFinalReportsCount}
+        </span>
+      )}
+      {!collapsed && showProjectBadge && (
+        <span
+          className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-[#315CFF] px-1.5 text-[10px] font-extrabold tabular text-white shadow-md shadow-[rgba(49,92,255,0.35)] ring-2 ring-white/60"
+          title={`${projectReportsCount} project report${projectReportsCount === 1 ? "" : "s"} awaiting your approval`}
+        >
+          {projectReportsCount}
+        </span>
+      )}
       {collapsed && showBadge && (
         <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[color:var(--esg-blue)] ring-2 ring-white/80" />
+      )}
+      {collapsed && (showBuBadge || showProjectBadge) && (
+        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#315CFF] ring-2 ring-white/80" />
       )}
     </button>
   );
@@ -431,7 +456,7 @@ export function SmWorkspaceShell({
   sessionUser: SmSessionUser;
   onSignOut?: () => void;
 }) {
-  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen, setQueueCount } = useSmWorkspace();
+  const { view, sidebarCollapsed, mobileNavOpen, setMobileNav, commandOpen, setCommandOpen, setQueueCount, setBuFinalReportsCount, setProjectReportsCount } = useSmWorkspace();
 
   /* ⌘K keyboard shortcut */
   React.useEffect(() => {
@@ -446,10 +471,12 @@ export function SmWorkspaceShell({
   }, [commandOpen, setCommandOpen]);
 
   /* Live queue counter for the sidebar badge (15s poll, visibility-aware). */
-  const { data: pulse } = useSmApi<{ unread: number; queueCount: number }>("/api/sm/pulse", { pollMs: 15000 });
+  const { data: pulse } = useSmApi<{ unread: number; queueCount: number; buFinalReportsCount: number; projectReportsCount: number }>("/api/sm/pulse", { pollMs: 15000 });
   React.useEffect(() => {
     if (pulse && typeof pulse.queueCount === "number") setQueueCount(pulse.queueCount);
-  }, [pulse, setQueueCount]);
+    if (pulse && typeof pulse.buFinalReportsCount === "number") setBuFinalReportsCount(pulse.buFinalReportsCount);
+    if (pulse && typeof pulse.projectReportsCount === "number") setProjectReportsCount(pulse.projectReportsCount);
+  }, [pulse, setQueueCount, setBuFinalReportsCount, setProjectReportsCount]);
 
   const ViewComponent = SM_VIEWS[view] as SmViewComponent;
 
