@@ -60,6 +60,9 @@ export default function EsgView() {
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [resubmitTarget, setResubmitTarget] = useState<PackageRow | null>(null);
+  /* Success popup after the final report is handed to the Group — it also
+     spells out what happens next in the workflow. */
+  const [submittedPkg, setSubmittedPkg] = useState<{ ref: string; title: string; sourceCount: number } | null>(null);
 
   const submitMut = useMutation<PackagesResp>();
   const resubmitMut = useMutation<PackagesResp>();
@@ -120,6 +123,11 @@ export default function EsgView() {
       title: "Package submitted to Group Admin",
       description: `${res.package.ref} · ${res.package.title}`,
     });
+    setSubmittedPkg({
+      ref: res.package.ref,
+      title: res.package.title,
+      sourceCount: res.package.summary?.approved ?? selectedRefs.length,
+    });
     setPrepareOpen(false);
     refetch();
   };
@@ -143,6 +151,13 @@ export default function EsgView() {
   if (!data) return null;
 
   const r = data.readiness;
+  /* A package already handed to the Group for this period locks the submit
+     button — the report is with the Group Admin now. */
+  const submittedPackage = data.packages.find(
+    (p) => p.period === data.period && (p.status === "SUBMITTED" || p.status === "UNDER_GROUP_REVIEW" || p.status === "APPROVED")
+  );
+  const alreadySubmitted = !!submittedPackage;
+  const submittedPackageRef = submittedPackage?.ref ?? "";
   const readinessCounts = [
     { label: "Approved & eligible", value: r.eligibleApproved, text: "text-[#1d6b40]", to: () => navigate("monitoring", { statusFilter: "approved" }) },
     { label: "Awaiting verification", value: r.awaitingVerification, text: "text-[#1a5fb8]", to: () => navigate("verification") },
@@ -190,8 +205,12 @@ export default function EsgView() {
                the final subsidiary report; no item-by-item sign-off. */}
             <div className="mt-5">
               <Button
-                className="h-11 rounded-2xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-[13px] font-bold text-white hover:from-[#23b484] hover:to-[#1d8f68]"
-                disabled={approvedRefs.length === 0 || r.pendingReview > 0 || r.awaitingVerification > 0}
+                className={`h-11 rounded-2xl text-[13px] font-bold text-white transition-all ${
+                  alreadySubmitted
+                    ? "cursor-not-allowed bg-gradient-to-r from-[#9fb0c4] to-[#8496ab] opacity-60 blur-[1.5px] shadow-none"
+                    : "bg-gradient-to-r from-[#20a779] to-[#187a5c] hover:from-[#23b484] hover:to-[#1d8f68]"
+                }`}
+                disabled={alreadySubmitted || approvedRefs.length === 0 || r.pendingReview > 0 || r.awaitingVerification > 0}
                 onClick={() => {
                   setPkgTitle(`${reportingYear} Final Report`);
                   setTitleError(null);
@@ -199,11 +218,22 @@ export default function EsgView() {
                   setPrepareOpen(true);
                 }}
               >
-                <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                Submit Final Report to Group
+                {alreadySubmitted ? (
+                  <>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    Submitted to Group
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                    Submit Final Report to Group
+                  </>
+                )}
               </Button>
               <p className="mt-1.5 text-[11px] text-[color:var(--ink-faint)]">
-                {r.awaitingVerification > 0
+                {alreadySubmitted
+                  ? `Final report ${submittedPackageRef} has been handed to the Group Admin — resubmissions are handled from the Reporting packages list below.`
+                  : r.awaitingVerification > 0
                   ? `Locked — ${r.awaitingVerification} consolidated package(s) are awaiting your verification. Verify them in the Verification Desk first.`
                   : r.pendingReview > 0
                   ? "Locked until the consolidated data from your Business Units is approved."
@@ -340,7 +370,11 @@ export default function EsgView() {
         description="Everything your subsidiary has sent to the Group Admin's reporting workflow"
         icon={Package}
         actions={
-          <Button className="btn-action h-9 rounded-2xl" onClick={openPrepare}>
+          <Button
+            className={`btn-action h-9 rounded-2xl ${alreadySubmitted ? "pointer-events-none opacity-50 blur-[1px]" : ""}`}
+            onClick={openPrepare}
+            disabled={alreadySubmitted}
+          >
             <Package className="mr-1.5 h-4 w-4" /> Prepare &amp; submit reporting package
           </Button>
         }
@@ -419,6 +453,72 @@ export default function EsgView() {
           </div>
         )}
       </SectionCard>
+
+      {/* ── SUCCESS POPUP — report submitted to the Group ── */}
+      {submittedPkg && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/80 bg-white/95 shadow-2xl">
+            <div className="bg-gradient-to-br from-[rgba(32,167,121,0.18)] via-[rgba(32,167,121,0.10)] to-[rgba(58,123,255,0.10)] px-7 pb-6 pt-7 text-center">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-white shadow-md ring-1 ring-emerald-200">
+                <CheckCircle2 className="h-8 w-8 text-[#1d6b40]" />
+              </span>
+              <h3 className="mt-3.5 text-[19px] font-bold tracking-tight text-[color:var(--ink)]">
+                Your report has been submitted successfully
+              </h3>
+              <p className="mx-auto mt-2 max-w-lg text-[12.5px] leading-relaxed text-[color:var(--ink-soft)]">
+                <span className="font-mono font-semibold text-[color:var(--ink)]">{submittedPkg.ref}</span> — {submittedPkg.title} is now with the
+                Group Admin&apos;s reporting workflow, carrying {submittedPkg.sourceCount} verified source record
+                {submittedPkg.sourceCount === 1 ? "" : "s"}.
+              </p>
+            </div>
+
+            {/* what happens next */}
+            <div className="space-y-3 border-t border-white/70 px-6 py-5">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">
+                What happens next
+              </div>
+              <ol className="space-y-2.5">
+                {[
+                  { n: 1, t: "Group Admin consolidates your package", d: "Your approved records are aggregated with every other subsidiary into the group-wide ESG dataset." },
+                  { n: 2, t: "Group Admin runs Recompute on the BRSR report", d: "The BRSR disclosures are rebuilt from the live approved submissions — the numbers in the report are your data, not typed in." },
+                  { n: 3, t: "BRSR Data checklist", d: "Each subsidiary's structured template inputs (entity profile, policies, emission factors) are checked section by section." },
+                  { n: 4, t: "Sign-off & finalize", d: "The Group Admin records the sign-off, finalizes the report (it locks) and the version is frozen." },
+                  { n: 5, t: "PDF export to the Board", d: "The report is exported as a PDF with the MEIL letterhead and watermark on every page." },
+                ].map((s) => (
+                  <li key={s.n} className="flex items-start gap-3">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[rgba(32,167,121,0.14)] text-[11px] font-extrabold text-[#1d6b40]">
+                      {s.n}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[12.5px] font-semibold text-[color:var(--ink)]">{s.t}</span>
+                      <span className="block text-[11.5px] leading-relaxed text-[color:var(--ink-faint)]">{s.d}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <div className="rounded-2xl border border-[rgba(58,123,255,0.25)] bg-[rgba(58,123,255,0.06)] p-3.5">
+                <p className="text-[12px] leading-relaxed text-[color:var(--ink-soft)]">
+                  <strong className="font-semibold text-[color:var(--ink)]">Your part is done.</strong> If the Group
+                  asks for a correction, your package appears in the list below with the feedback and a{" "}
+                  <strong className="font-semibold text-[color:var(--ink)]">Resubmit</strong> button.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-white/70 px-6 py-4">
+              <Button variant="outline" className="rounded-xl" onClick={() => setSubmittedPkg(null)}>
+                Close
+              </Button>
+              <Button
+                className="rounded-xl bg-gradient-to-r from-[#20a779] to-[#187a5c] text-white"
+                onClick={() => setSubmittedPkg(null)}
+              >
+                Got it
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── prepare & submit dialog ── */}
       <GlassDialog
