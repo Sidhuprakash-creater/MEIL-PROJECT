@@ -7,18 +7,22 @@
    feeling instant.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* ---- Overview KPIs (pu) ---- */
+/* ---- Overview KPIs (pu) ----
+   Keyed by scope: a project-scoped contributor's payload must never be served
+   to another project (or to a group-level reviewer). */
 export const OVERVIEW_TTL_MS = 120000
 export const OVERVIEW_CACHE_CONTROL = 'private, max-age=15, stale-while-revalidate=60'
-let overviewCache: { data: any; expiresAt: number } | null = null
-export function getPuOverviewCache() {
-  return overviewCache && overviewCache.expiresAt > Date.now() ? overviewCache.data : null
+const overviewCache = new Map<string, { data: any; expiresAt: number }>()
+export function getPuOverviewCache(key = 'group') {
+  const hit = overviewCache.get(key)
+  return hit && hit.expiresAt > Date.now() ? hit.data : null
 }
-export function setPuOverviewCache(data: any) {
-  overviewCache = { data, expiresAt: Date.now() + OVERVIEW_TTL_MS }
+export function setPuOverviewCache(data: any, key = 'group') {
+  overviewCache.set(key, { data, expiresAt: Date.now() + OVERVIEW_TTL_MS })
 }
-export function invalidatePuOverviewCache() {
-  overviewCache = null
+export function invalidatePuOverviewCache(key?: string) {
+  if (key) overviewCache.delete(key)
+  else overviewCache.clear()
 }
 
 /* ---- Submissions list (pu, per-filter key) ---- */

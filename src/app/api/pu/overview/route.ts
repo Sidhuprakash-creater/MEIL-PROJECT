@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/pu/db'
 import { getCurrentUser } from '@/lib/pu/session'
+import { scopedProjectId } from '@/lib/pu/scope'
+import { aggregateProjectSiteData } from '@/lib/pu/site-aggregates'
 import { getPuOverviewCache, setPuOverviewCache, invalidatePuOverviewCache, OVERVIEW_TTL_MS, OVERVIEW_CACHE_CONTROL } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
@@ -13,13 +15,24 @@ export async function GET() {
     const user = await getCurrentUser()
     if (!user) return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 })
 
-    const cached = getPuOverviewCache()
+    const projectId = scopedProjectId(user)
+
+    /* The cache is keyed per scope — a contributor's payload must never be
+       served to a different project (or to a group-level reviewer). */
+    const cacheKey = projectId ? `project:${projectId}` : 'group'
+    const cached = getPuOverviewCache(cacheKey)
     if (cached) {
       return NextResponse.json(cached, { headers: { 'Cache-Control': OVERVIEW_CACHE_CONTROL } })
     }
 
-    // Resolve scope: reviewer/exec roles see whole group; project users see their scope.
-    // For this dashboard we show the group-wide consolidated picture (read-only for non-edit roles).
+    /* A contributor belongs to ONE project — their dashboard shows THAT
+       project's approved data (and only that). */
+    if (projectId) {
+      const payload = await buildProjectOverview(user, projectId)
+      setPuOverviewCache(payload, cacheKey)
+      return NextResponse.json(payload, { headers: { 'Cache-Control': OVERVIEW_CACHE_CONTROL } })
+    }
+
     // Run initial queries concurrently
     const [
       periods,
@@ -223,10 +236,182 @@ export async function GET() {
         note: 'All KPIs computed deterministically from approved source records + emission factor version 1. No hardcoded values.',
       },
     }
-    setPuOverviewCache(payload)
+    setPuOverviewCache(payload, cacheKey)
     return NextResponse.json(payload, { headers: { 'Cache-Control': OVERVIEW_CACHE_CONTROL } })
   } catch (e) {
     console.error('GET /api/overview error', e)
     return NextResponse.json({ error: 'Failed to load overview' }, { status: 500 })
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PROJECT-SCOPED OVERVIEW — the contributor's own site dashboard
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Everything here comes from the contributor's OWN records for THEIR project:
+   the level records they captured (with their emission factors and computed
+   est. tCO2e / est. GJ) plus the approval state of the submissions the
+   Project Admin has actioned.
+
+   Emissions roll-up (the headline):
+     Scope 1  — direct emissions (Level 3) + on-site fuel burn (Level 1)
+     Scope 2  — purchased electricity & grid (Level 3) + the tCO2e computed
+                from GRID ELECTRICITY in Level 1   ← the grid tCO2e is ADDED
+     Scope 3  — value chain (Level 3)
+   ═══════════════════════════════════════════════════════════════════════════ */
+async function buildProjectOverview(user: any, projectId: string) {
+  const agg = await aggregateProjectSiteData(projectId)
+  const t = agg.totals
+  const p = agg.pending
+
+  const [project, periods, submissions, evidence, brsrAnswers, workforceRecords, safetyRecords, activities, validationIssues, anomalies] =
+    await Promise.all([
+      db.project.findUnique({ where: { id: projectId }, select: { id: true, name: true, code: true } }),
+      db.reportingPeriod.findMany({ orderBy: { startDate: 'asc' }, include: { reportingYear: true } }),
+      db.submission.findMany({
+        where: { projectId },
+        select: { id: true, module: true, category: true, status: true, metricName: true, metricValue: true, metricUnit: true, title: true, submittedAt: true, updatedAt: true, recordIds: true },
+      }),
+      db.evidence.findMany({ where: { projectId }, select: { id: true, status: true } }),
+      db.brsrAnswer.findMany({ where: { projectId }, select: { id: true, status: true } }),
+      db.workforceRecord.findMany({ where: { projectId } }),
+      db.safetyRecord.findMany({ where: { projectId } }),
+      db.activity.findMany({ where: { projectId }, orderBy: { createdAt: 'desc' }, take: 8 }),
+      db.validationResult.count({ where: { status: 'OPEN', severity: { in: ['ERROR', 'BLOCKING'] } } }),
+      db.anomalyEvent.count({ where: { status: 'OPEN' } }),
+    ])
+
+  const approvedSubs = submissions.filter((s: any) =>
+    ['APPROVED', 'BU_APPROVED', 'SUBSIDIARY_APPROVED', 'HQ_REVIEW', 'LOCKED'].includes(s.status)).length
+  const draftSubs = submissions.filter((s: any) => s.status === 'DRAFT').length
+  const reviewSubs = submissions.filter((s: any) =>
+    ['SUBMITTED', 'UNDER_REVIEW', 'PENDING', 'ASSIGNED'].includes(s.status)).length
+  const totalSubs = submissions.length
+  const completion = totalSubs > 0 ? (approvedSubs / totalSubs) * 100 : 0
+
+  const totalBrsr = brsrAnswers.length
+  const approvedBrsr = brsrAnswers.filter((a: any) =>
+    ['APPROVED', 'LOCKED', 'EVIDENCE_VERIFIED'].includes(a.status)).length
+  const brsrReadiness = totalBrsr > 0 ? (approvedBrsr / totalBrsr) * 100 : 0
+
+  /* Workforce & safety — the project's own mirror records. */
+  const totalEmployees = workforceRecords.filter((w: any) => w.category === 'EMPLOYEE').reduce((s: number, w: any) => s + w.permanent + w.nonPermanent, 0)
+  const totalWorkers = workforceRecords.filter((w: any) => w.category === 'WORKER').reduce((s: number, w: any) => s + w.permanent + w.nonPermanent, 0)
+  const totalWorkforce = totalEmployees + totalWorkers
+  const femaleCount = workforceRecords.reduce((s: number, w: any) => s + w.female, 0)
+  const femaleShare = totalWorkforce > 0 ? (femaleCount / totalWorkforce) * 100 : 0
+  const differentlyAbled = workforceRecords.reduce((s: number, w: any) => s + (w.differentlyAbled || 0), 0)
+  const trainingHours = workforceRecords.reduce((s: number, w: any) => s + (w.trainingHours || 0), 0)
+
+  const fatalities = safetyRecords.reduce((s: number, r: any) => s + r.fatalities, 0)
+  const injuries = safetyRecords.reduce((s: number, r: any) => s + r.injuries, 0)
+  const lti = safetyRecords.reduce((s: number, r: any) => s + r.lostTimeIncidents, 0)
+  const manHours = safetyRecords.reduce((s: number, r: any) => s + (r.manHoursWorked || 0), 0)
+  const ltifr = manHours > 0 ? (lti * 1000000) / manHours : 0
+  const safetyTrainingHours = safetyRecords.reduce((s: number, r: any) => s + (r.trainingHours || 0), 0)
+
+  const evidenceTotal = evidence.length
+  const evidenceVerified = evidence.filter((e: any) => e.status === 'VERIFIED').length
+
+  return {
+    user: { id: user.id, name: user.name, roles: user.roles, groupId: null },
+    scope: {
+      type: 'PROJECT',
+      id: projectId,
+      name: project?.name ?? 'Your project',
+      code: project?.code ?? '',
+    },
+    kpis: {
+      /* ── GHG footprint — direct + indirect (incl. grid electricity) ── */
+      totalEmissions: Math.round(t.totalEmissions * 100) / 100,
+      scope1: Math.round(t.scope1 * 100) / 100,
+      scope2: Math.round(t.scope2 * 100) / 100,
+      scope3: Math.round(t.scope3 * 100) / 100,
+      /* Grid electricity's own tCO2e (Level 1) — shown as its own line. */
+      gridElectricityGJ: Math.round(t.gridElectricityGJ * 100) / 100,
+      gridElectricityTco2e: Math.round(t.gridElectricityTco2e * 100) / 100,
+      /* ── Energy ── */
+      energyGJ: Math.round(t.energyGJ * 100) / 100,
+      renewableGJ: Math.round(t.renewableGJ * 100) / 100,
+      renewableShare: Math.round(t.renewableShare * 10) / 10,
+      /* ── Water ── */
+      waterWithdrawalKL: Math.round(t.waterWithdrawalKL * 10) / 10,
+      waterRecycledKL: Math.round(t.waterRecycledKL * 10) / 10,
+      waterRecycledShare: Math.round(t.waterRecycledShare * 10) / 10,
+      /* ── Waste ── */
+      wasteGeneratedT: Math.round(t.wasteGeneratedT * 100) / 100,
+      wasteRecoveredT: Math.round(t.wasteRecoveredT * 100) / 100,
+      wasteRecycledShare: Math.round(t.wasteRecycledShare * 10) / 10,
+      hazardousWasteT: Math.round(t.hazardousWasteT * 100) / 100,
+      /* ── Workforce & safety ── */
+      totalEmployees,
+      totalWorkers,
+      totalWorkforce,
+      femaleShare: Math.round(femaleShare * 10) / 10,
+      differentlyAbled,
+      trainingHours: Math.round(trainingHours),
+      fatalities, injuries, lti,
+      ltifr: Math.round(ltifr * 100) / 100,
+      safetyTrainingHours: Math.round(safetyTrainingHours),
+      /* ── BRSR readiness & review state ── */
+      brsrReadiness: Math.round(brsrReadiness * 10) / 10,
+      brsrMissing: brsrAnswers.filter((a: any) => a.status === 'MISSING').length,
+      completion: Math.round(completion * 10) / 10,
+      totalSubs, approvedSubs, draftSubs, reviewSubs,
+      openExceptions: validationIssues,
+      anomalies,
+      corrections: submissions.filter((s: any) => ['CHANGES_REQUESTED', 'CORRECTION_REQUESTED'].includes(s.status)).length,
+      evidenceTotal, evidenceVerified,
+      projects: 1,
+      orgs: 1,
+      /* ── Awaiting the Project Admin's approval ── */
+      pendingEmissions: Math.round(p.totalEmissions * 100) / 100,
+      pendingEnergyGJ: Math.round(p.energyGJ * 100) / 100,
+      pendingRecords: agg.pendingRecords,
+      approvedRecords: agg.approvedRecords,
+      capturedRecords: agg.records,
+    },
+    trends: agg.byPeriod,
+    emissionsBySource: agg.emissionsBySource,
+    /* Every captured line item — the dashboard's source breakdown. */
+    siteLines: agg.lines
+      .filter((l) => l.state === 'APPROVED')
+      .map((l) => ({
+        source: l.source,
+        scope: l.scope,
+        tco2e: Math.round(l.tco2e * 100) / 100,
+        gj: Math.round(l.gj * 100) / 100,
+        quantity: Math.round(l.quantity * 100) / 100,
+        unit: l.unit,
+        module: l.module,
+        level: l.level,
+        energy: l.energy,
+        renewable: l.renewable,
+        grid: l.grid,
+      })),
+    pendingLines: agg.lines
+      .filter((l) => l.state === 'PENDING')
+      .map((l) => ({
+        source: l.source,
+        scope: l.scope,
+        tco2e: Math.round(l.tco2e * 100) / 100,
+        gj: Math.round(l.gj * 100) / 100,
+        module: l.module,
+        level: l.level,
+      })),
+    activities,
+    periods: periods.map((pp) => ({ id: pp.id, label: pp.periodLabel, year: pp.year, month: pp.month, status: pp.status })),
+    sources: {
+      levelRecords: agg.records,
+      approvedRecords: agg.approvedRecords,
+      submissions: totalSubs,
+      evidence: evidenceTotal,
+      brsrAnswers: totalBrsr,
+    },
+    trace: {
+      note: 'Scoped to your project. KPIs are computed from your captured level records (with their emission factors) and count only data the Project Admin has approved. Grid-electricity tCO2e computed at Level 1 is included in Scope 2.',
+      scope: 'PROJECT',
+      projectId,
+    },
   }
 }

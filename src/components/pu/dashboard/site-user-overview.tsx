@@ -26,7 +26,7 @@ import {
   Send, MoreHorizontal, Plus, FileText, Database,
   RefreshCw, ChevronRight, Activity as ActivityIcon, Layers, Sparkles,
   Users, BarChart3, Upload, ClipboardCheck,
-  Gauge, AlertCircle, ShieldCheck, Fuel, Droplets,
+  Gauge, AlertCircle, ShieldCheck, Fuel, Droplets, Recycle,
   Search, X, Check, Copy, ExternalLink, FileSpreadsheet, Info,
   Sliders, Calendar, TrendingUp, CheckCircle2, User, Phone, Mail,
   CheckCircle, ArrowRight, Eye, Shield, Download, PieChart as PieChartIcon
@@ -45,11 +45,17 @@ interface Kpis {
   scope1: number
   scope2: number
   scope3: number
+  /** Grid electricity captured in Level 1 — the GJ and the tCO2e computed from it. */
+  gridElectricityGJ?: number
+  gridElectricityTco2e?: number
   energyGJ: number
+  renewableGJ?: number
   renewableShare: number
   waterWithdrawalKL: number
+  waterRecycledKL?: number
   waterRecycledShare: number
   wasteGeneratedT: number
+  wasteRecoveredT?: number
   wasteRecycledShare: number
   hazardousWasteT: number
   totalEmployees: number
@@ -77,8 +83,22 @@ interface Kpis {
   evidenceVerified: number
   projects: number
   orgs: number
+  /** Data captured but not yet signed off by the Project Admin. */
+  pendingEmissions?: number
+  pendingEnergyGJ?: number
+  pendingRecords?: number
+  approvedRecords?: number
+  capturedRecords?: number
 }
-interface Trend { emissions: number; energy: number; water: number; waste: number }
+interface Trend {
+  emissions: number
+  energy: number
+  water: number
+  waste: number
+  scope1?: number
+  scope2?: number
+  scope3?: number
+}
 type Trends = Record<string, Trend>
 interface OverviewData {
   kpis: Kpis
@@ -399,31 +419,44 @@ function SiteEsgOverviewCard({
           label="Emissions"
           value={formatNumber(k.totalEmissions, 1)}
           unit="tCO₂e"
-          sub={<span>Scope 1: <b className="text-slate-900">{formatNumber(k.scope1, 0)}</b> · Scope 2: <b className="text-slate-900">{formatNumber(k.scope2, 0)}</b></span>}
+          sub={
+            <span>
+              Scope 1: <b className="text-slate-900">{formatNumber(k.scope1, 2)}</b> · Scope 2: <b className="text-slate-900">{formatNumber(k.scope2, 2)}</b>
+              {k.scope3 ? <> · Scope 3: <b className="text-slate-900">{formatNumber(k.scope3, 2)}</b></> : null}
+              {(k.gridElectricityTco2e ?? 0) > 0 && (
+                <> · Grid: <b className="text-slate-900">{formatNumber(k.gridElectricityTco2e ?? 0, 2)}</b> tCO₂e</>
+              )}
+            </span>
+          }
           trend={delta(emissionsSeries)}
         />
         <KpiModule
           icon={Zap}
           tone="bg-amber-100 text-amber-700 border border-amber-300"
           label="Grid Electricity"
-          value={formatNumber(k.energyGJ, 1)}
+          value={formatNumber(k.gridElectricityGJ ?? 0, 1)}
           unit="GJ"
-          sub={<span>Renewable: <b className="text-slate-900">{k.renewableShare.toFixed(1)}%</b></span>}
+          sub={
+            <span>
+              → <b className="text-slate-900">{formatNumber(k.gridElectricityTco2e ?? 0, 2)}</b> tCO₂e (Scope 2)
+              {' · '}of <b className="text-slate-900">{formatNumber(k.energyGJ, 1)}</b> GJ total
+            </span>
+          }
           trend={{ dir: k.renewableShare >= 20 ? 'up' : 'neutral', text: `${k.renewableShare.toFixed(0)}% RE` }}
         />
         <KpiModule
           icon={Fuel}
           tone="bg-violet-100 text-violet-700 border border-violet-300"
-          label="HSD Diesel"
-          value={formatNumber(k.scope1 * 0.025, 1)}
-          unit="kL"
-          sub={<span>Scope 1 fuel use estimate</span>}
-          trend={{ dir: 'neutral', text: 'stable' }}
+          label="Total Energy"
+          value={formatNumber(k.energyGJ, 1)}
+          unit="GJ"
+          sub={<span>Renewable: <b className="text-slate-900">{k.renewableShare.toFixed(1)}%</b> of consumption</span>}
+          trend={{ dir: 'neutral', text: 'approved' }}
         />
         <KpiModule
           icon={Droplets}
           tone="bg-cyan-100 text-cyan-700 border border-cyan-300"
-          label="Recycled Water"
+          label="Water Withdrawal"
           value={formatNumber(k.waterWithdrawalKL, 1)}
           unit="kL"
           sub={
@@ -433,6 +466,24 @@ function SiteEsgOverviewCard({
             </span>
           }
           trend={delta(waterSeries)}
+        />
+        <KpiModule
+          icon={Recycle}
+          tone="bg-emerald-100 text-emerald-700 border border-emerald-300"
+          label="Waste Generated"
+          value={formatNumber(k.wasteGeneratedT, 2)}
+          unit="MT"
+          sub={<span><b className="text-slate-900">{k.wasteRecycledShare.toFixed(0)}%</b> recovered · <b className="text-slate-900">{formatNumber(k.hazardousWasteT, 2)}</b> MT hazardous</span>}
+          trend={{ dir: 'neutral', text: 'approved' }}
+        />
+        <KpiModule
+          icon={ClipboardCheck}
+          tone="bg-sky-100 text-sky-700 border border-sky-300"
+          label="Awaiting Approval"
+          value={formatNumber(k.pendingEmissions ?? 0, 2)}
+          unit="tCO₂e"
+          sub={<span><b className="text-slate-900">{k.pendingRecords ?? 0}</b> record(s) with the Project Admin</span>}
+          trend={{ dir: 'neutral', text: k.pendingRecords ? 'pending' : 'clear', tone: k.pendingRecords ? 'status-warning' : 'status-approved' }}
         />
         <div className="glass-subtle rounded-2xl p-3 col-span-1 border border-sky-100/80">
           <div className="text-[10px] uppercase tracking-wide text-slate-800 font-bold mb-1">Monthly GHG Trajectory</div>
@@ -558,37 +609,44 @@ function SiteEsgAnalyticsCard({
   const [activeMenu, setActiveMenu] = useState<'main' | 'ghg' | 'energy' | null>(null)
   const [selectedEnergyBar, setSelectedEnergyBar] = useState<number | null>(null)
 
-  // Scope 1 vs 2 GHG curve dataset matching reference image (Jan, Feb, Mar, Apr, Sep, Oct)
-  const ghgSeries = useMemo(() => [
-    { label: 'Jan', scope1: 18.2, scope2: 24.6, scope3: 4.1 },
-    { label: 'Feb', scope1: 22.4, scope2: 21.0, scope3: 4.8 },
-    { label: 'Mar', scope1: 28.5, scope2: 23.4, scope3: 5.2 },
-    { label: 'Apr', scope1: 34.0, scope2: 20.8, scope3: 5.8 },
-    { label: 'Sep', scope1: 31.8, scope2: 26.5, scope3: 5.0 },
-    { label: 'Oct', scope1: 33.2, scope2: 28.1, scope3: 5.6 },
-  ], [])
+  /* Water circularity ring — the contributor's OWN approved water data. */
+  const k = data.kpis || ({} as Kpis)
+  const waterWithdrawal = k.waterWithdrawalKL ?? 0
+  const waterRecycled = k.waterRecycledKL ?? 0
+  const waterRecycledShare = Math.round(k.waterRecycledShare ?? 0)
 
-  // Exactly 8 bars for Monthly Energy as depicted in reference image: 10, 18, 36, 40, 50, 60, 30, 84
+  /* GHG curve — the contributor's OWN approved scope split per reporting
+     period (no seeded numbers). Falls back to the period totals so the chart
+     still renders when only a total was captured. */
+  const ghgSeries = useMemo(() => {
+    const entries = Object.entries(data.trends || {})
+    return entries.map(([label, t]) => ({
+      label,
+      scope1: Number(t.scope1 ?? 0),
+      scope2: Number(t.scope2 ?? 0),
+      scope3: Number(t.scope3 ?? 0),
+    }))
+  }, [data.trends])
+
+  /* Monthly energy bars — the contributor's OWN approved energy per period. */
   const energyBars = useMemo(() => {
-    const raw = [
-      { id: 1, val: 10, color: '#38bdf8', label: '10', period: 'Apr W1' },
-      { id: 2, val: 18, color: '#0284c7', label: '18', period: 'Apr W2' },
-      { id: 3, val: 36, color: '#38bdf8', label: '36', period: 'May W1' },
-      { id: 4, val: 40, color: '#0284c7', label: '40', period: 'May W2' },
-      { id: 5, val: 50, color: '#38bdf8', label: '50', period: 'Jun W1' },
-      { id: 6, val: 60, color: '#0284c7', label: '60', period: 'Jun W2' },
-      { id: 7, val: 30, color: '#38bdf8', label: '30', period: 'Jul W1' },
-      { id: 8, val: 84, color: '#0284c7', label: '84', period: 'Jul W2 (Peak)' },
-    ]
+    const entries = Object.entries(data.trends || {})
+    const raw = entries.map(([label, t], i) => ({
+      id: i + 1,
+      val: Math.round(Number(t.energy || 0) * 10) / 10,
+      color: i % 2 === 0 ? '#38bdf8' : '#0284c7',
+      label: String(Math.round(Number(t.energy || 0) * 10) / 10),
+      period: label,
+    }))
     if (energyUnit === 'MWh') {
       return raw.map(b => ({
         ...b,
-        val: Math.round(b.val * 0.2778),
-        label: String(Math.round(b.val * 0.2778)),
+        val: Math.round(b.val * 0.2778 * 10) / 10,
+        label: String(Math.round(b.val * 0.2778 * 10) / 10),
       }))
     }
     return raw
-  }, [energyUnit])
+  }, [data.trends, energyUnit])
 
   // Close menus when clicking outside
   useEffect(() => {
@@ -637,16 +695,22 @@ function SiteEsgAnalyticsCard({
               >
                 <button
                   onClick={() => {
+                    const k = data.kpis
                     downloadCsv(
                       'Site_ESG_Analytics_Full.csv',
                       ['Metric', 'Current Value', 'Unit', 'Target/Baseline', 'Status'],
                       [
-                        ['Scope 1 GHG', '142.8', 'tCO2e', '160.0', 'Compliant'],
-                        ['Scope 2 GHG', '178.4', 'tCO2e', '190.0', 'Compliant'],
-                        ['Monthly Energy', '328.0', 'GJ', '350.0', 'Optimized'],
-                        ['Water Recycled Share', '72.0', '%', '70.0', 'Exceeded'],
-                        ['CEA v19 Baseline', '0.716', 'kg/kWh', '0.716', 'National Standard'],
-                        ['Waste Recycled Share', '94.2', '%', '90.0', 'Exceeded'],
+                        ['Scope 1 GHG', k.scope1, 'tCO2e', '160.0', 'Approved by Project Admin'],
+                        ['Scope 2 GHG', k.scope2, 'tCO2e', '190.0', 'Approved by Project Admin'],
+                        ['Grid electricity — computed tCO2e', k.gridElectricityTco2e ?? 0, 'tCO2e', '0.716 tCO2/MWh (CEA v20)', 'Counted in Scope 2'],
+                        ['Total energy', k.energyGJ, 'GJ', '350.0', 'Approved'],
+                        ['Grid electricity', k.gridElectricityGJ ?? 0, 'GJ', '350.0', 'Approved'],
+                        ['Renewable share', k.renewableShare, '%', '25.0', k.renewableShare >= 25 ? 'Exceeded' : 'In progress'],
+                        ['Water withdrawal', k.waterWithdrawalKL, 'kL', '500.0', 'Approved'],
+                        ['Water recycled share', k.waterRecycledShare, '%', '70.0', k.waterRecycledShare >= 70 ? 'Exceeded' : 'In progress'],
+                        ['Waste generated', k.wasteGeneratedT, 'MT', '100.0', 'Approved'],
+                        ['Waste recycled share', k.wasteRecycledShare, '%', '90.0', k.wasteRecycledShare >= 90 ? 'Exceeded' : 'In progress'],
+                        ['Awaiting approval', k.pendingEmissions ?? 0, 'tCO2e', '0.0', k.pendingRecords ? 'Pending Project Admin' : 'Clear'],
                       ]
                     )
                     setActiveMenu(null)
@@ -958,7 +1022,7 @@ function SiteEsgAnalyticsCard({
               </span>
               <span className="text-[17px] font-black text-slate-900 tracking-tight">Water Balance</span>
               <span className="text-[9.5px] font-extrabold text-sky-800 bg-sky-100/90 border border-sky-300/80 px-2 py-0.5 rounded-full shadow-2xs">
-                ZLD 100%
+                ZLD {waterRecycledShare}%
               </span>
             </div>
             <button
@@ -994,7 +1058,7 @@ function SiteEsgAnalyticsCard({
                 />
                 <path
                   className="text-[#38bdf8]"
-                  strokeDasharray="90, 100"
+                  strokeDasharray={`${Math.min(100, Math.max(0, 100 - waterRecycledShare))}, 100`}
                   strokeWidth="3.8"
                   stroke="currentColor"
                   fill="none"
@@ -1002,19 +1066,19 @@ function SiteEsgAnalyticsCard({
                 />
                 <motion.path
                   className="text-[#0284c7]"
-                  strokeDasharray="72, 100"
+                  strokeDasharray={`${Math.min(100, Math.max(0, waterRecycledShare))}, 100`}
                   strokeWidth="4.5"
                   strokeLinecap="round"
                   stroke="currentColor"
                   fill="none"
                   initial={{ strokeDasharray: '0, 100' }}
-                  animate={{ strokeDasharray: '72, 100' }}
+                  animate={{ strokeDasharray: `${waterRecycledShare}, 100` }}
                   transition={{ duration: 0.9, ease: 'easeOut' }}
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-[16px] font-black text-slate-900 tabular-nums leading-none">72%</span>
+                <span className="text-[16px] font-black text-slate-900 tabular-nums leading-none">{waterRecycledShare}%</span>
                 <span className="text-[8px] font-extrabold text-sky-700 uppercase tracking-wider mt-0.5">Reused</span>
               </div>
             </div>
@@ -1026,21 +1090,21 @@ function SiteEsgAnalyticsCard({
                   <span className="h-3 w-3 rounded-full bg-[#0284c7] shrink-0 ring-2 ring-sky-200 shadow-2xs" />
                   <span className="text-slate-800 font-bold text-[13px]">Recycled Water</span>
                 </div>
-                <span className="text-slate-900 font-black text-[15px] tabular-nums">72%</span>
+                <span className="text-slate-900 font-black text-[15px] tabular-nums">{waterRecycledShare}%</span>
               </div>
               <div className="flex items-center justify-between gap-4 bg-white/70 rounded-xl px-4 py-2.5 border border-white/90 shadow-sm flex-1 min-w-[140px]">
                 <div className="flex items-center gap-2.5">
                   <span className="h-3 w-3 rounded-full bg-[#38bdf8] shrink-0 ring-2 ring-sky-100 shadow-2xs" />
-                  <span className="text-slate-800 font-bold text-[13px]">Ground Extraction</span>
+                  <span className="text-slate-800 font-bold text-[13px]">Withdrawal</span>
                 </div>
-                <span className="text-slate-900 font-black text-[15px] tabular-nums">18%</span>
+                <span className="text-slate-900 font-black text-[15px] tabular-nums">{formatNumber(waterWithdrawal, 1)} kL</span>
               </div>
               <div className="flex items-center justify-between gap-4 bg-white/70 rounded-xl px-4 py-2.5 border border-white/90 shadow-sm flex-1 min-w-[140px]">
                 <div className="flex items-center gap-2.5">
                   <span className="h-3 w-3 rounded-full bg-slate-400 shrink-0 ring-2 ring-slate-200 shadow-2xs" />
-                  <span className="text-slate-800 font-bold text-[13px]">Surface Intake</span>
+                  <span className="text-slate-800 font-bold text-[13px]">Volume Recycled</span>
                 </div>
-                <span className="text-slate-900 font-black text-[15px] tabular-nums">10%</span>
+                <span className="text-slate-900 font-black text-[15px] tabular-nums">{formatNumber(waterRecycled, 1)} kL</span>
               </div>
             </div>
           </div>
@@ -1049,15 +1113,15 @@ function SiteEsgAnalyticsCard({
           <div className="grid grid-cols-3 gap-3 pt-3 border-t border-sky-100/60">
             <div className="bg-sky-50/70 rounded-xl px-4 py-2.5 border border-sky-100 flex flex-col gap-0.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700">Total Withdrawal</span>
-              <span className="text-[18px] font-black text-slate-900 tabular-nums">1,240 kL</span>
+              <span className="text-[18px] font-black text-slate-900 tabular-nums">{formatNumber(waterWithdrawal, 1)} kL</span>
             </div>
             <div className="bg-sky-50/70 rounded-xl px-4 py-2.5 border border-sky-100 flex flex-col gap-0.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-sky-700">Volume Recycled</span>
-              <span className="text-[18px] font-black text-slate-900 tabular-nums">892 kL</span>
+              <span className="text-[18px] font-black text-slate-900 tabular-nums">{formatNumber(waterRecycled, 1)} kL</span>
             </div>
             <div className="bg-sky-50/70 rounded-xl px-4 py-2.5 border border-sky-100 flex flex-col gap-0.5">
               <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-700">ZLD Status</span>
-              <span className="text-[18px] font-black text-emerald-700 tabular-nums">Active ✓</span>
+              <span className={`text-[18px] font-black tabular-nums ${waterRecycledShare >= 50 ? 'text-emerald-700' : 'text-amber-600'}`}>{waterRecycledShare >= 50 ? 'Active ✓' : 'Below 50%'}</span>
             </div>
           </div>
         </div>
@@ -1960,12 +2024,18 @@ function BaselineFactorModal({
 
 /** Water Balance Audit Modal */
 function WaterBalanceModal({
-  isOpen, onClose,
+  isOpen, onClose, kpis,
 }: {
   isOpen: boolean
   onClose: () => void
+  kpis?: Kpis
 }) {
   if (!isOpen) return null
+
+  const withdrawal = kpis?.waterWithdrawalKL ?? 0
+  const recycled = kpis?.waterRecycledKL ?? 0
+  const recycledShare = kpis?.waterRecycledShare ?? 0
+  const freshShare = Math.max(0, Math.round((100 - recycledShare) * 10) / 10)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -1988,31 +2058,31 @@ function WaterBalanceModal({
         <div className="mt-4 space-y-3 text-[12px]">
           <div className="grid grid-cols-3 gap-2.5 text-center">
             <div className="p-3 bg-sky-50 rounded-xl border border-sky-200">
-              <div className="text-[18px] font-extrabold text-[#0284c7]">72%</div>
+              <div className="text-[18px] font-extrabold text-[#0284c7]">{recycledShare.toFixed(0)}%</div>
               <div className="text-[10px] font-bold text-slate-700 uppercase mt-0.5">Recycled (ZLD)</div>
             </div>
             <div className="p-3 bg-cyan-50 rounded-xl border border-cyan-200">
-              <div className="text-[18px] font-extrabold text-[#38bdf8]">18%</div>
-              <div className="text-[10px] font-bold text-slate-700 uppercase mt-0.5">Ground Water</div>
+              <div className="text-[18px] font-extrabold text-[#38bdf8]">{freshShare.toFixed(0)}%</div>
+              <div className="text-[10px] font-bold text-slate-700 uppercase mt-0.5">Fresh Intake</div>
             </div>
             <div className="p-3 bg-slate-100 rounded-xl border border-slate-200">
-              <div className="text-[18px] font-extrabold text-slate-600">10%</div>
-              <div className="text-[10px] font-bold text-slate-700 uppercase mt-0.5">Surface Water</div>
+              <div className="text-[18px] font-extrabold text-slate-600">{withdrawal.toLocaleString('en-IN', { maximumFractionDigits: 1 })}</div>
+              <div className="text-[10px] font-bold text-slate-700 uppercase mt-0.5">kL Withdrawn</div>
             </div>
           </div>
 
           <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
             <div className="flex justify-between">
-              <span className="text-slate-600 font-semibold">Total Monthly Intake:</span>
-              <span className="font-bold text-slate-900">1,480 kL</span>
+              <span className="text-slate-600 font-semibold">Total Withdrawal:</span>
+              <span className="font-bold text-slate-900">{withdrawal.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kL</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-600 font-semibold">Effluent Treated &amp; Reused:</span>
-              <span className="font-bold text-emerald-700">1,065.6 kL (Zero Discharge)</span>
+              <span className="text-slate-600 font-semibold">Reused / Recycled:</span>
+              <span className="font-bold text-emerald-700">{recycled.toLocaleString('en-IN', { maximumFractionDigits: 1 })} kL ({recycledShare.toFixed(1)}%)</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-600 font-semibold">Rainwater Harvesting Capacity:</span>
-              <span className="font-bold text-slate-900">450 kL Reservoir</span>
+              <span className="text-slate-600 font-semibold">Source:</span>
+              <span className="font-bold text-slate-900">Approved site data entries</span>
             </div>
           </div>
         </div>
@@ -2032,12 +2102,19 @@ function WaterBalanceModal({
 
 /** Waste Circularity Modal */
 function WasteModal({
-  isOpen, onClose,
+  isOpen, onClose, kpis,
 }: {
   isOpen: boolean
   onClose: () => void
+  kpis?: Kpis
 }) {
   if (!isOpen) return null
+
+  const wasteGenerated = kpis?.wasteGeneratedT ?? 0
+  const wasteRecovered = kpis?.wasteRecoveredT ?? 0
+  const diversionRate = kpis?.wasteRecycledShare ?? 0
+  const hazardous = kpis?.hazardousWasteT ?? 0
+  const otherWaste = Math.max(0, Math.round((wasteGenerated - hazardous) * 100) / 100)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
@@ -2060,22 +2137,28 @@ function WasteModal({
         <div className="mt-4 space-y-3 text-[12px]">
           <div className="p-3.5 bg-emerald-50 rounded-xl border border-emerald-200">
             <div className="text-[11px] text-emerald-800 font-bold uppercase">Diversion from Landfill Rate</div>
-            <div className="text-[24px] font-black text-emerald-950 mt-0.5">94.2% <span className="text-[12px] font-semibold text-emerald-700">Circularity Score</span></div>
-            <p className="text-[11px] text-emerald-800 mt-1">Exceeds MEIL FY 2026-27 corporate sustainability target of 90%.</p>
+            <div className="text-[24px] font-black text-emerald-950 mt-0.5">{diversionRate.toFixed(1)}% <span className="text-[12px] font-semibold text-emerald-700">Circularity Score</span></div>
+            <p className="text-[11px] text-emerald-800 mt-1">
+              {wasteRecovered.toLocaleString('en-IN', { maximumFractionDigits: 2 })} MT of {wasteGenerated.toLocaleString('en-IN', { maximumFractionDigits: 2 })} MT generated recovered / diverted — against the MEIL FY 2026-27 target of 90%.
+            </p>
           </div>
 
           <div className="space-y-2 text-slate-700">
             <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="font-semibold text-slate-600">Scrap Metal &amp; Cable Recycling:</span>
-              <span className="font-bold text-slate-900">18.4 Metric Tonnes (100% Recycled)</span>
+              <span className="font-semibold text-slate-600">Total waste generated:</span>
+              <span className="font-bold text-slate-900">{wasteGenerated.toLocaleString('en-IN', { maximumFractionDigits: 2 })} MT</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-slate-100">
-              <span className="font-semibold text-slate-600">Civil Debris &amp; Concrete Aggregate:</span>
-              <span className="font-bold text-slate-900">42.0 Metric Tonnes (Roadbase reuse)</span>
+              <span className="font-semibold text-slate-600">Recovered / recycled:</span>
+              <span className="font-bold text-emerald-700">{wasteRecovered.toLocaleString('en-IN', { maximumFractionDigits: 2 })} MT ({diversionRate.toFixed(1)}%)</span>
+            </div>
+            <div className="flex justify-between py-1.5 border-b border-slate-100">
+              <span className="font-semibold text-slate-600">Non-hazardous waste:</span>
+              <span className="font-bold text-slate-900">{otherWaste.toLocaleString('en-IN', { maximumFractionDigits: 2 })} MT</span>
             </div>
             <div className="flex justify-between py-1.5">
               <span className="font-semibold text-slate-600">Hazardous Waste (Oils/Filters):</span>
-              <span className="font-bold text-amber-700">3.6 MT (Authorized CPCB Recycler)</span>
+              <span className="font-bold text-amber-700">{hazardous.toLocaleString('en-IN', { maximumFractionDigits: 2 })} MT (Authorized CPCB Recycler)</span>
             </div>
           </div>
         </div>
@@ -2339,55 +2422,60 @@ export function SiteUserOverview() {
     )
   }
 
-  // Fallback overview data
+  /* Fallback overview data — ZEROES, never seeded numbers. The dashboard must
+     never show a figure the contributor did not capture. */
   const safeOverview: OverviewData = overview || {
     kpis: {
-      totalEmissions: 321.2,
-      scope1: 142.8,
-      scope2: 178.4,
-      scope3: 15.6,
-      energyGJ: 328.0,
-      renewableShare: 82.4,
-      waterWithdrawalKL: 1480.0,
-      waterRecycledShare: 72.0,
-      wasteGeneratedT: 64.0,
-      wasteRecycledShare: 94.2,
-      hazardousWasteT: 3.6,
-      totalEmployees: 45,
-      totalWorkers: 180,
-      totalWorkforce: 225,
-      femaleShare: 24.5,
-      differentlyAbled: 2,
-      trainingHours: 320,
+      totalEmissions: 0,
+      scope1: 0,
+      scope2: 0,
+      scope3: 0,
+      gridElectricityGJ: 0,
+      gridElectricityTco2e: 0,
+      energyGJ: 0,
+      renewableGJ: 0,
+      renewableShare: 0,
+      waterWithdrawalKL: 0,
+      waterRecycledKL: 0,
+      waterRecycledShare: 0,
+      wasteGeneratedT: 0,
+      wasteRecoveredT: 0,
+      wasteRecycledShare: 0,
+      hazardousWasteT: 0,
+      totalEmployees: 0,
+      totalWorkers: 0,
+      totalWorkforce: 0,
+      femaleShare: 0,
+      differentlyAbled: 0,
+      trainingHours: 0,
       fatalities: 0,
       injuries: 0,
       lti: 0,
-      ltifr: 0.0,
-      safetyTrainingHours: 180,
-      brsrReadiness: 94.5,
-      brsrMissing: 2,
-      completion: 92,
-      totalSubs: 12,
-      approvedSubs: 9,
-      draftSubs: 2,
-      reviewSubs: 1,
+      ltifr: 0,
+      safetyTrainingHours: 0,
+      brsrReadiness: 0,
+      brsrMissing: 0,
+      completion: 0,
+      totalSubs: 0,
+      approvedSubs: 0,
+      draftSubs: 0,
+      reviewSubs: 0,
       openExceptions: 0,
       anomalies: 0,
       corrections: 0,
-      evidenceTotal: 28,
-      evidenceVerified: 28,
-      projects: 4,
-      orgs: 3,
+      evidenceTotal: 0,
+      evidenceVerified: 0,
+      projects: 1,
+      orgs: 1,
+      pendingEmissions: 0,
+      pendingEnergyGJ: 0,
+      pendingRecords: 0,
+      approvedRecords: 0,
+      capturedRecords: 0,
     },
-    trends: {
-      'Apr 2026': { emissions: 102.4, energy: 108.0, water: 480.0, waste: 21.0 },
-      'May 2026': { emissions: 108.6, energy: 112.0, water: 510.0, waste: 22.0 },
-      'Jun 2026': { emissions: 110.2, energy: 108.0, water: 490.0, waste: 21.0 },
-    },
-    emissionsBySource: { Grid: 178.4, Diesel: 142.8 },
-    periods: [
-      { id: 'p1', label: 'FY 2026-27', year: 2026, month: null, status: 'OPEN' },
-    ],
+    trends: {},
+    emissionsBySource: {},
+    periods: [],
   }
 
   return (
@@ -2491,6 +2579,7 @@ export function SiteUserOverview() {
       <WasteModal
         isOpen={isWasteModalOpen}
         onClose={() => setIsWasteModalOpen(false)}
+        kpis={safeOverview.kpis}
       />
 
       <InverterModal
