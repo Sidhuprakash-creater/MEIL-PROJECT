@@ -91,6 +91,20 @@
   outline: 2px solid var(--mcalc-blue);
   outline-offset: 3px;
 }
+/* Draggable — the rail can be dropped anywhere; transitions are frozen while
+   it tracks the pointer so it follows 1:1. */
+.mcalc-rail {
+  touch-action: none;
+  cursor: grab;
+}
+.mcalc-rail.mcalc-rail-dragging {
+  transition: none;
+  cursor: grabbing;
+  box-shadow: 0 16px 34px rgba(38, 84, 124, 0.28);
+}
+.mcalc-rail.mcalc-rail-dragging:hover {
+  transform: none;
+}
 .mcalc-rail-label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
@@ -111,6 +125,18 @@
   color: #fff;
   background: linear-gradient(145deg, #4f92ff, var(--mcalc-blue) 60%, #2457c8);
   box-shadow: 0 3px 9px rgba(58, 123, 255, 0.3);
+}
+/* Grip dots — the visible "you can drag me" cue on the rail. */
+.mcalc-rail-grip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  color: var(--mcalc-ink-faint);
+  opacity: 0.65;
+  transition: opacity 0.2s ease;
+}
+.mcalc-rail:hover .mcalc-rail-grip {
+  opacity: 1;
 }
 
 /* ── Docked panel (expanded) ─────────────────────────────────────────────── */
