@@ -51,7 +51,7 @@ import { apiGet, apiPost, fmtDate, fmtDateTime, fmtNumber, timeAgo, useMutation 
 import type { EvidenceRow, BmSubmissionDetail } from "@/lib/bm/types";
 import { EvidenceChip, StatusChip, UrgencyChip, fmtMetric, severityTone } from "@/components/bm/shared";
 
-type DetailResponse = { submission: BmSubmissionDetail; updatedAt: string; version: number };
+type DetailResponse = { submission: BmSubmissionDetail; updatedAt: string; version: number; consolidatedChildren?: Array<{ id: string; title: string; category: string; status: string }> };
 
 const REVIEW_ELIGIBLE = ["SUBMITTED", "UNDER_REVIEW", "CHANGES_REQUESTED"];
 
@@ -92,6 +92,9 @@ export function ReportReviewWorkspace({
   const [returnReason, setReturnReason] = React.useState("");
   const [returnInstructions, setReturnInstructions] = React.useState("");
   const [returnFields, setReturnFields] = React.useState("");
+  /* GRANULAR RETURN — when reviewing a consolidated dossier the BU may send
+     back ONE disclosure instead of the whole package ("entire" = whole). */
+  const [returnTarget, setReturnTarget] = React.useState<string>("entire");
 
   const sub = detail?.submission ?? null;
   const eligible = !!sub && (
@@ -141,6 +144,7 @@ export function ReportReviewWorkspace({
       setReturnReason("");
       setReturnInstructions("");
       setReturnFields("");
+      setReturnTarget("entire");
       }
   }, [rejectOpen, returnOpen]);
 
@@ -149,7 +153,7 @@ export function ReportReviewWorkspace({
 
   const decide = async (
     action: "approve" | "reject" | "return",
-    body: { reason?: string; instructions?: string; affectedFields?: string[] }
+    body: { reason?: string; instructions?: string; affectedFields?: string[]; targetSubmissionId?: string }
   ) => {
     if (!detail) return;
     try {
@@ -161,6 +165,7 @@ export function ReportReviewWorkspace({
             reason: body.reason ?? "",
             instructions: body.instructions ?? "",
             affectedFields: body.affectedFields ?? [],
+            ...(body.targetSubmissionId && body.targetSubmissionId !== "entire" ? { targetSubmissionId: body.targetSubmissionId } : {}),
             expectedUpdatedAt: detail.updatedAt, // stale-version guard
           }
         )
@@ -710,6 +715,29 @@ export function ReportReviewWorkspace({
                 <span className="font-semibold text-[color:var(--ink)]">{sub.ref} — {sub.title}</span>
                 {" "}· {sub.level === "PROJECT" ? sub.projectName : sub.buName} · {sub.period} · submitted by {sub.submittedByName ?? "—"}
               </div>
+              {detail?.consolidatedChildren && detail.consolidatedChildren.length > 0 && (
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="return-target">
+                    What should go back for correction?
+                  </label>
+                  <select
+                    id="return-target"
+                    value={returnTarget}
+                    onChange={(e) => setReturnTarget(e.target.value)}
+                    className="glass-subtle w-full rounded-2xl border-white/60 bg-white/80 px-3 py-2.5 text-[13px] font-medium text-[color:var(--ink)]"
+                  >
+                    <option value="entire">Entire consolidated report</option>
+                    {detail.consolidatedChildren.map((c) => (
+                      <option key={c.id} value={c.id}>{c.category} — {c.title}</option>
+                    ))}
+                  </select>
+                  {returnTarget !== "entire" && (
+                    <p className="mt-1 text-xs font-medium text-[color:var(--bum-purple-deep)]">
+                      Only this disclosure moves to CHANGES_REQUESTED — the rest of the consolidated report stays under review.
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="mb-1.5 block text-[13px] font-medium text-[color:var(--ink)]" htmlFor="return-reason">
                   Reason for return <span className="text-[#c34a4a]">*</span>
@@ -756,7 +784,9 @@ export function ReportReviewWorkspace({
               </div>
               <div className="flex items-start gap-2 rounded-2xl bg-[rgba(139,92,246,0.06)] p-3 text-[11.5px] leading-relaxed text-[color:var(--bum-purple-deep)]">
                 <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                The current version, evidence and reviewer comments are preserved. The report moves to CHANGES_REQUESTED and the responsible user is notified with your reason + instructions.
+                {returnTarget === "entire"
+                  ? "The current version, evidence and reviewer comments are preserved. The report moves to CHANGES_REQUESTED and the responsible user is notified with your reason + instructions."
+                  : "Only the selected disclosure moves to CHANGES_REQUESTED with your reason + instructions — the consolidated report itself stays in the review queue for the remaining disclosures."}
               </div>
             </div>
           )}
@@ -777,6 +807,7 @@ export function ReportReviewWorkspace({
                     reason: returnReason.trim(),
                     instructions: returnInstructions.trim(),
                     affectedFields: fields,
+                    targetSubmissionId: returnTarget,
                   });
                 }}
               >

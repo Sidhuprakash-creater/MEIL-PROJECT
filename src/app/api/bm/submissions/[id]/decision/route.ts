@@ -70,6 +70,10 @@ export async function POST(req: NextRequest, { params }: Params) {
       instructions?: string;
       affectedFields?: string[];
       expectedUpdatedAt?: string;
+      /* GRANULAR RETURN: when the reviewed row is a consolidated dossier, the
+         BU may send back ONE particular disclosure instead of the whole
+         package — the dossier itself stays in the review queue. */
+      targetSubmissionId?: string;
     };
     const action = String(b.action ?? "");
     if (!ELIGIBLE[action]) {
@@ -117,6 +121,12 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     /* An APPROVED or BU_APPROVED report forwarded by PA is decidable by BU */
     const forwardedPaApproval = (s.status === "APPROVED" || s.status === "BU_REVIEW_PENDING" || s.status === "BU_APPROVED") && isForwarded;
+
+    /* Resolve the responsible user's name so notifications are personal. */
+    const responsible = s.submittedById
+      ? (await db.user.findUnique({ where: { id: s.submittedById }, select: { name: true } }))?.name ?? "the responsible user"
+      : "the responsible user";
+
 
     /* Version guard: refuse decisions on a stale version (with 30s tolerance for clock drift). */
     if (b.expectedUpdatedAt && Math.abs(new Date(b.expectedUpdatedAt).getTime() - s.updatedAt.getTime()) > 30000) {
@@ -166,6 +176,68 @@ export async function POST(req: NextRequest, { params }: Params) {
         ...(historyNote ? { note: historyNote } : {}),
       },
     ];
+
+        /* ═══ GRANULAR RETURN — send back ONE disclosure, not the whole package ═══
+       When the reviewed row is the consolidated dossier, the BU may target a
+       single child disclosure. The child moves to CHANGES_REQUESTED with the
+       reviewer + message + correction rows; the dossier itself stays in the
+       review queue untouched, so the rest of the package remains decidable. */
+    const isDossier = s.category === "CONSOLIDATED" || s.module === "CONSOLIDATED";
+    if (action === "return" && b.targetSubmissionId && isDossier) {
+      const child = await db.submission.findFirst({
+        where: { id: b.targetSubmissionId, OR: [{ consolidatedReportId: s.id }, { id: s.consolidatedReportId ?? undefined }] },
+      });
+      if (!child) throw new BmError("That disclosure is not part of this consolidated report.", 404);
+      if (child.status === "CHANGES_REQUESTED") throw new BmError("This disclosure is already returned for correction.", 409);
+
+      /* The child's OWN contributor gets notified — not the dossier submitter. */
+      const childOwner = child.submittedById
+        ? (await db.user.findUnique({ where: { id: child.submittedById }, select: { name: true } }))?.name ?? responsible
+        : responsible;
+
+      const childComments = commentText ? [...parseJson<{ author: string; role: string; text: string; at: string }[]>(child.comments, []), { author: ctx.name, role: "BU_MANAGER", text: commentText, at: now.toISOString() }] : parseJson<{ author: string; role: string; text: string; at: string }[]>(child.comments, []);
+      const childCorrections = affectedFields.length
+        ? affectedFields.slice(0, 50).map((f, i) => ({
+            id: `cr-bu-${Date.now().toString(36)}-${i}`,
+            submissionId: child.id,
+            requesterId: ctx.userId,
+            requesterName: ctx.name,
+            field: f,
+            issue: instructions || reason,
+            severity: "WARNING",
+            comment: instructions || reason,
+            recordId: null,
+            target: null,
+            status: "OPEN",
+            createdAt: now.toISOString(),
+          }))
+        : [];
+      await db.submission.update({
+        where: { id: child.id },
+        data: {
+          status: "CHANGES_REQUESTED",
+          reviewedAt: now,
+          reviewerId: ctx.userId,
+          ...(commentText ? { reviewComment: commentText } : {}),
+          comments: JSON.stringify(childComments),
+          history: JSON.stringify([...parseJson<unknown[]>(child.history, []), { action: `Returned for correction by ${ctx.name} (BU Manager) — targeted, not the whole package`, actor: ctx.name, at: now.toISOString(), ...(commentText ? { note: commentText } : {}) }]),
+          ...(childCorrections.length ? { corrections: JSON.stringify([...parseJson<unknown[]>(child.corrections, []), ...childCorrections]) } : {}),
+        },
+      });
+      await bmNotify({
+        ntype: "VALIDATION",
+        title: `Disclosure returned for correction: ${child.ref}`,
+        body: `${child.title} — returned to ${childOwner} for correction by ${ctx.name} (BU Manager, ${bu.name}). Only this disclosure was returned; the rest of the consolidated report stays under review. ${instructions.slice(0, 140)}`,
+        severity: "WARNING",
+        linkView: "queue",
+        refId: child.id,
+      });
+      await Promise.all([
+        bmLogActivity(ctx, bu.name, { action: "RETURN", targetType: "Submission", targetLabel: `${child.ref} — ${child.title}`, severity: "WARNING" }),
+        bmLogAudit(ctx, bu.code, { action: "SUBMISSION_RETURN", targetType: "Submission", targetId: child.id, targetLabel: `${child.ref} — ${child.title}`, before: { status: child.status }, after: { status: "CHANGES_REQUESTED", reviewer: ctx.name }, reason: reason || instructions || undefined, outcome: "SUCCESS" }),
+      ]);
+      return ok({ message: `Disclosure returned for correction — the rest of the consolidated report stays under review.`, decision: { action: "return", version: history.length + 1, targetId: child.id, targetStatus: "CHANGES_REQUESTED" } } as any);
+    }
 
     /* Concurrent-safe update: the where-clause re-asserts the eligible status
        so a decision made between our load and write cannot be overwritten.
@@ -262,11 +334,6 @@ export async function POST(req: NextRequest, { params }: Params) {
         console.warn("Could not sync consolidated report status:", e);
       }
     }
-
-    /* Resolve the responsible user's name so the notification is personal. */
-    const responsible = s.submittedById
-      ? (await db.user.findUnique({ where: { id: s.submittedById }, select: { name: true } }))?.name ?? "the responsible user"
-      : "the responsible user";
 
     /* ONE null-scope notification = broadcast → visible on all 5 consoles
        (Group Admin bell + SA + SM + BU Admin + BU Manager bells). This is

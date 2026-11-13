@@ -655,8 +655,61 @@ export async function POST(req: NextRequest) {
           submittedById: true,
           recordIds: true,
           corrections: true,
+          status: true,
+          consolidatedReportId: true,
         },
       });
+
+      /* ═══ GRANULAR CORRECTION — target ONE disclosure inside a dossier ═══
+         When the PA requests changes on the consolidated dossier but passes a
+         targetSubmissionId, only that child disclosure moves to
+         CHANGES_REQUESTED; the dossier itself stays in the pipeline so the
+         remaining disclosures remain part of the consolidation. */
+      const isDossier = sub?.category === "CONSOLIDATED" || sub?.module === "CONSOLIDATED";
+      if (isDossier && body.targetSubmissionId) {
+        const child = await db.submission.findFirst({
+          where: { id: String(body.targetSubmissionId), OR: [{ consolidatedReportId: submissionId }, { id: sub.consolidatedReportId ?? undefined }] },
+        });
+        if (!child) return paFail("That disclosure is not part of this consolidated report.", 404);
+        if (child.status === "CHANGES_REQUESTED") return paFail("This disclosure is already returned for correction.", 409);
+        const childCorrections = [{
+          id: `cr-pa-${Date.now().toString(36)}`,
+          submissionId: child.id,
+          requesterId: ctx.userId,
+          requesterName: ctx.userName,
+          field: "General Data Review",
+          issue: rejectionReason,
+          severity: "WARNING",
+          comment: rejectionReason,
+          recordId: null,
+          target: null,
+          status: "OPEN",
+          createdAt: now.toISOString(),
+        }];
+        const childPrior = typeof child.corrections === "string" ? JSON.parse(child.corrections || "[]") : child.corrections;
+        await db.submission.update({
+          where: { id: child.id },
+          data: {
+            status: "CHANGES_REQUESTED",
+            reviewerId: ctx.userId,
+            reviewComment: rejectionReason,
+            reviewedAt: now,
+            updatedAt: now,
+            comments: JSON.stringify([...JSON.parse(child.comments || "[]"), { author: ctx.userName, role: "PROJECT_ADMIN", text: rejectionReason, at: now.toISOString() }]),
+            history: JSON.stringify([...JSON.parse(child.history || "[]"), { action: `Returned for correction by ${ctx.userName} (Project Admin) — targeted disclosure`, actor: ctx.userName, at: now.toISOString(), note: rejectionReason }]),
+            corrections: JSON.stringify([...(Array.isArray(childPrior) ? childPrior : []), ...childCorrections]),
+          },
+        });
+        await db.soSubmission.updateMany({ where: { id: child.id }, data: { status: "CHANGES_REQUESTED", updatedAt: now } });
+        invalidatePaServerCache();
+        invalidatePuSubmissionsCache();
+        invalidatePuOverviewCache();
+        invalidatePuNotificationsCache();
+        return paOk(
+          { submissionId: child.id, status: "CHANGES_REQUESTED", targeted: true },
+          "Only this disclosure was returned for correction — the rest of the consolidated report stays in the pipeline."
+        );
+      }
 
       // Update db.submission to CHANGES_REQUESTED + persist per-field corrections
       /* Per-source items flagged in the inspect modal become correction objects

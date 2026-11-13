@@ -106,6 +106,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     }
 
     // If this is a consolidated dossier, aggregate child submissions
+    let consolidatedChildren: Array<{ id: string; title: string; category: string; status: string }> = [];
     if (s.category === "CONSOLIDATED" || s.module === "CONSOLIDATED" || (s as any).inConsolidatedReport) {
       try {
         const childSubs = await db.submission.findMany({
@@ -113,8 +114,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
             consolidatedReportId: s.id,
             id: { not: s.id },
           },
-          select: { id: true, title: true, category: true, values: true },
+          select: { id: true, title: true, category: true, values: true, status: true },
         });
+        consolidatedChildren = childSubs.map((c) => ({ id: c.id, title: c.title, category: c.category, status: c.status }));
         for (const child of childSubs) {
           const childVals = parseJson<{ label: string; value: any; unit?: string }[]>(child.values, []);
           for (const cv of childVals) {
@@ -154,6 +156,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     };
     return ok({
       submission,
+      consolidatedChildren,
       updatedAt: s.updatedAt.toISOString(),
       version: parseJson<unknown[]>(s.history, []).length + 1,
     });
