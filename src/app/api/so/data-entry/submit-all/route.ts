@@ -343,6 +343,34 @@ export async function POST(req: NextRequest) {
 
     // 6. History / notification / activity / audit — best effort
     const roleLabel = primaryRoleLabel(user)
+    /* REAL EMAIL — notify the project's own admins off-platform as well.
+       Fire-and-forget: a mail failure never blocks the submission. */
+    void (async () => {
+      try {
+        const { sendSubmissionReceivedEmail } = await import("@/lib/notify/email")
+        const admins = await db.user.findMany({
+          where: { projectId: projId, role: 'PROJECT_ADMIN' },
+          select: { email: true, name: true },
+        })
+        const periodLabel = (period as any).periodLabel || (period as any).label || 'FY 2026-27'
+        for (const admin of admins) {
+          const res = await sendSubmissionReceivedEmail({
+            to: admin.email,
+            adminName: admin.name,
+            submitterName: user.name,
+            submitterRole: roleLabel,
+            projectName: project.name,
+            periodLabel,
+            levelsSubmitted: submittedList.length,
+            levelsTotal: BRSR_LEVELS.length,
+            packageRef: dossier?.id || null,
+          })
+          if (!res.sent) console.warn('Submission email not sent:', res.reason)
+        }
+      } catch (mailErr) {
+        console.warn('Submission email dispatch failed:', mailErr)
+      }
+    })()
     Promise.allSettled([
       db.notification.create({
         data: {

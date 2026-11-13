@@ -420,6 +420,53 @@ export async function sendPasswordResetRejectedEmail(opts: {
   });
 }
 
+export async function sendSubmissionReceivedEmail(opts: {
+  to: string | string[];
+  adminName: string;
+  submitterName: string;
+  submitterRole: string;
+  projectName: string;
+  periodLabel: string;
+  levelsSubmitted: number;
+  levelsTotal: number;
+  packageRef?: string | null;
+  origin?: string;
+}): Promise<EmailSendResult> {
+  const appUrl = getAppOrigin(opts.origin);
+  const reviewUrl = `${appUrl}/?enter=1`;
+  const html = wrapLayout(
+    "New ESG Disclosure Package Awaiting Your Review",
+    "Submission Alert",
+    `<p>Hello ${escHtml(opts.adminName)},</p>
+     <p><strong>${escHtml(opts.submitterName)}</strong> (${escHtml(opts.submitterRole)}) has submitted a complete site ESG disclosure package on the MEIL ESG &amp; BRSR Platform.</p>
+     <table cellpadding="6" cellspacing="0" style="margin:16px 0;width:100%;border-collapse:collapse;font-size:13px;">
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;width:150px;">Project / Site:</td><td><strong>${escHtml(opts.projectName)}</strong></td></tr>
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Reporting Period:</td><td>${escHtml(opts.periodLabel)}</td></tr>
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Levels Submitted:</td><td><strong>${escHtml(String(opts.levelsSubmitted))} of ${escHtml(String(opts.levelsTotal))}</strong> BRSR disclosure levels</td></tr>
+       ${opts.packageRef ? `<tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Package Reference:</td><td><code>${escHtml(opts.packageRef)}</code></td></tr>` : ""}
+       <tr style="border-bottom:1px solid #e2e8f0;"><td style="color:#64748b;">Next Step:</td><td>Your review &amp; approval is required before the data consolidates upward.</td></tr>
+     </table>
+     <p style="margin:24px 0;">
+       <a href="${escHtml(reviewUrl)}" style="display:inline-block;padding:10px 18px;background:#1d4ed8;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;">Review the Submission</a>
+     </p>
+     <p style="font-size:12px;color:#64748b;">This is an automated notification from the MEIL ESG Platform. You are receiving this because you are the Project Admin for this site.</p>`
+  );
+
+  const text = [
+    `Hello ${opts.adminName},`,
+    `${opts.submitterName} (${opts.submitterRole}) submitted the site ESG package for ${opts.projectName} — ${opts.periodLabel}.`,
+    `Levels: ${opts.levelsSubmitted}/${opts.levelsTotal}${opts.packageRef ? `, Ref: ${opts.packageRef}` : ""}.`,
+    `Review: ${reviewUrl}`,
+  ].filter(Boolean).join("\n");
+
+  return sendEmail({
+    to: opts.to,
+    subject: `[Action Needed] ESG package submitted — ${opts.projectName} (${opts.periodLabel})`,
+    html,
+    text,
+  });
+}
+
 export async function sendDeadlineAlertEmail(opts: {
   to: string;
   name: string;

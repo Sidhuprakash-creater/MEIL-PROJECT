@@ -412,6 +412,35 @@ export async function POST(req: NextRequest) {
 
     // 6. Generate real-time notification for Project Admin
     const roleLabel = primaryRoleLabel(user)
+    /* REAL EMAIL — every submission emails the project's own admins so the
+       review request reaches them outside the platform as well. Fire-and-
+       forget: a mail failure must never block the submission. */
+    void (async () => {
+      try {
+        const { sendSubmissionReceivedEmail } = await import("@/lib/notify/email")
+        const admins = await db.user.findMany({
+          where: { projectId: projId, role: "PROJECT_ADMIN" },
+          select: { email: true, name: true },
+        })
+        const periodLabel = (period as any).periodLabel || (period as any).label || "FY 2026-27"
+        for (const admin of admins) {
+          const res = await sendSubmissionReceivedEmail({
+            to: admin.email,
+            adminName: admin.name,
+            submitterName: user.name,
+            submitterRole: roleLabel,
+            projectName: project.name,
+            periodLabel,
+            levelsSubmitted: submittedList.length,
+            levelsTotal: BRSR_LEVELS.length,
+            packageRef: masterDossier.ref,
+          })
+          if (!res.sent) console.warn("Submission email not sent:", res.reason)
+        }
+      } catch (mailErr) {
+        console.warn("Submission email dispatch failed:", mailErr)
+      }
+    })()
     Promise.allSettled([
       db.notification.create({
         data: {
