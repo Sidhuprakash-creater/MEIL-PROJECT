@@ -179,12 +179,44 @@ export async function POST(req: NextRequest, { params }: Params) {
         status: finalStatus,
         reviewedAt: now,
         reviewerId: ctx.userId,
+        /* Same channel the PA's correction flow uses — the contributor's
+           review window reads reviewComment for the banner message. */
+        ...(commentText ? { reviewComment: commentText } : {}),
         comments: JSON.stringify(newComment),
         history: JSON.stringify(newHistory),
       },
     });
     if (updated.count !== 1) {
       throw new BmError("Concurrent update detected — the report state changed. Refresh and review again.", 409);
+    }
+
+    /* Field-level marks for a RETURN — same correction-row shape the PA
+       writes, so the contributor sees the exact red-marked items in the
+       review window and in Data Entry (not just a free-text note). */
+    if (action === "return" && affectedFields.length > 0) {
+      try {
+        const prior = typeof (s as any).corrections === "string" ? JSON.parse((s as any).corrections || "[]") : (s as any).corrections;
+        const rows = affectedFields.slice(0, 50).map((f, i) => ({
+          id: `cr-bu-${Date.now().toString(36)}-${i}`,
+          submissionId: id,
+          requesterId: ctx.userId,
+          requesterName: ctx.name,
+          field: f,
+          issue: instructions || reason,
+          severity: "WARNING",
+          comment: instructions || reason,
+          recordId: null,
+          target: null,
+          status: "OPEN",
+          createdAt: now.toISOString(),
+        }));
+        await db.submission.update({
+          where: { id },
+          data: { corrections: JSON.stringify([...(Array.isArray(prior) ? prior : []), ...rows]) },
+        });
+      } catch (e) {
+        console.warn("Could not persist BU correction marks:", e);
+      }
     }
 
     await db.soSubmission.updateMany({

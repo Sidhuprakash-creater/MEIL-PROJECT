@@ -6,6 +6,20 @@ import { authErrorToStatus, parseJsonArray, parseRecordIds, submissionCompat } f
 
 export const runtime = 'nodejs'
 
+/* The reviewer conversations live in comments[] as
+   { author, role, text, at }. The last entry is the most recent review note. */
+function latestReviewerComment(submission: Record<string, any>): string | null {
+  try {
+    const parsed = typeof submission.comments === 'string' ? JSON.parse(submission.comments) : submission.comments
+    if (Array.isArray(parsed) && parsed.length) {
+      const last = parsed[parsed.length - 1]
+      const text = String(last?.text || last?.comment || last?.note || '').trim()
+      if (text) return text
+    }
+  } catch {}
+  return null
+}
+
 // GET /api/submissions/[id] — full submission detail.
 // Returns: submission meta + source records + evidence + validation +
 // calculations + history + corrections + BRSR mappings.
@@ -228,7 +242,18 @@ export async function GET(
         evidenceList,
         evidenceCount: evidenceList.length || submission.evidenceCount || 0,
         formattedDateTime: `${datePart} • ${timePart}`,
-        reviewComment: submission.reviewComment || null,
+        /* WHO sent it back / reviewed it — the review-window banner uses this.
+           The reviewer relation covers BOTH the Project Admin and the Business
+           Unit (bm decision writes reviewerId), so the contributor always sees
+           the real reviewer instead of a hardcoded "Project Admin". */
+        currentReviewer: (submission as any).reviewer
+          ? { id: (submission as any).reviewer.id, name: (submission as any).reviewer.name, email: (submission as any).reviewer.email }
+          : null,
+        /* The BU's return flow persists its reason + correction instructions
+           in comments[] (and, going forward, also in reviewComment). Older
+           returned reports have the message ONLY in comments[] — fall back to
+           the latest reviewer comment so the contributor still sees it. */
+        reviewComment: submission.reviewComment || latestReviewerComment(submission) || null,
         reviewedAt: submission.reviewedAt || null,
         history: parseJsonArray(submission.history).map((h: any, idx: number) => ({
           id: h.id || `hist-${submission.id}-${idx}`,
