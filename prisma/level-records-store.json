@@ -7,8 +7,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:51:56.775Z",
-    "updatedAt": "2026-11-13T00:51:56.775Z",
+    "enteredAt": "2026-11-13T01:15:32.396Z",
+    "updatedAt": "2026-11-13T01:15:32.396Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -34,7 +34,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531116774-3064b"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532532396-ra3rp"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -44,8 +44,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:55.695Z",
-    "updatedAt": "2026-11-13T00:51:55.695Z",
+    "enteredAt": "2026-11-13T01:15:29.741Z",
+    "updatedAt": "2026-11-13T01:15:29.741Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -64,7 +64,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531115695-uztag"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532529741-t07tx"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -74,8 +74,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:51:54.590Z",
-    "updatedAt": "2026-11-13T00:51:54.590Z",
+    "enteredAt": "2026-11-13T01:15:28.784Z",
+    "updatedAt": "2026-11-13T01:15:28.784Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -101,7 +101,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531114590-r6f02"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532528784-o5lpr"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -111,8 +111,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:51:53.575Z",
-    "updatedAt": "2026-11-13T00:51:53.575Z",
+    "enteredAt": "2026-11-13T01:15:27.828Z",
+    "updatedAt": "2026-11-13T01:15:27.828Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -135,7 +135,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531113575-7b42i"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532527828-obt1u"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -145,8 +145,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:52.527Z",
-    "updatedAt": "2026-11-13T00:51:52.527Z",
+    "enteredAt": "2026-11-13T01:15:26.865Z",
+    "updatedAt": "2026-11-13T01:15:26.865Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -172,7 +172,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531112527-lt3hz"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532526865-698v5"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -182,8 +182,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:51.187Z",
-    "updatedAt": "2026-11-13T00:51:51.187Z",
+    "enteredAt": "2026-11-13T01:15:25.920Z",
+    "updatedAt": "2026-11-13T01:15:25.920Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -206,7 +206,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531111187-8zagb"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532525920-th8b4"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -216,8 +216,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:49.921Z",
-    "updatedAt": "2026-11-13T00:51:49.921Z",
+    "enteredAt": "2026-11-13T01:15:24.968Z",
+    "updatedAt": "2026-11-13T01:15:24.968Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -236,7 +236,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531109921-9nsqy"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532524968-honlh"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -246,8 +246,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:48.091Z",
-    "updatedAt": "2026-11-13T00:51:48.091Z",
+    "enteredAt": "2026-11-13T01:15:24.010Z",
+    "updatedAt": "2026-11-13T01:15:24.010Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -275,7 +275,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531108091-q4c8z"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532524009-th6by"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -285,8 +285,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:46.937Z",
-    "updatedAt": "2026-11-13T00:51:46.937Z",
+    "enteredAt": "2026-11-13T01:15:23.055Z",
+    "updatedAt": "2026-11-13T01:15:23.055Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -313,7 +313,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531106937-2tglg"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532523055-zjz3s"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -323,8 +323,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:51:42.767Z",
-    "updatedAt": "2026-11-13T00:51:42.780Z",
+    "enteredAt": "2026-11-13T01:15:19.274Z",
+    "updatedAt": "2026-11-13T01:15:19.281Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -350,7 +350,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531102767-t5xwz"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532519274-58rkr"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -360,8 +360,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:40.805Z",
-    "updatedAt": "2026-11-13T00:51:40.814Z",
+    "enteredAt": "2026-11-13T01:15:18.032Z",
+    "updatedAt": "2026-11-13T01:15:18.050Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -380,7 +380,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531100805-3n287"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532518032-s18op"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -390,8 +390,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:51:38.541Z",
-    "updatedAt": "2026-11-13T00:51:38.549Z",
+    "enteredAt": "2026-11-13T01:15:17.080Z",
+    "updatedAt": "2026-11-13T01:15:17.087Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -417,7 +417,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531098541-kqlqi"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532517080-t2r0k"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -427,8 +427,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:51:37.525Z",
-    "updatedAt": "2026-11-13T00:51:37.538Z",
+    "enteredAt": "2026-11-13T01:15:14.861Z",
+    "updatedAt": "2026-11-13T01:15:14.870Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -451,7 +451,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531097525-p9gn7"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532514861-a3kba"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -461,8 +461,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:36.380Z",
-    "updatedAt": "2026-11-13T00:51:36.392Z",
+    "enteredAt": "2026-11-13T01:15:13.747Z",
+    "updatedAt": "2026-11-13T01:15:13.754Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -488,7 +488,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531096380-zqy6a"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532513747-254k1"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -498,8 +498,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:35.342Z",
-    "updatedAt": "2026-11-13T00:51:35.352Z",
+    "enteredAt": "2026-11-13T01:15:12.742Z",
+    "updatedAt": "2026-11-13T01:15:12.772Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -522,7 +522,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531095342-9v856"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532512742-49gav"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -532,8 +532,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:34.123Z",
-    "updatedAt": "2026-11-13T00:51:34.148Z",
+    "enteredAt": "2026-11-13T01:15:11.788Z",
+    "updatedAt": "2026-11-13T01:15:11.795Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -552,7 +552,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531094123-2n6lf"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532511788-fgb9r"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -562,8 +562,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:33.138Z",
-    "updatedAt": "2026-11-13T00:51:33.171Z",
+    "enteredAt": "2026-11-13T01:15:10.838Z",
+    "updatedAt": "2026-11-13T01:15:10.847Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -591,7 +591,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531093138-wm21p"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532510838-o94gt"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -601,8 +601,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:31.981Z",
-    "updatedAt": "2026-11-13T00:51:32.020Z",
+    "enteredAt": "2026-11-13T01:15:09.847Z",
+    "updatedAt": "2026-11-13T01:15:09.859Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -629,7 +629,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531091981-idyou"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532509847-6m63d"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -639,8 +639,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:51:27.584Z",
-    "updatedAt": "2026-11-13T00:51:27.607Z",
+    "enteredAt": "2026-11-13T01:15:05.885Z",
+    "updatedAt": "2026-11-13T01:15:05.889Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -666,7 +666,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531087584-v05en"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532505885-aypt9"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -676,8 +676,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:25.931Z",
-    "updatedAt": "2026-11-13T00:51:25.953Z",
+    "enteredAt": "2026-11-13T01:15:04.428Z",
+    "updatedAt": "2026-11-13T01:15:04.433Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -696,7 +696,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531085931-g9dv8"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532504428-9oj5i"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -706,8 +706,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:51:24.201Z",
-    "updatedAt": "2026-11-13T00:51:24.214Z",
+    "enteredAt": "2026-11-13T01:15:02.932Z",
+    "updatedAt": "2026-11-13T01:15:02.947Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -733,7 +733,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531084201-496pz"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532502932-j9aqq"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -743,8 +743,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:51:22.718Z",
-    "updatedAt": "2026-11-13T00:51:22.732Z",
+    "enteredAt": "2026-11-13T01:15:01.534Z",
+    "updatedAt": "2026-11-13T01:15:01.542Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -767,7 +767,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531082718-ts53e"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532501534-ldls7"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -777,8 +777,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:20.764Z",
-    "updatedAt": "2026-11-13T00:51:20.771Z",
+    "enteredAt": "2026-11-13T01:15:00.414Z",
+    "updatedAt": "2026-11-13T01:15:00.424Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -804,7 +804,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531080764-na7ka"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532500414-merko"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -814,8 +814,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:19.185Z",
-    "updatedAt": "2026-11-13T00:51:19.193Z",
+    "enteredAt": "2026-11-13T01:14:59.488Z",
+    "updatedAt": "2026-11-13T01:14:59.494Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -838,7 +838,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531079185-fbzgp"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532499488-73b8m"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -848,8 +848,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:18.085Z",
-    "updatedAt": "2026-11-13T00:51:18.108Z",
+    "enteredAt": "2026-11-13T01:14:58.533Z",
+    "updatedAt": "2026-11-13T01:14:58.557Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -868,7 +868,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531078084-ke51h"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532498533-mnypv"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -878,8 +878,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:17.090Z",
-    "updatedAt": "2026-11-13T00:51:17.116Z",
+    "enteredAt": "2026-11-13T01:14:57.393Z",
+    "updatedAt": "2026-11-13T01:14:57.403Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -907,7 +907,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531077090-psvob"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532497393-jf85l"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -917,8 +917,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:16.106Z",
-    "updatedAt": "2026-11-13T00:51:16.130Z",
+    "enteredAt": "2026-11-13T01:14:56.483Z",
+    "updatedAt": "2026-11-13T01:14:56.488Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -945,7 +945,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531076106-zm1k6"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532496482-zaf76"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -955,8 +955,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:51:12.117Z",
-    "updatedAt": "2026-11-13T00:51:12.142Z",
+    "enteredAt": "2026-11-13T01:14:52.775Z",
+    "updatedAt": "2026-11-13T01:14:52.786Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -982,7 +982,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531072116-y84ca"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532492775-xg3v3"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -992,8 +992,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:10.449Z",
-    "updatedAt": "2026-11-13T00:51:10.484Z",
+    "enteredAt": "2026-11-13T01:14:51.008Z",
+    "updatedAt": "2026-11-13T01:14:51.018Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -1012,7 +1012,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531070449-ym75c"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532491008-su524"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1022,8 +1022,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:51:08.954Z",
-    "updatedAt": "2026-11-13T00:51:08.962Z",
+    "enteredAt": "2026-11-13T01:14:50.019Z",
+    "updatedAt": "2026-11-13T01:14:50.025Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -1049,7 +1049,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531068954-cgk6b"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532490019-798qe"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1059,8 +1059,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:51:07.432Z",
-    "updatedAt": "2026-11-13T00:51:07.452Z",
+    "enteredAt": "2026-11-13T01:14:49.110Z",
+    "updatedAt": "2026-11-13T01:14:49.115Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -1083,7 +1083,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531067432-fq0ye"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532489110-sdzuv"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1093,8 +1093,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:51:06.424Z",
-    "updatedAt": "2026-11-13T00:51:06.445Z",
+    "enteredAt": "2026-11-13T01:14:48.204Z",
+    "updatedAt": "2026-11-13T01:14:48.213Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -1120,7 +1120,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531066424-0u782"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532488204-cg7ys"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1130,8 +1130,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:05.399Z",
-    "updatedAt": "2026-11-13T00:51:05.406Z",
+    "enteredAt": "2026-11-13T01:14:47.303Z",
+    "updatedAt": "2026-11-13T01:14:47.308Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -1154,7 +1154,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531065399-b09qw"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532487303-eosol"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1164,8 +1164,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:04.419Z",
-    "updatedAt": "2026-11-13T00:51:04.429Z",
+    "enteredAt": "2026-11-13T01:14:46.403Z",
+    "updatedAt": "2026-11-13T01:14:46.410Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -1184,7 +1184,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531064419-wf8p0"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532486403-4kla2"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1194,8 +1194,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:03.378Z",
-    "updatedAt": "2026-11-13T00:51:03.395Z",
+    "enteredAt": "2026-11-13T01:14:45.462Z",
+    "updatedAt": "2026-11-13T01:14:45.473Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -1223,7 +1223,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531063378-wrian"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532485462-h28r2"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1233,8 +1233,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:51:02.390Z",
-    "updatedAt": "2026-11-13T00:51:02.402Z",
+    "enteredAt": "2026-11-13T01:14:44.488Z",
+    "updatedAt": "2026-11-13T01:14:44.497Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -1261,7 +1261,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531062390-2ktm2"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532484488-866g7"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1271,8 +1271,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:50:59.214Z",
-    "updatedAt": "2026-11-13T00:50:59.224Z",
+    "enteredAt": "2026-11-13T01:14:41.673Z",
+    "updatedAt": "2026-11-13T01:14:41.678Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -1298,7 +1298,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531059214-a7x09"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532481673-c231r"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1308,8 +1308,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:58.238Z",
-    "updatedAt": "2026-11-13T00:50:58.247Z",
+    "enteredAt": "2026-11-13T01:14:40.729Z",
+    "updatedAt": "2026-11-13T01:14:40.734Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -1328,7 +1328,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531058238-q8fgj"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532480729-fq4mw"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1338,8 +1338,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:50:57.171Z",
-    "updatedAt": "2026-11-13T00:50:57.181Z",
+    "enteredAt": "2026-11-13T01:14:39.782Z",
+    "updatedAt": "2026-11-13T01:14:39.787Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -1365,7 +1365,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531057171-opd1b"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532479782-0lqlp"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1375,8 +1375,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:50:56.039Z",
-    "updatedAt": "2026-11-13T00:50:56.051Z",
+    "enteredAt": "2026-11-13T01:14:38.841Z",
+    "updatedAt": "2026-11-13T01:14:38.847Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -1399,7 +1399,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531056039-4iqyh"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532478841-k4zeu"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1409,8 +1409,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:54.703Z",
-    "updatedAt": "2026-11-13T00:50:54.707Z",
+    "enteredAt": "2026-11-13T01:14:37.904Z",
+    "updatedAt": "2026-11-13T01:14:37.915Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -1436,7 +1436,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531054703-ql938"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532477904-24hb9"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1446,8 +1446,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:53.694Z",
-    "updatedAt": "2026-11-13T00:50:53.697Z",
+    "enteredAt": "2026-11-13T01:14:36.965Z",
+    "updatedAt": "2026-11-13T01:14:36.971Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -1470,7 +1470,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531053694-z6va0"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532476965-xp6if"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1480,8 +1480,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:52.641Z",
-    "updatedAt": "2026-11-13T00:50:52.646Z",
+    "enteredAt": "2026-11-13T01:14:36.016Z",
+    "updatedAt": "2026-11-13T01:14:36.022Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -1500,7 +1500,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531052641-pyw1z"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532476016-os52l"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1510,8 +1510,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:51.641Z",
-    "updatedAt": "2026-11-13T00:50:51.644Z",
+    "enteredAt": "2026-11-13T01:14:34.866Z",
+    "updatedAt": "2026-11-13T01:14:34.874Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -1539,7 +1539,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531051641-qfgjc"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532474866-5l779"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1549,8 +1549,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:50.599Z",
-    "updatedAt": "2026-11-13T00:50:50.611Z",
+    "enteredAt": "2026-11-13T01:14:33.879Z",
+    "updatedAt": "2026-11-13T01:14:33.886Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -1577,7 +1577,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531050599-43o2o"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532473879-1bj24"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1587,8 +1587,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:50:47.430Z",
-    "updatedAt": "2026-11-13T00:50:47.438Z",
+    "enteredAt": "2026-11-13T01:14:31.003Z",
+    "updatedAt": "2026-11-13T01:14:31.021Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -1614,7 +1614,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531047430-b3uaq"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532471003-zrn91"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1624,8 +1624,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:46.401Z",
-    "updatedAt": "2026-11-13T00:50:46.409Z",
+    "enteredAt": "2026-11-13T01:14:30.049Z",
+    "updatedAt": "2026-11-13T01:14:30.058Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -1644,7 +1644,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531046401-gz3l6"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532470049-qob54"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1654,8 +1654,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:50:45.100Z",
-    "updatedAt": "2026-11-13T00:50:45.117Z",
+    "enteredAt": "2026-11-13T01:14:29.087Z",
+    "updatedAt": "2026-11-13T01:14:29.097Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -1681,7 +1681,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531045100-dqnsr"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532469087-2e6jd"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1691,8 +1691,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:50:44.126Z",
-    "updatedAt": "2026-11-13T00:50:44.134Z",
+    "enteredAt": "2026-11-13T01:14:28.142Z",
+    "updatedAt": "2026-11-13T01:14:28.147Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -1715,7 +1715,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531044126-l6nrv"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532468142-pqni3"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1725,8 +1725,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:43.147Z",
-    "updatedAt": "2026-11-13T00:50:43.164Z",
+    "enteredAt": "2026-11-13T01:14:27.184Z",
+    "updatedAt": "2026-11-13T01:14:27.195Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -1752,7 +1752,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531043147-eap58"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532467184-njtkm"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1762,8 +1762,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:42.107Z",
-    "updatedAt": "2026-11-13T00:50:42.115Z",
+    "enteredAt": "2026-11-13T01:14:26.102Z",
+    "updatedAt": "2026-11-13T01:14:26.105Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -1786,7 +1786,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531042107-krumm"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532466102-w3b8i"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1796,8 +1796,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:41.087Z",
-    "updatedAt": "2026-11-13T00:50:41.098Z",
+    "enteredAt": "2026-11-13T01:14:25.163Z",
+    "updatedAt": "2026-11-13T01:14:25.167Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -1816,7 +1816,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531041087-nvkw6"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532465163-ygyyy"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1826,8 +1826,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:40.103Z",
-    "updatedAt": "2026-11-13T00:50:40.112Z",
+    "enteredAt": "2026-11-13T01:14:24.217Z",
+    "updatedAt": "2026-11-13T01:14:24.222Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -1855,7 +1855,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531040103-dwcui"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532464217-v62td"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1865,8 +1865,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:38.943Z",
-    "updatedAt": "2026-11-13T00:50:38.952Z",
+    "enteredAt": "2026-11-13T01:14:23.258Z",
+    "updatedAt": "2026-11-13T01:14:23.270Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -1893,7 +1893,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531038943-9rhj3"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532463258-4q864"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1903,8 +1903,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:50:36.007Z",
-    "updatedAt": "2026-11-13T00:50:36.015Z",
+    "enteredAt": "2026-11-13T01:14:20.409Z",
+    "updatedAt": "2026-11-13T01:14:20.415Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -1930,7 +1930,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531036007-kziw3"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532460409-xk7qh"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1940,8 +1940,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:35.034Z",
-    "updatedAt": "2026-11-13T00:50:35.044Z",
+    "enteredAt": "2026-11-13T01:14:19.104Z",
+    "updatedAt": "2026-11-13T01:14:19.117Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -1960,7 +1960,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531035034-d25zy"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532459104-ddie4"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -1970,8 +1970,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:50:34.042Z",
-    "updatedAt": "2026-11-13T00:50:34.051Z",
+    "enteredAt": "2026-11-13T01:14:18.141Z",
+    "updatedAt": "2026-11-13T01:14:18.152Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -1997,7 +1997,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531034042-9zdss"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532458141-mklcy"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2007,8 +2007,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:50:32.919Z",
-    "updatedAt": "2026-11-13T00:50:32.928Z",
+    "enteredAt": "2026-11-13T01:14:17.203Z",
+    "updatedAt": "2026-11-13T01:14:17.208Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -2031,7 +2031,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531032918-fqnd1"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532457203-m9z1r"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2041,8 +2041,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:31.717Z",
-    "updatedAt": "2026-11-13T00:50:31.724Z",
+    "enteredAt": "2026-11-13T01:14:16.256Z",
+    "updatedAt": "2026-11-13T01:14:16.263Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -2068,7 +2068,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531031717-g66bh"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532456256-yvk34"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2078,8 +2078,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:30.551Z",
-    "updatedAt": "2026-11-13T00:50:30.568Z",
+    "enteredAt": "2026-11-13T01:14:15.277Z",
+    "updatedAt": "2026-11-13T01:14:15.283Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -2102,7 +2102,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531030551-nya8e"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532455277-whaa8"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2112,8 +2112,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:29.385Z",
-    "updatedAt": "2026-11-13T00:50:29.393Z",
+    "enteredAt": "2026-11-13T01:14:14.309Z",
+    "updatedAt": "2026-11-13T01:14:14.316Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -2132,7 +2132,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531029385-o2pfe"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532454309-66kmf"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2142,8 +2142,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:28.189Z",
-    "updatedAt": "2026-11-13T00:50:28.201Z",
+    "enteredAt": "2026-11-13T01:14:13.340Z",
+    "updatedAt": "2026-11-13T01:14:13.353Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -2171,7 +2171,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531028189-vv31d"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532453340-lp2ts"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2181,8 +2181,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:26.974Z",
-    "updatedAt": "2026-11-13T00:50:26.993Z",
+    "enteredAt": "2026-11-13T01:14:12.388Z",
+    "updatedAt": "2026-11-13T01:14:12.396Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -2209,7 +2209,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531026974-x6kkx"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532452388-v3i65"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2219,8 +2219,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:50:23.442Z",
-    "updatedAt": "2026-11-13T00:50:23.454Z",
+    "enteredAt": "2026-11-13T01:14:09.498Z",
+    "updatedAt": "2026-11-13T01:14:09.511Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -2246,7 +2246,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531023442-9o3ie"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532449498-3vja6"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2256,8 +2256,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:22.435Z",
-    "updatedAt": "2026-11-13T00:50:22.444Z",
+    "enteredAt": "2026-11-13T01:14:08.551Z",
+    "updatedAt": "2026-11-13T01:14:08.558Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -2276,7 +2276,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531022435-afzqe"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532448551-hb3lx"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2286,8 +2286,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:50:21.387Z",
-    "updatedAt": "2026-11-13T00:50:21.396Z",
+    "enteredAt": "2026-11-13T01:14:07.598Z",
+    "updatedAt": "2026-11-13T01:14:07.604Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -2313,7 +2313,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531021387-ujlvy"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532447598-h4bbs"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2323,8 +2323,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:50:20.404Z",
-    "updatedAt": "2026-11-13T00:50:20.418Z",
+    "enteredAt": "2026-11-13T01:14:06.624Z",
+    "updatedAt": "2026-11-13T01:14:06.654Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -2347,7 +2347,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531020404-l08wi"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532446624-o6hfl"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2357,8 +2357,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:19.231Z",
-    "updatedAt": "2026-11-13T00:50:19.257Z",
+    "enteredAt": "2026-11-13T01:14:05.467Z",
+    "updatedAt": "2026-11-13T01:14:05.476Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -2384,7 +2384,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531019231-f5zoc"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532445467-a8kz0"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2394,8 +2394,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:18.147Z",
-    "updatedAt": "2026-11-13T00:50:18.156Z",
+    "enteredAt": "2026-11-13T01:14:04.525Z",
+    "updatedAt": "2026-11-13T01:14:04.528Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -2418,7 +2418,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531018147-mqxpa"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532444525-0tpxz"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2428,8 +2428,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:17.111Z",
-    "updatedAt": "2026-11-13T00:50:17.132Z",
+    "enteredAt": "2026-11-13T01:14:03.583Z",
+    "updatedAt": "2026-11-13T01:14:03.590Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -2448,7 +2448,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531017111-yambj"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532443583-dj77p"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2458,8 +2458,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:16.089Z",
-    "updatedAt": "2026-11-13T00:50:16.109Z",
+    "enteredAt": "2026-11-13T01:14:02.611Z",
+    "updatedAt": "2026-11-13T01:14:02.622Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -2487,7 +2487,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531016089-fr6y5"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532442611-tjfxi"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2497,8 +2497,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:14.979Z",
-    "updatedAt": "2026-11-13T00:50:14.988Z",
+    "enteredAt": "2026-11-13T01:14:01.667Z",
+    "updatedAt": "2026-11-13T01:14:01.672Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -2525,7 +2525,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531014979-u35oz"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532441667-g55n6"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2535,8 +2535,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:50:12.020Z",
-    "updatedAt": "2026-11-13T00:50:12.027Z",
+    "enteredAt": "2026-11-13T01:13:58.784Z",
+    "updatedAt": "2026-11-13T01:13:58.799Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -2562,7 +2562,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531012020-s42xl"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532438784-lzvhs"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2572,8 +2572,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:11.102Z",
-    "updatedAt": "2026-11-13T00:50:11.111Z",
+    "enteredAt": "2026-11-13T01:13:57.822Z",
+    "updatedAt": "2026-11-13T01:13:57.830Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -2592,7 +2592,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794531011101-fc5h5"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532437822-jk17z"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2602,8 +2602,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:50:10.111Z",
-    "updatedAt": "2026-11-13T00:50:10.122Z",
+    "enteredAt": "2026-11-13T01:13:56.790Z",
+    "updatedAt": "2026-11-13T01:13:56.802Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -2629,7 +2629,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794531010111-opcpx"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532436790-g8tb6"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2639,8 +2639,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:50:09.016Z",
-    "updatedAt": "2026-11-13T00:50:09.025Z",
+    "enteredAt": "2026-11-13T01:13:55.828Z",
+    "updatedAt": "2026-11-13T01:13:55.835Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -2663,7 +2663,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794531009016-icieu"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532435828-l71v1"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2673,8 +2673,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:50:08.062Z",
-    "updatedAt": "2026-11-13T00:50:08.074Z",
+    "enteredAt": "2026-11-13T01:13:54.859Z",
+    "updatedAt": "2026-11-13T01:13:54.866Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -2700,7 +2700,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794531008062-leuax"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532434859-59bpx"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2710,8 +2710,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:07.103Z",
-    "updatedAt": "2026-11-13T00:50:07.132Z",
+    "enteredAt": "2026-11-13T01:13:53.910Z",
+    "updatedAt": "2026-11-13T01:13:53.915Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -2734,7 +2734,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794531007103-r1kiw"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532433910-tx1qm"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2744,8 +2744,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:06.030Z",
-    "updatedAt": "2026-11-13T00:50:06.037Z",
+    "enteredAt": "2026-11-13T01:13:52.961Z",
+    "updatedAt": "2026-11-13T01:13:52.965Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -2764,7 +2764,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794531006030-me1f1"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532432961-4dmqc"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2774,8 +2774,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:04.956Z",
-    "updatedAt": "2026-11-13T00:50:04.964Z",
+    "enteredAt": "2026-11-13T01:13:52.012Z",
+    "updatedAt": "2026-11-13T01:13:52.019Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -2803,7 +2803,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794531004956-cgtrb"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532432012-nxodb"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2813,8 +2813,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:50:04.021Z",
-    "updatedAt": "2026-11-13T00:50:04.028Z",
+    "enteredAt": "2026-11-13T01:13:51.029Z",
+    "updatedAt": "2026-11-13T01:13:51.036Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -2841,7 +2841,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794531004021-tg2gk"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532431029-5wkbg"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2851,8 +2851,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:50:00.800Z",
-    "updatedAt": "2026-11-13T00:50:00.818Z",
+    "enteredAt": "2026-11-13T01:13:48.021Z",
+    "updatedAt": "2026-11-13T01:13:48.027Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -2878,7 +2878,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794531000800-vebmz"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532428021-bu738"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2888,8 +2888,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:59.761Z",
-    "updatedAt": "2026-11-13T00:49:59.774Z",
+    "enteredAt": "2026-11-13T01:13:47.060Z",
+    "updatedAt": "2026-11-13T01:13:47.065Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -2908,7 +2908,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794530999761-73tsw"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532427060-qy7ip"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2918,8 +2918,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:49:58.803Z",
-    "updatedAt": "2026-11-13T00:49:58.809Z",
+    "enteredAt": "2026-11-13T01:13:46.094Z",
+    "updatedAt": "2026-11-13T01:13:46.101Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -2945,7 +2945,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794530998803-8atlk"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532426094-mzide"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2955,8 +2955,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:49:57.499Z",
-    "updatedAt": "2026-11-13T00:49:57.509Z",
+    "enteredAt": "2026-11-13T01:13:45.089Z",
+    "updatedAt": "2026-11-13T01:13:45.100Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -2979,7 +2979,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794530997499-ptvey"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532425089-jeud0"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -2989,8 +2989,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:56.511Z",
-    "updatedAt": "2026-11-13T00:49:56.524Z",
+    "enteredAt": "2026-11-13T01:13:44.124Z",
+    "updatedAt": "2026-11-13T01:13:44.128Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -3016,7 +3016,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794530996511-bb64b"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532424124-60436"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3026,8 +3026,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:55.520Z",
-    "updatedAt": "2026-11-13T00:49:55.540Z",
+    "enteredAt": "2026-11-13T01:13:43.143Z",
+    "updatedAt": "2026-11-13T01:13:43.150Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -3050,7 +3050,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794530995520-bspub"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532423143-urshd"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3060,8 +3060,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:54.540Z",
-    "updatedAt": "2026-11-13T00:49:54.555Z",
+    "enteredAt": "2026-11-13T01:13:42.204Z",
+    "updatedAt": "2026-11-13T01:13:42.209Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -3080,7 +3080,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794530994540-qdwkm"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532422204-j0c1y"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3090,8 +3090,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:53.475Z",
-    "updatedAt": "2026-11-13T00:49:53.492Z",
+    "enteredAt": "2026-11-13T01:13:41.250Z",
+    "updatedAt": "2026-11-13T01:13:41.255Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -3119,7 +3119,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794530993475-ev07r"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532421250-68rjj"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3129,8 +3129,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:52.246Z",
-    "updatedAt": "2026-11-13T00:49:52.258Z",
+    "enteredAt": "2026-11-13T01:13:40.271Z",
+    "updatedAt": "2026-11-13T01:13:40.280Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -3157,7 +3157,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794530992246-aq9dx"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532420271-m0z68"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3167,8 +3167,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:49:48.800Z",
-    "updatedAt": "2026-11-13T00:49:48.814Z",
+    "enteredAt": "2026-11-13T01:13:37.396Z",
+    "updatedAt": "2026-11-13T01:13:37.401Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -3194,7 +3194,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794530988800-q3lgu"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532417396-9rfm4"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3204,8 +3204,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:47.738Z",
-    "updatedAt": "2026-11-13T00:49:47.744Z",
+    "enteredAt": "2026-11-13T01:13:36.451Z",
+    "updatedAt": "2026-11-13T01:13:36.455Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -3224,7 +3224,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794530987738-bhfxe"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532416451-g0b2k"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3234,8 +3234,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:49:46.535Z",
-    "updatedAt": "2026-11-13T00:49:46.556Z",
+    "enteredAt": "2026-11-13T01:13:35.470Z",
+    "updatedAt": "2026-11-13T01:13:35.499Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -3261,7 +3261,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794530986535-wimsx"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532415470-0p2up"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3271,8 +3271,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:49:45.492Z",
-    "updatedAt": "2026-11-13T00:49:45.518Z",
+    "enteredAt": "2026-11-13T01:13:34.341Z",
+    "updatedAt": "2026-11-13T01:13:34.347Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -3295,7 +3295,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794530985492-w5uis"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532414341-mlvj0"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3305,8 +3305,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:44.342Z",
-    "updatedAt": "2026-11-13T00:49:44.356Z",
+    "enteredAt": "2026-11-13T01:13:33.363Z",
+    "updatedAt": "2026-11-13T01:13:33.377Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -3332,7 +3332,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794530984342-wbmim"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532413363-w5p8w"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3342,8 +3342,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:43.318Z",
-    "updatedAt": "2026-11-13T00:49:43.341Z",
+    "enteredAt": "2026-11-13T01:13:32.380Z",
+    "updatedAt": "2026-11-13T01:13:32.386Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -3366,7 +3366,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794530983318-n5onz"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532412380-jxf1v"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3376,8 +3376,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:42.231Z",
-    "updatedAt": "2026-11-13T00:49:42.238Z",
+    "enteredAt": "2026-11-13T01:13:31.386Z",
+    "updatedAt": "2026-11-13T01:13:31.389Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -3396,7 +3396,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794530982231-ww6h8"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532411386-8l01h"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3406,8 +3406,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:41.083Z",
-    "updatedAt": "2026-11-13T00:49:41.091Z",
+    "enteredAt": "2026-11-13T01:13:30.430Z",
+    "updatedAt": "2026-11-13T01:13:30.436Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -3435,7 +3435,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794530981083-lom2r"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532410430-p3noi"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3445,8 +3445,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:39.955Z",
-    "updatedAt": "2026-11-13T00:49:39.970Z",
+    "enteredAt": "2026-11-13T01:13:29.485Z",
+    "updatedAt": "2026-11-13T01:13:29.490Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -3473,7 +3473,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794530979955-13mgp"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532409485-j74kq"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3483,8 +3483,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-POLA) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:49:37.002Z",
-    "updatedAt": "2026-11-13T00:49:37.009Z",
+    "enteredAt": "2026-11-13T01:13:26.643Z",
+    "updatedAt": "2026-11-13T01:13:26.647Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -3510,7 +3510,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794530977002-820zt"
+    "id": "rec-level9-cmvt5836n00187kssqlx68664-1794532406643-8ajf5"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3520,8 +3520,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:36.071Z",
-    "updatedAt": "2026-11-13T00:49:36.077Z",
+    "enteredAt": "2026-11-13T01:13:25.312Z",
+    "updatedAt": "2026-11-13T01:13:25.317Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -3540,7 +3540,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794530976071-sd4rt"
+    "id": "rec-level8-cmvt5836n00187kssqlx68664-1794532405312-7ehnc"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3550,8 +3550,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-POLA) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:49:35.071Z",
-    "updatedAt": "2026-11-13T00:49:35.080Z",
+    "enteredAt": "2026-11-13T01:13:24.331Z",
+    "updatedAt": "2026-11-13T01:13:24.336Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -3577,7 +3577,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794530975071-njzm8"
+    "id": "rec-level7-cmvt5836n00187kssqlx68664-1794532404331-ukbtj"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3587,8 +3587,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-POLA) (HR_USER)",
-    "enteredAt": "2026-11-13T00:49:34.116Z",
-    "updatedAt": "2026-11-13T00:49:34.122Z",
+    "enteredAt": "2026-11-13T01:13:23.087Z",
+    "updatedAt": "2026-11-13T01:13:23.096Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -3611,7 +3611,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794530974116-m1q19"
+    "id": "rec-level6-cmvt5836n00187kssqlx68664-1794532403087-yh7pw"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3621,8 +3621,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-POLA) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:33.109Z",
-    "updatedAt": "2026-11-13T00:49:33.131Z",
+    "enteredAt": "2026-11-13T01:13:22.039Z",
+    "updatedAt": "2026-11-13T01:13:22.043Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -3648,7 +3648,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794530973109-ax2k1"
+    "id": "rec-level5-cmvt5836n00187kssqlx68664-1794532402039-zxi5w"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3658,8 +3658,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:31.990Z",
-    "updatedAt": "2026-11-13T00:49:32.016Z",
+    "enteredAt": "2026-11-13T01:13:21.013Z",
+    "updatedAt": "2026-11-13T01:13:21.017Z",
     "level": 4,
     "levelKey": "level4",
     "levelName": "Level 4 — Waste Management",
@@ -3682,7 +3682,7 @@
         }
       ]
     },
-    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794530971990-8akv6"
+    "id": "rec-level4-cmvt5836n00187kssqlx68664-1794532401013-syhi4"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3692,8 +3692,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:31.008Z",
-    "updatedAt": "2026-11-13T00:49:31.016Z",
+    "enteredAt": "2026-11-13T01:13:19.904Z",
+    "updatedAt": "2026-11-13T01:13:19.908Z",
     "level": 3,
     "levelKey": "level3",
     "levelName": "Level 3 — GHG Emissions & Air Quality",
@@ -3712,7 +3712,7 @@
         }
       ]
     },
-    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794530971008-kh8px"
+    "id": "rec-level3-cmvt5836n00187kssqlx68664-1794532399903-op86u"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3722,8 +3722,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:30.031Z",
-    "updatedAt": "2026-11-13T00:49:30.046Z",
+    "enteredAt": "2026-11-13T01:13:18.857Z",
+    "updatedAt": "2026-11-13T01:13:18.867Z",
     "level": 2,
     "levelKey": "level2",
     "levelName": "Level 2 — Water Management",
@@ -3751,7 +3751,7 @@
         }
       ]
     },
-    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794530970031-0w7cz"
+    "id": "rec-level2-cmvt5836n00187kssqlx68664-1794532398857-2gbix"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3761,8 +3761,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Ramesh Iyer (PRJ-POLA) (ENV_DATA_USER)",
-    "enteredAt": "2026-11-13T00:49:28.906Z",
-    "updatedAt": "2026-11-13T00:49:28.914Z",
+    "enteredAt": "2026-11-13T01:13:17.812Z",
+    "updatedAt": "2026-11-13T01:13:17.861Z",
     "level": 1,
     "levelKey": "level1",
     "levelName": "Level 1 — Energy Consumption",
@@ -3789,7 +3789,7 @@
         }
       ]
     },
-    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794530968906-sulqb"
+    "id": "rec-level1-cmvt5836n00187kssqlx68664-1794532397812-j2v6v"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3799,8 +3799,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:49:13.952Z",
-    "updatedAt": "2026-11-13T00:49:13.952Z",
+    "enteredAt": "2026-11-13T01:13:05.485Z",
+    "updatedAt": "2026-11-13T01:13:05.485Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -3826,7 +3826,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530953952-ckv4b"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532385485-k46rb"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3836,8 +3836,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:12.922Z",
-    "updatedAt": "2026-11-13T00:49:12.922Z",
+    "enteredAt": "2026-11-13T01:13:04.529Z",
+    "updatedAt": "2026-11-13T01:13:04.529Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -3856,7 +3856,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530952922-99rh8"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532384529-db0z5"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3866,8 +3866,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:49:11.685Z",
-    "updatedAt": "2026-11-13T00:49:11.685Z",
+    "enteredAt": "2026-11-13T01:13:03.565Z",
+    "updatedAt": "2026-11-13T01:13:03.565Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -3893,7 +3893,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530951685-si3jg"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532383564-e6y2m"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3903,8 +3903,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:49:10.674Z",
-    "updatedAt": "2026-11-13T00:49:10.674Z",
+    "enteredAt": "2026-11-13T01:13:02.590Z",
+    "updatedAt": "2026-11-13T01:13:02.590Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -3927,7 +3927,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530950674-cgusq"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532382590-k3hia"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3937,8 +3937,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:09.629Z",
-    "updatedAt": "2026-11-13T00:49:09.629Z",
+    "enteredAt": "2026-11-13T01:13:01.643Z",
+    "updatedAt": "2026-11-13T01:13:01.643Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -3964,7 +3964,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530949629-h3sdk"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532381643-5l2ww"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -3974,8 +3974,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:49:06.178Z",
-    "updatedAt": "2026-11-13T00:49:06.187Z",
+    "enteredAt": "2026-11-13T01:12:58.598Z",
+    "updatedAt": "2026-11-13T01:12:58.631Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -4001,7 +4001,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530946178-2ehas"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532378598-esaou"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4011,8 +4011,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:05.174Z",
-    "updatedAt": "2026-11-13T00:49:05.184Z",
+    "enteredAt": "2026-11-13T01:12:57.594Z",
+    "updatedAt": "2026-11-13T01:12:57.621Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -4031,7 +4031,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530945174-8cpb6"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532377594-mx5iv"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4041,8 +4041,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:49:04.018Z",
-    "updatedAt": "2026-11-13T00:49:04.023Z",
+    "enteredAt": "2026-11-13T01:12:56.656Z",
+    "updatedAt": "2026-11-13T01:12:56.659Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -4068,7 +4068,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530944018-ugqr1"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532376656-3ompb"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4078,8 +4078,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:49:02.864Z",
-    "updatedAt": "2026-11-13T00:49:02.872Z",
+    "enteredAt": "2026-11-13T01:12:55.707Z",
+    "updatedAt": "2026-11-13T01:12:55.710Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -4102,7 +4102,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530942863-ty909"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532375707-3obc4"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4112,8 +4112,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:49:01.863Z",
-    "updatedAt": "2026-11-13T00:49:01.873Z",
+    "enteredAt": "2026-11-13T01:12:54.711Z",
+    "updatedAt": "2026-11-13T01:12:54.721Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -4139,7 +4139,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530941863-ifmnu"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532374711-8z672"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4149,8 +4149,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:58.650Z",
-    "updatedAt": "2026-11-13T00:48:58.657Z",
+    "enteredAt": "2026-11-13T01:12:51.631Z",
+    "updatedAt": "2026-11-13T01:12:51.674Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -4176,7 +4176,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530938650-l3gqk"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532371631-p2vo7"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4186,8 +4186,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:57.657Z",
-    "updatedAt": "2026-11-13T00:48:57.675Z",
+    "enteredAt": "2026-11-13T01:12:50.531Z",
+    "updatedAt": "2026-11-13T01:12:50.555Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -4206,7 +4206,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530937657-317em"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532370531-uf55y"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4216,8 +4216,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:56.565Z",
-    "updatedAt": "2026-11-13T00:48:56.573Z",
+    "enteredAt": "2026-11-13T01:12:49.544Z",
+    "updatedAt": "2026-11-13T01:12:49.551Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -4243,7 +4243,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530936565-mtsmj"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532369544-6daej"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4253,8 +4253,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:55.592Z",
-    "updatedAt": "2026-11-13T00:48:55.598Z",
+    "enteredAt": "2026-11-13T01:12:48.561Z",
+    "updatedAt": "2026-11-13T01:12:48.586Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -4277,7 +4277,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530935592-pid3t"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532368561-4xxwl"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4287,8 +4287,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:54.581Z",
-    "updatedAt": "2026-11-13T00:48:54.591Z",
+    "enteredAt": "2026-11-13T01:12:47.619Z",
+    "updatedAt": "2026-11-13T01:12:47.621Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -4314,7 +4314,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530934581-du1xp"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532367619-xfafr"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4324,8 +4324,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:51.582Z",
-    "updatedAt": "2026-11-13T00:48:51.595Z",
+    "enteredAt": "2026-11-13T01:12:44.784Z",
+    "updatedAt": "2026-11-13T01:12:44.788Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -4351,7 +4351,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530931582-sumuh"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532364784-nezec"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4361,8 +4361,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:50.586Z",
-    "updatedAt": "2026-11-13T00:48:50.597Z",
+    "enteredAt": "2026-11-13T01:12:43.820Z",
+    "updatedAt": "2026-11-13T01:12:43.830Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -4381,7 +4381,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530930585-tfkz9"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532363820-2hc02"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4391,8 +4391,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:49.604Z",
-    "updatedAt": "2026-11-13T00:48:49.611Z",
+    "enteredAt": "2026-11-13T01:12:42.867Z",
+    "updatedAt": "2026-11-13T01:12:42.894Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -4418,7 +4418,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530929604-eygo6"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532362867-667ts"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4428,8 +4428,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:48.467Z",
-    "updatedAt": "2026-11-13T00:48:48.474Z",
+    "enteredAt": "2026-11-13T01:12:41.835Z",
+    "updatedAt": "2026-11-13T01:12:41.869Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -4452,7 +4452,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530928467-mbidy"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532361835-9i1e0"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4462,8 +4462,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:47.318Z",
-    "updatedAt": "2026-11-13T00:48:47.324Z",
+    "enteredAt": "2026-11-13T01:12:40.858Z",
+    "updatedAt": "2026-11-13T01:12:40.877Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -4489,7 +4489,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530927318-k564a"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532360858-osg72"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4499,8 +4499,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:43.873Z",
-    "updatedAt": "2026-11-13T00:48:43.880Z",
+    "enteredAt": "2026-11-13T01:12:37.432Z",
+    "updatedAt": "2026-11-13T01:12:37.446Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -4526,7 +4526,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530923873-bwqam"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532357432-s9uuo"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4536,8 +4536,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:42.651Z",
-    "updatedAt": "2026-11-13T00:48:42.660Z",
+    "enteredAt": "2026-11-13T01:12:36.453Z",
+    "updatedAt": "2026-11-13T01:12:36.473Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -4556,7 +4556,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530922651-ciidy"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532356453-u4d9a"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4566,8 +4566,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:41.190Z",
-    "updatedAt": "2026-11-13T00:48:41.197Z",
+    "enteredAt": "2026-11-13T01:12:35.496Z",
+    "updatedAt": "2026-11-13T01:12:35.504Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -4593,7 +4593,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530921190-o1wtg"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532355496-bqqy1"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4603,8 +4603,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:40.058Z",
-    "updatedAt": "2026-11-13T00:48:40.064Z",
+    "enteredAt": "2026-11-13T01:12:34.555Z",
+    "updatedAt": "2026-11-13T01:12:34.559Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -4627,7 +4627,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530920058-ryww0"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532354555-qqo20"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4637,8 +4637,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:38.733Z",
-    "updatedAt": "2026-11-13T00:48:38.745Z",
+    "enteredAt": "2026-11-13T01:12:33.610Z",
+    "updatedAt": "2026-11-13T01:12:33.619Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -4664,7 +4664,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530918732-sgksk"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532353610-dnfbb"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4674,8 +4674,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:35.136Z",
-    "updatedAt": "2026-11-13T00:48:35.142Z",
+    "enteredAt": "2026-11-13T01:12:30.771Z",
+    "updatedAt": "2026-11-13T01:12:30.777Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -4701,7 +4701,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530915136-u4h6m"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532350771-k2g3w"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4711,8 +4711,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:33.834Z",
-    "updatedAt": "2026-11-13T00:48:33.838Z",
+    "enteredAt": "2026-11-13T01:12:29.824Z",
+    "updatedAt": "2026-11-13T01:12:29.828Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -4731,7 +4731,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530913834-mfyop"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532349824-08qac"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4741,8 +4741,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:32.468Z",
-    "updatedAt": "2026-11-13T00:48:32.475Z",
+    "enteredAt": "2026-11-13T01:12:28.881Z",
+    "updatedAt": "2026-11-13T01:12:28.887Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -4768,7 +4768,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530912468-bbdww"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532348881-wl7k3"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4778,8 +4778,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:31.143Z",
-    "updatedAt": "2026-11-13T00:48:31.162Z",
+    "enteredAt": "2026-11-13T01:12:27.939Z",
+    "updatedAt": "2026-11-13T01:12:27.942Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -4802,7 +4802,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530911143-omkol"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532347939-3a3s7"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4812,8 +4812,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:30.117Z",
-    "updatedAt": "2026-11-13T00:48:30.121Z",
+    "enteredAt": "2026-11-13T01:12:27.009Z",
+    "updatedAt": "2026-11-13T01:12:27.014Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -4839,7 +4839,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530910117-zzw9z"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532347009-5vr7g"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4849,8 +4849,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:26.742Z",
-    "updatedAt": "2026-11-13T00:48:26.748Z",
+    "enteredAt": "2026-11-13T01:12:24.230Z",
+    "updatedAt": "2026-11-13T01:12:24.233Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -4876,7 +4876,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530906742-1m9oj"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532344230-xc60m"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4886,8 +4886,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:25.728Z",
-    "updatedAt": "2026-11-13T00:48:25.732Z",
+    "enteredAt": "2026-11-13T01:12:23.299Z",
+    "updatedAt": "2026-11-13T01:12:23.302Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -4906,7 +4906,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530905727-au2hs"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532343299-e6vn5"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4916,8 +4916,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:24.772Z",
-    "updatedAt": "2026-11-13T00:48:24.776Z",
+    "enteredAt": "2026-11-13T01:12:22.189Z",
+    "updatedAt": "2026-11-13T01:12:22.192Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -4943,7 +4943,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530904772-kcr0m"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532342189-3f5wt"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4953,8 +4953,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:23.770Z",
-    "updatedAt": "2026-11-13T00:48:23.775Z",
+    "enteredAt": "2026-11-13T01:12:21.255Z",
+    "updatedAt": "2026-11-13T01:12:21.258Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -4977,7 +4977,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530903770-td731"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532341255-luwjj"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -4987,8 +4987,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:22.749Z",
-    "updatedAt": "2026-11-13T00:48:22.757Z",
+    "enteredAt": "2026-11-13T01:12:20.307Z",
+    "updatedAt": "2026-11-13T01:12:20.311Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -5014,7 +5014,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530902749-xzdbt"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532340307-gu9xp"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5024,8 +5024,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:19.596Z",
-    "updatedAt": "2026-11-13T00:48:19.607Z",
+    "enteredAt": "2026-11-13T01:12:17.522Z",
+    "updatedAt": "2026-11-13T01:12:17.527Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -5051,7 +5051,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530899596-o7393"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532337522-lf2iz"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5061,8 +5061,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:18.600Z",
-    "updatedAt": "2026-11-13T00:48:18.608Z",
+    "enteredAt": "2026-11-13T01:12:16.588Z",
+    "updatedAt": "2026-11-13T01:12:16.591Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -5081,7 +5081,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530898600-i77be"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532336588-fd14j"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5091,8 +5091,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:17.475Z",
-    "updatedAt": "2026-11-13T00:48:17.500Z",
+    "enteredAt": "2026-11-13T01:12:15.646Z",
+    "updatedAt": "2026-11-13T01:12:15.650Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -5118,7 +5118,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530897475-tqli9"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532335646-ijhsg"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5128,8 +5128,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:16.466Z",
-    "updatedAt": "2026-11-13T00:48:16.470Z",
+    "enteredAt": "2026-11-13T01:12:14.702Z",
+    "updatedAt": "2026-11-13T01:12:14.705Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -5152,7 +5152,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530896466-2420v"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532334702-55v8n"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5162,8 +5162,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:15.277Z",
-    "updatedAt": "2026-11-13T00:48:15.305Z",
+    "enteredAt": "2026-11-13T01:12:13.744Z",
+    "updatedAt": "2026-11-13T01:12:13.751Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -5189,7 +5189,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530895277-eknjx"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532333744-f4ogv"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5199,8 +5199,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:12.387Z",
-    "updatedAt": "2026-11-13T00:48:12.404Z",
+    "enteredAt": "2026-11-13T01:12:10.968Z",
+    "updatedAt": "2026-11-13T01:12:10.971Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -5226,7 +5226,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530892387-4haph"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532330968-k1956"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5236,8 +5236,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:11.375Z",
-    "updatedAt": "2026-11-13T00:48:11.394Z",
+    "enteredAt": "2026-11-13T01:12:10.017Z",
+    "updatedAt": "2026-11-13T01:12:10.026Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -5256,7 +5256,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530891375-fed6n"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532330017-gs8hp"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5266,8 +5266,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:10.351Z",
-    "updatedAt": "2026-11-13T00:48:10.370Z",
+    "enteredAt": "2026-11-13T01:12:09.068Z",
+    "updatedAt": "2026-11-13T01:12:09.073Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -5293,7 +5293,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530890351-yzth8"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532329068-h90wd"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5303,8 +5303,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:09.330Z",
-    "updatedAt": "2026-11-13T00:48:09.338Z",
+    "enteredAt": "2026-11-13T01:12:08.110Z",
+    "updatedAt": "2026-11-13T01:12:08.116Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -5327,7 +5327,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530889330-1i289"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532328110-fot8a"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5337,8 +5337,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:08.274Z",
-    "updatedAt": "2026-11-13T00:48:08.282Z",
+    "enteredAt": "2026-11-13T01:12:06.923Z",
+    "updatedAt": "2026-11-13T01:12:06.960Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -5364,7 +5364,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530888274-hhq2o"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532326923-3z0r3"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5374,8 +5374,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:48:05.254Z",
-    "updatedAt": "2026-11-13T00:48:05.261Z",
+    "enteredAt": "2026-11-13T01:12:04.061Z",
+    "updatedAt": "2026-11-13T01:12:04.078Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -5401,7 +5401,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530885254-btrym"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532324060-41u5w"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5411,8 +5411,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:04.290Z",
-    "updatedAt": "2026-11-13T00:48:04.299Z",
+    "enteredAt": "2026-11-13T01:12:03.113Z",
+    "updatedAt": "2026-11-13T01:12:03.125Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -5431,7 +5431,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530884290-ta4g1"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532323113-4nv2r"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5441,8 +5441,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:48:03.306Z",
-    "updatedAt": "2026-11-13T00:48:03.312Z",
+    "enteredAt": "2026-11-13T01:12:02.135Z",
+    "updatedAt": "2026-11-13T01:12:02.139Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -5468,7 +5468,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530883306-re3bg"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532322135-ohilv"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5478,8 +5478,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:48:02.334Z",
-    "updatedAt": "2026-11-13T00:48:02.339Z",
+    "enteredAt": "2026-11-13T01:12:01.179Z",
+    "updatedAt": "2026-11-13T01:12:01.186Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -5502,7 +5502,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530882334-2sryk"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532321179-esbj5"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5512,8 +5512,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:48:01.358Z",
-    "updatedAt": "2026-11-13T00:48:01.369Z",
+    "enteredAt": "2026-11-13T01:12:00.185Z",
+    "updatedAt": "2026-11-13T01:12:00.195Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -5539,7 +5539,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530881357-i0yux"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532320185-gq3s0"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5549,8 +5549,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:47:58.156Z",
-    "updatedAt": "2026-11-13T00:47:58.162Z",
+    "enteredAt": "2026-11-13T01:11:57.315Z",
+    "updatedAt": "2026-11-13T01:11:57.326Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -5576,7 +5576,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530878156-sb2ip"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532317315-78fxt"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5586,8 +5586,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:47:57.125Z",
-    "updatedAt": "2026-11-13T00:47:57.133Z",
+    "enteredAt": "2026-11-13T01:11:56.390Z",
+    "updatedAt": "2026-11-13T01:11:56.394Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -5606,7 +5606,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530877125-ut8qk"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532316390-5wzz6"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5616,8 +5616,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:47:56.103Z",
-    "updatedAt": "2026-11-13T00:47:56.113Z",
+    "enteredAt": "2026-11-13T01:11:55.247Z",
+    "updatedAt": "2026-11-13T01:11:55.248Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -5643,7 +5643,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530876103-ki1kp"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532315247-ixoro"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5653,8 +5653,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:47:55.101Z",
-    "updatedAt": "2026-11-13T00:47:55.113Z",
+    "enteredAt": "2026-11-13T01:11:54.288Z",
+    "updatedAt": "2026-11-13T01:11:54.300Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -5677,7 +5677,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530875101-ly310"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532314288-jsyy2"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5687,8 +5687,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:47:54.072Z",
-    "updatedAt": "2026-11-13T00:47:54.076Z",
+    "enteredAt": "2026-11-13T01:11:53.379Z",
+    "updatedAt": "2026-11-13T01:11:53.382Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -5714,7 +5714,7 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530874071-hetpi"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532313379-8q42l"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5724,8 +5724,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Imran Sheikh (PRJ-KLIP) (CSR_USER)",
-    "enteredAt": "2026-11-13T00:47:50.591Z",
-    "updatedAt": "2026-11-13T00:47:50.601Z",
+    "enteredAt": "2026-11-13T01:11:50.535Z",
+    "updatedAt": "2026-11-13T01:11:50.539Z",
     "level": 9,
     "levelKey": "level9",
     "levelName": "Level 9 — Energy & Environmental Initiatives",
@@ -5751,7 +5751,7 @@
         }
       ]
     },
-    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794530870591-ak8t9"
+    "id": "rec-level9-cmvt5836n00157kssab54g3lw-1794532310535-s5n37"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5761,8 +5761,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:47:49.098Z",
-    "updatedAt": "2026-11-13T00:47:49.102Z",
+    "enteredAt": "2026-11-13T01:11:49.573Z",
+    "updatedAt": "2026-11-13T01:11:49.578Z",
     "level": 8,
     "levelKey": "level8",
     "levelName": "Level 8 — Environmental Incidents & Grievances",
@@ -5781,7 +5781,7 @@
         }
       ]
     },
-    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794530869098-f6itl"
+    "id": "rec-level8-cmvt5836n00157kssab54g3lw-1794532309573-qq295"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5791,8 +5791,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Vinay Kumar (PRJ-KLIP) (COMPLIANCE_USER)",
-    "enteredAt": "2026-11-13T00:47:48.118Z",
-    "updatedAt": "2026-11-13T00:47:48.121Z",
+    "enteredAt": "2026-11-13T01:11:48.632Z",
+    "updatedAt": "2026-11-13T01:11:48.656Z",
     "level": 7,
     "levelKey": "level7",
     "levelName": "Level 7 — Environmental Permits & Compliance",
@@ -5818,7 +5818,7 @@
         }
       ]
     },
-    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794530868118-fpcc7"
+    "id": "rec-level7-cmvt5836n00157kssab54g3lw-1794532308630-pu0os"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5828,8 +5828,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "S. Rao (PRJ-KLIP) (HR_USER)",
-    "enteredAt": "2026-11-13T00:47:47.138Z",
-    "updatedAt": "2026-11-13T00:47:47.142Z",
+    "enteredAt": "2026-11-13T01:11:47.676Z",
+    "updatedAt": "2026-11-13T01:11:47.682Z",
     "level": 6,
     "levelKey": "level6",
     "levelName": "Level 6 — Training & Workforce Well-being",
@@ -5852,7 +5852,7 @@
         }
       ]
     },
-    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794530867138-kpsc4"
+    "id": "rec-level6-cmvt5836n00157kssab54g3lw-1794532307676-dkvsf"
   },
   {
     "calculationStatus": "COMPUTED",
@@ -5862,8 +5862,8 @@
     "validationStatus": "PASSED",
     "revisionNumber": 1,
     "enteredBy": "Prakash Reddy (PRJ-KLIP) (EHS_USER)",
-    "enteredAt": "2026-11-13T00:47:46.039Z",
-    "updatedAt": "2026-11-13T00:47:46.049Z",
+    "enteredAt": "2026-11-13T01:11:45.405Z",
+    "updatedAt": "2026-11-13T01:11:45.414Z",
     "level": 5,
     "levelKey": "level5",
     "levelName": "Level 5 — Health & Safety",
@@ -5889,6 +5889,6 @@
         }
       ]
     },
-    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794530866039-tfmo7"
+    "id": "rec-level5-cmvt5836n00157kssab54g3lw-1794532305404-djvyu"
   }
 ]

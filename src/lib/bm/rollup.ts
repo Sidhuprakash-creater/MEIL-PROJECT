@@ -106,6 +106,7 @@ export async function buildBuRollup(params: {
       metricUnit: true,
       status: true,
       period: true,
+      values: true,
       projectId: true,
       businessUnitId: true,
       forwardedToBu: true,
@@ -259,6 +260,47 @@ export async function buildBuRollup(params: {
   /* ── 3. Group by section, then by project inside the section ─────────── */
   const sections = new Map<string, BuRollupSection>();
 
+  /* Emissions embedded in ENERGY reports — every energy row carries its own
+     estimated GHG footprint (Scope 1 diesel, Scope 2 grid) as a value entry
+     with the tCO2e unit. Those tonnes belong in the EMISSIONS section even
+     though the report itself is filed under Energy. */
+  const tco2eFromValues = (sub: { category?: string; values?: string }): number => {
+    if ((sub.category || "").toUpperCase() !== "ENERGY") return 0;
+    try {
+      const parsed = typeof sub.values === "string" ? JSON.parse(sub.values || "[]") : sub.values;
+      if (!Array.isArray(parsed)) return 0;
+      let sum = 0;
+      for (const v of parsed) {
+        const unit = String(v?.unit || "").trim().toLowerCase();
+        if (unit === "tco2e") sum += Number(v?.value) || 0;
+      }
+      return sum;
+    } catch {
+      return 0;
+    }
+  };
+
+  const ensureSection = (category: string, unit: string | null) => {
+    if (!sections.has(category)) {
+      sections.set(category, {
+        category,
+        label: sectionLabel(category),
+        confirmedValue: 0,
+        pendingValue: 0,
+        unit,
+        reportCount: 0,
+        projectCount: 0,
+        reports: [],
+        projects: [],
+      });
+    }
+    return sections.get(category)!;
+  };
+
+  /* Energy tCO2e accumulates per project too, so the Emissions section can
+     show the same project-attributable breakdown. */
+  const energyEmissions = new Map<string, { confirmed: number; pending: number; reports: Array<{ ref: string; value: number }> }>();
+
   for (const sub of workable) {
     const category = sub.category || "GENERAL";
     if (!sections.has(category)) {
@@ -282,6 +324,20 @@ export async function buildBuRollup(params: {
     else section.pendingValue += value;
     section.reportCount += 1;
     if (!section.unit && sub.metricUnit) section.unit = sub.metricUnit;
+
+    /* Embedded emissions from energy rows → EMISSIONS section */
+    const embedded = tco2eFromValues(sub);
+    if (embedded > 0) {
+      const emissions = ensureSection("EMISSIONS", "tCO2e");
+      if (confirmed) emissions.confirmedValue += embedded;
+      else emissions.pendingValue += embedded;
+      const pid0 = sub.projectId || `BU-LEVEL:${businessUnitId}`;
+      let ep = energyEmissions.get(pid0);
+      if (!ep) energyEmissions.set(pid0, (ep = { confirmed: 0, pending: 0, reports: [] }));
+      if (confirmed) ep.confirmed += embedded;
+      else ep.pending += embedded;
+      ep.reports.push({ ref: sub.ref, value: embedded });
+    }
 
     /* Reports filed at BU level (no project) roll up under the business unit
        itself, so they are never lost. */
@@ -370,6 +426,44 @@ export async function buildBuRollup(params: {
       evidenceCount: sub.evidenceCount ?? files.length + referenced.length,
       forwardedToBuAt: sub.forwardedToBuAt ? new Date(sub.forwardedToBuAt).toISOString() : null,
     });
+  }
+
+  /* Energy-derived emissions: fold the per-project tCO2e into the EMISSIONS
+     section's project breakdown (only when the section already has data or
+     the energy rows contributed some). */
+  if (energyEmissions.size) {
+    const emissions = ensureSection("EMISSIONS", "tCO2e");
+    for (const [pid, agg] of energyEmissions) {
+      if (agg.confirmed + agg.pending === 0) continue;
+      let project = emissions.projects.find((p) => p.projectId === pid);
+      if (!project) {
+        const dossier = dossierByProject.get(pid);
+        project = {
+          projectId: pid,
+          projectName: projectName.get(pid) || "Unnamed project",
+          confirmedValue: 0,
+          pendingValue: 0,
+          unit: "tCO2e",
+          reportCount: 0,
+          reportRefs: [],
+          evidenceFiles: [],
+          generalEvidence: generalEvidenceByProject.get(pid) ?? [],
+          dossier: dossier
+            ? {
+                id: dossier.id,
+                ref: dossierRef.get(dossier.id) || dossier.id,
+                fileName: dossier.fileName || "Consolidated report",
+                status: dossier.status,
+                createdAt: new Date(dossier.createdAt).toISOString(),
+              }
+            : null,
+        };
+        emissions.projects.push(project);
+      }
+      project.confirmedValue += agg.confirmed;
+      project.pendingValue += agg.pending;
+      for (const r of agg.reports) project.reportRefs.push(`${r.ref} (energy GHG)`);
+    }
   }
 
   const sectionList = [...sections.values()]
