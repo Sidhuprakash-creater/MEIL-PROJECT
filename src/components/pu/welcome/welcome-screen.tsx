@@ -9,7 +9,7 @@
  *  4. LOGIN MORPH (Instant demo authentication)
  */
 
-import { useState, useMemo, useEffect, useRef } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowRight, ArrowLeft, Building2, Building, Leaf, Users, ShieldCheck,
@@ -123,8 +123,31 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
      below are now only a pre-selection hint — the authenticated user's own
      scope always overrides them (see applyUserScope in the app context). */
   const [selectedOrgId, setSelectedOrgId] = useState<string>('MEIL')
-  const [activeBuId, setActiveBuId] = useState<string>(selectedBuId || '')
-  const [activeProjectId, setActiveProjectId] = useState<string>(selectedProjectId || '')
+  /* The welcome screen keeps its OWN selection memory, separate from the app
+     context: logging in as a site user runs applyUserScope which overwrites
+     the context + `meil_selected_*` keys with that user's own project. When
+     the visitor presses Back, the screen remounts and must return to the
+     project THEY picked in this flow — not the last logged-in user's scope,
+     and not the tree's first project (which defaulted to Kaleshwaram). */
+  const [activeBuId, setActiveBuId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try { return window.localStorage.getItem('meil_welcome_bu_id') || selectedBuId || '' } catch {}
+    }
+    return selectedBuId || ''
+  })
+  const [activeProjectId, setActiveProjectId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try { return window.localStorage.getItem('meil_welcome_project_id') || selectedProjectId || '' } catch {}
+    }
+    return selectedProjectId || ''
+  })
+
+  const rememberWelcomeSelection = useCallback((buId: string, projectId: string) => {
+    try {
+      localStorage.setItem('meil_welcome_bu_id', buId)
+      localStorage.setItem('meil_welcome_project_id', projectId)
+    } catch {}
+  }, [])
 
   /* ── The organisation tree comes from the DATABASE ────────────────────
      The static portfolio below only carried presentation details (icons,
@@ -161,10 +184,28 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
      first project of the selected business unit. */
   useEffect(() => {
     if (!businessUnits.length) return
+    /* The welcome flow's own remembered selection wins over any fallback —
+       even when the app context was overwritten by the last site-user login. */
+    let rememberedProjectId = ''
+    let rememberedBuId = ''
+    try {
+      rememberedProjectId = window.localStorage.getItem('meil_welcome_project_id') || ''
+      rememberedBuId = window.localStorage.getItem('meil_welcome_bu_id') || ''
+    } catch {}
     const allProjects = businessUnits.flatMap((b) => b.projects)
-    const projectValid = !!activeProjectId && allProjects.some((p) => p.id === activeProjectId)
-    const buValid = !!activeBuId && businessUnits.some((b) => b.id === activeBuId)
-    if (projectValid && buValid) return
+    const projectValid =
+      (!!activeProjectId && allProjects.some((p) => p.id === activeProjectId)) ||
+      (!!rememberedProjectId && allProjects.some((p) => p.id === rememberedProjectId))
+    const buValid =
+      (!!activeBuId && businessUnits.some((b) => b.id === activeBuId)) ||
+      (!!rememberedBuId && businessUnits.some((b) => b.id === rememberedBuId))
+    if (projectValid && buValid) {
+      /* Persist the resolved pair so the very next Back keeps it too. */
+      const bu = businessUnits.find((b) => b.id === (activeBuId || rememberedBuId))
+      const proj = bu?.projects.find((p) => p.id === (activeProjectId || rememberedProjectId))
+      if (bu && proj) rememberWelcomeSelection(bu.id, proj.id)
+      return
+    }
 
     /* Legacy ids → the real row with the same CODE. */
     const legacyBu = MEIL_BUSINESS_UNITS.find((b) => b.id === activeBuId)
@@ -180,14 +221,18 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
       const byCode = businessUnits.flatMap((b) => b.projects).find((p) => p.code === legacyProject.code)
       if (byCode && byCode.buId === bu.id) project = byCode
     }
-    if (!project) project = bu.projects[0]
+    if (!project) {
+      /* Last resort — remembered project → first project of the resolved BU. */
+      project = bu.projects[0]
+    }
     if (!project) return
 
     setActiveBuId(bu.id)
     setActiveProjectId(project.id)
     setSelectedBuId(bu.id)
     setSelectedProjectId(project.id)
-  }, [businessUnits, activeBuId, activeProjectId])
+    rememberWelcomeSelection(bu.id, project.id)
+  }, [businessUnits, activeBuId, activeProjectId, rememberWelcomeSelection])
 
   useEffect(() => {
     const pid = activeProjectId
@@ -249,12 +294,14 @@ export function WelcomeScreen({ onBack }: { onBack?: () => void } = {}) {
     if (bu && bu.projects.length > 0) {
       setActiveProjectId(bu.projects[0].id)
       setSelectedProjectId(bu.projects[0].id)
+      rememberWelcomeSelection(bu.id, bu.projects[0].id)
     }
   }
 
   const handleSelectProject = (project: MeilProject) => {
     setActiveProjectId(project.id)
     setSelectedProjectId(project.id)
+    if (activeBuId) rememberWelcomeSelection(activeBuId, project.id)
   }
 
   const handlePickRole = (role: RoleCardDef) => {
