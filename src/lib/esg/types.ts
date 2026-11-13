@@ -315,6 +315,16 @@ export interface BrsrSectionImage {
   aspectRatio?: string;
 }
 
+export interface BrsrSectionDocument {
+  id: string;
+  name: string;
+  url: string;
+  fileType: "PDF" | "DOCX" | "XLSX" | "TXT" | "OTHER";
+  sizeKb: number;
+  uploadedAt: string;
+  description?: string;
+}
+
 export interface BrsrSection {
   id: string;
   title: string;
@@ -322,6 +332,7 @@ export interface BrsrSection {
   contentType?: "markdown" | "html";
   sourceRefs: string[];
   images?: BrsrSectionImage[];
+  documents?: BrsrSectionDocument[];
   pageBreakBefore?: boolean;
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Bold,
   Italic,
@@ -32,6 +32,11 @@ import {
   Plus,
   Download,
   Loader2,
+  Paperclip,
+  ExternalLink,
+  FileSpreadsheet,
+  Link2,
+  FileUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,8 +56,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import type { BrsrSection, BrsrSectionImage, BrsrReport } from "@/lib/esg/types";
+import type { BrsrSection, BrsrSectionImage, BrsrSectionDocument, BrsrReport } from "@/lib/esg/types";
 
 export interface BrsrEditorProps {
   section: BrsrSection;
@@ -161,19 +174,27 @@ export function BrsrEditor({
   const [title, setTitle] = useState(section.title);
   const [content, setContent] = useState(section.content || "");
   const [images, setImages] = useState<BrsrSectionImage[]>(section.images || []);
+  const [documents, setDocuments] = useState<BrsrSectionDocument[]>(section.documents || []);
   const [viewMode, setViewMode] = useState<"edit" | "split" | "preview">("edit");
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
+  // Direct image URL insertion dialog state
+  const [urlDialogOpen, setUrlDialogOpen] = useState(false);
+  const [imageUrlInput, setImageUrlInput] = useState("");
+  const [imageCaptionInput, setImageCaptionInput] = useState("");
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
 
   // Sync state when active section changes
   useEffect(() => {
     setTitle(section.title);
     setContent(section.content || "");
     setImages(section.images || []);
+    setDocuments(section.documents || []);
     setDirty(false);
   }, [section.id]);
 
@@ -188,16 +209,16 @@ export function BrsrEditor({
   };
 
   // Helper to insert markdown text at current cursor position
-  const insertText = (before: string, after: string = "", sampleText: string = "") => {
+  const insertText = useCallback((before: string, after: string = "", sampleText: string = "") => {
     const el = textareaRef.current;
     if (!el) {
-      setContent((prev) => prev + before + sampleText + after);
+      setContent((prev) => prev + (prev.endsWith("\n") ? "" : "\n") + before + sampleText + after);
       setDirty(true);
       return;
     }
 
-    const start = el.selectionStart;
-    const end = el.selectionEnd;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
     const selected = el.value.substring(start, end) || sampleText;
     const replacement = before + selected + after;
     const nextVal = el.value.substring(0, start) + replacement + el.value.substring(end);
@@ -207,20 +228,45 @@ export function BrsrEditor({
 
     setTimeout(() => {
       el.focus();
-      el.setSelectionRange(start + before.length, start + before.length + selected.length);
-    }, 10);
-  };
+      const newCursor = start + before.length + selected.length;
+      el.setSelectionRange(newCursor, newCursor);
+    }, 20);
+  }, []);
 
-  // Format helpers
+  // Keyboard shortcut listener for Ctrl+S / Ctrl+B / Ctrl+I
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+        e.preventDefault();
+        if (dirty && !isSaving && !disabled) {
+          void handleSave();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "b") {
+        if (document.activeElement === textareaRef.current) {
+          e.preventDefault();
+          insertText("**", "**", "bold text");
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "i") {
+        if (document.activeElement === textareaRef.current) {
+          e.preventDefault();
+          insertText("*", "*", "italic text");
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  });
+
+  // Formatting helpers
   const applyBold = () => insertText("**", "**", "bold text");
   const applyItalic = () => insertText("*", "*", "italic text");
   const applyStrikethrough = () => insertText("~~", "~~", "strikethrough");
   const applyH1 = () => insertText("\n# ", "\n", "Heading 1");
   const applyH2 = () => insertText("\n## ", "\n", "Heading 2");
   const applyH3 = () => insertText("\n### ", "\n", "Heading 3");
-  const applyBulletList = () => insertText("\n- ", "\n- \n- ", "List item 1");
-  const applyNumberedList = () => insertText("\n1. ", "\n2. \n3. ", "First item");
-  const applyBlockquote = () => insertText("\n> ", "\n", "Quote or statement text");
+  const applyBulletList = () => insertText("\n- ", "\n", "List item");
+  const applyNumberedList = () => insertText("\n1. ", "\n", "Numbered item");
+  const applyBlockquote = () => insertText("\n> ", "\n", "Quote or statement");
   const applyPageBreak = () => insertText("\n\n<!-- pagebreak -->\n\n", "");
 
   const applyTable = () => {
@@ -234,31 +280,13 @@ export function BrsrEditor({
     insertText(tableTemplate, "");
   };
 
-  const applyCallout = (tone: "NOTE" | "TIP" | "IMPORTANT" | "WARNING") => {
+  const applyCallout = (tone: "NOTE" | "TIP" | "IMPORTANT") => {
     insertText(`\n> [!${tone}]\n> `, "\n", `Highlight message or compliance declaration for ${tone}.`);
   };
 
-  // Handle local image upload via /api/esg/brsr/upload
-  const handleFileUpload = async (file: File) => {
+  // Upload an image file (PNG, JPG, WebP, SVG, GIF, etc.)
+  const handleImageUpload = async (file: File) => {
     if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      toast({
-        title: "Invalid file format",
-        description: "Please select an image file (PNG, JPEG, WebP, or SVG).",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      toast({
-        title: "File too large",
-        description: "Image size must be under 10 MB.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     setIsUploading(true);
     try {
@@ -278,7 +306,7 @@ export function BrsrEditor({
       const newImage: BrsrSectionImage = {
         id: data.id || `img-${Date.now()}`,
         url: data.url || data.staticUrl,
-        caption: file.name.replace(/\.[^/.]+$/, ""),
+        caption: file.name.replace(/\.[^/.]+$/, "").replace(/[_-]/g, " "),
         alt: file.name,
         widthPct: 100,
         alignment: "center",
@@ -288,39 +316,147 @@ export function BrsrEditor({
       setImages(nextImages);
       setDirty(true);
 
-      // Also append image markdown token to content
+      // Insert image markdown token at cursor
       insertText(`\n\n![${newImage.caption}](${newImage.url})\n*${newImage.caption}*\n\n`);
 
       toast({
-        title: "Image uploaded successfully",
-        description: `Attached "${file.name}" to section and inserted into document.`,
+        title: "Image inserted successfully",
+        description: `Attached "${file.name}" to section and added to document layout.`,
       });
     } catch (err) {
       toast({
         title: "Image upload failed",
-        description: err instanceof Error ? err.message : "Network error during upload.",
+        description: err instanceof Error ? err.message : "Unable to process image.",
         variant: "destructive",
       });
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      if (imageInputRef.current) imageInputRef.current.value = "";
     }
   };
 
-  // Drag and drop handler for editor canvas
+  // Upload a document file (PDF, Word, Excel, CSV, TXT, MD)
+  const handleDocumentUpload = async (file: File) => {
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/esg/brsr/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Failed to upload document.");
+      }
+
+      const newDoc: BrsrSectionDocument = {
+        id: data.id || `doc-${Date.now()}`,
+        name: file.name,
+        url: data.url || data.staticUrl,
+        fileType: data.fileType || "PDF",
+        sizeKb: data.sizeKb || Math.round(file.size / 1024),
+        uploadedAt: new Date().toISOString(),
+        description: `${data.fileType} Document Exhibit`,
+      };
+
+      const nextDocs = [...documents, newDoc];
+      setDocuments(nextDocs);
+      setDirty(true);
+
+      // If text/markdown, ask user or insert
+      if (data.textContent && (file.name.endsWith(".txt") || file.name.endsWith(".md"))) {
+        const importText = window.confirm(
+          `"${file.name}" contains text. Would you like to append its text content into this section?`
+        );
+        if (importText) {
+          insertText(`\n\n### Document Excerpt: ${file.name}\n\n${data.textContent}\n\n`);
+        }
+      }
+
+      // Insert document link card into markdown
+      insertText(`\n\n[📄 Exhibit: ${newDoc.name}](${newDoc.url})\n\n`);
+
+      toast({
+        title: "Document attached successfully",
+        description: `Attached "${file.name}" (${newDoc.sizeKb} KB) to this BRSR section.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Document upload failed",
+        description: err instanceof Error ? err.message : "Unable to upload document.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      if (docInputRef.current) docInputRef.current.value = "";
+    }
+  };
+
+  // Handle clipboard paste (e.g. screenshot or copied image)
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf("image") !== -1) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          toast({ title: "Uploading pasted image…" });
+          void handleImageUpload(file);
+          return;
+        }
+      }
+    }
+  };
+
+  // Handle drag and drop on the editor
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (disabled || isUploading) return;
     const droppedFiles = e.dataTransfer.files;
     if (droppedFiles && droppedFiles.length > 0) {
       const file = droppedFiles[0];
-      if (file.type.startsWith("image/")) {
-        void handleFileUpload(file);
+      const ext = (file.name.split(".").pop() || "").toLowerCase();
+      if (file.type.startsWith("image/") || ["jpg", "jpeg", "png", "webp", "gif", "svg"].includes(ext)) {
+        void handleImageUpload(file);
+      } else {
+        void handleDocumentUpload(file);
       }
     }
   };
 
-  // Update attached image properties (caption, widthPct, alignment)
+  // Insert image via external URL
+  const handleInsertUrlImage = () => {
+    const trimmed = imageUrlInput.trim();
+    if (!trimmed) return;
+
+    const caption = imageCaptionInput.trim() || "Figure Exhibit";
+    const newImage: BrsrSectionImage = {
+      id: `img-url-${Date.now()}`,
+      url: trimmed,
+      caption,
+      alt: caption,
+      widthPct: 100,
+      alignment: "center",
+    };
+
+    setImages((prev) => [...prev, newImage]);
+    setDirty(true);
+    insertText(`\n\n![${caption}](${trimmed})\n*${caption}*\n\n`);
+    setUrlDialogOpen(false);
+    setImageUrlInput("");
+    setImageCaptionInput("");
+    toast({ title: "Image linked successfully" });
+  };
+
+  // Update attached image properties
   const updateImage = (id: string, updates: Partial<BrsrSectionImage>) => {
     const nextImages = images.map((img) => (img.id === id ? { ...img, ...updates } : img));
     setImages(nextImages);
@@ -332,7 +468,15 @@ export function BrsrEditor({
     const nextImages = images.filter((img) => img.id !== id);
     setImages(nextImages);
     setDirty(true);
-    toast({ title: "Image removed from section assets" });
+    toast({ title: "Image removed from section exhibits" });
+  };
+
+  // Remove attached document
+  const removeDocument = (id: string) => {
+    const nextDocs = documents.filter((d) => d.id !== id);
+    setDocuments(nextDocs);
+    setDirty(true);
+    toast({ title: "Document removed from section annexures" });
   };
 
   // Load pre-made template
@@ -361,6 +505,7 @@ export function BrsrEditor({
         title: title.trim() || section.title,
         content,
         images,
+        documents,
         contentType: "markdown",
       };
       await onSaveSection(updatedSection);
@@ -385,7 +530,7 @@ export function BrsrEditor({
     return resolved;
   };
 
-  // Render formatted preview elements for Markdown & HTML
+  // Render formatted preview elements for Markdown, HTML, and exhibits
   const renderFormattedPreview = (rawContent: string) => {
     const resolved = resolveTokens(rawContent);
 
@@ -439,7 +584,6 @@ export function BrsrEditor({
                   // Table detection
                   if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
                     inTable = true;
-                    // Ignore separator line like |---|---|
                     if (!trimmed.match(/^\|[-:\s|]+\|$/)) {
                       const cells = trimmed
                         .slice(1, -1)
@@ -447,7 +591,6 @@ export function BrsrEditor({
                         .map((c) => c.trim());
                       tableRows.push(cells);
                     }
-                    // If next line is not table, render accumulated table
                     const nextLine = (lines[lIdx + 1] || "").trim();
                     if (!nextLine.startsWith("|") || !nextLine.endsWith("|")) {
                       const currentRows = [...tableRows];
@@ -530,7 +673,7 @@ export function BrsrEditor({
                     );
                   }
 
-                  // Callout Cards: > [!NOTE], > [!IMPORTANT], > [!TIP], > [!WARNING]
+                  // Callout Cards: > [!NOTE], > [!IMPORTANT], > [!TIP]
                   if (trimmed.startsWith("> [!NOTE]")) {
                     return (
                       <div
@@ -604,6 +747,32 @@ export function BrsrEditor({
                     );
                   }
 
+                  // Document link embed: [📄 Exhibit: name](url)
+                  const docMatch = trimmed.match(/^\[📄\s*Exhibit:\s*(.*?)\]\((.*?)\)$/);
+                  if (docMatch) {
+                    const docName = docMatch[1];
+                    const docUrl = docMatch[2];
+                    return (
+                      <div
+                        key={lIdx}
+                        className="my-3 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-800/50 dark:text-slate-200"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Paperclip className="h-4 w-4 text-[#16588e]" />
+                          <span className="font-semibold">{docName}</span>
+                        </div>
+                        <a
+                          href={docUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 font-semibold text-[#16588e] hover:underline"
+                        >
+                          View Document <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    );
+                  }
+
                   // Lists
                   if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
                     return (
@@ -658,6 +827,34 @@ export function BrsrEditor({
                           </figcaption>
                         )}
                       </figure>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Render attached document annexures if any */}
+              {documents.length > 0 && pIdx === pages.length - 1 && (
+                <div className="mt-6 border-t border-slate-200 pt-5">
+                  <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500 font-sans">
+                    Supporting Documents & Annexures ({documents.length})
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {documents.map((doc) => (
+                      <a
+                        key={doc.id}
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-700 shadow-sm hover:border-[#16588e] dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-200"
+                      >
+                        <div className="flex items-center gap-2 truncate pr-2">
+                          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                            {doc.fileType}
+                          </span>
+                          <span className="truncate font-medium">{doc.name}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 shrink-0">{doc.sizeKb} KB</span>
+                      </a>
                     ))}
                   </div>
                 </div>
@@ -764,7 +961,7 @@ export function BrsrEditor({
             disabled={disabled || isSaving || !dirty}
             className={`h-8 rounded-xl px-4 text-xs font-semibold ${
               dirty
-                ? "bg-emerald-600 text-white hover:bg-emerald-700 animate-pulse"
+                ? "bg-emerald-600 text-white hover:bg-emerald-700 animate-pulse shadow-md"
                 : "bg-slate-200 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
             }`}
           >
@@ -774,7 +971,7 @@ export function BrsrEditor({
               </>
             ) : dirty ? (
               <>
-                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Save Changes
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" /> Save Section
               </>
             ) : (
               "Saved"
@@ -798,7 +995,7 @@ export function BrsrEditor({
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
           >
-            {/* Formatting Toolbar */}
+            {/* Formatting Toolbar — onMouseDown preventDefault prevents textarea blur */}
             <div className="mb-3 flex flex-wrap items-center gap-1 border-b border-slate-200/80 pb-2.5 text-slate-600 dark:border-slate-800 dark:text-slate-300">
               {/* Headings */}
               <div className="flex items-center border-r border-slate-200 pr-1 mr-1 dark:border-slate-700">
@@ -807,7 +1004,8 @@ export function BrsrEditor({
                   variant="ghost"
                   size="sm"
                   className="h-7 w-7 p-0"
-                  title="Heading 1"
+                  title="Heading 1 (# Heading)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyH1}
                 >
                   <Heading1 className="h-4 w-4" />
@@ -817,7 +1015,8 @@ export function BrsrEditor({
                   variant="ghost"
                   size="sm"
                   className="h-7 w-7 p-0"
-                  title="Heading 2"
+                  title="Heading 2 (## Heading)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyH2}
                 >
                   <Heading2 className="h-4 w-4" />
@@ -827,7 +1026,8 @@ export function BrsrEditor({
                   variant="ghost"
                   size="sm"
                   className="h-7 w-7 p-0"
-                  title="Heading 3"
+                  title="Heading 3 (### Heading)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyH3}
                 >
                   <Heading3 className="h-4 w-4" />
@@ -841,7 +1041,8 @@ export function BrsrEditor({
                   variant="ghost"
                   size="sm"
                   className="h-7 w-7 p-0"
-                  title="Bold (**text**)"
+                  title="Bold (**text** or Ctrl+B)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyBold}
                 >
                   <Bold className="h-4 w-4 font-bold" />
@@ -851,7 +1052,8 @@ export function BrsrEditor({
                   variant="ghost"
                   size="sm"
                   className="h-7 w-7 p-0"
-                  title="Italic (*text*)"
+                  title="Italic (*text* or Ctrl+I)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyItalic}
                 >
                   <Italic className="h-4 w-4 italic" />
@@ -862,6 +1064,7 @@ export function BrsrEditor({
                   size="sm"
                   className="h-7 w-7 p-0"
                   title="Strikethrough (~~text~~)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyStrikethrough}
                 >
                   <Strikethrough className="h-4 w-4" />
@@ -876,6 +1079,7 @@ export function BrsrEditor({
                   size="sm"
                   className="h-7 w-7 p-0"
                   title="Bullet List (- item)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyBulletList}
                 >
                   <List className="h-4 w-4" />
@@ -886,6 +1090,7 @@ export function BrsrEditor({
                   size="sm"
                   className="h-7 w-7 p-0"
                   title="Numbered List (1. item)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyNumberedList}
                 >
                   <ListOrdered className="h-4 w-4" />
@@ -896,6 +1101,7 @@ export function BrsrEditor({
                   size="sm"
                   className="h-7 w-7 p-0"
                   title="Blockquote (> quote)"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyBlockquote}
                 >
                   <Quote className="h-4 w-4" />
@@ -910,6 +1116,7 @@ export function BrsrEditor({
                   size="sm"
                   className="h-7 px-2 text-xs"
                   title="Insert Comparison Table"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyTable}
                 >
                   <TableIcon className="mr-1 h-3.5 w-3.5 text-sky-600" /> Table
@@ -946,6 +1153,7 @@ export function BrsrEditor({
                   size="sm"
                   className="h-7 px-2 text-xs text-indigo-600"
                   title="Force New A4 Page"
+                  onMouseDown={(e) => e.preventDefault()}
                   onClick={applyPageBreak}
                 >
                   <Scissors className="mr-1 h-3.5 w-3.5" /> Page Break
@@ -984,35 +1192,81 @@ export function BrsrEditor({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-              {/* Image Upload Trigger */}
-              <div className="ml-auto">
+              {/* File Upload Triggers (Images & Documents) */}
+              <div className="ml-auto flex items-center gap-1.5">
+                {/* Hidden Image Input */}
                 <input
                   type="file"
-                  ref={fileInputRef}
+                  ref={imageInputRef}
                   className="hidden"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                  accept="image/*,.png,.jpg,.jpeg,.webp,.svg,.gif,.bmp"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) void handleFileUpload(file);
+                    if (file) void handleImageUpload(file);
                   }}
                 />
+
+                {/* Hidden Document Input */}
+                <input
+                  type="file"
+                  ref={docInputRef}
+                  className="hidden"
+                  accept=".pdf,.docx,.doc,.xlsx,.xls,.csv,.txt,.md"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleDocumentUpload(file);
+                  }}
+                />
+
+                {/* Insert Image Button */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={isUploading || disabled}
+                      className="h-7 rounded-lg border-purple-200 bg-purple-50/80 px-2.5 text-xs text-purple-800 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Processing…
+                        </>
+                      ) : (
+                        <>
+                          <ImagePlus className="mr-1.5 h-3.5 w-3.5 text-purple-600" /> Insert Image
+                        </>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52 rounded-xl shadow-lg">
+                    <DropdownMenuItem
+                      onClick={() => imageInputRef.current?.click()}
+                      className="cursor-pointer text-xs py-2"
+                    >
+                      <Upload className="mr-2 h-3.5 w-3.5 text-purple-600" />
+                      Upload from Computer
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setUrlDialogOpen(true)}
+                      className="cursor-pointer text-xs py-2"
+                    >
+                      <Link2 className="mr-2 h-3.5 w-3.5 text-sky-600" />
+                      Insert Image from URL
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Upload Document Button */}
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
                   disabled={isUploading || disabled}
-                  onClick={() => fileInputRef.current?.click()}
-                  className="h-7 rounded-lg border-purple-200 bg-purple-50/80 px-2.5 text-xs text-purple-800 hover:bg-purple-100 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-300"
+                  onClick={() => docInputRef.current?.click()}
+                  className="h-7 rounded-lg border-emerald-200 bg-emerald-50/80 px-2.5 text-xs text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
                 >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> Uploading…
-                    </>
-                  ) : (
-                    <>
-                      <ImagePlus className="mr-1.5 h-3.5 w-3.5 text-purple-600" /> Insert Image
-                    </>
-                  )}
+                  <FileUp className="mr-1.5 h-3.5 w-3.5 text-emerald-600" /> Upload Document
                 </Button>
               </div>
             </div>
@@ -1022,13 +1276,14 @@ export function BrsrEditor({
               ref={textareaRef}
               value={content}
               onChange={(e) => handleContentChange(e.target.value)}
+              onPaste={handlePaste}
               disabled={disabled}
               rows={viewMode === "split" ? 18 : 22}
-              placeholder="Type section narrative here using markdown or formatting tools above. Drag & drop images directly onto this box..."
+              placeholder="Write section narrative here using markdown or formatting tools above. Drag & drop images or documents directly onto this canvas, or paste screenshots from clipboard..."
               className="nice-scroll font-mono text-sm leading-relaxed text-slate-900 border-none bg-transparent p-2 focus-visible:ring-0 resize-y dark:text-slate-100"
             />
 
-            {/* Attached Section Images Gallery */}
+            {/* Attached Section Exhibits (Images) */}
             {images.length > 0 && (
               <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
                 <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
@@ -1065,7 +1320,7 @@ export function BrsrEditor({
                           variant={img.alignment === "left" ? "default" : "outline"}
                           className={`h-7 w-7 p-0 ${img.alignment === "left" ? "bg-[#16588e]" : ""}`}
                           onClick={() => updateImage(img.id, { alignment: "left" })}
-                          title="Left wrap"
+                          title="Left text wrap"
                         >
                           <AlignLeft className="h-3 w-3" />
                         </Button>
@@ -1075,7 +1330,7 @@ export function BrsrEditor({
                           variant={img.alignment === "center" ? "default" : "outline"}
                           className={`h-7 w-7 p-0 ${img.alignment === "center" ? "bg-[#16588e]" : ""}`}
                           onClick={() => updateImage(img.id, { alignment: "center" })}
-                          title="Centered"
+                          title="Centered block"
                         >
                           <AlignCenter className="h-3 w-3" />
                         </Button>
@@ -1085,7 +1340,7 @@ export function BrsrEditor({
                           variant={img.alignment === "right" ? "default" : "outline"}
                           className={`h-7 w-7 p-0 ${img.alignment === "right" ? "bg-[#16588e]" : ""}`}
                           onClick={() => updateImage(img.id, { alignment: "right" })}
-                          title="Right wrap"
+                          title="Right text wrap"
                         >
                           <AlignRight className="h-3 w-3" />
                         </Button>
@@ -1107,6 +1362,18 @@ export function BrsrEditor({
                         </SelectContent>
                       </Select>
 
+                      {/* Insert into text button */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => insertText(`\n\n![${img.caption || "Exhibit"}](${img.url})\n\n`)}
+                        className="h-8 px-2 text-[11px] text-[#16588e] hover:bg-sky-50 dark:hover:bg-sky-950/50"
+                        title="Insert reference link into text"
+                      >
+                        <Link2 className="mr-1 h-3 w-3" /> Insert Link
+                      </Button>
+
                       {/* Remove Image */}
                       <Button
                         type="button"
@@ -1123,6 +1390,70 @@ export function BrsrEditor({
                 </div>
               </div>
             )}
+
+            {/* Attached Section Annexures (Documents) */}
+            {documents.length > 0 && (
+              <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+                <div className="mb-2 flex items-center justify-between text-xs font-semibold text-slate-500">
+                  <span>Attached Supporting Documents & Annexures ({documents.length})</span>
+                  <span className="text-[11px] font-normal text-slate-400">
+                    PDF, Word, Excel files linked to this reporting section
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-800 dark:bg-slate-800/60"
+                    >
+                      <div className="flex items-center gap-2.5 truncate">
+                        <span className="rounded bg-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                          {doc.fileType}
+                        </span>
+                        <span className="truncate text-xs font-medium text-slate-800 dark:text-slate-200">
+                          {doc.name}
+                        </span>
+                        <span className="text-[11px] text-slate-400">({doc.sizeKb} KB)</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => insertText(`\n\n[📄 Exhibit: ${doc.name}](${doc.url})\n\n`)}
+                          className="h-7 px-2 text-[11px] text-[#16588e] hover:bg-sky-50 dark:hover:bg-sky-950/50"
+                          title="Insert link into text"
+                        >
+                          <Link2 className="mr-1 h-3 w-3" /> Insert in Text
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          asChild
+                          className="h-7 px-2 text-[11px]"
+                        >
+                          <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink className="mr-1 h-3 w-3" /> View
+                          </a>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => removeDocument(doc.id)}
+                          className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-50"
+                          title="Delete document"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1133,12 +1464,52 @@ export function BrsrEditor({
               <span className="font-semibold uppercase tracking-wider">
                 Live A4 Print & PDF Preview
               </span>
-              <span className="italic">Simulates physical page pagination</span>
+              <span className="italic">Simulates physical paper layout</span>
             </div>
             {renderFormattedPreview(content)}
           </div>
         )}
       </div>
+
+      {/* Insert Image from URL Dialog */}
+      <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base">Insert Image from URL</DialogTitle>
+            <DialogDescription className="text-xs">
+              Enter the direct URL of an image hosted online or in the MEIL Evidence Vault.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Image Web URL</label>
+              <Input
+                value={imageUrlInput}
+                onChange={(e) => setImageUrlInput(e.target.value)}
+                placeholder="https://example.com/photo.jpg or /brsr-uploads/..."
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600">Caption / Label (optional)</label>
+              <Input
+                value={imageCaptionInput}
+                onChange={(e) => setImageCaptionInput(e.target.value)}
+                placeholder="e.g. Figure 2.1: Solar installation"
+                className="mt-1 h-9 rounded-xl text-xs"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setUrlDialogOpen(false)} className="rounded-xl">
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleInsertUrlImage} className="rounded-xl bg-[#16588e] text-white">
+              Insert Image
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

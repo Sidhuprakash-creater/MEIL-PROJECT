@@ -327,11 +327,28 @@ function renderSectionToHtml(s: BrsrSection, idx: number): string {
     `;
   }
 
+  let docsHtml = "";
+  if (s.documents && s.documents.length > 0) {
+    docsHtml = `
+      <div class="section-documents" style="margin-top: 14px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+        <h4 style="margin: 0 0 6px; font-size: 13px; color: #16588e;">Attached Supporting Documents &amp; Annexures (${s.documents.length})</h4>
+        <ul style="margin: 0; padding-left: 20px; font-size: 12px; color: #475569;">
+          ${s.documents.map((doc) => `
+            <li style="margin-bottom: 4px;">
+              <strong>[${esc(doc.fileType)}]</strong> ${esc(doc.name)} (${doc.sizeKb} KB)
+            </li>
+          `).join("")}
+        </ul>
+      </div>
+    `;
+  }
+
   return `
     <div class="report-section ${s.pageBreakBefore ? "page-break" : ""}">
       <h3>${idx + 1}. ${esc(s.title)}</h3>
       ${htmlParts.join("\n")}
       ${imagesHtml}
+      ${docsHtml}
     </div>
   `;
 }
