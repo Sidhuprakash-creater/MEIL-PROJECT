@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { ActionButton, Field, GlassDialog } from "@/components/workspace/ui";
 import { useToast } from "@/hooks/use-toast";
-import { apiPost, useApi, useMutation } from "@/lib/esg/client";
+import { apiPost, useApi, useMutation, dispatchEsgUpdate } from "@/lib/esg/client";
 import {
   ROLE_LABELS,
   ADMIN_ROLE_KEYS,
@@ -66,6 +66,9 @@ export function CreateUserDialog({
   open,
   onOpenChange,
   defaultRole = "",
+  initialSubsidiaryId,
+  initialBusinessUnitId,
+  initialProjectId,
   subsidiaries: externalSubs,
   businessUnits: externalBus,
   projects: externalProjects,
@@ -74,6 +77,9 @@ export function CreateUserDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultRole?: string;
+  initialSubsidiaryId?: string;
+  initialBusinessUnitId?: string;
+  initialProjectId?: string;
   subsidiaries?: { id: string; name: string }[];
   businessUnits?: { id: string; name: string; subsidiaryId: string }[];
   projects?: { id: string; name: string; businessUnitId: string }[];
@@ -119,14 +125,14 @@ export function CreateUserDialog({
       setTitle("");
       setPhone("");
       setGoogleEmail("");
-      setSubsidiaryId("ALL");
-      setBusinessUnitId("ALL");
-      setProjectId("ALL");
+      setSubsidiaryId(initialSubsidiaryId || "ALL");
+      setBusinessUnitId(initialBusinessUnitId || "ALL");
+      setProjectId(initialProjectId || "ALL");
       setCredMode("temp_password");
       setCustomPassword("");
       setErrors({});
     }
-  }, [open, defaultRole]);
+  }, [open, defaultRole, initialSubsidiaryId, initialBusinessUnitId, initialProjectId]);
 
   const buOptions = businessUnits.filter(
     (b) => subsidiaryId === "ALL" || b.subsidiaryId === subsidiaryId
@@ -224,6 +230,7 @@ export function CreateUserDialog({
     });
 
     onOpenChange(false);
+    dispatchEsgUpdate("all", { action: "user_created", userName: name.trim() });
     onCreated?.({
       userName: name.trim(),
       role,

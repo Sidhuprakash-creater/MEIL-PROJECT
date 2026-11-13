@@ -285,6 +285,27 @@ export async function GET(request: Request) {
     userAgent,
   });
 
+  try {
+    const orgLabel =
+      updatedUser.project?.name ??
+      updatedUser.businessUnit?.name ??
+      updatedUser.subsidiary?.name ??
+      "Group";
+    await db.activityEvent.create({
+      data: {
+        actorName: updatedUser.name,
+        actorRole: updatedUser.role,
+        action: "LOGIN",
+        targetType: "Google SSO",
+        targetLabel: `Quick login with Google (${orgLabel})`,
+        orgLabel,
+        severity: "INFO",
+      },
+    });
+  } catch (err) {
+    console.error("[google login activity]", err);
+  }
+
   const scopeType = scopeTypeForRole(updatedUser.role);
   return NextResponse.redirect(
     `${origin}/?dashboard=1&portal=${encodeURIComponent(scopeType)}`

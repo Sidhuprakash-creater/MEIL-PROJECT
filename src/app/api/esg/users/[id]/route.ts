@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     });
     if (!user) return fail("User not found.", 404);
 
-    const [sessions, lastLogins, submissions, resetRequests] = await Promise.all([
+    const [sessions, lastLogins, submissions, resetRequests, activityEvents] = await Promise.all([
       db.session.findMany({
         where: { userId: id, revokedAt: null, expiresAt: { gt: new Date() } },
         orderBy: { createdAt: "desc" },
@@ -32,12 +32,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
       db.auditLog.findMany({
         where: { userId: id },
         orderBy: { createdAt: "desc" },
-        take: 12,
+        take: 20,
       }),
       db.submission.findMany({
         where: { submittedById: id },
         orderBy: { updatedAt: "desc" },
-        take: 8,
+        take: 12,
         select: {
           id: true,
           ref: true,
@@ -52,6 +52,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
         where: { userId: id },
         orderBy: { createdAt: "desc" },
         take: 5,
+      }),
+      db.activityEvent.findMany({
+        where: {
+          OR: [
+            { actorName: user.name },
+            { targetLabel: { contains: user.name } },
+            { targetLabel: { contains: user.email } },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
       }),
     ]);
 
@@ -101,6 +112,17 @@ export async function GET(_req: NextRequest, { params }: Params) {
         portal: r.portal,
         createdAt: r.createdAt.toISOString(),
         reviewedAt: r.reviewedAt?.toISOString() ?? null,
+      })),
+      activityEvents: activityEvents.map((a) => ({
+        id: a.id,
+        actorName: a.actorName,
+        actorRole: a.actorRole,
+        action: a.action,
+        targetType: a.targetType,
+        targetLabel: a.targetLabel,
+        orgLabel: a.orgLabel,
+        severity: a.severity,
+        createdAt: a.createdAt.toISOString(),
       })),
     });
   });

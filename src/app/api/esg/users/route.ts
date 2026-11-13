@@ -124,9 +124,11 @@ export async function POST(req: NextRequest) {
         logActivity({
           actorName: actor.name,
           actorRole: actor.role,
-          action: "ACCOUNT_UPDATE",
+          action: "USER_CREATE",
           targetType: "User",
           targetLabel: `${u.name} created as ${ROLE_LABELS[u.role] ?? u.role}`,
+          orgLabel: provisioned.orgScopeLabel,
+          severity: "SUCCESS",
         }),
         logAudit({
           actorName: actor.name,

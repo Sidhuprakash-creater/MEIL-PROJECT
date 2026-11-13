@@ -62,7 +62,18 @@ import {
   type Task,
   type User,
 } from "@/lib/esg/types";
-import { apiDelete, apiPatch, apiPost, fmtDate, timeAgo, toCsv, useApi, useMutation, downloadFile } from "@/lib/esg/client";
+import {
+  apiDelete,
+  apiPatch,
+  apiPost,
+  fmtDate,
+  timeAgo,
+  toCsv,
+  useApi,
+  useMutation,
+  downloadFile,
+  dispatchEsgUpdate,
+} from "@/lib/esg/client";
 import { useWorkspace } from "@/lib/esg/store";
 import {
   ActionButton,
@@ -247,14 +258,15 @@ const emptyForm: UserFormState = {
 interface UserDossier {
   user?: User & { employeeId?: string | null; googleEmail?: string | null; authProvider?: string };
   sessions?: { id: string; ipAddress: string | null; userAgent: string | null; expiresAt: string; createdAt: string }[];
-  lastLogins?: { id: string; actor: string; summary: string; createdAt: string }[];
+  lastLogins?: { eventType: string; result: string; portal?: string; reason?: string; createdAt: string; ip?: string }[];
+  activityEvents?: { id: string; actorName: string; actorRole: string; action: string; targetType: string; targetLabel: string; orgLabel: string; severity: string; createdAt: string }[];
 }
 
 function DetailPage({ userId }: { userId: string }) {
   const { navigate } = useWorkspace();
   const { toast } = useToast();
-  const usersApi = useApi<{ users: User[] }>("/api/esg/users");
-  const dossierApi = useApi<UserDossier>(`/api/esg/users/${userId}`);
+  const usersApi = useApi<{ users: User[] }>("/api/esg/users", [], { pollIntervalMs: 5000, eventFilter: "users" });
+  const dossierApi = useApi<UserDossier>(`/api/esg/users/${userId}`, [userId], { pollIntervalMs: 5000, eventFilter: "users" });
   const subsApi = useApi<{ subsidiaries: { id: string; name: string }[] }>("/api/esg/org?type=subsidiaries&light=1");
   const unitsApi = useApi<{ businessUnits: { id: string; name: string; subsidiaryId: string }[] }>("/api/esg/org?type=business-units");
   const projectsApi = useApi<{ projects: { id: string; name: string; businessUnitId: string }[] }>("/api/esg/org?type=projects");
@@ -270,14 +282,38 @@ function DetailPage({ userId }: { userId: string }) {
     () => (tasksApi.data?.tasks ?? []).filter((t) => t.assigneeType === "USER" && t.assigneeLabel && user && t.assigneeLabel.toLowerCase().includes(user.name.toLowerCase())),
     [tasksApi.data, user]
   );
-  const activity = useMemo(
-    () =>
-      mySubmissions
-        .flatMap((s) => s.history.map((h) => ({ ...h, ref: s.ref, title: s.title })))
-        .filter((h) => h.actor === (user?.name ?? ""))
-        .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()),
-    [mySubmissions, user]
-  );
+  const activity = useMemo(() => {
+    const list: Array<{ action: string; label: string; at: string; tone?: string; kind?: string }> = [];
+    // 1. Workflow submission history
+    for (const s of mySubmissions) {
+      for (const h of s.history) {
+        if (h.actor === user?.name) {
+          list.push({ action: h.action, label: `${s.ref} · ${s.title}`, at: h.at, tone: "#3a7bff", kind: "workflow" });
+        }
+      }
+    }
+    // 2. Activity events recorded in DB
+    for (const a of dossierApi.data?.activityEvents ?? []) {
+      list.push({
+        action: a.action.replaceAll("_", " "),
+        label: a.targetLabel || a.targetType || a.orgLabel,
+        at: a.createdAt,
+        tone: a.action === "LOGIN" ? "#8595ab" : a.action.includes("CREATE") ? "#238653" : "#16a3a3",
+        kind: "activity",
+      });
+    }
+    // 3. Login audit records
+    for (const l of dossierApi.data?.lastLogins ?? []) {
+      list.push({
+        action: l.eventType.replaceAll("_", " "),
+        label: `${l.portal ? l.portal.toUpperCase() + " portal" : "System"}${l.ip ? ` · IP ${l.ip}` : ""}`,
+        at: l.createdAt,
+        tone: l.result === "SUCCESS" ? "#238653" : "#c34a4a",
+        kind: "auth",
+      });
+    }
+    return list.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  }, [mySubmissions, dossierApi.data, user]);
 
   const [tab, setTab] = useState("overview");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -339,6 +375,7 @@ function DetailPage({ userId }: { userId: string }) {
       setDialogOpen(false);
       void usersApi.refetch();
       void dossierApi.refetch();
+      dispatchEsgUpdate("all", { action: "user_updated", userId: user.id });
     } else {
       toast({ title: "Update failed", description: mut.error ?? "Server rejected the change.", variant: "destructive" });
     }
@@ -352,6 +389,7 @@ function DetailPage({ userId }: { userId: string }) {
       res = await mut.run(() => apiDelete("/api/esg/users", { id: user.id, action: "delete", reason }));
       if (res) {
         toast({ title: "User permanently deleted", description: `${user.name} has been removed from the directory.` });
+        dispatchEsgUpdate("all", { action: "user_deleted", userId: user.id });
         navigate("users");
         return;
       }
@@ -377,6 +415,7 @@ function DetailPage({ userId }: { userId: string }) {
       });
       void usersApi.refetch();
       void dossierApi.refetch();
+      dispatchEsgUpdate("all", { action: `user_${action}`, userId: user.id });
     } else {
       toast({ title: "Action failed", description: mut.error ?? "Server rejected the action.", variant: "destructive" });
     }
@@ -601,11 +640,14 @@ function DetailPage({ userId }: { userId: string }) {
             <div className="nice-scroll max-h-96 overflow-y-auto p-5">
               <ol className="relative space-y-4 border-l border-[rgba(125,177,216,0.35)] pl-5">
                 {activity.map((h, i) => (
-                  <li key={`${h.ref}-${i}`} className="relative">
-                    <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-[#3a7bff] ring-4 ring-white/60" />
+                  <li key={`${h.action}-${h.at}-${i}`} className="relative">
+                    <span
+                      className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full ring-4 ring-white/60"
+                      style={{ backgroundColor: h.tone ?? "#3a7bff" }}
+                    />
                     <div className="text-sm font-medium text-[color:var(--ink)]">{h.action}</div>
                     <div className="mt-0.5 text-xs text-[color:var(--ink-faint)]">
-                      {h.ref} · {h.title} · {timeAgo(h.at)} ({fmtDate(h.at)})
+                      {h.label ? `${h.label} · ` : ""}{timeAgo(h.at)} ({fmtDate(h.at)})
                     </div>
                   </li>
                 ))}
@@ -678,12 +720,22 @@ function DetailPage({ userId }: { userId: string }) {
               <p className="text-xs text-[color:var(--ink-faint)]">No recent authentication events recorded for this account.</p>
             ) : (
               <div className="divide-y divide-[rgba(125,177,216,0.18)]">
-                {(dossierApi.data?.lastLogins ?? []).map((l) => (
-                  <div key={l.id} className="flex items-center justify-between gap-3 py-2 text-xs">
-                    <span className="text-[color:var(--ink)]">{l.summary}</span>
-                    <span className="shrink-0 text-[color:var(--ink-faint)]">{timeAgo(l.createdAt)}</span>
-                  </div>
-                ))}
+                {(dossierApi.data?.lastLogins ?? []).map((l, idx) => {
+                  const summary = `${l.eventType.replaceAll("_", " ")}${l.portal ? ` (${l.portal.toUpperCase()})` : ""}${l.reason ? ` · ${l.reason}` : ""}${l.ip ? ` · IP ${l.ip}` : ""}`;
+                  return (
+                    <div key={`${l.createdAt}-${idx}`} className="flex items-center justify-between gap-3 py-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: l.result === "SUCCESS" ? "#238653" : "#c34a4a" }}
+                          aria-hidden="true"
+                        />
+                        <span className="text-[color:var(--ink)]">{summary}</span>
+                      </div>
+                      <span className="shrink-0 text-[color:var(--ink-faint)]">{timeAgo(l.createdAt)}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </SectionCard>
@@ -874,7 +926,7 @@ export default function UsersView() {
   const detailId = typeof params.detailId === "string" ? params.detailId : undefined;
   const autoCreate = typeof params.create === "string" || typeof params.create === "number" ? true : false;
 
-  const usersApi = useApi<{ users: User[] }>("/api/esg/users");
+  const usersApi = useApi<{ users: User[] }>("/api/esg/users", [], { pollIntervalMs: 5000, eventFilter: "users" });
   const subsApi = useApi<{ subsidiaries: { id: string; name: string }[] }>("/api/esg/org?type=subsidiaries&light=1");
   const unitsApi = useApi<{ businessUnits: { id: string; name: string; subsidiaryId: string }[] }>("/api/esg/org?type=business-units");
   const projectsApi = useApi<{ projects: { id: string; name: string; businessUnitId: string }[] }>("/api/esg/org?type=projects");
@@ -1106,6 +1158,7 @@ export default function UsersView() {
     }
     setSelectedIds([]);
     void usersApi.refetch();
+    dispatchEsgUpdate("all", { action: "bulk_suspended", count: okCount });
   };
 
   const bulkReactivate = async () => {
@@ -1132,6 +1185,7 @@ export default function UsersView() {
     }
     setSelectedIds([]);
     void usersApi.refetch();
+    dispatchEsgUpdate("all", { action: "bulk_reactivated", count: okCount });
   };
 
   const exportSelected = () => {
@@ -1899,6 +1953,7 @@ export default function UsersView() {
           setPresenceFilter("ALL");
           setSearch(outcome.userName);
           void usersApi.refetch();
+          dispatchEsgUpdate("all", { action: "user_created", userName: outcome.userName });
         }}
       />
 

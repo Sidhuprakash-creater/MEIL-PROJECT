@@ -541,7 +541,27 @@ export interface HierarchyNodeDetail {
     submittedByName: string | null;
     dueDate: string;
   }[];
-  team: { id: string; name: string; role: string; status: string; title: string }[];
+  team: {
+    id: string;
+    name: string;
+    email?: string;
+    role: string;
+    status: string;
+    title: string;
+    lastActiveAt?: string | null;
+    presence?: "now" | "today" | "away" | "offline" | "invited" | "suspended";
+  }[];
+  recentActivity?: {
+    id: string;
+    actorName: string;
+    actorRole: string;
+    action: string;
+    targetType: string;
+    targetLabel: string;
+    orgLabel: string;
+    severity: string;
+    createdAt: string;
+  }[];
   children: { id: string; type: "unit" | "project"; code: string; name: string; status: string; submissions: number; meta: string }[];
   breadcrumb: { id: string; type: "subsidiary" | "unit" | "project"; name: string }[];
 }

@@ -340,11 +340,34 @@ export async function POST(request: Request) {
     where: { id: user.id },
     data: {
       lastLoginAt: new Date(),
+      lastActiveAt: new Date(),
       ...(user.status === "INVITED" ? { status: "ACTIVE" } : {}),
     },
     include: { subsidiary: true, businessUnit: true, project: true },
   });
   invalidateAllAuthCaches(user.id);
+
+  const orgLabel =
+    activatedUser.project?.name ??
+    activatedUser.businessUnit?.name ??
+    activatedUser.subsidiary?.name ??
+    "Group";
+
+  try {
+    await db.activityEvent.create({
+      data: {
+        actorName: activatedUser.name,
+        actorRole: activatedUser.role,
+        action: "LOGIN",
+        targetType: "Portal",
+        targetLabel: `${portal} portal (${orgLabel})`,
+        orgLabel,
+        severity: "INFO",
+      },
+    });
+  } catch (err) {
+    console.error("[login activity]", err);
+  }
 
   await logAudit({
     eventType: "LOGIN_SUCCESS",

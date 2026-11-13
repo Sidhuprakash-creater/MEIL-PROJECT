@@ -38,12 +38,21 @@ const ACTION_TONES: Record<string, "green" | "blue" | "amber" | "red" | "gray" |
   EXPORT: "teal",
   ROLE_CHANGE: "purple",
   CONFIG_CHANGE: "amber",
+  USER_CREATE: "green",
+  ACCOUNT_UPDATE: "teal",
+  USER_DEACTIVATE: "amber",
+  USER_DELETE: "red",
+  DATA_EDIT: "blue",
 };
 
 const dedup = (vals: string[]) => Array.from(new Set(vals.filter(Boolean))).sort((a, b) => a.localeCompare(b));
 
 export default function ActivityView() {
-  const { data, loading, error, refetch } = useApi<{ events: ActivityEvent[] }>("/api/esg/activity");
+  const { data, loading, error, refetch } = useApi<{ events: ActivityEvent[] }>(
+    "/api/esg/activity",
+    [],
+    { pollIntervalMs: 4000, eventFilter: "activity" }
+  );
   const { navigate } = useWorkspace();
   const [search, setSearch] = React.useState("");
   const [role, setRole] = React.useState("ALL");
@@ -110,12 +119,21 @@ export default function ActivityView() {
         icon={Activity}
         breadcrumbs={["Group", "Insights & Governance", "Activity Monitoring"]}
         actions={
-          <ExportButton
-            filename="activity-feed"
-            rows={exportRows}
-            formats={["CSV", "JSON"]}
-            size="default"
-          />
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+              </span>
+              Live Realtime Feed
+            </span>
+            <ExportButton
+              filename="activity-feed"
+              rows={exportRows}
+              formats={["CSV", "JSON"]}
+              size="default"
+            />
+          </div>
         }
       />
 

@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  Activity,
   AlarmClock,
   ArrowUpRight,
   BadgeCheck,
@@ -32,6 +33,7 @@ import {
   RotateCcw,
   Route,
   Sun,
+  UserPlus,
   Users,
   Waypoints,
   Waves,
@@ -39,7 +41,8 @@ import {
   X,
 } from "lucide-react";
 import { useWorkspace } from "@/lib/esg/store";
-import { useApi, fmtNumber } from "@/lib/esg/client";
+import { useApi, fmtNumber, timeAgo } from "@/lib/esg/client";
+import { CreateUserDialog } from "@/components/workspace/create-user-dialog";
 import {
   ROLE_LABELS,
   type HierarchyNode,
@@ -1271,6 +1274,7 @@ function NodePanel({
   floating,
   onClose,
   onSelect,
+  onInviteUser,
 }: {
   detail: HierarchyNodeDetail | null;
   loading: boolean;
@@ -1279,6 +1283,7 @@ function NodePanel({
   floating: boolean;
   onClose: () => void;
   onSelect: (id: string) => void;
+  onInviteUser?: () => void;
 }) {
   const { openDetail } = useWorkspace();
 
@@ -1474,27 +1479,98 @@ function NodePanel({
         </PanelSection>
 
         {/* team */}
-        <PanelSection icon={Users} title="Team">
+        <PanelSection
+          icon={Users}
+          title="Team"
+          action={
+            onInviteUser && (
+              <button
+                type="button"
+                onClick={onInviteUser}
+                className="inline-flex items-center gap-1 rounded-full border border-[rgba(58,123,255,0.4)] bg-[rgba(58,123,255,0.08)] px-2.5 py-0.5 text-[10.5px] font-semibold text-[#1d5fd6] transition-all hover:bg-[rgba(58,123,255,0.18)]"
+              >
+                <UserPlus className="h-3 w-3" />
+                Invite User
+              </button>
+            )
+          }
+        >
           {detail.team.length === 0 ? (
             <div className="glass-subtle rounded-2xl border-white/55 px-3.5 py-4 text-center text-xs text-[color:var(--ink-faint)]">
               No users assigned to this node.
             </div>
           ) : (
             <div className="space-y-1.5">
-              {detail.team.map((u) => (
-                <button
-                  key={u.id}
-                  onClick={() => openDetail("users", u.id)}
-                  className="group flex w-full items-center gap-2.5 rounded-2xl px-2 py-1.5 text-left transition-colors hover:bg-white/65"
-                  aria-label={`Open user profile ${u.name}`}
+              {detail.team.map((u) => {
+                const isOnline = u.presence === "now";
+                const isToday = u.presence === "today";
+                const dotColor = isOnline ? "#238653" : isToday ? "#16a3a3" : u.status === "ACTIVE" ? "#c57926" : "#8595ab";
+                const presenceLabel = isOnline ? "Active now" : u.lastActiveAt ? timeAgo(u.lastActiveAt) : "Offline";
+                return (
+                  <button
+                    key={u.id}
+                    onClick={() => openDetail("users", u.id)}
+                    className="group flex w-full items-center gap-2.5 rounded-2xl px-2 py-1.5 text-left transition-colors hover:bg-white/65"
+                    aria-label={`Open user profile ${u.name}`}
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar name={u.name} size={32} />
+                      <span
+                        className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white shadow-sm"
+                        style={{ backgroundColor: dotColor }}
+                        title={presenceLabel}
+                      />
+                    </div>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-1">
+                        <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">
+                          {u.name}
+                        </span>
+                        <span className="shrink-0 text-[10px] text-[color:var(--ink-faint)]">
+                          {presenceLabel}
+                        </span>
+                      </span>
+                      <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">
+                        {u.title || (ROLE_LABELS[u.role] ?? u.role.replaceAll("_", " "))}
+                      </span>
+                    </span>
+                    <StatusBadge status={u.status} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </PanelSection>
+
+        {/* users activity */}
+        <PanelSection icon={Activity} title="Users Activity">
+          {(!detail.recentActivity || detail.recentActivity.length === 0) ? (
+            <div className="glass-subtle rounded-2xl border-white/55 px-3.5 py-4 text-center text-xs text-[color:var(--ink-faint)]">
+              No recent activity recorded for this node.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {detail.recentActivity.map((a) => (
+                <div
+                  key={a.id}
+                  className="glass-subtle flex items-start gap-2.5 rounded-2xl border-white/55 p-2.5 text-xs"
                 >
-                  <Avatar name={u.name} size={32} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[12.5px] font-semibold text-[color:var(--ink)] group-hover:text-[color:var(--esg-blue)]">{u.name}</span>
-                    <span className="block truncate text-[11px] text-[color:var(--ink-faint)]">{u.title || (ROLE_LABELS[u.role] ?? u.role.replaceAll("_", " "))}</span>
-                  </span>
-                  <StatusBadge status={u.status} />
-                </button>
+                  <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-[#3a7bff]" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="truncate font-semibold text-[color:var(--ink)]">
+                        {a.actorName}
+                      </span>
+                      <span className="shrink-0 text-[10px] text-[color:var(--ink-faint)]">
+                        {timeAgo(a.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-[11px] text-[color:var(--ink-soft)]">
+                      <span className="font-semibold text-[color:var(--ink)]">{a.action.replaceAll("_", " ")}</span>
+                      {a.targetLabel ? ` · ${a.targetLabel}` : ""}
+                    </p>
+                  </div>
+                </div>
               ))}
             </div>
           )}
@@ -1558,11 +1634,16 @@ const clampZoom = (z: number) => Math.max(0.25, Math.min(1.6, z));
 
 export default function HierarchyView() {
   const { navigate } = useWorkspace();
-  const { data, loading, error, refetch } = useApi<{ nodes: HierarchyNode[]; summary: HierarchySummary }>("/api/esg/hierarchy");
+  const { data, loading, error, refetch } = useApi<{ nodes: HierarchyNode[]; summary: HierarchySummary }>(
+    "/api/esg/hierarchy",
+    [],
+    { pollIntervalMs: 5000, eventFilter: "hierarchy" }
+  );
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   /* ── movable node canvas state ──
      PERF MODEL: React state is committed only at interaction END. All per-frame
@@ -1601,7 +1682,8 @@ export default function HierarchyView() {
 
   const detailReq = useApi<{ detail: HierarchyNodeDetail }>(
     selectedId ? `/api/esg/hierarchy?nodeId=${selectedId}` : null,
-    [selectedId]
+    [selectedId],
+    { pollIntervalMs: 5000, eventFilter: "hierarchy" }
   );
 
   const filtered = useMemo(
@@ -1911,6 +1993,7 @@ export default function HierarchyView() {
       floating={floating}
       onClose={() => setSelectedId(null)}
       onSelect={selectNode}
+      onInviteUser={() => setInviteOpen(true)}
     />
   );
 
@@ -2323,6 +2406,28 @@ export default function HierarchyView() {
           </>
         )}
       </AnimatePresence>
+
+      <CreateUserDialog
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
+        initialSubsidiaryId={
+          detailReq.data?.detail?.type === "subsidiary"
+            ? detailReq.data.detail.id
+            : detailReq.data?.detail?.breadcrumb.find((b) => b.type === "subsidiary")?.id
+        }
+        initialBusinessUnitId={
+          detailReq.data?.detail?.type === "unit"
+            ? detailReq.data.detail.id
+            : detailReq.data?.detail?.breadcrumb.find((b) => b.type === "unit")?.id
+        }
+        initialProjectId={
+          detailReq.data?.detail?.type === "project" ? detailReq.data.detail.id : undefined
+        }
+        onCreated={() => {
+          refetch();
+          if (selectedId) detailReq.refetch();
+        }}
+      />
     </div>
   );
 }

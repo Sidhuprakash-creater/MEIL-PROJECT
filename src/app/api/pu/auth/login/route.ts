@@ -134,6 +134,17 @@ export async function POST(req: NextRequest) {
         },
       }),
       audit('LOGIN_SUCCESS', 'SUCCESS'),
+      db.activityEvent.create({
+        data: {
+          actorName: user.name,
+          actorRole: user.role,
+          action: 'LOGIN',
+          targetType: 'Portal',
+          targetLabel: `Site operations portal (${scopeNames.project?.name ?? scopeNames.businessUnit?.name ?? scopeNames.subsidiary?.name ?? 'Project'})`,
+          orgLabel: scopeNames.subsidiary?.name ?? 'Group',
+          severity: 'INFO',
+        },
+      }),
     ]).catch(() => {})
 
     const cookie = await createSessionCookie(user.id)

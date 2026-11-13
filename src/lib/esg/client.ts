@@ -47,8 +47,32 @@ export const apiPatch = <T,>(path: string, body: unknown) =>
 export const apiDelete = <T,>(path: string, body?: unknown) =>
   request<T>(path, { method: "DELETE", body: JSON.stringify(body ?? {}) });
 
-/** Simple stale-while-revalidate data hook with manual refetch. */
-export function useApi<T>(path: string | null, deps: unknown[] = []) {
+export interface UseApiOptions {
+  pollIntervalMs?: number;
+  eventFilter?: string; // "users" | "hierarchy" | "activity" | "all"
+}
+
+/** Broadcast a real-time ESG data change event across all open views and browser tabs. */
+export function dispatchEsgUpdate(
+  type: "users" | "hierarchy" | "activity" | "all" = "all",
+  payload?: Record<string, unknown>
+) {
+  if (typeof window === "undefined") return;
+  try {
+    const detail = { type, payload, timestamp: Date.now() };
+    window.dispatchEvent(new CustomEvent("esg-data-update", { detail }));
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("esg-realtime-bus");
+      bc.postMessage(detail);
+      bc.close();
+    }
+  } catch (err) {
+    console.debug("[esg-realtime] dispatch error:", err);
+  }
+}
+
+/** Real-time stale-while-revalidate data hook with manual refetch, event-bus syncing & polling. */
+export function useApi<T>(path: string | null, deps: unknown[] = [], opts?: UseApiOptions) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(!!path);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +96,67 @@ export function useApi<T>(path: string | null, deps: unknown[] = []) {
   useEffect(() => {
     load();
   }, [path, ...deps]);
+
+  // Real-time updates: BroadcastChannel + CustomEvent + Visibility Focus + Optional Polling
+  useEffect(() => {
+    if (!path || typeof window === "undefined") return;
+
+    const handleEvent = (detail?: { type?: string }) => {
+      const targetType = detail?.type;
+      if (
+        !targetType ||
+        targetType === "all" ||
+        !opts?.eventFilter ||
+        opts.eventFilter === "all" ||
+        opts.eventFilter === targetType
+      ) {
+        void load(true);
+      }
+    };
+
+    const onCustomEvent = (e: Event) => {
+      handleEvent((e as CustomEvent).detail);
+    };
+
+    window.addEventListener("esg-data-update", onCustomEvent);
+
+    let bc: BroadcastChannel | null = null;
+    if ("BroadcastChannel" in window) {
+      try {
+        bc = new BroadcastChannel("esg-realtime-bus");
+        bc.onmessage = (ev) => handleEvent(ev.data);
+      } catch {
+        /* BroadcastChannel not available */
+      }
+    }
+
+    const onFocus = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void load(true);
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    let timer: NodeJS.Timeout | null = null;
+    if (opts?.pollIntervalMs && opts.pollIntervalMs > 0) {
+      timer = setInterval(() => {
+        if (typeof document !== "undefined" && document.visibilityState === "visible") {
+          void load(true);
+        }
+      }, opts.pollIntervalMs);
+    }
+
+    return () => {
+      window.removeEventListener("esg-data-update", onCustomEvent);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+      if (bc) {
+        bc.close();
+      }
+      if (timer) clearInterval(timer);
+    };
+  }, [path, load, opts?.pollIntervalMs, opts?.eventFilter]);
 
   return { data, loading, error, refetch: () => load(true) };
 }
