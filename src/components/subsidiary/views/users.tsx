@@ -135,15 +135,16 @@ function UserFormFields({
         }
       : EMPTY_USER_FORM
   );
-  const [errors, setErrors] = useState<{ name?: string; email?: string; role?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; email?: string; role?: string; projectId?: string }>({});
   const set = (k: keyof UserFormValues) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const submit = () => {
-    const errs: { name?: string; email?: string; role?: string } = {};
+    const errs: { name?: string; email?: string; role?: string; projectId?: string } = {};
     if (mode === "create") {
       if (form.name.trim().length < 2) errs.name = "User name is required (min 2 characters).";
       if (!EMAIL_RE.test(form.email.trim())) errs.email = "A valid email address is required.";
       if (!form.role) errs.role = "Select the role to assign.";
+      if (!form.projectId || form.projectId === "NONE") errs.projectId = "Please select a project for this user.";
     } else if (user && form.role && form.role !== user.role && !assignableRoles.includes(form.role)) {
       errs.role = "This role cannot be granted from a subsidiary workspace.";
     }
@@ -214,13 +215,20 @@ function UserFormFields({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Project" hint="Optional scope assignment">
-          <Select value={form.projectId || "NONE"} onValueChange={(v) => set("projectId")(v === "NONE" ? "" : v)}>
+        <Field label="Project" required={mode === "create"} error={errors.projectId} hint={mode === "create" ? "Select the project for this user" : undefined}>
+          <Select
+            value={form.projectId || "NONE"}
+            onValueChange={(v) => {
+              const pid = v === "NONE" ? "" : v;
+              setForm((f) => ({ ...f, projectId: pid }));
+              setErrors((e) => ({ ...e, projectId: undefined }));
+            }}
+          >
             <SelectTrigger className={`${inputCls} w-full`} aria-label="Project">
-              <SelectValue placeholder={projectOptions.length === 0 ? "No projects" : "Unassigned"} />
+              <SelectValue placeholder={projectOptions.length === 0 ? "No projects available" : "Select project"} />
             </SelectTrigger>
             <SelectContent className="glass-strong rounded-2xl border-white/70">
-              <SelectItem value="NONE">Unassigned</SelectItem>
+              {mode === "edit" && <SelectItem value="NONE">Unassigned</SelectItem>}
               {projectOptions.map((p) => (
                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
               ))}

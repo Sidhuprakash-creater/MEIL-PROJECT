@@ -305,11 +305,24 @@ export interface BrsrDisclosure {
   note: string;
 }
 
+export interface BrsrSectionImage {
+  id: string;
+  url: string;
+  caption?: string;
+  alt?: string;
+  widthPct?: number; // 25, 50, 75, 100
+  alignment?: "left" | "center" | "right" | "full";
+  aspectRatio?: string;
+}
+
 export interface BrsrSection {
   id: string;
   title: string;
   content: string;
+  contentType?: "markdown" | "html";
   sourceRefs: string[];
+  images?: BrsrSectionImage[];
+  pageBreakBefore?: boolean;
 }
 
 export interface BrsrSignoff {
@@ -431,6 +444,28 @@ export interface DashboardData {
   dataQuality: { id: string; title: string; issue: string; severity: string; ref: string }[];
   esgTrend: { month: string; scope1: number; scope2: number; renewable: number }[];
   categoryMix: { category: string; count: number; approved: number }[];
+  /** Live environmental footprint totals — powers the clickable Emissions / Electricity / Water cards. */
+  esgFootprint: EsgFootprint;
+}
+
+export interface EsgFootprint {
+  emissionsTco2e: number;
+  scope1Tco2e: number;
+  scope2Tco2e: number;
+  scope3Tco2e: number;
+  emissionsByScope: { label: string; value: number }[];
+  /** Grid electricity consumed, in GJ (normalized). */
+  electricityGj: number;
+  /** All energy sources combined, in GJ. */
+  totalEnergyGj: number;
+  renewableGj: number;
+  energyBySource: { source: string; gj: number }[];
+  /** Water withdrawal, in KL. */
+  waterKl: number;
+  waterConsumptionKl: number;
+  waterDischargeKl: number;
+  waterRecycledKl: number;
+  waterBySource: { source: string; kl: number }[];
 }
 
 export interface AnalyticsData {

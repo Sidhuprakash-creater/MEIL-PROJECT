@@ -27,8 +27,14 @@ export async function GET(req: NextRequest) {
        The BU Manager is included for visibility (but cannot be edited here). */
     const [usersAll, projectNames, tasks, subs] = await Promise.all([
       db.user.findMany({
-        where: { businessUnitId: ctx.businessUnitId, role: { notIn: ["GROUP_ADMIN", "ORG_MANAGER", "SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"] } },
-        orderBy: { joinedAt: "asc" },
+        where: {
+          OR: [
+            { businessUnitId: ctx.businessUnitId },
+            { project: { businessUnitId: ctx.businessUnitId } },
+          ],
+          role: { notIn: ["GROUP_ADMIN", "ORG_MANAGER", "SUBSIDIARY_ADMIN", "SUBSIDIARY_MANAGER"] },
+        },
+        orderBy: { joinedAt: "desc" },
       }),
       loadBuProjectNames(ctx.businessUnitId),
       db.task.findMany({ where: { businessUnitId: ctx.businessUnitId }, select: { assigneeFilter: true, assigneeType: true, assigneeLabel: true } }),
@@ -83,6 +89,10 @@ export async function POST(req: NextRequest) {
       projectId?: string;
       issueTempPassword?: boolean;
     };
+
+    if (!body.projectId) {
+      throw new BaError("Project selection is required when creating a BU user.", 400);
+    }
 
     try {
       const origin = new URL(req.url).origin;

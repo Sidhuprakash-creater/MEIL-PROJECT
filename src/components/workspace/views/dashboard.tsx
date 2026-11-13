@@ -10,10 +10,13 @@ import {
   BadgeCheck,
   CalendarClock,
   ChevronRight,
+  Droplets,
   FileCheck2,
+  Flame,
   FolderTree,
   LayoutDashboard,
   ListChecks,
+  Zap,
 } from "lucide-react";
 import {
   AlarmAlertIcon,
@@ -53,6 +56,8 @@ import {
 import { useWorkspace } from "@/lib/esg/store";
 import { useApi, fmtDate, fmtNumber, timeAgo } from "@/lib/esg/client";
 import { ROLE_LABELS, type DashboardData, type Subsidiary } from "@/lib/esg/types";
+import { generateFootprintPdf, type FootprintKind } from "@/lib/esg/dashboard-pdf";
+import { useToast } from "@/hooks/use-toast";
 import {
   Avatar,
   Chip,
@@ -60,6 +65,7 @@ import {
   EmptyState,
   ErrorState,
   GlassCard,
+  KpiCard,
   LoadingBlock,
   PageHeader,
   SectionCard,
@@ -345,6 +351,34 @@ export default function DashboardView() {
 
   const latest = data?.esgTrend?.[data.esgTrend.length - 1];
 
+  const fp = data?.esgFootprint;
+  const { toast } = useToast();
+
+  const FOOTPRINT_LABELS: Record<FootprintKind, string> = {
+    emissions: "GHG Emissions",
+    energy: "Electricity & Energy",
+    water: "Water Use",
+  };
+
+  /** Click a footprint card → auto-generate & download its pie-chart PDF. */
+  const handleFootprintPdf = (kind: FootprintKind) => {
+    if (!fp) return;
+    const ry = Number(reportingYear.split('-')[0].replace('FY ', '')) || new Date().getFullYear();
+    try {
+      generateFootprintPdf({ kind, footprint: fp, reportingYear: ry, esgTrend: data?.esgTrend });
+      toast({
+        title: `${FOOTPRINT_LABELS[kind]} PDF generated`,
+        description: "Pie-chart report downloaded — check your downloads folder.",
+      });
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "PDF generation failed",
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    }
+  };
+
   const quickActions: { label: string; icon: ComponentType<PremiumIconProps>; hint: string; tint: string; run: () => void }[] = [
     { label: "Invite user", icon: UserPlusIcon, hint: "Add a team member", tint: "#3a7bff", run: () => navigate("users", { create: Date.now() }) },
     { label: "Assign task", icon: TaskCheckIcon, hint: "Create a reporting task", tint: "#6a5bff", run: () => navigate("tasks", { create: Date.now() }) },
@@ -549,7 +583,112 @@ export default function DashboardView() {
         </div>
       </GlassCard>
 
-      {/* ── 1b. Submission status strip ── */}
+      {/* ── 1b. Environmental footprint — clickable cards ── */}
+      {fp && (
+        <section aria-labelledby="cc-footprint-overview" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 id="cc-footprint-overview" className="text-[15px] font-semibold text-[color:var(--ink)]">
+                Environmental footprint
+              </h3>
+              <p className={`text-xs ${INK_FAINT}`}>Click a card to download a pie-chart PDF report</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <button
+              onClick={() => handleFootprintPdf("emissions")}
+              aria-label={`View emissions report — ${fmtNumber(fp.emissionsTco2e)} tCO2e`}
+              className="glass-subtle group relative flex flex-col items-start gap-2 rounded-2xl border border-white/55 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:shadow-[0_10px_26px_rgba(23,38,61,0.10)]"
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(195,74,74,0.12)" }}>
+                  <Flame className="h-[18px] w-[18px]" style={{ color: "#c34a4a" }} />
+                </span>
+                <span className="rounded-full bg-[rgba(195,74,74,0.15)] px-2 py-0.5 text-[10px] font-semibold text-[#a53b3b]">
+                  {fp.emissionsByScope.length} scopes
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <CountUp
+                  value={fp.emissionsTco2e}
+                  className="tabular text-[26px] font-semibold leading-8 tracking-tight text-[color:var(--ink)]"
+                  format={(n) => fmtNumber(n, 2)}
+                />
+                <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>GHG Emissions</span>
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-[#a53b3b]">
+                  Scope 1: {fmtNumber(fp.scope1Tco2e, 2)} · Scope 2: {fmtNumber(fp.scope2Tco2e, 2)} · Scope 3: {fmtNumber(fp.scope3Tco2e, 2)}
+                </span>
+              </div>
+              <div className="relative mt-3 flex items-center justify-between border-t border-[rgba(125,177,216,0.22)] pt-2.5">
+                <span className={`text-[11px] ${INK_FAINT}`}>Click to download pie-chart PDF</span>
+                <ArrowUpRight className="h-3.5 w-3.5 text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => handleFootprintPdf("energy")}
+              aria-label={`View electricity & energy report — ${fmtNumber(fp.electricityGj)} GJ`}
+              className="glass-subtle group relative flex flex-col items-start gap-2 rounded-2xl border border-white/55 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:shadow-[0_10px_26px_rgba(23,38,61,0.10)]"
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(58,123,255,0.12)" }}>
+                  <Zap className="h-[18px] w-[18px]" style={{ color: "#3a7bff" }} />
+                </span>
+                <span className="rounded-full bg-[rgba(58,123,255,0.15)] px-2 py-0.5 text-[10px] font-semibold text-[#1d5fd6]">
+                  {fp.energyBySource.length} sources
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <CountUp
+                  value={fp.electricityGj}
+                  className="tabular text-[26px] font-semibold leading-8 tracking-tight text-[color:var(--ink)]"
+                  format={(n) => fmtNumber(n, 1)}
+                />
+                <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>Grid Electricity</span>
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-[#1d5fd6]">
+                  Total: {fmtNumber(fp.totalEnergyGj, 1)} GJ · Renewable: {fmtNumber(fp.renewableGj, 1)} GJ
+                </span>
+              </div>
+              <div className="relative mt-3 flex items-center justify-between border-t border-[rgba(125,177,216,0.22)] pt-2.5">
+                <span className={`text-[11px] ${INK_FAINT}`}>Click to download pie-chart PDF</span>
+                <ArrowUpRight className="h-3.5 w-3.5 text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+              </div>
+            </button>
+
+            <button
+              onClick={() => handleFootprintPdf("water")}
+              aria-label={`View water use report — ${fmtNumber(fp.waterKl)} KL`}
+              className="glass-subtle group relative flex flex-col items-start gap-2 rounded-2xl border border-white/55 p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/75 hover:shadow-[0_10px_26px_rgba(23,38,61,0.10)]"
+            >
+              <div className="flex items-center justify-between w-full">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "rgba(22,163,163,0.12)" }}>
+                  <Droplets className="h-[18px] w-[18px]" style={{ color: "#16a3a3" }} />
+                </span>
+                <span className="rounded-full bg-[rgba(22,163,163,0.15)] px-2 py-0.5 text-[10px] font-semibold text-[#108a8a]">
+                  {fp.waterBySource.length} sources
+                </span>
+              </div>
+              <div className="flex flex-col gap-1">
+                <CountUp
+                  value={fp.waterKl}
+                  className="tabular text-[26px] font-semibold leading-8 tracking-tight text-[color:var(--ink)]"
+                  format={(n) => fmtNumber(n, 1)}
+                />
+                <span className={`text-[10.5px] font-semibold uppercase tracking-wider ${INK_FAINT}`}>Water Withdrawal</span>
+                <span className="flex items-center gap-1 text-[10px] font-semibold text-[#108a8a]">
+                  Discharge: {fmtNumber(fp.waterDischargeKl, 1)} · Recycled: {fmtNumber(fp.waterRecycledKl, 1)} KL
+                </span>
+              </div>
+              <div className="relative mt-3 flex items-center justify-between border-t border-[rgba(125,177,216,0.22)] pt-2.5">
+                <span className={`text-[11px] ${INK_FAINT}`}>Click to download pie-chart PDF</span>
+                <ArrowUpRight className="h-3.5 w-3.5 text-[color:var(--ink-faint)] opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true" />
+              </div>
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* ── 1c. Submission status strip ── */}
       <section aria-labelledby="cc-status-overview">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>

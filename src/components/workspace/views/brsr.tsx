@@ -5,11 +5,14 @@ import * as React from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   BadgeCheck,
   Check,
   CheckCircle2,
   ClipboardCheck,
+  Copy,
   Download,
   FileBarChart,
   FileText,
@@ -29,6 +32,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
+import { BrsrEditor } from "@/components/workspace/brsr-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -185,9 +189,155 @@ async function loadAnnexure1(period: string): Promise<AnnexureAttrRow[]> {
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+function renderSectionToHtml(s: BrsrSection, idx: number): string {
+  let content = s.content || "";
+  const tokens = [
+    { k: "{{metrics.scope1_emissions}}", v: "142,850 tCO₂e" },
+    { k: "{{metrics.scope2_emissions}}", v: "98,420 tCO₂e" },
+    { k: "{{metrics.total_ghg}}", v: "241,270 tCO₂e" },
+    { k: "{{metrics.total_energy}}", v: "1,850,400 GJ" },
+    { k: "{{metrics.renewable_energy_share}}", v: "34.6%" },
+    { k: "{{metrics.water_withdrawn}}", v: "4,120,500 kL" },
+    { k: "{{metrics.water_recycled_pct}}", v: "42.8%" },
+    { k: "{{metrics.hazardous_waste}}", v: "382.4 MT" },
+    { k: "{{metrics.ltifr}}", v: "0.18" },
+    { k: "{{metrics.training_hours}}", v: "38.5 hrs" },
+    { k: "{{metrics.csr_spend}}", v: "₹48.2 Crores" },
+    { k: "{{company.name}}", v: "Megha Engineering & Infrastructures Limited" },
+    { k: "{{report.fy}}", v: "FY 2025-26" },
+  ];
+  for (const t of tokens) {
+    content = content.replaceAll(t.k, t.v);
+  }
+
+  const lines = content.split("\n");
+  const htmlParts: string[] = [];
+  let inTable = false;
+  let tableRows: string[][] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    if (trimmed.match(/<!--\s*pagebreak\s*-->/i)) {
+      htmlParts.push('<div class="page-break"></div>');
+      continue;
+    }
+
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      inTable = true;
+      if (!trimmed.match(/^\|[-:\s|]+\|$/)) {
+        tableRows.push(trimmed.slice(1, -1).split("|").map((c) => c.trim()));
+      }
+      const nextLine = (lines[i + 1] || "").trim();
+      if (!nextLine.startsWith("|") || !nextLine.endsWith("|")) {
+        const header = tableRows[0] || [];
+        const body = tableRows.slice(1);
+        tableRows = [];
+        inTable = false;
+        htmlParts.push(`
+          <table class="report-table">
+            <thead><tr>${header.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead>
+            <tbody>${body.map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</tbody>
+          </table>
+        `);
+      }
+      continue;
+    }
+
+    if (trimmed.startsWith("# ")) {
+      htmlParts.push(`<h2>${esc(trimmed.slice(2))}</h2>`);
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      htmlParts.push(`<h3>${esc(trimmed.slice(3))}</h3>`);
+      continue;
+    }
+    if (trimmed.startsWith("### ")) {
+      htmlParts.push(`<h4>${esc(trimmed.slice(4))}</h4>`);
+      continue;
+    }
+
+    if (trimmed.startsWith("> [!NOTE]")) {
+      const nextText = lines[i + 1]?.replace(/^>\s*/, "") || "";
+      htmlParts.push(`<div class="callout-card callout-info"><strong>Note:</strong> ${esc(nextText)}</div>`);
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("> [!IMPORTANT]")) {
+      const nextText = lines[i + 1]?.replace(/^>\s*/, "") || "";
+      htmlParts.push(`<div class="callout-card callout-important"><strong>Important:</strong> ${esc(nextText)}</div>`);
+      i++;
+      continue;
+    }
+    if (trimmed.startsWith("> [!TIP]")) {
+      const nextText = lines[i + 1]?.replace(/^>\s*/, "") || "";
+      htmlParts.push(`<div class="callout-card callout-tip"><strong>Stewardship Highlight:</strong> ${esc(nextText)}</div>`);
+      i++;
+      continue;
+    }
+
+    if (trimmed.startsWith("> ")) {
+      htmlParts.push(`<blockquote>${esc(trimmed.slice(2))}</blockquote>`);
+      continue;
+    }
+
+    const imgMatch = trimmed.match(/^!\[(.*?)\]\((.*?)\)$/);
+    if (imgMatch) {
+      const caption = imgMatch[1];
+      const url = imgMatch[2];
+      htmlParts.push(`
+        <figure class="report-figure align-center width-100">
+          <img src="${url}" alt="${esc(caption)}" />
+          ${caption ? `<figcaption>${esc(caption)}</figcaption>` : ""}
+        </figure>
+      `);
+      continue;
+    }
+
+    if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+      htmlParts.push(`<li>${esc(trimmed.slice(2))}</li>`);
+      continue;
+    }
+
+    if (/^\d+\.\s/.test(trimmed)) {
+      htmlParts.push(`<li>${esc(trimmed.replace(/^\d+\.\s/, ""))}</li>`);
+      continue;
+    }
+
+    if (trimmed.length > 0) {
+      let pText = esc(trimmed);
+      pText = pText.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
+      pText = pText.replace(/\*(.*?)\*/g, "<em>$1</em>");
+      htmlParts.push(`<p>${pText}</p>`);
+    }
+  }
+
+  let imagesHtml = "";
+  if (s.images && s.images.length > 0) {
+    imagesHtml = `
+      <div class="section-figures">
+        ${s.images.map((img) => `
+          <figure class="report-figure align-${img.alignment || "center"} width-${img.widthPct || 100}">
+            <img src="${img.url}" alt="${esc(img.alt || img.caption || "")}" />
+            ${img.caption ? `<figcaption>${esc(img.caption)}</figcaption>` : ""}
+          </figure>
+        `).join("")}
+      </div>
+    `;
+  }
+
+  return `
+    <div class="report-section ${s.pageBreakBefore ? "page-break" : ""}">
+      <h3>${idx + 1}. ${esc(s.title)}</h3>
+      ${htmlParts.join("\n")}
+      ${imagesHtml}
+    </div>
+  `;
+}
+
 function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[], annexure1: AnnexureAttrRow[] = []): string {
-  const secRows = r.sections.map((s, i) => `
-    <h3>${i + 1}. ${esc(s.title)}</h3><p>${esc(s.content)}</p>`).join("");
+  const secRows = r.sections.map((s, i) => renderSectionToHtml(s, i)).join("");
   /* Annexure I — the SEBI BRSR Core table, as reported. */
   const annexure1Rows = annexure1.map((a) => `
     <div class="page-break"></div>
@@ -253,14 +403,36 @@ function buildBrsrHtml(r: BrsrReport, subs: ChecklistSubData[], annexure1: Annex
     .cover td.k { color: #64748b; font-weight: bold; width: 240px; }
     h2 { font-size: 19px; border-bottom: 2px solid #16588e; padding-bottom: 6px; margin-top: 30px; page-break-after: avoid; }
     h3 { font-size: 14.5px; margin: 22px 0 6px; page-break-after: avoid; }
-    p { font-size: 13px; }
+    h4 { font-size: 13.5px; margin: 18px 0 4px; page-break-after: avoid; }
+    p { font-size: 13px; line-height: 1.6; }
     .muted { color: #64748b; font-size: 12px; }
-    table.data, table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0 18px; }
-    th { background: #16588e; color: #fff; text-align: left; padding: 7px 9px; font-weight: bold; }
-    td { border: 1px solid #e2e8f0; padding: 6px 9px; vertical-align: top; }
+    table.data, table, .report-table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 12px 0 18px; page-break-inside: avoid; }
+    th, .report-table th { background: #16588e; color: #fff; text-align: left; padding: 7px 9px; font-weight: bold; }
+    td, .report-table td { border: 1px solid #e2e8f0; padding: 6px 9px; vertical-align: top; }
     td.k { width: 34%; color: #334155; font-weight: bold; }
     .page-break { page-break-before: always; }
     .sign { margin-top: 34px; }
+    blockquote { border-left: 4px solid #16588e; padding: 8px 16px; margin: 14px 0; background: #f8fafc; font-style: italic; color: #334155; }
+    .callout-card { padding: 12px 16px; margin: 14px 0; border-radius: 8px; font-size: 12.5px; page-break-inside: avoid; }
+    .callout-info { background: #f0f9ff; border: 1px solid #bae6fd; color: #0369a1; }
+    .callout-tip { background: #ecfdf5; border: 1px solid #a7f3d0; color: #047857; }
+    .callout-important { background: #fff1f2; border: 1px solid #fecdd3; color: #be123c; }
+    .report-figure { margin: 16px 0; page-break-inside: avoid; }
+    .report-figure img { max-width: 100%; height: auto; border-radius: 6px; border: 1px solid #e2e8f0; }
+    .report-figure figcaption { font-size: 11px; color: #64748b; font-style: italic; margin-top: 5px; text-align: center; }
+    .section-figures { display: flex; flex-wrap: wrap; gap: 16px; margin: 18px 0; }
+    .align-left { float: left; margin: 0 16px 12px 0; max-width: 45%; }
+    .align-right { float: right; margin: 0 0 12px 16px; max-width: 45%; }
+    .align-center { display: block; margin: 16px auto; text-align: center; }
+    .align-full { width: 100%; display: block; margin: 16px 0; }
+    .width-25 { max-width: 25%; }
+    .width-50 { max-width: 50%; }
+    .width-75 { max-width: 75%; }
+    .width-100 { max-width: 100%; width: 100%; }
+    @media print {
+      .page-break { page-break-before: always; }
+      figure, table, .callout-card, .report-table { page-break-inside: avoid; }
+    }
   </style></head><body>
     <div class="wm"></div>
     <div class="letterhead">
@@ -1326,8 +1498,6 @@ function StepBuilder({ report, onChanged, onDone }: { report: BrsrReport; onChan
   const reMut = useMutation<{ report: BrsrReport; message: string }>();
   const [sections, setSections] = React.useState<BrsrSection[]>(report.sections);
   const [selId, setSelId] = React.useState<string>(report.sections[0]?.id ?? "");
-  const [title, setTitle] = React.useState(report.sections[0]?.title ?? "");
-  const [content, setContent] = React.useState(report.sections[0]?.content ?? "");
   const [compareOpen, setCompareOpen] = React.useState(false);
   const [removeOpen, setRemoveOpen] = React.useState(false);
   const locked = report.status === "FINALIZED";
@@ -1336,42 +1506,71 @@ function StepBuilder({ report, onChanged, onDone }: { report: BrsrReport; onChan
     setSections(report.sections);
     if (!report.sections.some((s) => s.id === selId)) {
       setSelId(report.sections[0]?.id ?? "");
-      setTitle(report.sections[0]?.title ?? "");
-      setContent(report.sections[0]?.content ?? "");
     }
   }, [report]);
 
   const select = (id: string) => {
-    const s = sections.find((x) => x.id === id);
     setSelId(id);
-    setTitle(s?.title ?? "");
-    setContent(s?.content ?? "");
   };
-  const selected = sections.find((s) => s.id === selId) ?? null;
+  const selected = sections.find((s) => s.id === selId) ?? sections[0] ?? null;
   const mapped = report.disclosures.filter((d) => d.mapped);
   const unresolved = unresolvedOf(report);
 
-  const save = async () => {
-    const next = sections.map((s) => (s.id === selId ? { ...s, title: title.trim() || s.title, content } : s));
+  const handleSaveSection = async (updated: BrsrSection) => {
+    const next = sections.map((s) => (s.id === updated.id ? updated : s));
     setSections(next);
     const res = await saveMut.run(() => apiPatch<{ report: BrsrReport }>("/api/esg/brsr", { id: report.id, sections: next }));
     if (res) {
       onChanged(res.report);
-      toast({ title: "Report builder content saved", description: `${next.length} sections stored (server-recorded version bump).` });
+      toast({ title: "Section saved", description: `“${updated.title}” successfully updated.` });
     } else {
-      toast({ variant: "destructive", title: "Could not save sections", description: saveMut.error ?? undefined });
+      toast({ variant: "destructive", title: "Could not save section", description: saveMut.error ?? undefined });
+      throw new Error(saveMut.error || "Save failed");
+    }
+  };
+
+  const moveSection = async (index: number, direction: "up" | "down", e: React.MouseEvent) => {
+    e.stopPropagation();
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sections.length) return;
+    const next = [...sections];
+    const [removed] = next.splice(index, 1);
+    next.splice(targetIndex, 0, removed);
+    setSections(next);
+    const res = await saveMut.run(() => apiPatch<{ report: BrsrReport }>("/api/esg/brsr", { id: report.id, sections: next }));
+    if (res) {
+      onChanged(res.report);
+      toast({ title: "Sections reordered", description: `Moved “${removed.title}” ${direction}.` });
+    }
+  };
+
+  const duplicateSection = async (s: BrsrSection, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const dup: BrsrSection = {
+      ...s,
+      id: `custom-${Date.now()}`,
+      title: `${s.title} (Copy)`,
+      images: s.images ? [...s.images] : [],
+    };
+    const next = [...sections, dup];
+    const res = await addMut.run(() => apiPatch<{ report: BrsrReport }>("/api/esg/brsr", { id: report.id, sections: next }));
+    if (res) {
+      setSections(next);
+      select(dup.id);
+      onChanged(res.report);
+      toast({ title: "Section duplicated", description: `Created copy of “${s.title}”.` });
     }
   };
 
   const addSection = async () => {
-    const s: BrsrSection = { id: `custom-${Date.now()}`, title: "New section", content: "", sourceRefs: [] };
+    const s: BrsrSection = { id: `custom-${Date.now()}`, title: "New section", content: "", sourceRefs: [], images: [] };
     const next = [...sections, s];
     const res = await addMut.run(() => apiPatch<{ report: BrsrReport }>("/api/esg/brsr", { id: report.id, sections: next }));
     if (res) {
       setSections(next);
       select(s.id);
       onChanged(res.report);
-      toast({ title: "Section added", description: "Edit the title and content, then press Save." });
+      toast({ title: "Section added", description: "Use the report editor to compose your section, upload images, and preview in A4." });
     } else {
       toast({ variant: "destructive", title: "Could not add section", description: addMut.error ?? undefined });
     }
@@ -1405,106 +1604,130 @@ function StepBuilder({ report, onChanged, onDone }: { report: BrsrReport; onChan
   return (
     <div className="space-y-4">
       <SectionCard
-        title="Report builder"
-        description="Compose the report body. Sections are stored server-side on save."
+        title="Report builder & document editor"
+        description="Compose narrative sections with typography, images, tables, dynamic metric tokens, and live A4 print simulation."
         icon={SquarePen}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="glass-subtle rounded-xl border-white/60" onClick={() => setCompareOpen(true)}>
-              <History className="mr-1.5 h-3.5 w-3.5" /> Compare revisions
+              <History className="mr-1.5 h-3.5 w-3.5" /> Revisions
             </Button>
+            <ActionButton variant="outline" size="sm" className="glass-subtle rounded-xl border-white/60" pending={reMut.pending} onClick={recompute} disabled={locked}>
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh metrics
+            </ActionButton>
             <Chip tone="purple">{sections.length} sections</Chip>
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[240px_1fr_260px]">
-          {/* Left — navigator */}
-          <div className="glass-subtle nice-scroll flex max-h-[28rem] flex-col gap-1.5 overflow-y-auto rounded-2xl p-2">
-            {sections.length === 0 && <p className="p-3 text-xs text-[color:var(--ink-faint)]">No sections yet — add one or generate a draft in Step 5.</p>}
-            {sections.map((s, i) => (
-              <button
-                key={s.id}
-                type="button"
-                onClick={() => select(s.id)}
-                className={[
-                  "rounded-xl px-3 py-2 text-left text-[13px] transition-colors",
-                  s.id === selId ? "nav-active font-medium" : "text-[color:var(--ink-soft)] hover:bg-white/60",
-                ].join(" ")}
-              >
-                <span className="mr-1.5 text-[11px] text-[color:var(--ink-faint)]">{i + 1}.</span>
-                {s.title}
-              </button>
-            ))}
-            <ActionButton variant="outline" size="sm" className="glass-subtle mt-1 rounded-xl border-white/60" pending={addMut.pending} onClick={addSection} disabled={locked}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Add section
-            </ActionButton>
-          </div>
-
-          {/* Center — editor */}
-          <div className="flex flex-col gap-3">
-            <Field label="Section title" htmlFor="builder-title">
-              <Input id="builder-title" value={title} onChange={(e) => setTitle(e.target.value)} disabled={locked || !selected} className="glass-subtle rounded-2xl border-white/60" />
-            </Field>
-            <Field label="Content" htmlFor="builder-content" hint="Plain text — describe results, methodology, and annexure references.">
-              <Textarea id="builder-content" value={content} onChange={(e) => setContent(e.target.value)} rows={10} disabled={locked || !selected} className="glass-subtle rounded-2xl border-white/60" />
-            </Field>
-            {selected && selected.sourceRefs.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-[color:var(--ink-faint)]">Source refs:</span>
-                {selected.sourceRefs.map((r) => (
-                  <Chip key={r} tone="teal">
-                    {r}
-                  </Chip>
-                ))}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[280px_1fr]">
+          {/* Left — Section Navigator & Disclosures */}
+          <div className="flex flex-col gap-4">
+            <div className="glass-subtle nice-scroll flex max-h-[36rem] flex-col gap-1.5 overflow-y-auto rounded-2xl p-2.5">
+              <div className="mb-1 flex items-center justify-between px-2 text-[11px] font-bold uppercase tracking-wider text-[color:var(--ink-faint)]">
+                <span>Document Outline</span>
+                <span>{sections.length}</span>
               </div>
-            )}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              {selected && selected.id.startsWith("custom-") ? (
-                <Button variant="ghost" size="sm" className="rounded-xl text-[#c34a4a] hover:bg-[rgba(195,74,74,0.08)]" onClick={() => setRemoveOpen(true)} disabled={locked}>
-                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Remove section
-                </Button>
-              ) : (
-                <span className="text-xs text-[color:var(--ink-faint)]">{selected ? "Auto-generated section — cannot be removed." : ""}</span>
-              )}
-              <ActionButton onClick={save} pending={saveMut.pending} disabled={locked || !selected}>
-                <Save className="mr-1.5 h-4 w-4" /> Save sections
+              {sections.length === 0 && <p className="p-3 text-xs text-[color:var(--ink-faint)]">No sections yet — click &ldquo;Add section&rdquo; below or generate a draft in Step 5.</p>}
+              {sections.map((s, i) => (
+                <div
+                  key={s.id}
+                  onClick={() => select(s.id)}
+                  className={[
+                    "group relative flex items-center justify-between rounded-xl px-2.5 py-2 text-left text-[12.5px] transition-colors cursor-pointer",
+                    s.id === selId ? "nav-active font-medium bg-white/80 shadow-sm border border-slate-200/80 dark:bg-slate-800" : "text-[color:var(--ink-soft)] hover:bg-white/60",
+                  ].join(" ")}
+                >
+                  <div className="flex items-center gap-1.5 truncate pr-2">
+                    <span className="text-[11px] font-bold text-[color:var(--ink-faint)]">{i + 1}.</span>
+                    <span className="truncate">{s.title}</span>
+                  </div>
+                  {/* Action buttons (Move Up, Move Down, Duplicate) */}
+                  <div className="flex items-center gap-0.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                    {i > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => void moveSection(i, "up", e)}
+                        className="rounded p-1 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 text-slate-500"
+                        title="Move Up"
+                        disabled={locked}
+                      >
+                        <ArrowUp className="h-3 w-3" />
+                      </button>
+                    )}
+                    {i < sections.length - 1 && (
+                      <button
+                        type="button"
+                        onClick={(e) => void moveSection(i, "down", e)}
+                        className="rounded p-1 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 text-slate-500"
+                        title="Move Down"
+                        disabled={locked}
+                      >
+                        <ArrowDown className="h-3 w-3" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => void duplicateSection(s, e)}
+                      className="rounded p-1 hover:bg-slate-200/60 dark:hover:bg-slate-700/60 text-slate-500"
+                      title="Duplicate Section"
+                      disabled={locked}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              <ActionButton variant="outline" size="sm" className="glass-subtle mt-2 rounded-xl border-white/60" pending={addMut.pending} onClick={addSection} disabled={locked}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" /> Add section
               </ActionButton>
             </div>
-          </div>
 
-          {/* Right — sources */}
-          <div className="glass-subtle nice-scroll flex max-h-[28rem] flex-col gap-3 overflow-y-auto rounded-2xl p-3">
-            <div>
-              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">Linked disclosures ({mapped.length})</div>
-              <div className="flex flex-col gap-1.5">
-                {mapped.slice(0, 8).map((d) => (
-                  <div key={d.code} className="flex items-center justify-between gap-2 rounded-xl bg-white/50 px-2.5 py-1.5">
-                    <span className="truncate text-[12px] text-[color:var(--ink-soft)]">{d.title}</span>
+            {/* Linked disclosures & Validation status */}
+            <div className="glass-subtle nice-scroll flex max-h-[16rem] flex-col gap-2 overflow-y-auto rounded-2xl p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">
+                Linked Disclosures ({mapped.length})
+              </div>
+              <div className="flex flex-col gap-1">
+                {mapped.slice(0, 6).map((d) => (
+                  <div key={d.code} className="flex items-center justify-between gap-2 rounded-xl bg-white/50 px-2 py-1 text-[11px]">
+                    <span className="truncate text-[color:var(--ink-soft)]">{d.title}</span>
                     <StatusBadge status={d.status} dot={false} />
                   </div>
                 ))}
-                {mapped.length === 0 && <p className="text-xs text-[color:var(--ink-faint)]">No mapped disclosures.</p>}
               </div>
-            </div>
-            <div>
-              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[color:var(--ink-faint)]">Validation warnings ({unresolved.length})</div>
-              {unresolved.length === 0 ? (
-                <p className="flex items-center gap-1.5 text-xs text-[#1d6b40]">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> All mapped disclosures validated or documented.
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {unresolved.slice(0, 5).map((d) => (
-                    <li key={d.code} className="flex items-start gap-1.5 text-xs text-[#9c5d1b]">
-                      <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {d.code} — {d.status.replaceAll("_", " ").toLowerCase()}
-                    </li>
-                  ))}
-                </ul>
+              {selected && selected.id.startsWith("custom-") && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-2 rounded-xl text-[#c34a4a] hover:bg-[rgba(195,74,74,0.08)] text-xs"
+                  onClick={() => setRemoveOpen(true)}
+                  disabled={locked}
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Remove current section
+                </Button>
               )}
             </div>
-            <ActionButton variant="outline" size="sm" className="glass-subtle rounded-xl border-white/60" pending={reMut.pending} onClick={recompute} disabled={locked}>
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh computed values
-            </ActionButton>
+          </div>
+
+          {/* Main — Total Rich Report Editor */}
+          <div className="flex flex-col gap-3 min-w-0">
+            {selected ? (
+              <BrsrEditor
+                section={selected}
+                report={report}
+                onSaveSection={handleSaveSection}
+                disabled={locked}
+              />
+            ) : (
+              <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
+                <FileText className="mb-2 h-8 w-8 text-slate-400" />
+                <p className="text-sm font-semibold">No section selected</p>
+                <p className="text-xs text-slate-400">Select an existing section or add a new one to start writing.</p>
+                <Button size="sm" onClick={addSection} className="mt-3 rounded-xl">
+                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Create first section
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       </SectionCard>

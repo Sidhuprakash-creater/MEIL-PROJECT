@@ -364,6 +364,7 @@ function InviteDialog({
     if (name.trim().length < 2) return setErr("User name is required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setErr("A valid email is required.");
     if (!role) return setErr("Pick a contributor role.");
+    if (!projectId) return setErr("Please select a project for this user.");
     onInvite({
       name: name.trim(),
       email: email.trim().toLowerCase(),
@@ -399,9 +400,9 @@ function InviteDialog({
           <Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} className={inputCls} placeholder="Job title" /></Field>
           <Field label="Phone"><Input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputCls} placeholder="+91…" /></Field>
         </div>
-        <Field label="Project (optional)" hint="Attach this user to a project under your BU.">
+        <Field label="Project" required error={err && !projectId ? err : null} hint="Select the project under your BU.">
           <Select value={projectId} onValueChange={setProjectId}>
-            <SelectTrigger className={inputCls}><SelectValue placeholder="No specific project" /></SelectTrigger>
+            <SelectTrigger className={inputCls}><SelectValue placeholder="Select a project" /></SelectTrigger>
             <SelectContent className="glass-strong rounded-2xl border-white/70">
               {buProjects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
             </SelectContent>
@@ -475,11 +476,10 @@ function EditDialog({
               </SelectContent>
             </Select>
           </Field>
-          <Field label="Project (optional)">
+          <Field label="Project" required>
             <Select value={projectId} onValueChange={(v) => { setProjectId(v); setDirty(true); }}>
-              <SelectTrigger className={inputCls}><SelectValue placeholder="No specific project" /></SelectTrigger>
+              <SelectTrigger className={inputCls}><SelectValue placeholder="Select a project" /></SelectTrigger>
               <SelectContent className="glass-strong rounded-2xl border-white/70">
-                <SelectItem value="">No specific project</SelectItem>
                 {buProjects.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>

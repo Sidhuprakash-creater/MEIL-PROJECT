@@ -34,8 +34,15 @@ export async function GET(request: Request) {
     projectId: session.user.scope.project?.id ?? null,
   };
 
+  const whereClause =
+    statusFilter === "PENDING" || statusFilter === "PENDING_ADMIN"
+      ? { status: { in: ["PENDING_ADMIN", "EMAIL_TOKEN_SENT"] } }
+      : statusFilter
+        ? { status: statusFilter }
+        : undefined;
+
   const rows = await db.passwordResetRequest.findMany({
-    where: statusFilter ? { status: statusFilter } : undefined,
+    where: whereClause,
     include: {
       user: {
         select: {
@@ -49,8 +56,15 @@ export async function GET(request: Request) {
           businessUnitId: true,
           projectId: true,
           subsidiary: { select: { name: true, code: true } },
-          businessUnit: { select: { name: true, code: true } },
-          project: { select: { name: true, code: true } },
+          businessUnit: { select: { name: true, code: true, subsidiaryId: true } },
+          project: {
+            select: {
+              name: true,
+              code: true,
+              businessUnitId: true,
+              businessUnit: { select: { id: true, subsidiaryId: true } },
+            },
+          },
         },
       },
     },
@@ -59,7 +73,21 @@ export async function GET(request: Request) {
   });
 
   const visible = rows
-    .filter((r) => canAdminReviewResetRequest(actor, r.user))
+    .filter((r) => {
+      const target = {
+        id: r.user.id,
+        role: r.user.role,
+        subsidiaryId:
+          r.user.subsidiaryId ||
+          r.user.businessUnit?.subsidiaryId ||
+          r.user.project?.businessUnit?.subsidiaryId ||
+          null,
+        businessUnitId:
+          r.user.businessUnitId || r.user.project?.businessUnitId || null,
+        projectId: r.user.projectId || null,
+      };
+      return canAdminReviewResetRequest(actor, target);
+    })
     .map((r) => ({
       id: r.id,
       userId: r.userId,

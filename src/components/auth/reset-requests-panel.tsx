@@ -47,30 +47,16 @@ export function ResetRequestsPanel({ onUpdated }: { onUpdated?: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      const qs = showAll ? "" : "?status=PENDING_ADMIN";
+      const qs = showAll ? "" : "?status=PENDING";
       const res = await fetch(`/api/auth/reset-requests${qs}`);
       const data = await res.json();
       if (!res.ok) {
         setError(data?.error || "Could not load password reset queue.");
         setRequests([]);
+        setPendingCount(0);
       } else {
-        let items: ResetRequestItem[] = data.requests ?? [];
-        if (!showAll) {
-          // Include EMAIL_TOKEN_SENT alongside PENDING_ADMIN when viewing pending queue
-          const allRes = await fetch("/api/auth/reset-requests");
-          const allData = await allRes.json();
-          if (allRes.ok) {
-            items = (allData.requests ?? []).filter(
-              (r: ResetRequestItem) => r.status === "PENDING_ADMIN" || r.status === "EMAIL_TOKEN_SENT"
-            );
-            setPendingCount(allData.pendingCount ?? items.length);
-          } else {
-            setPendingCount(data.pendingCount ?? items.length);
-          }
-        } else {
-          setPendingCount(data.pendingCount ?? 0);
-        }
-        setRequests(items);
+        setRequests(data.requests ?? []);
+        setPendingCount(data.pendingCount ?? 0);
       }
     } catch {
       setError("Network error while checking password reset requests.");

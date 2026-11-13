@@ -23,8 +23,15 @@ export async function GET(req: NextRequest) {
 
     const [usersAll, buNames, projectNames, tasks, subs] = await Promise.all([
       db.user.findMany({
-        where: { subsidiaryId: ctx.subsidiaryId, role: { notIn: ["GROUP_ADMIN", "ORG_MANAGER"] } },
-        orderBy: { joinedAt: "asc" },
+        where: {
+          OR: [
+            { subsidiaryId: ctx.subsidiaryId },
+            { businessUnit: { subsidiaryId: ctx.subsidiaryId } },
+            { project: { businessUnit: { subsidiaryId: ctx.subsidiaryId } } },
+          ],
+          role: { notIn: ["GROUP_ADMIN", "ORG_MANAGER"] },
+        },
+        orderBy: { joinedAt: "desc" },
       }),
       db.businessUnit.findMany({ where: { subsidiaryId: ctx.subsidiaryId }, select: { id: true, name: true } }),
       db.project.findMany({ where: { businessUnit: { subsidiaryId: ctx.subsidiaryId } }, select: { id: true, name: true } }),
@@ -79,6 +86,10 @@ export async function POST(req: NextRequest) {
       projectId?: string;
       issueTempPassword?: boolean;
     };
+
+    if (!body.projectId) {
+      throw new SaError("Project selection is required when creating a user.", 400);
+    }
 
     try {
       const origin = new URL(req.url).origin;

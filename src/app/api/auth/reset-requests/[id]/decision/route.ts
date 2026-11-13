@@ -51,7 +51,20 @@ export async function POST(
 
   const resetReq = await db.passwordResetRequest.findUnique({
     where: { id },
-    include: { user: true },
+    include: {
+      user: {
+        include: {
+          businessUnit: { select: { id: true, subsidiaryId: true } },
+          project: {
+            select: {
+              id: true,
+              businessUnitId: true,
+              businessUnit: { select: { id: true, subsidiaryId: true } },
+            },
+          },
+        },
+      },
+    },
   });
   if (!resetReq) {
     return NextResponse.json({ ok: false, error: "Reset request not found." }, { status: 404 });
@@ -65,7 +78,20 @@ export async function POST(
     projectId: session.user.scope.project?.id ?? null,
   };
 
-  if (!canAdminReviewResetRequest(actor, resetReq.user)) {
+  const target = {
+    id: resetReq.user.id,
+    role: resetReq.user.role,
+    subsidiaryId:
+      resetReq.user.subsidiaryId ||
+      resetReq.user.businessUnit?.subsidiaryId ||
+      resetReq.user.project?.businessUnit?.subsidiaryId ||
+      null,
+    businessUnitId:
+      resetReq.user.businessUnitId || resetReq.user.project?.businessUnitId || null,
+    projectId: resetReq.user.projectId || null,
+  };
+
+  if (!canAdminReviewResetRequest(actor, target)) {
     return NextResponse.json(
       { ok: false, error: "You are not authorized to review this user's password reset request (self-approval is also prohibited)." },
       { status: 403 }

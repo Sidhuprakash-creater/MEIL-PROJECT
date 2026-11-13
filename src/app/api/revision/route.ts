@@ -25,13 +25,15 @@ const CACHE_MS = 3000;
 async function fingerprint(): Promise<string> {
   try {
     const [
-      submission, task, notification, validation, audit,
+      submission, task, notification, validation, audit, user, resetReq,
     ] = await Promise.all([
       db.submission.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
       db.task.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
       db.notification.aggregate({ _max: { createdAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null, createdAt: null } })),
       db.validationIssue.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
       db.auditEvent.aggregate({ _max: { createdAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null, createdAt: null } })),
+      db.user.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
+      db.passwordResetRequest.aggregate({ _max: { updatedAt: true }, _count: true }).catch(() => ({ _count: 0, _max: { updatedAt: null } })),
     ]);
 
     const parts = [
@@ -40,6 +42,8 @@ async function fingerprint(): Promise<string> {
       notification._count, notification._max.createdAt?.getTime() ?? 0,
       validation._count, validation._max.updatedAt?.getTime() ?? 0,
       audit._count, audit._max.createdAt?.getTime() ?? 0,
+      user._count, user._max.updatedAt?.getTime() ?? 0,
+      resetReq._count, resetReq._max.updatedAt?.getTime() ?? 0,
     ];
     return `v1-${parts.join(".")}`;
   } catch {
