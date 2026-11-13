@@ -1421,6 +1421,35 @@ export async function POST(req: NextRequest) {
         invalidatePuNotificationsCache()
         invalidatePaServerCache()
 
+        /* REAL EMAIL — single-level submit for review also alerts the
+           project's admins off-platform. Fire-and-forget; a mail failure
+           never blocks the submission. */
+        void (async () => {
+          try {
+            const { sendSubmissionReceivedEmail } = await import('@/lib/notify/email')
+            const admins = await db.user.findMany({
+              where: { projectId, role: 'PROJECT_ADMIN' },
+              select: { email: true, name: true },
+            })
+            for (const admin of admins) {
+              const res = await sendSubmissionReceivedEmail({
+                to: admin.email,
+                adminName: admin.name,
+                submitterName: user.name,
+                submitterRole: primaryRoleLabel(user),
+                projectName: synchedSubmission.project?.name || 'Project',
+                periodLabel: synchedSubmission.reportingPeriod?.periodLabel || synchedSubmission.reportingPeriod?.year || 'FY 2026-27',
+                levelsSubmitted: 1,
+                levelsTotal: 9,
+                packageRef: synchedSubmission.ref,
+              })
+              if (!res.sent) console.warn('[email] submission alert not sent:', res.reason)
+            }
+          } catch (mailErr) {
+            console.warn('[email] submission alert dispatch failed:', mailErr)
+          }
+        })()
+
         // Fast-path non-blocking background telemetry, audit & platform bridge mirroring
         const subId = synchedSubmission.id
         const actorName = user.name
