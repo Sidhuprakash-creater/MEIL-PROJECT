@@ -81,6 +81,7 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, ref: true, title: true, category: true, metricName: true,
         metricValue: true, metricUnit: true, status: true, projectId: true,
+        values: true,
         submittedById: true, evidenceCount: true, reviewedAt: true,
         consolidatedReportId: true,
       },
@@ -90,13 +91,52 @@ export async function GET(req: NextRequest) {
       const dossierId = r.consolidatedReportId ?? r.id;
       const members = folded.filter((f) => f.consolidatedReportId === dossierId && f.id !== dossierId);
       const byCategory = new Map<string, { category: string; label: string; value: number; unit: string; count: number }>();
+
+      /* tCO2e entries carried INSIDE a disclosure's values JSON (e.g. the
+         "Est. GHG" rows of an energy submission, or Scope 3 rows of a GHG
+         submission whose metricValue excludes them). Total rows are skipped
+         so the footprint is never double-counted. */
+      const embeddedTco2e = (raw: unknown): number => {
+        try {
+          const parsed = typeof raw === "string" ? JSON.parse(raw || "[]") : raw;
+          if (!Array.isArray(parsed)) return 0;
+          let sum = 0;
+          for (const v of parsed) {
+            const unit = String(v?.unit || "").trim().toLowerCase();
+            const label = String(v?.label || "");
+            if (unit === "tco2e" && !/total/i.test(label)) sum += Number(v?.value) || 0;
+          }
+          return sum;
+        } catch {
+          return 0;
+        }
+      };
+
       for (const m of members) {
         const key = m.category || "GENERAL";
         const g = byCategory.get(key) ?? { category: key, label: m.metricName || m.title, value: 0, unit: m.metricUnit || "", count: 0 };
-        g.value += Number(m.metricValue || 0);
+        /* Emissions fold-in: an ENERGY disclosure's embedded Scope 1 + Scope 2
+           tCO2e belongs to the EMISSIONS category, and an EMISSIONS
+           disclosure whose metricValue excludes Scope 3 still carries it in
+           its values — so the full Scope 1+2+3 footprint is re-checked. */
+        if (key === "EMISSIONS") {
+          g.value += Number(m.metricValue || 0) || embeddedTco2e((m as { values?: unknown }).values);
+        } else if (key === "ENERGY") {
+          g.value += Number(m.metricValue || 0);
+          const embedded = embeddedTco2e((m as { values?: unknown }).values);
+          if (embedded > 0) {
+            const e = byCategory.get("EMISSIONS") ?? { category: "EMISSIONS", label: "GHG Footprint (Scope 1+2+3)", value: 0, unit: "tCO2e", count: 0 };
+            e.value += embedded;
+            byCategory.set("EMISSIONS", e);
+          }
+        } else {
+          g.value += Number(m.metricValue || 0);
+        }
         g.count += 1;
         byCategory.set(key, g);
       }
+      const emissionsCat = byCategory.get("EMISSIONS");
+      if (emissionsCat) emissionsCat.label = "GHG Footprint (Scope 1+2+3)";
       return {
         id: r.id,
         ref: r.ref,
