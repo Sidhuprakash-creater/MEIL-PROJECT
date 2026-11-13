@@ -298,7 +298,7 @@ function wasteLines(rec: LevelRecord): RawLine[] {
       energy: false, renewable: false, grid: false,
       ...({
         recovered: num(it.quantityRecycled) + num(it.quantityRecovered) + num(it.quantityReused),
-        hazardous: /hazard/i.test(String(it.wasteCategory || '')) ? num(it.quantityGenerated) : 0,
+        hazardous: /hazard/i.test(String(it.wasteCategory || '')) && !/non-hazard/i.test(String(it.wasteCategory || '')) ? num(it.quantityGenerated) : 0,
       } as any),
     }))
   }

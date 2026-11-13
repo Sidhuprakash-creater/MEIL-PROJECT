@@ -1,1 +1,1802 @@
-[]
+[
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "SUBMITTED",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:56:01.005Z",
+    "updatedAt": "2026-11-12T23:56:01.005Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyvev000h7kmcis4ljf4o",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 41.6,
+          "quantityRecycled": 28.2,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 2.08,
+          "quantityRecycled": 1.56,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527761005-gkqrx"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "SUBMITTED",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:56:01.005Z",
+    "updatedAt": "2026-11-12T23:56:01.005Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyvev000h7kmcis4ljf4o",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 17.8,
+          "unit": "tCO2e",
+          "estTco2e": 17.8
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527761005-2f3bd"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "SUBMITTED",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:56:01.005Z",
+    "updatedAt": "2026-11-12T23:56:01.005Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyvev000h7kmcis4ljf4o",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 970,
+          "unit": "kL",
+          "waterReusedRecycled": 816
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 438,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 157,
+          "unit": "kL",
+          "waterReusedRecycled": 350
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527761005-5lnz0"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "SUBMITTED",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:56:01.005Z",
+    "updatedAt": "2026-11-12T23:56:01.005Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyvev000h7kmcis4ljf4o",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 412500,
+          "unit": "kWh",
+          "estGj": 1485,
+          "estTco2e": 295.35
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 362,
+          "unit": "Litres",
+          "estGj": 13.76,
+          "estTco2e": 0.97
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 83888.89,
+          "unit": "kWh",
+          "estGj": 302,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527761004-hur72"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:51.176Z",
+    "updatedAt": "2026-11-13T00:06:38.996Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyunb000f7kmctjkao28f",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 40,
+          "quantityRecycled": 27,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 2,
+          "quantityRecycled": 1.5,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527751176-o0q3f"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:51.176Z",
+    "updatedAt": "2026-11-13T00:06:38.992Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyunb000f7kmctjkao28f",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 17,
+          "unit": "tCO2e",
+          "estTco2e": 17
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527751176-gl745"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:51.176Z",
+    "updatedAt": "2026-11-13T00:06:38.991Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyunb000f7kmctjkao28f",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 949,
+          "unit": "kL",
+          "waterReusedRecycled": 782
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 428,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 153,
+          "unit": "kL",
+          "waterReusedRecycled": 335
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527751176-mbzle"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:51.175Z",
+    "updatedAt": "2026-11-13T00:06:38.988Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyunb000f7kmctjkao28f",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 388888.89,
+          "unit": "kWh",
+          "estGj": 1400,
+          "estTco2e": 278.44
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 340,
+          "unit": "Litres",
+          "estGj": 12.92,
+          "estTco2e": 0.91
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 77777.78,
+          "unit": "kWh",
+          "estGj": 280,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527751175-x7ak9"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:42.219Z",
+    "updatedAt": "2026-11-13T00:05:47.864Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagytvf000d7kmc5u1qhz0d",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 38.4,
+          "quantityRecycled": 25.8,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.92,
+          "quantityRecycled": 1.44,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527742219-ouy9o"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:42.219Z",
+    "updatedAt": "2026-11-13T00:05:19.522Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagytvf000d7kmc5u1qhz0d",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 16.2,
+          "unit": "tCO2e",
+          "estTco2e": 16.2
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527742219-jn6xt"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:42.219Z",
+    "updatedAt": "2026-11-13T00:05:38.244Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagytvf000d7kmc5u1qhz0d",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 927,
+          "unit": "kL",
+          "waterReusedRecycled": 748
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 419,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 150,
+          "unit": "kL",
+          "waterReusedRecycled": 321
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527742219-b1vgx"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:42.219Z",
+    "updatedAt": "2026-11-13T00:05:28.811Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagytvf000d7kmc5u1qhz0d",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 365277.78,
+          "unit": "kWh",
+          "estGj": 1315,
+          "estTco2e": 261.54
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 398,
+          "unit": "Litres",
+          "estGj": 15.12,
+          "estTco2e": 1.07
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 71666.67,
+          "unit": "kWh",
+          "estGj": 258,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527742219-b3xst"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:33.620Z",
+    "updatedAt": "2026-11-13T00:04:58.676Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagysyj000b7kmcwoxj9zq0",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 36.8,
+          "quantityRecycled": 24.6,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.84,
+          "quantityRecycled": 1.38,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527733620-8gze4"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:33.620Z",
+    "updatedAt": "2026-11-13T00:03:39.876Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagysyj000b7kmcwoxj9zq0",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 15.4,
+          "unit": "tCO2e",
+          "estTco2e": 15.4
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527733620-cjpsa"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:33.620Z",
+    "updatedAt": "2026-11-13T00:04:47.772Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagysyj000b7kmcwoxj9zq0",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 905,
+          "unit": "kL",
+          "waterReusedRecycled": 715
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 409,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 146,
+          "unit": "kL",
+          "waterReusedRecycled": 307
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527733620-r6vff"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:33.620Z",
+    "updatedAt": "2026-11-13T00:03:51.355Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagysyj000b7kmcwoxj9zq0",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 366666.67,
+          "unit": "kWh",
+          "estGj": 1320,
+          "estTco2e": 262.53
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 376,
+          "unit": "Litres",
+          "estGj": 14.29,
+          "estTco2e": 1.01
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 65555.56,
+          "unit": "kWh",
+          "estGj": 236,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527733620-lbend"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:25.212Z",
+    "updatedAt": "2026-11-13T00:03:13.389Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagys4800097kmceplh66zk",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 35.2,
+          "quantityRecycled": 23.4,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.76,
+          "quantityRecycled": 1.32,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527725212-fu5c8"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:25.212Z",
+    "updatedAt": "2026-11-13T00:03:13.380Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagys4800097kmceplh66zk",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 14.6,
+          "unit": "tCO2e",
+          "estTco2e": 14.6
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527725212-anidc"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:25.212Z",
+    "updatedAt": "2026-11-13T00:03:13.374Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagys4800097kmceplh66zk",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 884,
+          "unit": "kL",
+          "waterReusedRecycled": 683
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 399,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 143,
+          "unit": "kL",
+          "waterReusedRecycled": 293
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527725212-2d0ds"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:25.212Z",
+    "updatedAt": "2026-11-13T00:03:13.366Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagys4800097kmceplh66zk",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 343055.56,
+          "unit": "kWh",
+          "estGj": 1235,
+          "estTco2e": 245.63
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 434,
+          "unit": "Litres",
+          "estGj": 16.49,
+          "estTco2e": 1.16
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 59444.44,
+          "unit": "kWh",
+          "estGj": 214,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527725212-vktdc"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:13.981Z",
+    "updatedAt": "2026-11-13T00:01:58.242Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyrau00077kmcwibeq2ll",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 33.6,
+          "quantityRecycled": 22.2,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.68,
+          "quantityRecycled": 1.26,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527713981-tnguz"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:13.981Z",
+    "updatedAt": "2026-11-13T00:01:58.235Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyrau00077kmcwibeq2ll",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 13.8,
+          "unit": "tCO2e",
+          "estTco2e": 13.8
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527713981-a0smi"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:13.981Z",
+    "updatedAt": "2026-11-13T00:02:08.934Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyrau00077kmcwibeq2ll",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 862,
+          "unit": "kL",
+          "waterReusedRecycled": 652
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 389,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 139,
+          "unit": "kL",
+          "waterReusedRecycled": 279
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527713981-oy0zl"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:13.981Z",
+    "updatedAt": "2026-11-13T00:01:58.217Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyrau00077kmcwibeq2ll",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 319444.44,
+          "unit": "kWh",
+          "estGj": 1150,
+          "estTco2e": 228.72
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 412,
+          "unit": "Litres",
+          "estGj": 15.66,
+          "estTco2e": 1.1
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 53333.33,
+          "unit": "kWh",
+          "estGj": 192,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527713981-95rif"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:05.276Z",
+    "updatedAt": "2026-11-13T00:01:14.431Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyq5100057kmc176b58rb",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 32,
+          "quantityRecycled": 21,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.6,
+          "quantityRecycled": 1.2,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527705276-mlfd1"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:05.276Z",
+    "updatedAt": "2026-11-13T00:00:53.236Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyq5100057kmc176b58rb",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 13,
+          "unit": "tCO2e",
+          "estTco2e": 13
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527705276-31ijr"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:05.276Z",
+    "updatedAt": "2026-11-13T00:00:53.229Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyq5100057kmc176b58rb",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 840,
+          "unit": "kL",
+          "waterReusedRecycled": 622
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 379,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 136,
+          "unit": "kL",
+          "waterReusedRecycled": 266
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527705276-zd69i"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:55:05.276Z",
+    "updatedAt": "2026-11-13T00:01:03.819Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyq5100057kmc176b58rb",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 320833.33,
+          "unit": "kWh",
+          "estGj": 1155,
+          "estTco2e": 229.72
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 470,
+          "unit": "Litres",
+          "estGj": 17.86,
+          "estTco2e": 1.26
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 47222.22,
+          "unit": "kWh",
+          "estGj": 170,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527705276-n47h2"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:56.603Z",
+    "updatedAt": "2026-11-12T23:59:58.972Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagypc500037kmc1ehedrj1",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 30.4,
+          "quantityRecycled": 19.8,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.52,
+          "quantityRecycled": 1.14,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527696603-xf6gd"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:56.603Z",
+    "updatedAt": "2026-11-12T23:59:49.003Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagypc500037kmc1ehedrj1",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 12.2,
+          "unit": "tCO2e",
+          "estTco2e": 12.2
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527696603-s7otn"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:56.602Z",
+    "updatedAt": "2026-11-13T00:00:21.945Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagypc500037kmc1ehedrj1",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 818,
+          "unit": "kL",
+          "waterReusedRecycled": 592
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 370,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 132,
+          "unit": "kL",
+          "waterReusedRecycled": 253
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527696602-effma"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:56.602Z",
+    "updatedAt": "2026-11-13T00:00:07.763Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagypc500037kmc1ehedrj1",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 297222.22,
+          "unit": "kWh",
+          "estGj": 1070,
+          "estTco2e": 212.81
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 448,
+          "unit": "Litres",
+          "estGj": 17.02,
+          "estTco2e": 1.2
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 41111.11,
+          "unit": "kWh",
+          "estGj": 148,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527696601-bxlt2"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:47.926Z",
+    "updatedAt": "2026-11-12T23:59:26.570Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyoj900017kmc5st2exg4",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 28.8,
+          "quantityRecycled": 18.6,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.44,
+          "quantityRecycled": 1.08,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527687926-ttkqs"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:47.926Z",
+    "updatedAt": "2026-11-12T23:58:57.586Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyoj900017kmc5st2exg4",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 11.4,
+          "unit": "tCO2e",
+          "estTco2e": 11.4
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527687926-uw7ws"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:47.926Z",
+    "updatedAt": "2026-11-12T23:59:17.123Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyoj900017kmc5st2exg4",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 797,
+          "unit": "kL",
+          "waterReusedRecycled": 562
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 360,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 129,
+          "unit": "kL",
+          "waterReusedRecycled": 241
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527687926-ldmgz"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:47.926Z",
+    "updatedAt": "2026-11-12T23:59:06.483Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmwagyoj900017kmc5st2exg4",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 273611.11,
+          "unit": "kWh",
+          "estGj": 985,
+          "estTco2e": 195.91
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 506,
+          "unit": "Litres",
+          "estGj": 19.23,
+          "estTco2e": 1.36
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 35000,
+          "unit": "kWh",
+          "estGj": 126,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527687926-fdkxo"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:38.262Z",
+    "updatedAt": "2026-11-12T23:58:29.311Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 27.2,
+          "quantityRecycled": 17.4,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.36,
+          "quantityRecycled": 1.02,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527678262-9cgox"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:38.262Z",
+    "updatedAt": "2026-11-12T23:58:38.267Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 10.6,
+          "unit": "tCO2e",
+          "estTco2e": 10.6
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527678262-b4ybl"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:38.262Z",
+    "updatedAt": "2026-11-12T23:58:05.854Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 775,
+          "unit": "kL",
+          "waterReusedRecycled": 534
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 350,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 125,
+          "unit": "kL",
+          "waterReusedRecycled": 229
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527678262-lomqz"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:38.262Z",
+    "updatedAt": "2026-11-12T23:58:20.500Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6ag9q00087kxwvb2pkxhx",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 275000,
+          "unit": "kWh",
+          "estGj": 990,
+          "estTco2e": 196.9
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 484,
+          "unit": "Litres",
+          "estGj": 18.39,
+          "estTco2e": 1.3
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 28888.89,
+          "unit": "kWh",
+          "estGj": 104,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527678262-ad8g5"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:29.396Z",
+    "updatedAt": "2026-11-12T23:57:42.758Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6aee700067kxwsqtxlpql",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 25.6,
+          "quantityRecycled": 16.2,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.28,
+          "quantityRecycled": 0.96,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527669396-rki5s"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:29.396Z",
+    "updatedAt": "2026-11-12T23:57:42.749Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6aee700067kxwsqtxlpql",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 9.8,
+          "unit": "tCO2e",
+          "estTco2e": 9.8
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527669396-uxq8y"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:29.396Z",
+    "updatedAt": "2026-11-12T23:57:42.741Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6aee700067kxwsqtxlpql",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 753,
+          "unit": "kL",
+          "waterReusedRecycled": 506
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 340,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 122,
+          "unit": "kL",
+          "waterReusedRecycled": 217
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527669396-3860s"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:29.395Z",
+    "updatedAt": "2026-11-12T23:57:42.732Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6aee700067kxwsqtxlpql",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 251388.89,
+          "unit": "kWh",
+          "estGj": 905,
+          "estTco2e": 179.99
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 542,
+          "unit": "Litres",
+          "estGj": 20.6,
+          "estTco2e": 1.45
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 22777.78,
+          "unit": "kWh",
+          "estGj": 82,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527669395-638xc"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:19.607Z",
+    "updatedAt": "2026-11-12T23:56:54.906Z",
+    "level": 4,
+    "levelKey": "level4",
+    "levelName": "Level 4 — Waste Management",
+    "module": "WASTE",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6acpg00047kxwgjmt06r8",
+    "data": {
+      "items": [
+        {
+          "wasteCategory": "Non-hazardous - construction debris",
+          "quantityGenerated": 24,
+          "quantityRecycled": 15,
+          "unit": "MT"
+        },
+        {
+          "wasteCategory": "Hazardous - used oil",
+          "quantityGenerated": 1.2,
+          "quantityRecycled": 0.9,
+          "unit": "MT"
+        }
+      ]
+    },
+    "id": "rec-level4-cmvt5836n00157kssab54g3lw-1794527659607-dow6y"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:19.607Z",
+    "updatedAt": "2026-11-12T23:56:54.901Z",
+    "level": 3,
+    "levelKey": "level3",
+    "levelName": "Level 3 — GHG Emissions & Air Quality",
+    "module": "EMISSIONS",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6acpg00047kxwgjmt06r8",
+    "data": {
+      "items": [
+        {
+          "emissionDataType": "Scope 3",
+          "emissionSource": "Business travel - vehicles",
+          "sourceCategory": "mobile_combustion",
+          "activityQuantity": 9,
+          "unit": "tCO2e",
+          "estTco2e": 9
+        }
+      ]
+    },
+    "id": "rec-level3-cmvt5836n00157kssab54g3lw-1794527659607-5skjy"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:19.607Z",
+    "updatedAt": "2026-11-12T23:56:54.887Z",
+    "level": 2,
+    "levelKey": "level2",
+    "levelName": "Level 2 — Water Management",
+    "module": "WATER",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6acpg00047kxwgjmt06r8",
+    "data": {
+      "items": [
+        {
+          "waterSource": "Groundwater",
+          "waterQuantity": 732,
+          "unit": "kL",
+          "waterReusedRecycled": 479
+        },
+        {
+          "waterSource": "Surface water",
+          "waterQuantity": 330,
+          "unit": "kL",
+          "waterReusedRecycled": 0
+        },
+        {
+          "waterSource": "Municipal supply",
+          "waterQuantity": 118,
+          "unit": "kL",
+          "waterReusedRecycled": 205
+        }
+      ]
+    },
+    "id": "rec-level2-cmvt5836n00157kssab54g3lw-1794527659606-3dgd9"
+  },
+  {
+    "calculationStatus": "COMPUTED",
+    "calculation": null,
+    "issues": [],
+    "status": "ACTIVE",
+    "validationStatus": "PASSED",
+    "revisionNumber": 1,
+    "enteredBy": "Environmental Data User",
+    "enteredAt": "2026-11-12T23:54:19.606Z",
+    "updatedAt": "2026-11-12T23:56:54.876Z",
+    "level": 1,
+    "levelKey": "level1",
+    "levelName": "Level 1 — Energy Consumption",
+    "module": "ENERGY",
+    "projectId": "cmvt5836n00157kssab54g3lw",
+    "reportingPeriodId": "cmvt6acpg00047kxwgjmt06r8",
+    "data": {
+      "items": [
+        {
+          "energySource": "Grid electricity (CEA v20)",
+          "emissionDataType": "Scope 2",
+          "consumptionQuantity": 227777.78,
+          "unit": "kWh",
+          "estGj": 820,
+          "estTco2e": 163.09
+        },
+        {
+          "energySource": "Diesel (DG backup)",
+          "emissionDataType": "Scope 1",
+          "consumptionQuantity": 520,
+          "unit": "Litres",
+          "estGj": 19.76,
+          "estTco2e": 1.39
+        },
+        {
+          "energySource": "Rooftop solar PV",
+          "emissionDataType": "Scope 2 - Renewable",
+          "consumptionQuantity": 16666.67,
+          "unit": "kWh",
+          "estGj": 60,
+          "estTco2e": 0
+        }
+      ]
+    },
+    "id": "rec-level1-cmvt5836n00157kssab54g3lw-1794527659606-9kt3g"
+  }
+]
