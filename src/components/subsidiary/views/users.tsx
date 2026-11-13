@@ -643,7 +643,7 @@ export default function UsersView() {
             userName: values.name,
             password: res.tempPassword,
             note: res.emailSent
-              ? "Temporary password emailed via Resend and shown once here. User must update it on first sign-in."
+              ? "Temporary password emailed to user via SMTP and shown once here. User must update it on first sign-in."
               : "Temporary password created — share it securely. User must update it on first sign-in.",
           });
         }

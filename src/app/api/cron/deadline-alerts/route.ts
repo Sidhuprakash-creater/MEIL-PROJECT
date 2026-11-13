@@ -11,7 +11,7 @@ const DAY_MS = 86400000;
  * GET /api/cron/deadline-alerts
  * Triggered on schedule (with Authorization: Bearer $CRON_SECRET) or manually by GROUP_ADMIN.
  * Evaluates active ReportingTimeline deadlines within 7 days (or already overdue) and dispatches
- * in-app Notifications + Resend deadline email alerts to scoped active users.
+ * in-app Notifications + SMTP deadline email alerts to scoped active users.
  */
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();

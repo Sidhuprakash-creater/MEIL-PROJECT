@@ -120,7 +120,7 @@ export async function POST(request: Request) {
     },
   });
 
-  // Notify governing administrators in-app + via Resend
+  // Notify governing administrators in-app + via SMTP email
   const admins = await findGoverningAdminsForUser({
     id: user.id,
     role: user.role,

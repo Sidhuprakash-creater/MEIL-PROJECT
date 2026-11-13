@@ -100,7 +100,7 @@ export default function UsersView() {
           userName: inviteName.trim(),
           password: res.tempPassword,
           note: res.emailSent
-            ? "Temporary password emailed via Resend and shown once here. Contributor must change it on first login."
+            ? "Temporary password emailed to user via SMTP and shown once here. Contributor must change it on first login."
             : res.emailNote || "Share securely — contributor must change it on first sign-in.",
         });
       }
@@ -168,7 +168,7 @@ export default function UsersView() {
           userName: u.name,
           password: res.tempPassword,
           note: res.emailSent
-            ? "Temporary password emailed via Resend and active sessions revoked."
+            ? "Temporary password emailed to user via SMTP and active sessions revoked."
             : "Temporary password generated and active sessions revoked. Share securely — user must update it on next login.",
         });
       }

@@ -222,7 +222,7 @@ export async function PATCH(req: NextRequest) {
     invalidatePaServerCache();
     const origin = getAppOrigin(new URL(req.url).origin);
 
-    // Handle Reminder action (In-app Notification + Resend email)
+    // Handle Reminder action (In-app Notification + SMTP email)
     if (action === "remind") {
       await db.notification.create({
         data: {

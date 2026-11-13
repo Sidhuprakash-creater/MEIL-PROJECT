@@ -227,7 +227,7 @@ export function ResetRequestsPanel({ onUpdated }: { onUpdated?: () => void }) {
             </button>
             <span className="text-emerald-800">
               {approvedCreds.emailSent
-                ? "Also emailed via Resend (with 15-min reset link)."
+                ? "Also emailed to user via SMTP (with 15-min reset link)."
                 : "Email skipped/unconfigured — share this password securely. User must change it on next login."}
             </span>
           </div>

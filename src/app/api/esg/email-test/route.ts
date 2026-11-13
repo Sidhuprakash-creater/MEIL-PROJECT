@@ -16,14 +16,9 @@ export async function GET() {
   return handle(async () => {
     await requireGroupAdmin({ readOnly: true });
     const smtpCheck = await verifySmtp();
-    const hasResend = Boolean(process.env.RESEND_API_KEY?.trim());
     return ok({
-      activeTransport: smtpCheck.connected ? "SMTP" : hasResend ? "RESEND" : "NONE",
+      activeTransport: smtpCheck.connected ? "SMTP" : "NONE",
       smtp: smtpCheck,
-      resend: {
-        configured: hasResend,
-        fromEmail: process.env.RESEND_FROM_EMAIL || "MEIL ESG Platform <onboarding@resend.dev>",
-      },
     });
   });
 }
@@ -43,7 +38,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!isEmailConfigured()) {
-      return fail("Email service is not configured (SMTP or RESEND credentials missing in .env).", 400);
+      return fail("SMTP email service is not configured (missing SMTP_HOST/SMTP_USER in .env).", 400);
     }
 
     const template = b.template ?? "INVITE";

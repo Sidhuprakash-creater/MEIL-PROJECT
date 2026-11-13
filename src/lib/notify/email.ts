@@ -1,4 +1,3 @@
-import { Resend } from "resend";
 import nodemailer from "nodemailer";
 
 export interface EmailSendResult {
@@ -7,10 +6,9 @@ export interface EmailSendResult {
   id?: string;
   reason?: string;
   previewUrl?: string;
-  transport?: "SMTP" | "RESEND";
+  transport?: "SMTP";
 }
 
-let cachedClient: Resend | null | undefined;
 let cachedSmtp: nodemailer.Transporter | null | undefined;
 let currentSmtpKey = "";
 
@@ -66,22 +64,9 @@ export async function verifySmtp(): Promise<{
   }
 }
 
-function getResendClient(): Resend | null {
-  if (cachedClient !== undefined) return cachedClient;
-  const key = process.env.RESEND_API_KEY?.trim();
-  if (!key) {
-    cachedClient = null;
-    return null;
-  }
-  cachedClient = new Resend(key);
-  return cachedClient;
-}
-
 export function isEmailConfigured(): boolean {
   return Boolean(
-    process.env.SMTP_HOST?.trim() ||
-      process.env.SMTP_USER?.trim() ||
-      process.env.RESEND_API_KEY?.trim()
+    process.env.SMTP_HOST?.trim() || process.env.SMTP_USER?.trim()
   );
 }
 
@@ -97,10 +82,7 @@ function fromAddress(): string {
   if (process.env.SMTP_USER?.trim()) {
     return `MEIL ESG Platform <${process.env.SMTP_USER.trim()}>`;
   }
-  return (
-    process.env.RESEND_FROM_EMAIL?.trim() ||
-    "MEIL ESG Platform <onboarding@resend.dev>"
-  );
+  return "MEIL ESG Platform <no-reply@meil.in>";
 }
 
 function escHtml(v: string): string {
@@ -152,62 +134,36 @@ export async function sendEmail(opts: {
     return { sent: false, skipped: true, reason: "No recipient addresses" };
   }
 
-  // 1. Direct SMTP transport (if SMTP_HOST / SMTP_USER configured)
   const smtp = getSmtpTransporter();
-  if (smtp) {
-    try {
-      const info = await smtp.sendMail({
-        from: fromAddress(),
-        to: recipients,
-        subject: opts.subject,
-        html: opts.html,
-        text: opts.text,
-      });
-      const preview = nodemailer.getTestMessageUrl(info);
-      return {
-        sent: true,
-        id: info.messageId,
-        previewUrl: typeof preview === "string" ? preview : undefined,
-        transport: "SMTP",
-      };
-    } catch (smtpErr) {
-      console.error("SMTP delivery failed:", smtpErr);
-      return {
-        sent: false,
-        reason: smtpErr instanceof Error ? smtpErr.message : "SMTP delivery failed",
-        transport: "SMTP",
-      };
-    }
-  }
-
-  // 2. Resend API transport
-  const client = getResendClient();
-  if (!client) {
+  if (!smtp) {
     return {
       sent: false,
       skipped: true,
-      reason: "No email service configured (configure RESEND_API_KEY or SMTP credentials in .env)",
+      reason: "SMTP service is not configured (missing SMTP_HOST/SMTP_USER in .env)",
     };
   }
 
   try {
-    const res = await client.emails.send({
+    const info = await smtp.sendMail({
       from: fromAddress(),
       to: recipients,
       subject: opts.subject,
       html: opts.html,
       text: opts.text,
     });
-    if (res.error) {
-      console.warn(`Resend direct dispatch to ${recipients.join(", ")} rejected:`, res.error.message);
-      return { sent: false, reason: res.error.message, transport: "RESEND" };
-    }
-    return { sent: true, id: res.data?.id, transport: "RESEND" };
-  } catch (err) {
+    const preview = nodemailer.getTestMessageUrl(info);
+    return {
+      sent: true,
+      id: info.messageId,
+      previewUrl: typeof preview === "string" ? preview : undefined,
+      transport: "SMTP",
+    };
+  } catch (smtpErr) {
+    console.error("SMTP delivery failed:", smtpErr);
     return {
       sent: false,
-      reason: err instanceof Error ? err.message : "Email dispatch failed",
-      transport: "RESEND",
+      reason: smtpErr instanceof Error ? smtpErr.message : "SMTP delivery failed",
+      transport: "SMTP",
     };
   }
 }

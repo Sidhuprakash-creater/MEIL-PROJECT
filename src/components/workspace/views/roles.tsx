@@ -353,7 +353,7 @@ export default function RolesView() {
               userName: outcome.userName,
               password: outcome.tempPassword,
               note: outcome.emailSent
-                ? "Temporary password emailed via Resend and shown once here. The user will be prompted to set their own password on first sign-in."
+                ? "Temporary password emailed to user via SMTP and shown once here. The user will be prompted to set their own password on first sign-in."
                 : outcome.emailNote ??
                   "Share this temporary password securely — user must change it on first sign-in.",
             });
