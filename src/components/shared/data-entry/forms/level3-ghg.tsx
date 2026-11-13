@@ -2065,14 +2065,59 @@ export function Level3GhgForm({
               onSelectEvidenceIds={setSelectedEvidenceIds}
               evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
-onOcrApply={(f) => {
+              onOcrApply={(f) => {
+                const src = (f.sourceName || '').toLowerCase()
+                if (src.includes('dg') || src.includes('generator') || src.includes('diesel')) {
+                  setEmissionSource('DG Sets & Power Generators')
+                  setFuelEnergyType('Diesel (HSD)')
+                  setEmissionDataType('Scope 1 activity')
+                  setUnit('litres')
+                } else if (src.includes('truck') || src.includes('earthmoving') || src.includes('excavator') || src.includes('heavy')) {
+                  setEmissionSource('Heavy Vehicles & Earthmoving')
+                  setFuelEnergyType('Diesel (HSD)')
+                  setEmissionDataType('Scope 1 activity')
+                  setUnit('litres')
+                } else if (src.includes('fleet') || src.includes('petrol') || src.includes('car')) {
+                  setEmissionSource('Light Fleet & Site Vehicles')
+                  setFuelEnergyType('Petrol')
+                  setEmissionDataType('Scope 1 activity')
+                  setUnit('litres')
+                } else if (src.includes('grid') || src.includes('electric') || src.includes('cea')) {
+                  setEmissionSource('Grid Electricity (CEA Baseline)')
+                  setEmissionDataType('Scope 2 activity')
+                  setUnit('kWh')
+                } else if (src.includes('refrigerant') || src.includes('r-410') || src.includes('r-134') || src.includes('r-22') || src.includes('leak')) {
+                  setEmissionSource('Refrigerant & Fugitive Leaks')
+                  setUnit('kg')
+                } else if (src.includes('air') || src.includes('stack') || src.includes('ambient') || src.includes('pm10') || src.includes('pm2.5') || src.includes('sox') || src.includes('nox')) {
+                  setEmissionSource('Stack & Ambient Air Monitoring')
+                }
+
                 if (f.quantity) setActivityQuantity(f.quantity)
-                if (f.labName) setLaboratory(f.labName)
+                if (f.meterId) setEquipmentId(f.meterId)
+                if (f.unit) {
+                  const u = f.unit.toLowerCase()
+                  if (u.includes('litre') || u.includes('liter') || u === 'l' || u === 'ltr') setUnit('litres')
+                  else if (u.includes('kwh')) setUnit('kWh')
+                  else if (u.includes('kg')) setUnit('kg')
+                  else if (u.includes('tonne') || u.includes('ton') || u === 'mt') setUnit('tonnes')
+                  else if (u.includes('tonne-km') || u.includes('tkm')) setUnit('tonne-km')
+                }
+
+                const lab = f.labName || f.supplierOrVendor
+                if (lab) setLaboratory(lab)
                 if (f.testResult) setMeasuredResult(f.testResult)
                 if (f.date) setTestDate(f.date)
-                const bits = [f.invoiceNo && `Ref ${f.invoiceNo}`, f.notes].filter(Boolean)
+
+                const bits = [
+                  f.invoiceNo && `Invoice #${f.invoiceNo}`,
+                  f.date && `Date: ${f.date}`,
+                  f.supplierOrVendor && `Vendor: ${f.supplierOrVendor}`,
+                  f.monetaryAmount && `Amount: ₹${Number(f.monetaryAmount).toLocaleString('en-IN')}`,
+                  f.notes,
+                ].filter(Boolean)
                 if (bits.length) setRemarks(bits.join(' · '))
-                toast.success('AI-extracted fields applied — review before adding the draft')
+                toast.success('AI extracted evidence details & filled matching fields!')
               }}
               readOnly={readOnly}
             />

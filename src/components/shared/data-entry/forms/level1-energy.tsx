@@ -1067,15 +1067,87 @@ export function Level1EnergyForm({
               onSelectEvidenceIds={setSelectedEvidenceIds}
               evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
-onOcrApply={(f) => {
-                if (f.quantity) setConsumptionQuantity(f.quantity)
+              onOcrApply={(f) => {
+                const src = (f.sourceName || '').toLowerCase()
+                if (src.includes('diesel') || src.includes('hsd')) {
+                  setEnergySource('Diesel')
+                  setEmissionDataType('Scope 1')
+                  setEnergyActivity('Generator')
+                  setUnit('litres')
+                  setSourceDocument('Fuel register')
+                } else if (src.includes('petrol') || src.includes('gasoline')) {
+                  setEnergySource('Petrol')
+                  setEmissionDataType('Scope 1')
+                  setEnergyActivity('Vehicles')
+                  setUnit('litres')
+                  setSourceDocument('Invoice & Delivery Challan')
+                } else if (src.includes('solar') || src.includes('renewable')) {
+                  setEnergySource('Renewable electricity')
+                  setEmissionDataType('Scope 2')
+                  setEnergyActivity('Office')
+                  setUnit('kWh')
+                  setSourceDocument('Meter log')
+                } else if (src.includes('grid') || src.includes('electric') || src.includes('discom') || src.includes('power')) {
+                  setEnergySource('Grid electricity')
+                  setEmissionDataType('Scope 2')
+                  setEnergyActivity('Lighting')
+                  setUnit('kWh')
+                  setSourceDocument('Electricity bill')
+                } else if (src.includes('lpg')) {
+                  setEnergySource('LPG')
+                  setEmissionDataType('Scope 1')
+                  setUnit('kg')
+                  setSourceDocument('Invoice & Delivery Challan')
+                } else if (src.includes('gas') || src.includes('cng')) {
+                  setEnergySource('Gas')
+                  setEmissionDataType('Scope 1')
+                  setUnit('m³')
+                  setSourceDocument('Invoice & Delivery Challan')
+                } else if (src.includes('coal')) {
+                  setEnergySource('Coal')
+                  setEmissionDataType('Scope 1')
+                  setUnit('tonnes')
+                  setSourceDocument('Invoice & Delivery Challan')
+                }
+
+                if (f.quantity) {
+                  setConsumptionQuantity(f.quantity)
+                } else if (f.meterOpening && f.meterClosing) {
+                  const op = Number(f.meterOpening)
+                  const cl = Number(f.meterClosing)
+                  if (!isNaN(op) && !isNaN(cl) && cl >= op) {
+                    setConsumptionQuantity(String(cl - op))
+                  }
+                }
+
                 if (f.meterOpening) setOpeningMeterReading(f.meterOpening)
                 if (f.meterClosing) setClosingMeterReading(f.meterClosing)
                 if (f.meterId) setMeterEquipmentId(f.meterId)
-                if (f.unit && L1_UNITS.includes(f.unit)) setUnit(f.unit)
-                const bits = [f.invoiceNo && `Ref ${f.invoiceNo}`, f.date, f.notes].filter(Boolean)
+
+                if (f.unit) {
+                  const u = f.unit.toLowerCase()
+                  if (u.includes('kwh')) setUnit('kWh')
+                  else if (u.includes('mwh')) setUnit('MWh')
+                  else if (u.includes('litre') || u.includes('liter') || u === 'l' || u === 'ltr') setUnit('litres')
+                  else if (u.includes('kl')) setUnit('kL')
+                  else if (u.includes('m3') || u.includes('m³')) setUnit('m³')
+                  else if (u.includes('tonne') || u.includes('ton') || u === 'mt') setUnit('tonnes')
+                  else if (u.includes('kg')) setUnit('kg')
+                  else if (u.includes('gj')) setUnit('GJ')
+                  else if (L1_UNITS.includes(f.unit)) setUnit(f.unit)
+                }
+
+                if (f.docType === 'METER_READING') setSourceDocument('Meter log')
+
+                const bits = [
+                  f.invoiceNo && `Invoice #${f.invoiceNo}`,
+                  f.date && `Date: ${f.date}`,
+                  f.supplierOrVendor && `Vendor: ${f.supplierOrVendor}`,
+                  f.monetaryAmount && `Amount: ₹${Number(f.monetaryAmount).toLocaleString('en-IN')}`,
+                  f.notes,
+                ].filter(Boolean)
                 if (bits.length) setRemarks(bits.join(' · '))
-                toast.success('AI-extracted fields applied — review before adding the draft')
+                toast.success('AI extracted evidence details & filled matching fields!')
               }}
               readOnly={readOnly}
             />

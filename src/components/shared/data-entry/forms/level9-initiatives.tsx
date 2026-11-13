@@ -730,6 +730,46 @@ export function Level9InitiativesForm({
                 onSelectEvidenceIds={setSelectedEvidenceIds}
                 evidenceUsedElsewhere={evidenceUsedElsewhere}
                 onReview={onReviewEvidence}
+                onOcrApply={(f) => {
+                  const src = (f.sourceName || f.notes || '').toLowerCase()
+                  if (src.includes('solar') || src.includes('pv') || src.includes('renewable')) {
+                    setInitiativeCategory('Solar PV Rooftop & Captive Clean Power')
+                  } else if (src.includes('zld') || src.includes('water') || src.includes('closed-loop')) {
+                    setInitiativeCategory('ZLD & Closed-Loop Water Recycling')
+                  } else if (src.includes('vfd') || src.includes('motor') || src.includes('efficiency')) {
+                    setInitiativeCategory('Energy Efficient Motors & VFD Retrofits')
+                  } else if (src.includes('ev') || src.includes('electric vehicle') || src.includes('fleet')) {
+                    setInitiativeCategory('Electric Vehicles (EV) & Fleet Decarbonization')
+                  } else if (src.includes('waste heat') || src.includes('whr')) {
+                    setInitiativeCategory('Waste Heat Recovery (WHR) System')
+                  } else if (src.includes('rain') || src.includes('harvest') || src.includes('recharge')) {
+                    setInitiativeCategory('Rainwater Harvesting & Recharge Pits')
+                  } else if (src.includes('afforest') || src.includes('tree') || src.includes('miyawaki') || src.includes('biodiversity')) {
+                    setInitiativeCategory('Bio-diversity & Miyawaki Afforestation')
+                  } else if (src.includes('circular') || src.includes('raw material')) {
+                    setInitiativeCategory('Circular Raw Material Substitution')
+                  }
+
+                  if (f.sourceName) setActivityInitiativeName(f.sourceName)
+                  if (f.quantity) {
+                    setReportingPeriodValue(f.quantity)
+                    setPhysicalOutputQuantity(f.quantity)
+                  }
+                  if (f.unit) setOutputUnit(f.unit)
+                  if (f.date) setStartDate(f.date)
+                  if (f.expiryDate) setCompletionDate(f.expiryDate)
+                  if (f.testResult) setOutcome(f.testResult)
+
+                  const bits = [
+                    f.invoiceNo && `Ref: ${f.invoiceNo}`,
+                    f.date && `Date: ${f.date}`,
+                    f.supplierOrVendor && `Partner: ${f.supplierOrVendor}`,
+                    f.monetaryAmount && `Investment: ₹${Number(f.monetaryAmount).toLocaleString('en-IN')}`,
+                    f.notes,
+                  ].filter(Boolean)
+                  if (bits.length) setRemarks(bits.join(' · '))
+                  toast.success('AI extracted initiative details & filled fields!')
+                }}
                 readOnly={readOnly}
               />
             </div>

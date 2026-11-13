@@ -312,7 +312,14 @@ export function FormEvidenceAttachSection({
       >
         <div role="presentation" className="flex items-center justify-between gap-2 self-end -mb-1" onClick={(e) => e.stopPropagation()}>
           {!readOnly && onOcrApply && (
-            <OcrScanButton apiBase={apiBase} onApply={onOcrApply} disabled={uploading} />
+            <OcrScanButton
+              apiBase={apiBase}
+              onApply={onOcrApply}
+              onAttachFile={async (file) => {
+                await handleUploadFiles([file])
+              }}
+              disabled={uploading}
+            />
           )}
         </div>
         <input

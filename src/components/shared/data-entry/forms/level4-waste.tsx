@@ -944,12 +944,66 @@ export function Level4WasteForm({
               onSelectEvidenceIds={setSelectedEvidenceIds}
               evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
-onOcrApply={(f) => {
+              onOcrApply={(f) => {
+                const src = (f.sourceName || f.notes || '').toLowerCase()
+                if (src.includes('scrap') || src.includes('metal') || src.includes('rebar') || src.includes('steel')) {
+                  setWasteCategory('Scrap metal & Structural steel')
+                  setUnit('metric tonnes')
+                } else if (src.includes('hazard') || src.includes('oil') || src.includes('chemical') || src.includes('sludge')) {
+                  setWasteCategory('Hazardous & chemical waste')
+                  setUnit('kg')
+                } else if (src.includes('battery') || src.includes('e-waste') || src.includes('electronic')) {
+                  setWasteCategory('E-waste & Batteries')
+                  setUnit('kg')
+                } else if (src.includes('plastic') || src.includes('packaging')) {
+                  setWasteCategory('Plastic waste')
+                  setUnit('metric tonnes')
+                } else if (src.includes('biomedical') || src.includes('medical') || src.includes('clinic')) {
+                  setWasteCategory('Biomedical waste')
+                  setUnit('kg')
+                } else if (src.includes('municipal') || src.includes('food') || src.includes('domestic')) {
+                  setWasteCategory('Municipal solid waste')
+                  setUnit('metric tonnes')
+                } else if (src.includes('c&d') || src.includes('demolition') || src.includes('concrete')) {
+                  setWasteCategory('Construction & demolition')
+                  setUnit('metric tonnes')
+                }
+
+                if (f.sourceName) setWasteTypeDescription(f.sourceName)
                 if (f.quantity) setQuantityGenerated(f.quantity)
-                if (f.meterId) setTransferManifestNumber(f.meterId)
-                const bits = [f.invoiceNo && `Ref ${f.invoiceNo}`, f.date, f.notes].filter(Boolean)
+
+                const manifest = f.invoiceNo || f.meterId
+                if (manifest) setTransferManifestNumber(manifest)
+
+                const handler = f.supplierOrVendor || f.labName
+                if (handler) setWasteHandler(handler)
+
+                if (f.unit) {
+                  const u = f.unit.toLowerCase()
+                  if (u.includes('tonne') || u.includes('ton') || u === 'mt') setUnit('metric tonnes')
+                  else if (u.includes('kg')) setUnit('kg')
+                  else if (u.includes('litre') || u.includes('liter') || u === 'l' || u === 'ltr') setUnit('litres')
+                  else if (u.includes('drum')) setUnit('drums')
+                  else if (u.includes('no')) setUnit('numbers')
+                }
+
+                if (f.destinationOrMethod) {
+                  const dest = f.destinationOrMethod.toLowerCase()
+                  if (dest.includes('tsdf') || dest.includes('landfill')) setDisposalMethod('Landfill (TSDF)')
+                  else if (dest.includes('incinerat') || dest.includes('co-process')) setDisposalMethod('Incineration / Co-processing')
+                  else if (dest.includes('recyc')) setDisposalMethod('Authorised recycling facility')
+                  else if (dest.includes('compost')) setDisposalMethod('Composting')
+                }
+
+                const bits = [
+                  f.invoiceNo && `Manifest/Invoice #${f.invoiceNo}`,
+                  f.date && `Date: ${f.date}`,
+                  f.supplierOrVendor && `Handler: ${f.supplierOrVendor}`,
+                  f.monetaryAmount && `Amount: ₹${Number(f.monetaryAmount).toLocaleString('en-IN')}`,
+                  f.notes,
+                ].filter(Boolean)
                 if (bits.length) setRemarks(bits.join(' · '))
-                toast.success('AI-extracted fields applied — review before adding the draft')
+                toast.success('AI extracted evidence details & filled matching fields!')
               }}
               readOnly={readOnly}
             />

@@ -902,17 +902,67 @@ export function Level2WaterForm({
               onSelectEvidenceIds={setSelectedEvidenceIds}
               evidenceUsedElsewhere={evidenceUsedElsewhere}
               onReview={onReviewEvidence}
-onOcrApply={(f) => {
-                if (f.quantity) setWaterQuantity(f.quantity)
+              onOcrApply={(f) => {
+                const src = (f.sourceName || '').toLowerCase()
+                if (src.includes('ground') || src.includes('bore') || src.includes('tube')) {
+                  setWaterSource('Groundwater')
+                } else if (src.includes('surface') || src.includes('river') || src.includes('lake') || src.includes('canal')) {
+                  setWaterSource('Surface water')
+                } else if (src.includes('tanker') || src.includes('third') || src.includes('municipal') || src.includes('city')) {
+                  setWaterSource('Third-party supply')
+                } else if (src.includes('rain')) {
+                  setWaterSource('Rainwater')
+                } else if (src.includes('recycle') || src.includes('reused') || src.includes('etp') || src.includes('stp')) {
+                  setWaterSource('Recycled / Reused water')
+                }
+
+                if (f.quantity) {
+                  setWaterQuantity(f.quantity)
+                } else if (f.meterOpening && f.meterClosing) {
+                  const op = Number(f.meterOpening)
+                  const cl = Number(f.meterClosing)
+                  if (!isNaN(op) && !isNaN(cl) && cl >= op) {
+                    setWaterQuantity(String(cl - op))
+                  }
+                }
+
+                if (f.unit) {
+                  const u = f.unit.toLowerCase()
+                  if (u.includes('kl')) setUnit('kL')
+                  else if (u.includes('m3') || u.includes('m³')) setUnit('m³')
+                  else if (u.includes('litre') || u.includes('liter') || u === 'l' || u === 'ltr') setUnit('litres')
+                  else if (u.includes('ml')) setUnit('ML')
+                }
+
                 if (f.meterOpening) setOpeningReading(f.meterOpening)
                 if (f.meterClosing) setClosingReading(f.meterClosing)
                 if (f.meterId) setMeterSourceId(f.meterId)
-                const quality = [f.labName, f.testResult].filter(Boolean).join(' — ')
-                if (quality) setWaterQualityResult(quality)
+
+                const qualityParts = [
+                  f.labName && `Lab: ${f.labName}`,
+                  f.testResult,
+                ].filter(Boolean)
+                if (qualityParts.length) setWaterQualityResult(qualityParts.join(' — '))
+
                 if (f.date) setTestDateLab(f.date)
-                const bits = [f.invoiceNo && `Ref ${f.invoiceNo}`, f.notes].filter(Boolean)
+
+                if (f.destinationOrMethod) {
+                  const dest = f.destinationOrMethod.toLowerCase()
+                  if (dest.includes('zld') || dest.includes('zero liquid')) setDischargeDestination('Zero Liquid Discharge (ZLD)')
+                  else if (dest.includes('etp') || dest.includes('sewer')) setDischargeDestination('ETP/STP discharge to sewer')
+                  else if (dest.includes('green') || dest.includes('irrigation')) setDischargeDestination('Irrigation / site green belt')
+                  else if (dest.includes('pond')) setDischargeDestination('Evaporation pond')
+                }
+
+                const bits = [
+                  f.invoiceNo && `Invoice #${f.invoiceNo}`,
+                  f.date && `Date: ${f.date}`,
+                  f.supplierOrVendor && `Supplier/Lab: ${f.supplierOrVendor}`,
+                  f.monetaryAmount && `Amount: ₹${Number(f.monetaryAmount).toLocaleString('en-IN')}`,
+                  f.notes,
+                ].filter(Boolean)
                 if (bits.length) setRemarks(bits.join(' · '))
-                toast.success('AI-extracted fields applied — review before adding the draft')
+                toast.success('AI extracted evidence details & filled matching fields!')
               }}
               readOnly={readOnly}
             />

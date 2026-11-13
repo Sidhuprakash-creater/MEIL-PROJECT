@@ -785,6 +785,44 @@ export function Level7ComplianceForm({
                 onSelectEvidenceIds={setSelectedEvidenceIds}
                 evidenceUsedElsewhere={evidenceUsedElsewhere}
                 onReview={onReviewEvidence}
+                onOcrApply={(f) => {
+                  const src = (f.sourceName || f.notes || '').toLowerCase()
+                  if (src.includes('cto') || src.includes('operate')) {
+                    setPermitConsentType('Consent to Operate (CTO)')
+                  } else if (src.includes('cte') || src.includes('establish')) {
+                    setPermitConsentType('Consent to Establish (CTE)')
+                  } else if (src.includes('clearance') || src.includes('ec') || src.includes('moef')) {
+                    setPermitConsentType('Environmental Clearance (EC)')
+                  } else if (src.includes('hazardous') || src.includes('authorization')) {
+                    setPermitConsentType('Hazardous Waste Authorization')
+                  } else if (src.includes('groundwater') || src.includes('cgwa') || src.includes('noc')) {
+                    setPermitConsentType('Groundwater Abstraction NOC (CGWA)')
+                  } else if (src.includes('factory') || src.includes('license')) {
+                    setPermitConsentType('Factory License')
+                  }
+
+                  const pNo = f.invoiceNo || f.meterId
+                  if (pNo) setPermitNumber(pNo)
+
+                  const auth = f.supplierOrVendor || f.labName
+                  if (auth) setIssuingAuthority(auth)
+
+                  if (f.date) setIssueDate(f.date)
+                  if (f.expiryDate) setExpiryDate(f.expiryDate)
+
+                  if (f.sourceName) setApplicableActivity(f.sourceName)
+                  if (f.testResult) setInspectionFindings(f.testResult)
+
+                  const bits = [
+                    f.invoiceNo && `Order #${f.invoiceNo}`,
+                    f.date && `Issued: ${f.date}`,
+                    f.expiryDate && `Valid till: ${f.expiryDate}`,
+                    auth && `Authority: ${auth}`,
+                    f.notes,
+                  ].filter(Boolean)
+                  if (bits.length) setSupportingEvidence(bits.join(' · '))
+                  toast.success('AI extracted permit details & filled compliance fields!')
+                }}
                 readOnly={readOnly}
               />
             </div>

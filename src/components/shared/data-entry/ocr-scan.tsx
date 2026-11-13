@@ -4,58 +4,52 @@
  *
  * Flow: pick a bill / meter photo / lab report → Gemini extracts the fields →
  * an iOS liquid-glass review sheet lets the user tick + edit each field →
- * "Apply to form" hands the confirmed values to the level form via onApply.
- * Nothing is ever applied silently.
+ * "Apply to form" hands the confirmed values to the level form via onApply,
+ * and seamlessly attaches the file to the Evidence Vault.
  */
 import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, ScanLine, X, CheckCircle2, AlertTriangle, KeyRound } from 'lucide-react'
+import { Sparkles, ScanLine, X, CheckCircle2, AlertTriangle, KeyRound, Paperclip } from 'lucide-react'
 import { Ring } from '@/components/ring'
+import { type OcrFields } from '@/lib/ai/gemini'
 
-export interface OcrFields {
-  docType: string | null
-  invoiceNo: string | null
-  date: string | null
-  sourceName: string | null
-  quantity: string | null
-  unit: string | null
-  meterOpening: string | null
-  meterClosing: string | null
-  meterId: string | null
-  labName: string | null
-  testResult: string | null
-  notes: string | null
-  confidence: 'high' | 'medium' | 'low'
-}
+export type { OcrFields }
 
 const FIELD_ROWS: Array<{ key: keyof OcrFields; label: string; numeric?: boolean }> = [
   { key: 'sourceName', label: 'Source / Material' },
-  { key: 'quantity', label: 'Quantity', numeric: true },
+  { key: 'quantity', label: 'Quantity / Units', numeric: true },
   { key: 'unit', label: 'Unit' },
   { key: 'meterOpening', label: 'Meter Opening', numeric: true },
   { key: 'meterClosing', label: 'Meter Closing', numeric: true },
-  { key: 'meterId', label: 'Meter / Equipment ID' },
-  { key: 'invoiceNo', label: 'Invoice / Ref No.' },
+  { key: 'meterId', label: 'Meter / Equipment / Permit ID' },
+  { key: 'invoiceNo', label: 'Invoice / Ref / Manifest No.' },
+  { key: 'supplierOrVendor', label: 'Vendor / Authority / Supplier' },
   { key: 'date', label: 'Document Date' },
-  { key: 'labName', label: 'Laboratory' },
-  { key: 'testResult', label: 'Test Result' },
+  { key: 'expiryDate', label: 'Expiry / Due Date' },
+  { key: 'monetaryAmount', label: 'Total Amount (₹)', numeric: true },
+  { key: 'labName', label: 'Laboratory / Agency' },
+  { key: 'testResult', label: 'Test Result / Findings' },
+  { key: 'destinationOrMethod', label: 'Disposal / Treatment Method' },
   { key: 'docType', label: 'Document Type' },
-  { key: 'notes', label: 'Context' },
+  { key: 'notes', label: 'Context / Summary' },
 ]
 
 export function OcrScanButton({
   apiBase,
   onApply,
+  onAttachFile,
   disabled,
 }: {
   apiBase: string
   onApply: (fields: OcrFields) => void
+  onAttachFile?: (file: File) => Promise<void>
   disabled?: boolean
 }) {
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keyMissing, setKeyMissing] = useState(false)
   const [extracted, setExtracted] = useState<OcrFields | null>(null)
+  const [scannedFile, setScannedFile] = useState<File | null>(null)
   const [checked, setChecked] = useState<Set<keyof OcrFields>>(new Set())
   const [draft, setDraft] = useState<Partial<Record<keyof OcrFields, string>>>({})
   const fileRef = useRef<HTMLInputElement>(null)
@@ -72,6 +66,7 @@ export function OcrScanButton({
   const handleFile = async (file: File) => {
     setError(null)
     setScanning(true)
+    setScannedFile(file)
     try {
       const fd = new FormData()
       fd.append('file', file)
@@ -98,7 +93,7 @@ export function OcrScanButton({
     }
   }
 
-  const apply = () => {
+  const apply = async () => {
     if (!extracted) return
     const out: OcrFields = { ...extracted }
     for (const row of FIELD_ROWS) {
@@ -109,7 +104,18 @@ export function OcrScanButton({
       }
     }
     onApply(out)
+
+    // Automatically attach the scanned document to the evidence section
+    if (scannedFile && onAttachFile) {
+      try {
+        await onAttachFile(scannedFile)
+      } catch (err) {
+        console.warn('Auto-attach evidence file failed:', err)
+      }
+    }
+
     setExtracted(null)
+    setScannedFile(null)
   }
 
   const appliedCount = checked.size
@@ -183,29 +189,43 @@ export function OcrScanButton({
                   </div>
                   <div>
                     <div className="text-sm font-black text-slate-900 tracking-tight">AI Document Scan</div>
-                    <div className="text-[11px] text-slate-500">Gemini read this document — confirm before applying</div>
+                    <div className="text-[11px] text-slate-500">Gemini extracted these details — confirm before applying</div>
                   </div>
                 </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${
-                    extracted.confidence === 'high'
-                      ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                      : extracted.confidence === 'medium'
-                        ? 'text-amber-700 bg-amber-50 border-amber-200'
-                        : 'text-slate-600 bg-slate-50 border-slate-200'
-                  }`}
-                >
-                  {extracted.confidence} confidence
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setExtracted(null)}
-                  className="rounded-full p-1.5 text-slate-400 hover:bg-white/70 hover:text-slate-700 transition"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${
+                      extracted.confidence === 'high'
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : extracted.confidence === 'medium'
+                          ? 'text-amber-700 bg-amber-50 border-amber-200'
+                          : 'text-slate-600 bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    {extracted.confidence} confidence
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setExtracted(null)}
+                    className="rounded-full p-1.5 text-slate-400 hover:bg-white/70 hover:text-slate-700 transition"
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
+
+              {scannedFile && (
+                <div className="mt-2.5 flex items-center justify-between gap-2 rounded-xl border border-sky-100 bg-sky-50/70 px-3 py-1.5 text-[11px] text-sky-900">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <Paperclip className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                    <span className="font-semibold truncate">{scannedFile.name}</span>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold text-sky-700 bg-sky-100/80 px-2 py-0.5 rounded-md">
+                    Will auto-attach to Evidence
+                  </span>
+                </div>
+              )}
 
               {/* Editable extracted fields */}
               <div className="mt-3 space-y-1.5">
@@ -236,7 +256,7 @@ export function OcrScanButton({
                       >
                         <CheckCircle2 className="h-3.5 w-3.5" />
                       </button>
-                      <span className="w-32 shrink-0 text-[10.5px] font-bold uppercase tracking-wide text-slate-500">
+                      <span className="w-36 shrink-0 text-[10.5px] font-bold uppercase tracking-wide text-slate-500">
                         {row.label}
                       </span>
                       <input
@@ -267,7 +287,7 @@ export function OcrScanButton({
                   <button
                     type="button"
                     disabled={appliedCount === 0}
-                    onClick={apply}
+                    onClick={() => void apply()}
                     className="btn-liquid-blue flex items-center gap-1.5 rounded-full px-5 py-2 text-[11px] font-extrabold text-white shadow-md transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Sparkles className="h-3.5 w-3.5" />

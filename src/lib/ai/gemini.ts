@@ -11,14 +11,18 @@ export interface OcrFields {
   docType: string | null
   invoiceNo: string | null
   date: string | null
+  expiryDate?: string | null
   sourceName: string | null
+  supplierOrVendor?: string | null
   quantity: string | null
   unit: string | null
+  monetaryAmount?: string | null
   meterOpening: string | null
   meterClosing: string | null
   meterId: string | null
   labName: string | null
   testResult: string | null
+  destinationOrMethod?: string | null
   notes: string | null
   confidence: 'high' | 'medium' | 'low'
 }
@@ -31,32 +35,79 @@ export interface OcrResult {
   rawText?: string
 }
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+const PRIMARY_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash'
+const FALLBACK_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-1.5-flash']
 
-const EXTRACTION_PROMPT = `You are an expert data-extraction engine for an industrial ESG reporting platform.
-Extract the following fields from this utility invoice / meter reading / lab report / delivery document image or PDF.
+const EXTRACTION_PROMPT = `You are an expert data-extraction engine for MEIL (Megha Engineering & Infrastructures Ltd) industrial ESG & BRSR reporting platform.
+Analyze this utility bill, fuel challan/register, meter log, water analysis/tanker slip, hazardous waste manifest, emission test certificate, environmental permit, or site log.
 
+Extract the relevant operational and ESG disclosure values with high precision.
 Rules:
-- Read ONLY what is actually visible in the document. If a field is not present, return null for it.
-- Numbers: digits only, no thousand separators. Keep units exactly as written (kWh, kL, litres, MT, m³...).
-- dates: ISO format (YYYY-MM-DD) when a date is visible.
-- confidence: "high" if the document is a clear bill/meter/log with the quantity readable, "medium" if partially legible, "low" otherwise.
-Return a single JSON object with exactly these keys:
-docType (one of INVOICE | METER_READING | LAB_REPORT | DELIVERY_CHALLAN | REGISTER | OTHER),
-invoiceNo, date, sourceName (the utility/fuel/material name, e.g. "Grid Electricity", "Diesel (HSD)", "Groundwater"),
-quantity, unit, meterOpening, meterClosing, meterId, labName, testResult, notes (one short sentence of context), confidence.`
+- Read ONLY what is actually visible in the document. If a field is not present or cannot be read, return null for it.
+- Numbers: return digits and optional decimal only (strip out commas, currency symbols, and extra text like "/-"). Example: "4500", "12450.50".
+- Dates: return ISO format (YYYY-MM-DD) whenever a date is visible.
+- Units: keep the standard engineering/ESG unit as written or abbreviated (e.g. "kWh", "MWh", "litres", "kL", "m³", "metric tonnes", "kg", "GJ", "tonne-km").
+- Source Name: Identify the utility, material, fuel, pollutant, or permit name (e.g. "Grid electricity", "Diesel (HSD)", "Petrol", "Groundwater", "Surface water", "Used Oil", "Hazardous Waste", "Consent to Operate (CTO)", "PM10 / PM2.5").
+- Confidence: "high" if the core quantity/date/source is clearly legible; "medium" if partially legible or handwritten; "low" if blurry or uncertain.
+
+Return a single JSON object with EXACTLY these keys:
+{
+  "docType": "INVOICE" | "METER_READING" | "LAB_REPORT" | "DELIVERY_CHALLAN" | "REGISTER" | "PERMIT_CONSENT" | "CERTIFICATE" | "OTHER",
+  "invoiceNo": string | null,
+  "date": string | null,
+  "expiryDate": string | null,
+  "sourceName": string | null,
+  "supplierOrVendor": string | null,
+  "quantity": string | null,
+  "unit": string | null,
+  "monetaryAmount": string | null,
+  "meterOpening": string | null,
+  "meterClosing": string | null,
+  "meterId": string | null,
+  "labName": string | null,
+  "testResult": string | null,
+  "destinationOrMethod": string | null,
+  "notes": string | null,
+  "confidence": "high" | "medium" | "low"
+}`
 
 export function isGeminiConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY)
+  return Boolean(process.env.GEMINI_API_KEY?.trim())
+}
+
+function cleanNumeric(v: any): string | null {
+  if (v == null) return null
+  const s = String(v).replace(/,/g, '').trim()
+  const m = s.match(/-?\d+(?:\.\d+)?/)
+  return m ? m[0] : null
+}
+
+function cleanDate(v: any): string | null {
+  if (!v || typeof v !== 'string') return null
+  const s = v.trim()
+  // YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  // DD/MM/YYYY or DD-MM-YYYY
+  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/)
+  if (dmy) {
+    const day = dmy[1].padStart(2, '0')
+    const month = dmy[2].padStart(2, '0')
+    const year = dmy[3]
+    return `${year}-${month}-${day}`
+  }
+  return s
 }
 
 export async function runGeminiOcr(buffer: Buffer, mimeType: string): Promise<OcrResult> {
-  if (!isGeminiConfigured()) {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!apiKey) {
     return { ok: false, keyMissing: true, error: 'GEMINI_API_KEY is not configured on the server.' }
   }
-  if (buffer.length > 10 * 1024 * 1024) {
-    return { ok: false, error: 'File too large for AI scanning (max 10 MB).' }
+  if (buffer.length > 20 * 1024 * 1024) {
+    return { ok: false, error: 'File too large for AI scanning (max 20 MB).' }
   }
+
+  const modelsToTry = Array.from(new Set([PRIMARY_MODEL, ...FALLBACK_MODELS]))
 
   const body = {
     contents: [
@@ -73,54 +124,101 @@ export async function runGeminiOcr(buffer: Buffer, mimeType: string): Promise<Oc
     },
   }
 
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(45000),
-      },
-    )
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      const msg = data?.error?.message || `Gemini API error (${res.status})`
-      return { ok: false, error: msg }
-    }
-    const text: string =
-      data?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join('') ?? ''
-    if (!text) return { ok: false, error: 'Gemini returned no content for this document.' }
+  let lastError = 'AI scan failed'
 
-    let parsed: any
+  for (const model of modelsToTry) {
     try {
-      parsed = JSON.parse(text)
-    } catch {
-      const m = text.match(/\{[\s\S]*\}/)
-      if (!m) return { ok: false, error: 'Could not parse the extraction result.', rawText: text.slice(0, 500) }
-      parsed = JSON.parse(m[0])
-    }
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(45000),
+        },
+      )
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        lastError = data?.error?.message || `Gemini API error (${res.status}) on model ${model}`
+        // If model not found (404), continue to next fallback model
+        if (res.status === 404 || lastError.toLowerCase().includes('not found') || lastError.toLowerCase().includes('no longer available')) {
+          continue
+        }
+        return { ok: false, error: lastError }
+      }
 
-    const allowed = new Set(['INVOICE', 'METER_READING', 'LAB_REPORT', 'DELIVERY_CHALLAN', 'REGISTER', 'OTHER'])
-    const conf = ['high', 'medium', 'low'].includes(parsed?.confidence) ? parsed.confidence : 'low'
-    const fields: OcrFields = {
-      docType: allowed.has(parsed?.docType) ? parsed.docType : parsed?.docType ? 'OTHER' : null,
-      invoiceNo: parsed?.invoiceNo ?? null,
-      date: parsed?.date ?? null,
-      sourceName: parsed?.sourceName ?? null,
-      quantity: parsed?.quantity != null ? String(parsed.quantity) : null,
-      unit: parsed?.unit ?? null,
-      meterOpening: parsed?.meterOpening != null ? String(parsed.meterOpening) : null,
-      meterClosing: parsed?.meterClosing != null ? String(parsed.meterClosing) : null,
-      meterId: parsed?.meterId ?? null,
-      labName: parsed?.labName ?? null,
-      testResult: parsed?.testResult ?? null,
-      notes: parsed?.notes ?? null,
-      confidence: conf,
+      // Collect text from candidate parts (excluding thinking blocks if present)
+      const parts = data?.candidates?.[0]?.content?.parts || []
+      const textParts: string[] = []
+      for (const p of parts) {
+        if (p?.text && !p?.thought) {
+          textParts.push(p.text)
+        }
+      }
+      let raw = textParts.join('').trim()
+      if (!raw) {
+        // Fallback to all parts if no non-thought part
+        raw = parts.map((p: any) => p?.text).filter(Boolean).join('').trim()
+      }
+
+      if (!raw) {
+        return { ok: false, error: 'Gemini returned no content for this document.' }
+      }
+
+      // Clean Markdown code fence if returned
+      const cleanJson = raw
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim()
+
+      let parsed: any
+      try {
+        parsed = JSON.parse(cleanJson)
+      } catch {
+        const m = cleanJson.match(/\{[\s\S]*\}/)
+        if (!m) return { ok: false, error: 'Could not parse the extraction result.', rawText: cleanJson.slice(0, 500) }
+        parsed = JSON.parse(m[0])
+      }
+
+      const allowedTypes = new Set([
+        'INVOICE',
+        'METER_READING',
+        'LAB_REPORT',
+        'DELIVERY_CHALLAN',
+        'REGISTER',
+        'PERMIT_CONSENT',
+        'CERTIFICATE',
+        'OTHER',
+      ])
+
+      const conf = ['high', 'medium', 'low'].includes(parsed?.confidence) ? parsed.confidence : 'medium'
+
+      const fields: OcrFields = {
+        docType: allowedTypes.has(parsed?.docType) ? parsed.docType : parsed?.docType ? 'OTHER' : null,
+        invoiceNo: parsed?.invoiceNo ? String(parsed.invoiceNo).trim() : null,
+        date: cleanDate(parsed?.date),
+        expiryDate: cleanDate(parsed?.expiryDate),
+        sourceName: parsed?.sourceName ? String(parsed.sourceName).trim() : null,
+        supplierOrVendor: parsed?.supplierOrVendor ? String(parsed.supplierOrVendor).trim() : null,
+        quantity: cleanNumeric(parsed?.quantity),
+        unit: parsed?.unit ? String(parsed.unit).trim() : null,
+        monetaryAmount: cleanNumeric(parsed?.monetaryAmount),
+        meterOpening: cleanNumeric(parsed?.meterOpening),
+        meterClosing: cleanNumeric(parsed?.meterClosing),
+        meterId: parsed?.meterId ? String(parsed.meterId).trim() : null,
+        labName: parsed?.labName ? String(parsed.labName).trim() : null,
+        testResult: parsed?.testResult ? String(parsed.testResult).trim() : null,
+        destinationOrMethod: parsed?.destinationOrMethod ? String(parsed.destinationOrMethod).trim() : null,
+        notes: parsed?.notes ? String(parsed.notes).trim() : null,
+        confidence: conf,
+      }
+
+      return { ok: true, fields, rawText: raw }
+    } catch (e: any) {
+      lastError = e?.name === 'TimeoutError' ? 'AI scan timed out — try a smaller/clearer file.' : e?.message || 'AI scan failed'
     }
-    return { ok: true, fields }
-  } catch (e: any) {
-    const msg = e?.name === 'TimeoutError' ? 'AI scan timed out — try a smaller/clearer file.' : e?.message || 'AI scan failed'
-    return { ok: false, error: msg }
   }
+
+  return { ok: false, error: lastError }
 }
