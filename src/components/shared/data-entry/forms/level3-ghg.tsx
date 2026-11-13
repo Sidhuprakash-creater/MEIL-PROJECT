@@ -9,6 +9,89 @@ import { inputClass, FormGrid, FormField, FormSaveActions, useDraftBucket, type 
 import { type Project, type Period, useApiBase } from '../core'
 
 /* ============================================================
+   SUPPORTING RECORD PICKER — dropdown of record types (E-way
+   bill, LR copy, ticket, invoice…) + free-text reference. The
+   stored value stays a single string: "<Type> — <reference>"
+   so existing payloads/parsers keep working. "Other (type
+   manually)" lets the user keep free-form text.
+   ============================================================ */
+const TRANSPORT_RECORD_KINDS = [
+  'E-Way Bill', 'LR Copy (Lorry Receipt)', 'Freight Invoice', 'Consignment Note',
+  'Delivery Challan', 'Gate Pass', 'Weighbridge Slip', 'Fuel Receipt', 'Toll Receipt',
+  'GPS Tracking Report', 'Driver Trip Sheet', 'Customs Clearance Doc', 'Insurance Certificate',
+  'Other (type manually)',
+]
+
+function TransportRecordPicker({
+  value,
+  onChange,
+  readOnly,
+  inputClass,
+  kinds = TRANSPORT_RECORD_KINDS,
+  refPlaceholder = 'e.g. EWB-991023 / LR-4471 — transporter invoice #',
+}: {
+  value: string
+  onChange: (v: string) => void
+  readOnly?: boolean
+  inputClass: string
+  kinds?: string[]
+  refPlaceholder?: string
+}) {
+  const OTHER = 'Other (type manually)'
+  const SEP = ' — '
+  const sepIdx = value.indexOf(SEP)
+  const knownType = sepIdx >= 0 && kinds.includes(value.slice(0, sepIdx)) ? value.slice(0, sepIdx) : ''
+  const isOther = !knownType
+  const refPart = sepIdx >= 0 && knownType ? value.slice(sepIdx + SEP.length) : value
+
+  const selectValue = knownType || OTHER
+  const setType = (next: string) => {
+    if (next === OTHER) {
+      /* switch to free-form: keep whatever reference text exists */
+      onChange(refPart)
+    } else {
+      const ref = isOther && value ? value : refPart
+      onChange(ref ? `${next}${SEP}${ref}` : next)
+    }
+  }
+  const setRef = (ref: string) => {
+    onChange(selectValue === OTHER ? ref : `${knownType}${SEP}${ref}`)
+  }
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,240px)_1fr]">
+      <select
+        value={selectValue}
+        disabled={readOnly}
+        onChange={(e) => setType(e.target.value)}
+        className={inputClass}
+      >
+        {kinds.map((k) => (
+          <option key={k} value={k}>{k}</option>
+        ))}
+      </select>
+      {selectValue === OTHER ? (
+        <input
+          value={value}
+          disabled={readOnly}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="e.g. Consolidated E-Way Bills & Freight Invoices #FWD-9910"
+          className={inputClass}
+        />
+      ) : (
+        <input
+          value={refPart}
+          disabled={readOnly}
+          onChange={(e) => setRef(e.target.value)}
+          placeholder={refPlaceholder}
+          className={inputClass}
+        />
+      )}
+    </div>
+  )
+}
+
+/* ============================================================
    LEVEL 3: GHG EMISSIONS & AIR QUALITY FORM
    ============================================================ */
 
@@ -1656,13 +1739,7 @@ export function Level3GhgForm({
               </FormField>
 
               <FormField label="Supporting Transport Records" hint="E-way bill, LR copy, invoice reference." full>
-                <input
-                  value={supportingEvidence}
-                  disabled={readOnly}
-                  onChange={(e) => setSupportingEvidence(e.target.value)}
-                  placeholder="e.g. Consolidated E-Way Bills & Freight Invoices #FWD-9910"
-                  className={inputClass}
-                />
+                <TransportRecordPicker value={supportingEvidence} onChange={setSupportingEvidence} readOnly={readOnly} inputClass={inputClass} />
               </FormField>
             </>
           )}
@@ -1762,12 +1839,17 @@ export function Level3GhgForm({
               </FormField>
 
               <FormField label="Travel Records & Booking Evidence" hint="Corporate portal logs & tickets." full>
-                <input
+                <TransportRecordPicker
                   value={supportingEvidence}
-                  disabled={readOnly}
-                  onChange={(e) => setSupportingEvidence(e.target.value)}
-                  placeholder="e.g. Corporate Travel Booking Register & Flight Tickets"
-                  className={inputClass}
+                  onChange={setSupportingEvidence}
+                  readOnly={readOnly}
+                  inputClass={inputClass}
+                  kinds={[
+                    'Flight Ticket', 'Train Ticket', 'Bus Ticket', 'Cab / Taxi Receipt', 'Boarding Pass',
+                    'Hotel Invoice', 'Travel Portal Booking', 'Per-diem Claim', 'Fuel Receipt', 'Toll Receipt',
+                    'Conference Registration', 'Mileage Log', 'Other (type manually)',
+                  ]}
+                  refPlaceholder="e.g. PNR/booking ref — QTR-2026-Q3 #TRV-118"
                 />
               </FormField>
             </>
