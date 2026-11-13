@@ -52,6 +52,20 @@ async function consolidateForReport(report: Awaited<ReturnType<typeof db.brsrRep
   const byCategory: Record<string, number> = {};
   for (const s of approved) {
     byCategory[s.category] = (byCategory[s.category] ?? 0) + s.metricValue;
+    /* Energy disclosures carry their own estimated GHG (Scope 1 + Scope 2)
+       as tCO2e value entries — those tonnes belong in the EMISSIONS total. */
+    if (s.category === "ENERGY") {
+      try {
+        const vals = typeof s.values === "string" ? JSON.parse(s.values || "[]") : s.values;
+        if (Array.isArray(vals)) {
+          for (const v of vals) {
+            if (String(v?.unit || "").trim().toLowerCase() === "tco2e") {
+              byCategory["EMISSIONS"] = (byCategory["EMISSIONS"] ?? 0) + (Number(v?.value) || 0);
+            }
+          }
+        }
+      } catch { /* unparseable values JSON — skip the embedded GHG */ }
+    }
   }
   return { approved, byCategory };
 }
