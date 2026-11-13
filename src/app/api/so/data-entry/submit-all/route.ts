@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse, after } from 'next/server'
 import { ensureSoLevelRecordsLoaded, type LevelRecord } from '@/lib/so/level-records'
 import { getCurrentUser } from '@/lib/so/session'
 import { db } from '@/lib/db'
@@ -12,10 +12,10 @@ import { invalidateSoSubmissionsCache } from '@/lib/portal-cache'
 
 export const runtime = 'nodejs'
 
-/* POST /api/so/data-entry/submit-all — Submit-All for the site-ops portal.
+/* POST /api/so/data-entry/submit-all â€” Submit-All for the site-ops portal.
    The shared DataEntryModule posts its FULL form-state cache (`formStateRef.current`)
    here. Each bucket is keyed `l{n}-{projectId}-{periodId}` (legacy unscoped
-   `level{n}` keys supported) and contains BARE form data — NOT a wrapped
+   `level{n}` keys supported) and contains BARE form data â€” NOT a wrapped
    single-level POST body. This route therefore:
      1. resolves project + period server-side,
      2. picks the filled level buckets for the CURRENT project+period scope
@@ -27,30 +27,30 @@ export const runtime = 'nodejs'
      4. upserts the consolidated ALL_LEVELS dossier row the shared client's
         post-submit verification (and the Project Admin console) requires.
    Response shape mirrors the PU twin: { ok, items, submittedCount, dossierId,
-   timestamp, contributor } — the shared success modal reads those fields. */
+   timestamp, contributor } â€” the shared success modal reads those fields. */
 
 const BRSR_LEVELS = [
-  { level: 1, moduleKey: 'ENERGY', category: 'ENERGY', name: 'Level 1 — Energy Consumption' },
-  { level: 2, moduleKey: 'WATER', category: 'WATER', name: 'Level 2 — Water Management' },
-  { level: 3, moduleKey: 'EMISSIONS', category: 'EMISSIONS', name: 'Level 3 — GHG Emissions & Air Quality' },
-  { level: 4, moduleKey: 'WASTE', category: 'WASTE', name: 'Level 4 — Waste Management' },
-  { level: 5, moduleKey: 'SAFETY', category: 'SAFETY', name: 'Level 5 — Health & Safety' },
-  { level: 6, moduleKey: 'TRAINING', category: 'WORKFORCE', name: 'Level 6 — Training & Workforce Well-being' },
-  { level: 7, moduleKey: 'COMPLIANCE', category: 'COMPLIANCE', name: 'Level 7 — Environmental Permits & Compliance' },
-  { level: 8, moduleKey: 'INCIDENTS', category: 'SAFETY', name: 'Level 8 — Environmental Incidents & Grievances' },
-  { level: 9, moduleKey: 'INITIATIVES', category: 'CSR', name: 'Level 9 — Energy & Environmental Initiatives' },
+  { level: 1, moduleKey: 'ENERGY', category: 'ENERGY', name: 'Level 1 â€” Energy Consumption' },
+  { level: 2, moduleKey: 'WATER', category: 'WATER', name: 'Level 2 â€” Water Management' },
+  { level: 3, moduleKey: 'EMISSIONS', category: 'EMISSIONS', name: 'Level 3 â€” GHG Emissions & Air Quality' },
+  { level: 4, moduleKey: 'WASTE', category: 'WASTE', name: 'Level 4 â€” Waste Management' },
+  { level: 5, moduleKey: 'SAFETY', category: 'SAFETY', name: 'Level 5 â€” Health & Safety' },
+  { level: 6, moduleKey: 'TRAINING', category: 'WORKFORCE', name: 'Level 6 â€” Training & Workforce Well-being' },
+  { level: 7, moduleKey: 'COMPLIANCE', category: 'COMPLIANCE', name: 'Level 7 â€” Environmental Permits & Compliance' },
+  { level: 8, moduleKey: 'INCIDENTS', category: 'SAFETY', name: 'Level 8 â€” Environmental Incidents & Grievances' },
+  { level: 9, moduleKey: 'INITIATIVES', category: 'CSR', name: 'Level 9 â€” Energy & Environmental Initiatives' },
 ]
 
-/* UI level ↔ internal store level aliases — ONE DIRECTION ONLY (same map as
-   the PU twin): visible Level 5 (Permits) stages under `l7-…` and visible
-   Level 6 (Initiatives) under `l9-…`, so internal levels 7/9 probe the UI
+/* UI level â†” internal store level aliases â€” ONE DIRECTION ONLY (same map as
+   the PU twin): visible Level 5 (Permits) stages under `l7-â€¦` and visible
+   Level 6 (Initiatives) under `l9-â€¦`, so internal levels 7/9 probe the UI
    keys. The reverse must NOT be probed: legacy levels 5 (Safety) / 6
    (Training) have no UI form anymore and aliasing them duplicated data into
    fake TRAINING/SAFETY submissions. */
 const LEVEL_ALIASES: Record<number, number[]> = { 7: [5], 9: [6] }
 
 /** A bucket counts as "filled" when it has staged items OR any non-empty
-    value — mirroring the PU twin's entryHasData semantics (the previous SO
+    value â€” mirroring the PU twin's entryHasData semantics (the previous SO
     implementation only looked at strings / numbers > 0 and silently skipped
     valid buckets). */
 function entryHasData(entry: unknown): boolean {
@@ -65,7 +65,7 @@ function entryHasData(entry: unknown): boolean {
 }
 
 /** Resolve the staged bucket for a level within the CURRENT project+period
-    scope only — stale buckets from other projects/periods are never
+    scope only â€” stale buckets from other projects/periods are never
     submitted. */
 function resolveLevelData(
   allData: Record<string, Record<string, any>>,
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
     const allData: Record<string, Record<string, any>> =
       body?.allData && typeof body.allData === 'object' ? body.allData : {}
 
-    // 1. Resolve project — server decides, never the client
+    // 1. Resolve project â€” server decides, never the client
     let project = projectId
       ? await db.project.findUnique({
           where: { id: projectId },
@@ -127,12 +127,12 @@ export async function POST(req: NextRequest) {
 
     if (!project) {
       return NextResponse.json(
-        { error: 'Select a valid project before submitting — no matching project found in your scope.' },
+        { error: 'Select a valid project before submitting â€” no matching project found in your scope.' },
         { status: 400 },
       )
     }
 
-    // 2. Resolve reporting period — by id, else the latest OPEN period
+    // 2. Resolve reporting period â€” by id, else the latest OPEN period
     let period = reportingPeriodId
       ? await db.reportingPeriod.findUnique({ where: { id: reportingPeriodId } })
       : null
@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
 
     for (const lvl of BRSR_LEVELS) {
       const bucket = resolveLevelData(allData, lvl, projId, perId)
-      if (!bucket) continue // level the user never filled — skipped entirely
+      if (!bucket) continue // level the user never filled â€” skipped entirely
 
       const evidenceId = bucket.evidenceId || undefined
       const evidenceIds = Array.isArray(bucket.evidenceIds) ? bucket.evidenceIds.filter(Boolean) : []
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
          single-level handler requires (level / projectId / reportingPeriodId /
          data) and mark it submitForReview so records + submissions land as
          SUBMITTED, not DRAFT. */
-      /* Forward auth cookies but drop content-length — the inner body differs
+      /* Forward auth cookies but drop content-length â€” the inner body differs
          in size from the outer request and a stale length can break dispatch. */
       const fwdHeaders = new Headers(req.headers)
       fwdHeaders.delete('content-length')
@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
             metric,
             recordId: recId,
           })
-          highlights.push({ label: lvl.name.split('—')[1]?.trim() || lvl.name, value: metric })
+          highlights.push({ label: lvl.name.split('â€”')[1]?.trim() || lvl.name, value: metric })
           results.push({ key: `l${lvl.level}`, level: lvl.level, ok: true })
         } else {
           results.push({ key: `l${lvl.level}`, level: lvl.level, ok: false, error: j?.error || `Level ${lvl.level} failed validation` })
@@ -238,8 +238,8 @@ export async function POST(req: NextRequest) {
         {
           error:
             results.length === 0
-              ? 'No level data found to submit — capture data in at least one level first (fill a form and stage/save it before Submit All).'
-              : `No levels could be submitted — ${firstError || 'the payloads failed validation.'}`,
+              ? 'No level data found to submit â€” capture data in at least one level first (fill a form and stage/save it before Submit All).'
+              : `No levels could be submitted â€” ${firstError || 'the payloads failed validation.'}`,
           results,
         },
         { status: 400 },
@@ -259,10 +259,10 @@ export async function POST(req: NextRequest) {
     }
     const dossierEvidence = [...dossierEvidenceIds].map((id) => evidenceNameById.get(id) || id)
 
-    // 5. Upsert the consolidated ALL_LEVELS dossier — BOTH ledgers:
+    // 5. Upsert the consolidated ALL_LEVELS dossier â€” BOTH ledgers:
     //    soSubmission (the site-ops console + the shared client's verification)
     //    and db.submission (the unified ledger the Project Admin reads).
-    const dossierTitle = `${project.name} — Complete Site ESG Disclosure Package (${(period as any).periodLabel || (period as any).label || 'FY 2026-27'})`
+    const dossierTitle = `${project.name} â€” Complete Site ESG Disclosure Package (${(period as any).periodLabel || (period as any).label || 'FY 2026-27'})`
     const dossierData = {
       title: dossierTitle,
       status: 'SUBMITTED',
@@ -341,11 +341,11 @@ export async function POST(req: NextRequest) {
       console.warn('Submit-all dossier upsert notice:', e)
     }
 
-    // 6. History / notification / activity / audit — best effort
+    // 6. History / notification / activity / audit â€” best effort
     const roleLabel = primaryRoleLabel(user)
-    /* REAL EMAIL — notify the project's own admins off-platform as well.
-       Fire-and-forget: a mail failure never blocks the submission. */
-    void (async () => {
+    /* REAL EMAIL â€” notify the project's own admins off-platform. Runs via
+       next/server `after()` so it survives the serverless response freeze. */
+    after(async () => {
       try {
         const { sendSubmissionReceivedEmail } = await import("@/lib/notify/email")
         const admins = await db.user.findMany({
@@ -366,11 +366,12 @@ export async function POST(req: NextRequest) {
             packageRef: dossier?.id || null,
           })
           if (!res.sent) console.warn('Submission email not sent:', res.reason)
+          else console.log('[email] submission alert sent to', admin.email, 'via', res.transport)
         }
       } catch (mailErr) {
         console.warn('Submission email dispatch failed:', mailErr)
       }
-    })()
+    })
     Promise.allSettled([
       db.notification.create({
         data: {

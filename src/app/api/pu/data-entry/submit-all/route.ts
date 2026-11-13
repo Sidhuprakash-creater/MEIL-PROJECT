@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { NextRequest, NextResponse, after } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { db } from '@/lib/pu/db'
 import { ensureLevelRecordsLoaded, saveManyLevelRecords } from '@/lib/pu/level-records'
@@ -15,7 +15,7 @@ interface MetricDetail {
   unit?: string
 }
 
-/* Metrics are derived from the ACTUAL submitted record data — never from demo
+/* Metrics are derived from the ACTUAL submitted record data â€” never from demo
    defaults. Per-source items become one metric row each; scalar fallbacks only
    surface values the user actually entered. */
 function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {}, calculation?: Record<string, any> | null): {
@@ -43,7 +43,7 @@ function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {},
       metricUnit = 'GJ'
       values.push({ label: it.energySource || 'Energy source', value: fmt(it.consumptionQuantity), unit: it.unit || '' })
       if (Number(it.estTco2e) > 0) {
-        values.push({ label: `${it.energySource || 'Source'} — Est. GHG`, value: Number(it.estTco2e).toFixed(2), unit: 'tCO2e' })
+        values.push({ label: `${it.energySource || 'Source'} â€” Est. GHG`, value: Number(it.estTco2e).toFixed(2), unit: 'tCO2e' })
       }
       metricValue += Number(it.estGj) || 0
     } else if (m === 'WATER') {
@@ -51,7 +51,7 @@ function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {},
       metricUnit = 'kL'
       values.push({ label: it.waterSource || 'Water source', value: fmt(it.waterQuantity), unit: it.unit || 'kL' })
       if (Number(it.waterReusedRecycled) > 0) {
-        values.push({ label: `${it.waterSource || 'Source'} — Reused/Recycled`, value: fmt(it.waterReusedRecycled), unit: it.unit || 'kL' })
+        values.push({ label: `${it.waterSource || 'Source'} â€” Reused/Recycled`, value: fmt(it.waterReusedRecycled), unit: it.unit || 'kL' })
       }
       metricValue += Number(it.waterQuantity) || 0
     } else if (m === 'EMISSIONS') {
@@ -64,7 +64,7 @@ function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {},
           : String(it.emissionDataType || '').includes('3')
             ? 'Scope 3'
             : 'Air / Monitoring'
-      values.push({ label: `${scopeTag} — ${it.emissionSource || it.sourceCategory || 'Source'}`, value: Number(it.estTco2e || 0).toFixed(2), unit: 'tCO2e' })
+      values.push({ label: `${scopeTag} â€” ${it.emissionSource || it.sourceCategory || 'Source'}`, value: Number(it.estTco2e || 0).toFixed(2), unit: 'tCO2e' })
       if (scopeTag === 'Scope 1' || scopeTag === 'Scope 2') metricValue += Number(it.estTco2e) || 0
     } else if (m === 'WASTE') {
       metricName = 'Total Waste Generated'
@@ -74,17 +74,17 @@ function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {},
     } else if (m === 'COMPLIANCE') {
       metricName = 'Permits & Regulatory Approvals'
       metricUnit = 'permits'
-      values.push({ label: it.permitConsentType || 'Permit', value: it.permitNumber || '—', unit: it.permitStatus || '' })
+      values.push({ label: it.permitConsentType || 'Permit', value: it.permitNumber || 'â€”', unit: it.permitStatus || '' })
       metricValue += 1
     } else if (m === 'INITIATIVES') {
       metricName = 'Energy Conservation Initiatives'
       metricUnit = 'programs'
-      values.push({ label: it.title || it.category || it.initiativeName || 'Initiative', value: it.physicalOutputQuantity || it.output || '—', unit: it.unit || '' })
+      values.push({ label: it.title || it.category || it.initiativeName || 'Initiative', value: it.physicalOutputQuantity || it.output || 'â€”', unit: it.unit || '' })
       metricValue += 1
     } else {
-      // SAFETY / TRAINING / INCIDENTS — render item label/value when present
+      // SAFETY / TRAINING / INCIDENTS â€” render item label/value when present
       const label = it.title || it.trainingName || it.incidentType || it.category || 'Entry'
-      const value = it.value ?? it.count ?? it.quantity ?? it.hours ?? '—'
+      const value = it.value ?? it.count ?? it.quantity ?? it.hours ?? 'â€”'
       values.push({ label, value: fmt(value), unit: it.unit || '' })
       metricValue += Number(value) || 0
     }
@@ -112,20 +112,20 @@ function computeModuleMetrics(moduleKey: string, data: Record<string, any> = {},
 }
 
 const BRSR_LEVELS = [
-  { level: 1, moduleKey: 'ENERGY', category: 'ENERGY', name: 'Level 1 — Energy Consumption' },
-  { level: 2, moduleKey: 'WATER', category: 'WATER', name: 'Level 2 — Water Management' },
-  { level: 3, moduleKey: 'EMISSIONS', category: 'EMISSIONS', name: 'Level 3 — GHG Emissions & Air Quality' },
-  { level: 4, moduleKey: 'WASTE', category: 'WASTE', name: 'Level 4 — Waste Management' },
-  { level: 5, moduleKey: 'SAFETY', category: 'SAFETY', name: 'Level 5 — Health & Safety' },
-  { level: 6, moduleKey: 'TRAINING', category: 'WORKFORCE', name: 'Level 6 — Training & Workforce Well-being' },
-  { level: 7, moduleKey: 'COMPLIANCE', category: 'COMPLIANCE', name: 'Level 7 — Environmental Permits & Compliance' },
-  { level: 8, moduleKey: 'INCIDENTS', category: 'SAFETY', name: 'Level 8 — Environmental Incidents & Grievances' },
-  { level: 9, moduleKey: 'INITIATIVES', category: 'CSR', name: 'Level 9 — Energy & Environmental Initiatives' },
+  { level: 1, moduleKey: 'ENERGY', category: 'ENERGY', name: 'Level 1 â€” Energy Consumption' },
+  { level: 2, moduleKey: 'WATER', category: 'WATER', name: 'Level 2 â€” Water Management' },
+  { level: 3, moduleKey: 'EMISSIONS', category: 'EMISSIONS', name: 'Level 3 â€” GHG Emissions & Air Quality' },
+  { level: 4, moduleKey: 'WASTE', category: 'WASTE', name: 'Level 4 â€” Waste Management' },
+  { level: 5, moduleKey: 'SAFETY', category: 'SAFETY', name: 'Level 5 â€” Health & Safety' },
+  { level: 6, moduleKey: 'TRAINING', category: 'WORKFORCE', name: 'Level 6 â€” Training & Workforce Well-being' },
+  { level: 7, moduleKey: 'COMPLIANCE', category: 'COMPLIANCE', name: 'Level 7 â€” Environmental Permits & Compliance' },
+  { level: 8, moduleKey: 'INCIDENTS', category: 'SAFETY', name: 'Level 8 â€” Environmental Incidents & Grievances' },
+  { level: 9, moduleKey: 'INITIATIVES', category: 'CSR', name: 'Level 9 â€” Energy & Environmental Initiatives' },
 ]
 
-/* UI level ↔ internal store level aliases — ONE DIRECTION ONLY: the visible
-   Level 5 (Permits) stages under `l7-…` and visible Level 6 (Initiatives)
-   under `l9-…`, so internal levels 7/9 probe the UI keys. The reverse must
+/* UI level â†” internal store level aliases â€” ONE DIRECTION ONLY: the visible
+   Level 5 (Permits) stages under `l7-â€¦` and visible Level 6 (Initiatives)
+   under `l9-â€¦`, so internal levels 7/9 probe the UI keys. The reverse must
    NOT be probed: legacy levels 5 (Safety) / 6 (Training) have no UI form
    anymore, and aliasing them to the l7/l9 keys duplicated the same data into
    fake TRAINING/SAFETY submissions. */
@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     }) : null
 
     /* SCOPE: a project-scoped contributor may ONLY submit for their own
-       project — the server decides, never the client. */
+       project â€” the server decides, never the client. */
     try {
       const scoped = await resolveProjectForUser(user, projectId, true)
       project = await db.project.findUnique({
@@ -212,8 +212,8 @@ export async function POST(req: NextRequest) {
 
     /* Persist every FILLED level with ONE read + ONE write of the store file.
        Forms stage data under scoped keys `l{n}-{projectId}-{periodId}` (with
-       legacy aliases for UI levels 5/6 → level7/level9); levels the user did
-       not fill are skipped entirely — final submission does NOT require all
+       legacy aliases for UI levels 5/6 â†’ level7/level9); levels the user did
+       not fill are skipped entirely â€” final submission does NOT require all
        levels to be filled. */
     const resolveLevelData = (lvl: { level: number; moduleKey: string }): Record<string, any> => {
       const candidates = [lvl.level, ...(LEVEL_ALIASES[lvl.level] ?? [])]
@@ -269,7 +269,7 @@ export async function POST(req: NextRequest) {
     const evidenceNamesFor = (rec: any): string[] =>
       Array.from(new Set(evidenceIdsFor(rec).map((id) => evidenceNameById.get(id)).filter(Boolean))) as string[]
 
-    // Process only the levels that actually carried data — upserts run concurrently
+    // Process only the levels that actually carried data â€” upserts run concurrently
     const filledLevels = BRSR_LEVELS.filter((lvl) => recByLevel.has(`level${lvl.level}`))
     const upsertPromises = filledLevels.map(async (lvl) => {
       const levelKey = `level${lvl.level}`
@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
       const metrics = computeModuleMetrics(lvl.moduleKey, levelData, rec.calculation as any)
       const levelEvidence = evidenceNamesFor(rec)
 
-      const submissionTitle = `${project.name} — ${lvl.name} (${(period as any).periodLabel || (period as any).label || 'Q4 FY 2025-26'})`
+      const submissionTitle = `${project.name} â€” ${lvl.name} (${(period as any).periodLabel || (period as any).label || 'Q4 FY 2025-26'})`
       const existingSub = existingMap.get(lvl.moduleKey)
 
       let sub
@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
           metric: `${metrics.metricValue} ${metrics.metricUnit}`,
         },
         highlight: {
-          label: lvl.name.split('—')[1]?.trim() || lvl.name,
+          label: lvl.name.split('â€”')[1]?.trim() || lvl.name,
           value: `${metrics.metricValue} ${metrics.metricUnit}`.trim(),
         }
       }
@@ -357,11 +357,11 @@ export async function POST(req: NextRequest) {
     })
 
     if (submittedList.length === 0) {
-      return NextResponse.json({ error: 'No level data found to submit — capture data in at least one level first.' }, { status: 400 })
+      return NextResponse.json({ error: 'No level data found to submit â€” capture data in at least one level first.' }, { status: 400 })
     }
 
     // 4. Create Master Consolidated Disclosure Dossier for the Project Admin
-    const dossierTitle = `${project.name} — Complete Site ESG Disclosure Package (${(period as any).periodLabel || (period as any).label || 'FY 2025-26'})`
+    const dossierTitle = `${project.name} â€” Complete Site ESG Disclosure Package (${(period as any).periodLabel || (period as any).label || 'FY 2025-26'})`
     const existingDossier = existingMap.get('ALL_LEVELS')
 
     /* The dossier links EVERY saved level record so the PU detail modal and the
@@ -412,10 +412,10 @@ export async function POST(req: NextRequest) {
 
     // 6. Generate real-time notification for Project Admin
     const roleLabel = primaryRoleLabel(user)
-    /* REAL EMAIL — every submission emails the project's own admins so the
-       review request reaches them outside the platform as well. Fire-and-
-       forget: a mail failure must never block the submission. */
-    void (async () => {
+    /* REAL EMAIL â€” every submission emails the project's own admins. Runs via
+       next/server `after()` so it survives the serverless response freeze
+       (a bare fire-and-forget promise never executed in production). */
+    after(async () => {
       try {
         const { sendSubmissionReceivedEmail } = await import("@/lib/notify/email")
         const admins = await db.user.findMany({
@@ -436,11 +436,12 @@ export async function POST(req: NextRequest) {
             packageRef: masterDossier.ref,
           })
           if (!res.sent) console.warn("Submission email not sent:", res.reason)
+          else console.log("[email] submission alert sent to", admin.email, "via", res.transport)
         }
       } catch (mailErr) {
         console.warn("Submission email dispatch failed:", mailErr)
       }
-    })()
+    })
     Promise.allSettled([
       db.notification.create({
         data: {

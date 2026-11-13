@@ -1,5 +1,5 @@
-import { ensureLevelRecordsLoaded } from '@/lib/pu/level-records';
-import { NextRequest, NextResponse } from 'next/server'
+﻿import { ensureLevelRecordsLoaded } from '@/lib/pu/level-records';
+import { NextRequest, NextResponse, after } from 'next/server'
 import { getCurrentUser } from '@/lib/pu/session'
 import { db } from '@/lib/pu/db'
 import { moduleToCategory } from '@/lib/bridge/pu-link'
@@ -32,7 +32,7 @@ const verifiedPeriodIds = new Set<string>()
 const projectMetaCache = new Map<string, { id: string; name: string; code: string }>()
 const periodMetaCache = new Map<string, { id: string; periodLabel: string; year: number; submissionDeadline: Date | null }>()
 
-/* Emission factor master rarely changes — cache it instead of querying on
+/* Emission factor master rarely changes â€” cache it instead of querying on
    every Level-3 save (route previously re-queried per request). */
 let factorMasterCache: { rows: any[]; expiresAt: number } | null = null
 const FACTOR_MASTER_TTL_MS = 60000
@@ -48,7 +48,7 @@ async function getActiveEmissionFactors() {
 
 /**
  * Find evidence that is attached to TWO DIFFERENT source items of the same
- * record. One document may back only one source — otherwise a single invoice
+ * record. One document may back only one source â€” otherwise a single invoice
  * would be counted as the proof for two different fuels.
  */
 function findDuplicateEvidenceAcrossSources(
@@ -92,7 +92,7 @@ function extractModuleMetrics(moduleKey: string, data: Record<string, any> = {},
   let metricUnit = ''
 
   // Itemized multi-source captures (levels 1/2/4 staged draft items) take
-  // priority — one metric row per captured source, mirroring exactly what the
+  // priority â€” one metric row per captured source, mirroring exactly what the
   // contributor staged on the left panel form.
   const stagedItems: any[] = Array.isArray(data?.items) ? data.items : []
 
@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
     const records = getLevelRecords(projectId, periodId, level)
 
     /* Reviewer corrections ride along so the Data Entry screen can show WHY a
-       record was sent back — keyed by the record they target. Served from a
+       record was sent back â€” keyed by the record they target. Served from a
        short-TTL cache (cleared on every submission mutation) so the screen
        loads without the ~1s remote round trip. */
     const correctionsByRecord: Record<string, any[]> = {}
@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
       }
     }
     /* SCOPE: a project-scoped contributor may ONLY write into their own
-       project. The client can send any project id — the server decides. */
+       project. The client can send any project id â€” the server decides. */
     try {
       const scoped = await resolveProjectForUser(user, projectId, true)
       projectId = scoped.id
@@ -516,7 +516,7 @@ export async function POST(req: NextRequest) {
       }
 
       case 3: {
-        // GHG & Air Quality — Enhanced Calculation Engine with DB Factor Master Lineage
+        // GHG & Air Quality â€” Enhanced Calculation Engine with DB Factor Master Lineage
         const activeFactors = await getActiveEmissionFactors()
 
         const findDbFactor = (sourceStr: string, fuelStr: string, unitStr: string) => {
@@ -619,13 +619,13 @@ export async function POST(req: NextRequest) {
               let benchmark = 'NAAQS / CPCB Norm'
               if (String(it.pollutantType).includes('PM10') && measuredVal > 100) {
                 compliant = false
-                benchmark = 'NAAQS 24-hr PM10 limit: 100 µg/m³'
+                benchmark = 'NAAQS 24-hr PM10 limit: 100 Âµg/mÂ³'
               } else if (String(it.pollutantType).includes('PM2.5') && measuredVal > 60) {
                 compliant = false
-                benchmark = 'NAAQS 24-hr PM2.5 limit: 60 µg/m³'
-              } else if (String(it.pollutantType).includes('NOx') && measuredVal > 750 && it.unit?.includes('mg/Nm³')) {
+                benchmark = 'NAAQS 24-hr PM2.5 limit: 60 Âµg/mÂ³'
+              } else if (String(it.pollutantType).includes('NOx') && measuredVal > 750 && it.unit?.includes('mg/NmÂ³')) {
                 compliant = false
-                benchmark = 'CPCB DG Stack NOx limit: 750 mg/Nm³'
+                benchmark = 'CPCB DG Stack NOx limit: 750 mg/NmÂ³'
               }
 
               if (!compliant) {
@@ -656,7 +656,7 @@ export async function POST(req: NextRequest) {
                 issues.push({
                   ruleCode: 'GHG-FACTOR-UNCONFIGURED',
                   severity: 'WARNING',
-                  message: `Emission Factor Not Configured — ESG Review Required for '${it.emissionSource}'.`,
+                  message: `Emission Factor Not Configured â€” ESG Review Required for '${it.emissionSource}'.`,
                   suggestedAction: 'Configure verified factor in Emission Factor Master.',
                 })
               } else if (!isUnitCompatible(factor.factorUnit, it.unit || '')) {
@@ -716,7 +716,7 @@ export async function POST(req: NextRequest) {
             factorId: `EMISSION-MASTER-V${lineageItems[0]?.factorVersion || 1}`,
             factorVersion: lineageItems[0]?.factorVersion || 1,
             methodologyNote: `Consolidated GHG Protocol Inventory: Scope 1: ${s1Tco2e.toFixed(2)} tCO2e, Scope 2: ${s2Tco2e.toFixed(2)} tCO2e, Scope 3: ${s3Tco2e.toFixed(2)} tCO2e. Air pollutants (${airQualityItems.length} streams) tracked separately per CPCB norms.`,
-            formula: `Sum(Activity Qty × Approved Factor ÷ 1,000) across ${lineageItems.length} GHG sources`,
+            formula: `Sum(Activity Qty Ã— Approved Factor Ã· 1,000) across ${lineageItems.length} GHG sources`,
             calculatedAt: new Date().toISOString(),
             sourceValue: totalActQty,
             sourceUnit: data.unit || 'units',
@@ -758,7 +758,7 @@ export async function POST(req: NextRequest) {
             methodologyNote: factor
               ? `${factor.name} v${factor.version} (${factor.factorValue} ${factor.factorUnit}) via ${factor.sourceDocument || factor.methodology}`
               : `Default factor (${factorVal} kgCO2e/unit)`,
-            formula: `${actQty} ${data.unit} × ${factorVal} ÷ 1,000`,
+            formula: `${actQty} ${data.unit} Ã— ${factorVal} Ã· 1,000`,
             calculatedAt: new Date().toISOString(),
             sourceValue: actQty,
             sourceUnit: data.unit || 'litres',
@@ -804,7 +804,7 @@ export async function POST(req: NextRequest) {
             issues.push({
               ruleCode: 'WST-GEN-NONNEGATIVE',
               severity: 'ERROR',
-              message: 'Quantity generated must be ≥ 0',
+              message: 'Quantity generated must be â‰¥ 0',
               field: 'quantityGenerated',
             })
           }
@@ -953,7 +953,7 @@ export async function POST(req: NextRequest) {
             calculatedValue: daysLeft,
             resultUnit: 'Days until Expiration',
             scope: 'STATUTORY_COMPLIANCE',
-            methodologyNote: daysLeft > 90 ? 'Consent valid & active' : daysLeft > 0 ? 'Renewal in progress window' : 'Expired — immediate action needed',
+            methodologyNote: daysLeft > 90 ? 'Consent valid & active' : daysLeft > 0 ? 'Renewal in progress window' : 'Expired â€” immediate action needed',
             sourceValue: daysLeft,
             sourceUnit: 'Days',
           }
@@ -977,7 +977,7 @@ export async function POST(req: NextRequest) {
           resultUnit: 'LTIFR (/1M person-hrs)',
           scope: 'BRSR_SAFETY',
           derivedLtifr: ltifr,
-          methodologyNote: `Formula: (${ltiCount} LTI × 1,000,000) / ${mhw} person-hours`,
+          methodologyNote: `Formula: (${ltiCount} LTI Ã— 1,000,000) / ${mhw} person-hours`,
           sourceValue: mhw,
           sourceUnit: 'Hours',
         }
@@ -1056,7 +1056,7 @@ export async function POST(req: NextRequest) {
           calculatedValue: Number(personHours.toFixed(1)),
           resultUnit: 'Person-Training-Hours',
           scope: 'BRSR_PEOPLE',
-          methodologyNote: `${pCount} participants × ${durHours.toFixed(1)} hours`,
+          methodologyNote: `${pCount} participants Ã— ${durHours.toFixed(1)} hours`,
           sourceValue: pCount,
           sourceUnit: 'Participants',
         }
@@ -1097,10 +1097,10 @@ export async function POST(req: NextRequest) {
 
     const recId = recordId || `rec-l${level}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
 
-    /* ── DUPLICATE RECORD CHECK ──────────────────────────────────────────────
+    /* â”€â”€ DUPLICATE RECORD CHECK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
        The same logical record (same project, period and level) captured with
        identical values is a double entry. It is flagged rather than silently
-       merged so the contributor decides — the user can confirm the entry is
+       merged so the contributor decides â€” the user can confirm the entry is
        intentional (e.g. a genuine repeat reading) and save anyway. */
     let duplicateRecord: DuplicateRecord | null = null
     try {
@@ -1269,12 +1269,12 @@ export async function POST(req: NextRequest) {
       }
       const periodDeadline: Date | null = per?.submissionDeadline ?? null
 
-      const submissionTitle = `${proj?.name || 'Project'} — ${record.levelName} (${per?.periodLabel || 'FY 2026-27'})`
+      const submissionTitle = `${proj?.name || 'Project'} â€” ${record.levelName} (${per?.periodLabel || 'FY 2026-27'})`
 
       /* ONE evidence document may support only ONE source item of a record.
          The client enforces this too, but a stale tab or a crafted request
          must not be able to file the same invoice as the proof for two
-         different fuels — the numbers would double-count one document and the
+         different fuels â€” the numbers would double-count one document and the
          reviewer's evidence trail becomes meaningless.
 
          Duplicate ids INSIDE one item are harmless (that is the same document
@@ -1288,7 +1288,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             error:
-              `The same evidence document cannot support two sources in one record — ${detail}. Attach a separate document to each source, or remove the duplicate.`,
+              `The same evidence document cannot support two sources in one record â€” ${detail}. Attach a separate document to each source, or remove the duplicate.`,
             code: 'DUPLICATE_EVIDENCE_ACROSS_SOURCES',
             conflicts: duplicateEvidenceConflict,
           },
@@ -1300,7 +1300,7 @@ export async function POST(req: NextRequest) {
       const userBuId = user.scopes?.find((s) => s.scopeType === 'BUSINESS_UNIT')?.scopeId || null
       const userSubId = user.scopes?.find((s) => s.scopeType === 'SUBSIDIARY')?.scopeId || null
 
-      // Evidence names attached to the staged items — persisted on the ledger's
+      // Evidence names attached to the staged items â€” persisted on the ledger's
       // evidence JSON column so the Submissions module shows the real documents.
       const evidenceNames: string[] = Array.from(new Set(
         (Array.isArray(data.items) ? data.items : []).flatMap((it: any) =>
@@ -1315,7 +1315,7 @@ export async function POST(req: NextRequest) {
 
       // Look for an existing open submission (DRAFT or one rejected by Project
       // Admin) for the same project + period + module. A rejected submission is
-      // updated in place on resubmit — never duplicated.
+      // updated in place on resubmit â€” never duplicated.
       const existingDraft = await db.submission.findFirst({
         where: {
           projectId,
@@ -1421,10 +1421,12 @@ export async function POST(req: NextRequest) {
         invalidatePuNotificationsCache()
         invalidatePaServerCache()
 
-        /* REAL EMAIL — single-level submit for review also alerts the
-           project's admins off-platform. Fire-and-forget; a mail failure
-           never blocks the submission. */
-        void (async () => {
+        /* REAL EMAIL â€” single-level submit for review also alerts the
+           project's admins off-platform. next/server `after()` keeps the
+           work alive after the response â€” plain fire-and-forget promises are
+           frozen when a serverless lambda returns, so the mail never went
+           out in production. Mail failure never blocks the submission. */
+        after(async () => {
           try {
             const { sendSubmissionReceivedEmail } = await import('@/lib/notify/email')
             const admins = await db.user.findMany({
@@ -1444,11 +1446,12 @@ export async function POST(req: NextRequest) {
                 packageRef: synchedSubmission.ref,
               })
               if (!res.sent) console.warn('[email] submission alert not sent:', res.reason)
+              else console.log('[email] submission alert sent to', admin.email, 'via', res.transport)
             }
           } catch (mailErr) {
             console.warn('[email] submission alert dispatch failed:', mailErr)
           }
-        })()
+        })
 
         // Fast-path non-blocking background telemetry, audit & platform bridge mirroring
         const subId = synchedSubmission.id
@@ -1470,7 +1473,7 @@ export async function POST(req: NextRequest) {
                 actorName,
                 actorRole,
                 action: 'SUBMIT',
-                comment: `Submitted via Data Entry Workspace — ${levName}`,
+                comment: `Submitted via Data Entry Workspace â€” ${levName}`,
               }),
               appendActivity({
                 projectId,
@@ -1539,7 +1542,7 @@ export async function POST(req: NextRequest) {
       issues,
       calculation,
       derivedLtifr: calculation?.derivedLtifr,
-      /* A repeated capture of the same values — surfaced so the contributor
+      /* A repeated capture of the same values â€” surfaced so the contributor
          can confirm it is intentional. The record is still saved so nothing
          is silently dropped; the client shows the warning. */
       duplicateRecord: duplicateRecord
