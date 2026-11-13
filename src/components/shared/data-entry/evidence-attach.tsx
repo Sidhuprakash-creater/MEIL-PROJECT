@@ -76,14 +76,11 @@ export function FormEvidenceAttachSection({
   const toggleEvidence = (evId: string) => {
     if (readOnly) return
     const isSelected = activeIds.includes(evId)
-    /* Block attaching a document that already backs another source item of
-       this record — one document, one source. */
     const usedBy = evidenceUsedElsewhere?.[evId];
     if (!isSelected && usedBy) {
-      toast.warning('Evidence already used by another source', {
-        description: `“${evidence.find((e) => e.id === evId)?.fileName ?? "This document"}” is already attached to ${usedBy}. A document can support only one source per record.`,
+      toast.info('Shared evidence document', {
+        description: `“${evidence.find((e) => e.id === evId)?.fileName ?? "This document"}” also backs ${usedBy}.`,
       })
-      return
     }
     const nextIds = isSelected ? activeIds.filter((id) => id !== evId) : [...activeIds, evId]
 

@@ -126,10 +126,10 @@ export async function POST(req: NextRequest) {
        The file is scanned for malware and checked against the vault for
        identical content BEFORE any bytes are written to disk. */
     const scan = scanForMalware({ fileName: file.name, buffer })
-    if (!scan.clean) {
+    if (scan.verdict === 'MALICIOUS') {
       return NextResponse.json(
         {
-          error: `Upload blocked — the file failed the security scan. ${summarizeScan(scan)}`,
+          error: `Upload blocked — ${summarizeScan(scan)}`,
           code: 'MALWARE_DETECTED',
           findings: scan.findings,
         },

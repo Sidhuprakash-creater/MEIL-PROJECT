@@ -122,6 +122,13 @@ export async function runGeminiOcr(buffer: Buffer, mimeType: string): Promise<Oc
       temperature: 0.1,
       responseMimeType: 'application/json',
     },
+    safetySettings: [
+      { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
+      { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_NONE' },
+    ],
   }
 
   let lastError = 'AI scan failed'
@@ -162,6 +169,11 @@ export async function runGeminiOcr(buffer: Buffer, mimeType: string): Promise<Oc
       }
 
       if (!raw) {
+        const blockReason = data?.promptFeedback?.blockReason || data?.candidates?.[0]?.finishReason
+        if (blockReason) {
+          lastError = `Gemini returned ${blockReason} for this document.`
+          continue
+        }
         return { ok: false, error: 'Gemini returned no content for this document.' }
       }
 

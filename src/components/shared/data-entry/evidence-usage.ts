@@ -30,20 +30,13 @@ export function evidenceUsedByOtherItems(
   return used;
 }
 
-/** The ids of `selected` that are NOT already taken by another item. */
+/** The ids of `selected` available to be attached (shared composite invoices allowed). */
 export function availableEvidenceIds(
   selected: string[],
-  items: Array<{ id?: string; energySource?: string; sourceName?: string; evidenceId?: string; evidenceIds?: string[] }>,
-  currentItemId?: string | null
+  _items?: Array<{ id?: string; energySource?: string; sourceName?: string; evidenceId?: string; evidenceIds?: string[] }>,
+  _currentItemId?: string | null
 ): { allowed: string[]; blocked: string[] } {
-  const used = evidenceUsedByOtherItems(items, currentItemId);
-  const allowed: string[] = [];
-  const blocked: string[] = [];
-  for (const id of selected) {
-    if (used.has(id)) blocked.push(id);
-    else allowed.push(id);
-  }
-  return { allowed, blocked };
+  return { allowed: [...selected], blocked: [] };
 }
 
 /** Human label of the item that already uses an evidence id. */

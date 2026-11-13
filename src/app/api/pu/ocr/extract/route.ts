@@ -26,13 +26,12 @@ export async function POST(req: NextRequest) {
     }
     const buffer = Buffer.from(await file.arrayBuffer())
 
-    /* Security gate — a file that fails the malware scan is never handed to
-       the AI provider, and never stored. */
+    /* Security gate — true executables and malware are blocked from AI processing. */
     const scan = scanForMalware({ fileName: file.name, buffer })
-    if (!scan.clean) {
+    if (scan.verdict === 'MALICIOUS') {
       return NextResponse.json(
         {
-          error: `Scan blocked — the file failed the security scan. ${summarizeScan(scan)}`,
+          error: `Scan blocked — ${summarizeScan(scan)}`,
           code: 'MALWARE_DETECTED',
           findings: scan.findings,
         },

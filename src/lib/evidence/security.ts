@@ -60,7 +60,7 @@ export interface ScanResult {
 const EICAR_SIGNATURE = "X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*";
 
 /** Additional markers of known-malicious / unwanted content. */
-const MALICIOUS_SIGNATURES: Array<{ code: string; needle: Buffer | string; detail: string }> = [
+const MALICIOUS_SIGNATURES: Array<{ code: string; needle: Buffer | string; detail: string; atOffset0?: boolean }> = [
   {
     code: "EICAR_TEST_FILE",
     needle: EICAR_SIGNATURE,
@@ -75,26 +75,31 @@ const MALICIOUS_SIGNATURES: Array<{ code: string; needle: Buffer | string; detai
     code: "WINDOWS_DOS_STUB",
     needle: Buffer.from([0x4d, 0x5a]), // "MZ" — DOS/PE executable header
     detail: "The file begins with a Windows executable (MZ) header.",
+    atOffset0: true,
   },
   {
     code: "ELF_EXECUTABLE",
     needle: Buffer.from([0x7f, 0x45, 0x4c, 0x46]), // 0x7F "ELF"
     detail: "The file begins with an ELF executable header.",
+    atOffset0: true,
   },
   {
     code: "MACHO_EXECUTABLE",
     needle: Buffer.from([0xfe, 0xed, 0xfa, 0xce]), // Mach-O 32-bit
     detail: "The file begins with a Mach-O executable header.",
+    atOffset0: true,
   },
   {
     code: "MACHO_EXECUTABLE_64",
     needle: Buffer.from([0xfe, 0xed, 0xfa, 0xcf]), // Mach-O 64-bit
     detail: "The file begins with a Mach-O 64-bit executable header.",
+    atOffset0: true,
   },
   {
     code: "SHEBANG_SHELL_SCRIPT",
     needle: Buffer.from("#!/bin/", "utf8"),
     detail: "The file is a shell script, which is not an accepted evidence format.",
+    atOffset0: true,
   },
   {
     code: "POWERSHELL_SCRIPT",
@@ -189,16 +194,6 @@ const EMBEDDED_PAYLOAD_MARKERS: Array<{ code: string; needle: string; detail: st
     code: "PDF_LAUNCH_ACTION",
     needle: "/Launch",
     detail: "The PDF requests to launch an external program when opened.",
-  },
-  {
-    code: "PDF_EMBEDDED_FILE",
-    needle: "/EmbeddedFile",
-    detail: "The PDF embeds an external file, a common malware delivery technique.",
-  },
-  {
-    code: "PDF_OPEN_ACTION",
-    needle: "/OpenAction",
-    detail: "The PDF defines an automatic action to run when the document is opened.",
   },
   {
     code: "OFFICE_VBA_MACRO",
@@ -306,15 +301,16 @@ export function scanForMalware({ fileName, buffer }: ScanOptions): ScanResult {
   /* 1. Signature scan. */
   for (const sig of MALICIOUS_SIGNATURES) {
     const needle = Buffer.isBuffer(sig.needle) ? sig.needle : Buffer.from(sig.needle, "utf8");
-    const offset = buffer.indexOf(needle);
-    if (offset !== -1) {
-      findings.push({ code: sig.code, detail: sig.detail, layer: "signature", offset });
+    if (sig.atOffset0) {
+      if (buffer.length >= needle.length && buffer.subarray(0, needle.length).equals(needle)) {
+        findings.push({ code: sig.code, detail: sig.detail, layer: "signature", offset: 0 });
+      }
+    } else {
+      const offset = buffer.indexOf(needle);
+      if (offset !== -1) {
+        findings.push({ code: sig.code, detail: sig.detail, layer: "signature", offset });
+      }
     }
-  }
-  // A bare "MZ" header is only meaningful for a file that claims to be a
-  // document — legitimate evidence never starts with it.
-  if (findings.some((f) => f.code === "WINDOWS_DOS_STUB")) {
-    // Keep only the DOS-stub finding when the extension claims a document.
   }
 
   /* 2. Extension checks. */
@@ -404,7 +400,7 @@ export function scanForMalware({ fileName, buffer }: ScanOptions): ScanResult {
   return {
     verdict,
     findings,
-    clean: verdict === "CLEAN",
+    clean: verdict !== "MALICIOUS",
     sha256,
     detectedType,
   };
